@@ -1,0 +1,12 @@
+geometry_msgs/Pose goal
+
+string algorithm_name         # Name of the planning algorithm to be used
+
+PathTrackingError end_tolerance     # tolerance for end goal - keep planning until location error is within tolerance
+---
+# Result
+PathTrackingError end_displacement      # Error between end location and goal location
+bool reached_end        # If goal location is reached within given tolerance
+---
+# Feedback
+nav_msgs/Path plan      # Path from current location to goal

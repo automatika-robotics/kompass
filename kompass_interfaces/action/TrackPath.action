@@ -1,0 +1,13 @@
+# Start path following msg
+int32   number_of_cmds
+float64 time_step
+FollowPathRequest follow_path
+---
+# Result
+bool reached_end
+PathTrackingError tracking_error
+---
+# Feedback
+TwistArray  cmd_list
+nav_msgs/Path global_path
+PathTrackingErrorArray tracking_errors

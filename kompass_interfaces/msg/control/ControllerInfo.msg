@@ -1,0 +1,8 @@
+int32 prediction_horizon
+
+PathTrackingError global_path_deviation
+
+float64 compute_time
+
+float64 linear_velocity_control
+float64 angular_velocity_control

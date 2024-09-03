@@ -1,0 +1,4 @@
+float64 recording_time_step
+---
+bool started_recording
+string message

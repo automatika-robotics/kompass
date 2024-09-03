@@ -1,0 +1,60 @@
+/**: # Common parameters for all nodes
+
+  frames:
+    robot_base: "base_link"
+    odom: "map"
+    world: "map"
+    scan: "LDS-01"
+
+controller:
+  loop_rate: 5.0
+  outputs:
+    command:
+      name: '/cmd_vel'
+      msg_type: Twist
+
+  Stanley:
+    cross_track_gain: 1.0
+    heading_gain: 0.3
+
+  DVZ:
+    cross_track_gain: 1.0
+    heading_gain: 0.3
+
+  DWA:
+    control_time_step: 0.05
+    control_horizon: 0.1
+    prediction_horizon: 5.0
+    octree_resolution: 0.1
+    max_linear_samples: 20
+    max_angular_samples: 20
+    costs_weights:
+      goal_distance_weight: 1.0
+      reference_path_distance_weight: 1.0
+      obstacles_distance_weight: 1.0
+      smoothness_weight: 0.0
+      jerk_weight: 0.0
+
+planner:
+  inputs:
+    map_layer:
+      name: '/map'
+      msg_type:   'OccupancyGrid'
+    goal_point:
+      name: '/clicked_point'
+      msg_type:  'PointStamped'
+  visualization:  True
+  detailed_logging: True
+  loop_rate: 1.0
+  number_of_sent_cmds : 5
+  safety_stop_dist:  0.1
+  stop_angle_range : 0.52
+  points_per_meter: 10
+  retries: 0
+  algorithm: 'ompl'
+  ompl:
+    log_level: 'WARN'
+    planning_timeout: 10.0
+    planner_id: 'ompl.geometric.KPIECE1'
+    KPIECE1:
+      optimization_objective: 'MaximizeMinClearanceObjective'

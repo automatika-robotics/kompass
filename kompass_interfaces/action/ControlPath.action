@@ -1,0 +1,10 @@
+int32 path_source
+string path_name        # ROS topic name or path file url
+string path_file_location   # path file location
+int32 controller          # select a controller
+---
+# Result
+PathTrackingError destination_error
+---
+# Feedback
+ControllerInfo control_feedback

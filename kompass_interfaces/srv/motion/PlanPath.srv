@@ -1,0 +1,6 @@
+geometry_msgs/Pose start
+geometry_msgs/Pose goal
+bool from_robot_pose    # True = Plan from current robot position and discard start in request
+---
+bool success
+nav_msgs/Path plan

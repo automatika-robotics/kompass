@@ -1,0 +1,5 @@
+string file_location      # path to save the path xml file location
+string file_name
+---
+float64 path_length
+nav_msgs/Path global_path
