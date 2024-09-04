@@ -6,11 +6,11 @@
 
 Kompass is an event-driven navigation system designed with an easy-to-use and intuitive Python API. Kompass is built to be customizable, extendable and hardware-agnostic. It aims to implement the most cutting edge algorithms for all parts of the navigation stack. And most importantly, it allows users to create very sophisticated navigation capabilities for autonomous mobile robots, within a single python script.
 
-- Find out more about our [**motivation**](docs/why.md) to create Kompass ✨
-- [**Install**](docs/install.md) Kompass on your robot 🛠️
-- To get started with Kompass, check the [**quick start**](docs/quick_start.md) tutorial 🚀
-- Do a deep dive into Kompass [**components**](docs/navigation/index.md) 🤖
-- Learn more about the [**design concepts**](docs/design/index.md) of Kompass 📚
+- Find out more about our [**motivation**](https://automatika-robotics.github.io/kompass/why.html) to create Kompass ✨
+- [**Install**](https://automatika-robotics.github.io/kompass/install.html) Kompass on your robot 🛠️
+- To get started with Kompass, check the [**quick start**](https://automatika-robotics.github.io/kompass/quick_start.html) tutorial 🚀
+- Do a deep dive into Kompass [**components**](https://automatika-robotics.github.io/kompass/navigation/index.html) 🤖
+- Learn more about the [**design concepts**](https://automatika-robotics.github.io/kompass/design/index.html) of Kompass 📚
 
 > [!NOTE]
 > This is an alpha release of Kompass. Breaking changes are to be expected.
@@ -25,10 +25,10 @@ Each of the previous components runs as a ROS2 lifecycle node and communicates w
 
 To learn more about the functionalities and configuration of each component check the component dedicated documentation page:
 
-- [Planner](docs/navigation/path_planning.md)
-- [Controller](docs/navigation/control.md)
-- [Drive Manager](docs/navigation/driver.md)
-- [Motion Server](docs/navigation/motion_server.md)
+- [Planner](https://automatika-robotics.github.io/kompass/navigation/path_planning.html)
+- [Controller](https://automatika-robotics.github.io/kompass/navigation/control.html)
+- [Drive Manager](https://automatika-robotics.github.io/kompass/navigation/driver.html)
+- [Motion Server](https://automatika-robotics.github.io/kompass/navigation/motion_server.html)
 
 ## Copyright
 
