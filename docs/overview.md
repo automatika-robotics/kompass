@@ -2,7 +2,7 @@
 
 # Kompass
 
-Kompass is an event-driven navigation system designed with an easy-to-use and intuitive Python API. Kompass is built to be customizable, extendable and hardware-agnostic. It aims to implement the most cutting edge algorithms for all parts of the navigation stack. And most importantly, it allows users to create very sophisticated navigation capabilities for autonomous mobile robots, within a single python script.
+Kompass is a framework for building robust and comprehensive event-driven navigation stacks using an easy-to-use and intuitive Python API. Kompass is built to be customizable, extendable and hardware-agnostic. It aims to implement the most cutting edge algorithms for all parts of the navigation stack. And most importantly, it allows users to create very sophisticated navigation capabilities for autonomous mobile robots, within a single python script.
 
 - Find out more about our [**motivation**](why.md) to create Kompass ✨
 - [**Install**](install.md) Kompass on your robot 🛠️
