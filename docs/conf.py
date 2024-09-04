@@ -1,17 +1,13 @@
 # Configuration file for the Sphinx documentation builder.
 import os
 import sys
-import subprocess
 from datetime import date
+import xml.etree.ElementTree as ET
 
-sys.path.insert(0, os.path.abspath("../agents"))
-version = (
-    subprocess.run(
-        ["ros2", "pkg", "xml", "kompass", "--tag", "version"], stdout=subprocess.PIPE
-    )
-    .stdout.decode("utf-8")
-    .strip()
-)
+
+sys.path.insert(0, os.path.abspath(".."))
+version = ET.parse("../kompass/package.xml").getroot()[1].text
+print("Found version:", version)
 
 project = "Kompass"
 copyright = f"{date.today().year}, Automatika Robotics"
@@ -57,7 +53,7 @@ myst_enable_extensions = [
     "fieldlist",
     "html_admonition",
     "html_image",
-    "linkify",
+    "linkify",  # install with pip install linkify-it-py
     "replacements",
     "smartquotes",
     "strikethrough",
