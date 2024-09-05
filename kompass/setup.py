@@ -25,6 +25,22 @@ setup(
             os.path.join("share", package_name, "launch"),
             glob(os.path.join("simulation", "launch", "*.py*")),
         ),
+        (
+            os.path.join("share", package_name, "params"),
+            glob(os.path.join("simulation", "resources", "*.yaml")),
+        ),
+        (
+            os.path.join("share", package_name, "params"),
+            glob(os.path.join("simulation", "resources", "*.lua")),
+        ),
+        (
+            os.path.join("share", package_name, "rviz"),
+            glob(os.path.join("simulation", "resources", "*.rviz")),
+        ),
+        (
+            os.path.join("share", package_name, "maps"),
+            glob(os.path.join("simulation", "resources/maps", "*.*")),
+        ),
     ],
     install_requires=["setuptools"],
     zip_safe=True,

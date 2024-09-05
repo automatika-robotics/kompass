@@ -45,7 +45,7 @@ from webots_ros2_driver.wait_for_controller_connection import (
 
 def generate_launch_description():
     package_dir = get_package_share_directory("webots_ros2_turtlebot")
-    current_dir = os.path.dirname(os.path.abspath(__file__))
+    kompass_package_dir = get_package_share_directory("kompass")
     world = LaunchConfiguration("world")
     mode = LaunchConfiguration("mode")
     use_sim_time = LaunchConfiguration("use_sim_time", default=False)
@@ -131,8 +131,8 @@ def generate_launch_description():
         output="screen",
         parameters=[
             os.path.join(
-                current_dir,
-                "../resources",
+                kompass_package_dir,
+                "params",
                 "turtlebot3_localization.yaml",
             )
         ],
@@ -147,7 +147,7 @@ def generate_launch_description():
 
     # Map server
     map_server_config_path = os.path.join(
-        current_dir, "../resources/maps", "turtlebot3_webots.yaml"
+        kompass_package_dir, "maps", "turtlebot3_webots.yaml"
     )
 
     map_server_node = LifecycleNode(
@@ -185,8 +185,8 @@ def generate_launch_description():
     )
 
     rviz_config_dir = os.path.join(
-        current_dir,
-        "../resources",
+        kompass_package_dir,
+        "rviz",
         "webots.rviz",
     )
 

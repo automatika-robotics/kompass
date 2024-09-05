@@ -44,8 +44,8 @@ from webots_ros2_driver.wait_for_controller_connection import (
 
 
 def generate_launch_description():
+    kompass_package_dir = get_package_share_directory("kompass")
     package_dir = get_package_share_directory("webots_ros2_tiago")
-    current_dir = os.path.dirname(os.path.abspath(__file__))
     mode = LaunchConfiguration("mode")
     use_sim_time = LaunchConfiguration("use_sim_time", default=False)
     run_rviz = LaunchConfiguration("run_rviz", default=True)
@@ -128,8 +128,8 @@ def generate_launch_description():
         output="screen",
         parameters=[
             os.path.join(
-                current_dir,
-                "../resources",
+                kompass_package_dir,
+                "params",
                 "tiago_localization.yaml",
             )
         ],
@@ -144,7 +144,7 @@ def generate_launch_description():
 
     # Map server
     map_server_config_path = os.path.join(
-        current_dir, "../resources/maps", "tiago_office.yaml"
+        kompass_package_dir, "maps", "tiago_office.yaml"
     )
 
     map_server_node = LifecycleNode(
@@ -182,8 +182,8 @@ def generate_launch_description():
     )
 
     rviz_config_dir = os.path.join(
-        current_dir,
-        "../resources",
+        kompass_package_dir,
+        "rviz",
         "webots.rviz",
     )
 
