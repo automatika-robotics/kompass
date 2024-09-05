@@ -1,4 +1,4 @@
-from typing import Optional, Union
+from typing import Optional, Union, List, Tuple
 from attrs import define, field
 
 # ROS MSGS
@@ -197,6 +197,64 @@ class Controller(Component):
 
         self._block_types()
 
+    def create_all_timers(self):
+        """Overrides create_all_timers from BaseComponent to add timers for commands execution and tracking publishing"""
+        super().create_all_timers()
+        self.__cmd_execution_timer = self.create_timer(
+            self.config.control_time_step, self._execution_callback
+        )
+        self.__info_publishing_timer = self.create_timer(
+            1 / self.config.loop_rate, self._publishing_callback
+        )
+
+    def destroy_all_timers(self):
+        """Overrides destroy_all_timers from BaseComponent to destroy the timers for commands execution and tracking publishing"""
+        super().destroy_all_timers()
+        self.destroy_timer(self.__cmd_execution_timer)
+        self.destroy_timer(self.__info_publishing_timer)
+
+    def _execution_callback(self):
+        """Commands execution timer callback"""
+        # If end is reached or no commands are available do nothing
+        if self.__reached_end or len(self.__cmd_to_exec) <= 0:
+            return
+        self.get_logger().debug(
+            f"executing one command out of {len(self.__cmd_to_exec)} remaining"
+        )
+        # Get first command to execute
+        cmd = self.__cmd_to_exec[0]
+        if self.config.closed_loop:
+            # Execute in closed loop
+            self.execute_cmd(cmd[0], cmd[1], cmd[2])
+        else:
+            # Publish once
+            self._publish_control(
+                linear_ctr_x=cmd[0],
+                angular_ctr=cmd[1],
+                linear_ctr_y=cmd[2],
+            )
+            self.__ctrl_rate.sleep()
+        # Remove the executed command
+        self.__cmd_to_exec.pop(0)
+
+    def _publishing_callback(self):
+        """Tracking publishing timer callback"""
+        # Publish tracked point on the global path
+        if self.tracked_point:
+            self.publishers_dict[ControllerOutputs.TRACKING.key].publish(
+                self.tracked_point
+            )
+        # Publish local plan
+        if self.local_plan:
+            self.publishers_dict[ControllerOutputs.LOCAL_PLAN.key].publish(
+                self.local_plan
+            )
+        # Publish interpolated path
+        if self.interpolated_path:
+            self.publishers_dict[ControllerOutputs.INTERPOLATION.key].publish(
+                self.interpolated_path
+            )
+
     @property
     def run_type(self) -> ComponentRunType:
         """
@@ -236,6 +294,66 @@ class Controller(Component):
         :rtype: StrEnum
         """
         return self.config.algorithm
+
+    @property
+    def tracked_point(self) -> Optional[PoseStamped]:
+        """
+        Getter of tracked pose on the reference path if a path is set to the controller
+
+        :return: _description_
+        :rtype: StrEnum
+        """
+        tracked_state: Optional[RobotState] = self.__controller.tracked_state
+
+        if not tracked_state:
+            return None
+
+        msg_header = Header()
+        msg_header.frame_id = self.config.frames.world
+        msg_header.stamp = self.get_ros_time()
+
+        pose_stamped = PoseStamped()
+        pose_stamped.header = msg_header
+        pose_stamped.pose.position.x = tracked_state.x
+        pose_stamped.pose.position.y = tracked_state.y
+
+        q_rot = from_euler_to_quaternion(yaw=tracked_state.yaw, pitch=0.0, roll=0.0)
+        pose_stamped.pose.orientation.z = q_rot[3]
+        pose_stamped.pose.orientation.w = q_rot[0]
+        return pose_stamped
+
+    @property
+    def local_plan(self) -> Optional[Path]:
+        """
+        Getter of controller local plan
+
+        :return: _description_
+        :rtype: StrEnum
+        """
+        # NOTE: Only DWA provides a local plan
+        if self.algorithm != LocalPlannersID.DWA:
+            return None
+
+        msg_header = Header()
+        msg_header.frame_id = self.config.frames.world
+        msg_header.stamp = self.get_ros_time()
+
+        local_path = self.__controller.optimal_path(msg_header)
+        return local_path
+
+    @property
+    def interpolated_path(self) -> Optional[Path]:
+        """Getter of interpolated global path
+
+        :return: Path Interpolation
+        :rtype: Optional[Path]
+        """
+        msg_header = Header()
+        msg_header.frame_id = self.config.frames.world
+        msg_header.stamp = self.get_ros_time()
+
+        interpolated_path = self.__controller.interpolated_path(msg_header)
+        return interpolated_path
 
     @algorithm.setter
     def algorithm(self, value: Union[str, LocalPlannersID]) -> None:
@@ -376,6 +494,7 @@ class Controller(Component):
 
         self.__ctrl_rate = self.create_rate(self.config.loop_rate)
         self.__execution_rate = self.create_rate(self.config.loop_rate * 10)
+        self.__cmd_to_exec: List[Tuple] = []
 
         self.__sensor_tf_listener: TFListener = (
             self.depth_tf_listener
@@ -525,50 +644,13 @@ class Controller(Component):
 
         self.health_status.set_healthy()
 
-        msg_header = Header()
-        msg_header.frame_id = self.config.frames.world
-        msg_header.stamp = self.get_ros_time()
-
-        # NOTE: Only DWA provides a local plan
-        if self.algorithm == LocalPlannersID.DWA:
-            local_path = self.__controller.optimal_path(msg_header)
-            self.publishers_dict[ControllerOutputs.LOCAL_PLAN.key].publish(local_path)
-            interpolated_path = self.__controller.interpolated_path(msg_header)
-            self.publishers_dict[ControllerOutputs.INTERPOLATION.key].publish(
-                interpolated_path
+        self.__cmd_to_exec = list(
+            zip(
+                self.__controller.linear_x_control,
+                self.__controller.linear_y_control,
+                self.__controller.angular_control,
             )
-
-        tracked_state: RobotState = self.__controller.tracked_state
-        pose_stamped = PoseStamped()
-        pose_stamped.header = msg_header
-        pose_stamped.pose.position.x = tracked_state.x
-        pose_stamped.pose.position.y = tracked_state.y
-
-        q_rot = from_euler_to_quaternion(yaw=tracked_state.yaw, pitch=0.0, roll=0.0)
-        pose_stamped.pose.orientation.z = q_rot[3]
-        pose_stamped.pose.orientation.w = q_rot[0]
-
-        self.publishers_dict[ControllerOutputs.TRACKING.key].publish(pose_stamped)
-
-        # interpolated_path : Path = self.__controller.interpolated_path
-        for vx, vy, omega in zip(
-            self.__controller.linear_x_control,
-            self.__controller.linear_y_control,
-            self.__controller.angular_control,
-        ):
-            if self.config.closed_loop:
-                self.execute_cmd(vx, vy, omega)
-            else:
-                self._publish_control(
-                    linear_ctr_x=vx,
-                    angular_ctr=omega,
-                    linear_ctr_y=vy,
-                )
-                self.__ctrl_rate.sleep()
-
-            self.__reached_end = self.__controller.reached_end()
-            if self.__reached_end:
-                break
+        )
 
         self.__lat_dist_error = self.__controller.distance_error
         self.__ori_error = self.__controller.orientation_error
