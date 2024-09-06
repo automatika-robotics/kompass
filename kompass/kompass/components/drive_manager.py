@@ -164,6 +164,7 @@ class DriveManager(Component):
         Setup node flags to track operations flow
         """
         self.emergency_stop: bool = False
+        self._unblocking_on: bool = False
         self.__last_unblocked_backwards: bool = False
 
     def init_variables(self):
@@ -341,7 +342,6 @@ class DriveManager(Component):
         :param max_distance: Maximum distance to move when attempting to unblock, defaults to 0.2
         :type max_distance: float, optional
         """
-        self.get_logger().info("Got Unblocking Event")
         if not self.laser_scan:
             self.get_logger().error(
                 "Scan unavailable - Unblocking functionality requires LaserScan information"
@@ -358,6 +358,7 @@ class DriveManager(Component):
             )
             return
 
+        self._unblocking_on = True
         # Try unblocking forward:
         unblocked = self.__unblock_forward(max_distance)
         if not unblocked and not self.__last_unblocked_backwards:
@@ -377,6 +378,7 @@ class DriveManager(Component):
             )
         else:
             self.get_logger().info("Robot Unblocking Done!")
+        self._unblocking_on = False
         return
 
     def __filter_multi_cmds(self, cmd_list, max_acc: float):

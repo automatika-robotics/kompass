@@ -450,7 +450,7 @@ class Planner(Component):
         # Check if all inputs are available
         # goal_point is excluded since goal can be provided by either a topic, service call or action goal
         if self.got_all_inputs(inputs_to_check=["map_layer"]):
-            self.get_logger().info(
+            self.get_logger().debug(
                 f"Setting planning problem with {self.ompl_planner.planner_id} from [{start.x},{start.y}] to [{goal.x}, {goal.y}]"
             )
 

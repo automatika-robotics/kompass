@@ -1,5 +1,10 @@
-from typing import Optional, Union, List, Tuple
+from typing import Optional, Union
 from attrs import define, field
+from queue import Queue, Empty
+import numpy as np
+
+from rclpy.logging import get_logger
+from rclpy.callback_groups import ReentrantCallbackGroup
 
 # ROS MSGS
 from nav_msgs.msg import Path
@@ -29,7 +34,7 @@ from ..topic import (
     update_topics_config,
 )
 from ..utils import component_action
-from ..callbacks import LaserScanCallback, PointCloudCallback
+from ..callbacks import PointCloudCallback
 
 # KOMPASS MSGS/SRVS/ACTIONS
 from .component import Component, TFListener
@@ -43,6 +48,7 @@ class ControllerInputs(RestrictedTopicsConfig):
     SENSOR_DATA: AllowedTopic = AllowedTopic(
         key="sensor_data", types=["LaserScan", "PointCloud2"]
     )
+    LOCAL_MAP: AllowedTopic = AllowedTopic(key="local_map", types=["OccupancyGrid"])
     LOCATION: AllowedTopic = AllowedTopic(key="location", types=["Odometry"])
 
 
@@ -63,6 +69,7 @@ _controller_default_inputs = create_topics_config(
     "ControllerInputs",
     plan=Topic(name="/plan", msg_type="Path"),
     sensor_data=Topic(name="/scan", msg_type="LaserScan"),
+    local_map=Topic(name="/local_map/occupancy_layer", msg_type="OccupancyGrid"),
     location=Topic(name="/odom", msg_type="Odometry"),
 )
 
@@ -108,7 +115,7 @@ class ControllerConfig(ComponentConfig):
     use_cmd_list: bool = field(
         default=False
     )  # To send a list of future commands to the drive manager (if True) or a single commands (if False)
-    control_horizon_number_of_steps: int = field(
+    prediction_horizon: int = field(
         default=10, validator=BaseValidators.in_range(min_value=1, max_value=1e9)
     )  # Number of future control commands to compute at each loop step
     control_time_step: float = field(
@@ -118,8 +125,9 @@ class ControllerConfig(ComponentConfig):
     algorithm: Union[LocalPlannersID, str] = field(
         default=LocalPlannersID.DWA, converter=lambda value: _set_algorithm(value)
     )
-    closed_loop: bool = field(default=True)
+    closed_loop: bool = field(default=False)
     cmd_tolerance: float = field(default=0.1)
+    use_direct_sensor: bool = field(default=False)
 
 
 class Controller(Component):
@@ -138,7 +146,7 @@ class Controller(Component):
     - *tracked_point*: Tracked path point.<br />  Default ```Topic(name="/tracked_point", msg_type="PoseStamped")```
 
     ## Available Run Types:
-    Set from ControllerConfig class or directly from Controller 'run_type' properety.
+    Set from ControllerConfig class or directly from Controller 'run_type' property.
 
     - *TIMED*: Compute a new control command periodically if all inputs are available.
     - *ACTIONSERVER*: Offers a ControlPath ROS action and continuously computes a new control once an action request is received until goal point is reached
@@ -200,11 +208,19 @@ class Controller(Component):
     def create_all_timers(self):
         """Overrides create_all_timers from BaseComponent to add timers for commands execution and tracking publishing"""
         super().create_all_timers()
+        callback_group = ReentrantCallbackGroup()
+        self.get_logger().info(
+            f"Creating execution timer with step: {self.config.control_time_step}"
+        )
         self.__cmd_execution_timer = self.create_timer(
-            self.config.control_time_step, self._execution_callback
+            self.config.control_time_step,
+            self._execution_callback,
+            callback_group=callback_group,
         )
         self.__info_publishing_timer = self.create_timer(
-            1 / self.config.loop_rate, self._publishing_callback
+            1 / self.config.loop_rate,
+            self._publishing_callback,
+            callback_group=callback_group,
         )
 
     def destroy_all_timers(self):
@@ -215,14 +231,17 @@ class Controller(Component):
 
     def _execution_callback(self):
         """Commands execution timer callback"""
-        # If end is reached or no commands are available do nothing
-        if self.__reached_end or len(self.__cmd_to_exec) <= 0:
+        try:
+            cmd = self._cmds_queue.get()
+        except Empty:
+            self.get_logger().debug("No command to execute")
             return
-        self.get_logger().debug(
-            f"executing one command out of {len(self.__cmd_to_exec)} remaining"
-        )
-        # Get first command to execute
-        cmd = self.__cmd_to_exec[0]
+        # If end is reached do not publish new command
+        if self.__reached_end:
+            self.get_logger().debug("No command to execute")
+            return
+
+        # Send command to execute
         if self.config.closed_loop:
             # Execute in closed loop
             self.execute_cmd(cmd[0], cmd[1], cmd[2])
@@ -230,12 +249,9 @@ class Controller(Component):
             # Publish once
             self._publish_control(
                 linear_ctr_x=cmd[0],
-                angular_ctr=cmd[1],
-                linear_ctr_y=cmd[2],
+                linear_ctr_y=cmd[1],
+                angular_ctr=cmd[2],
             )
-            self.__ctrl_rate.sleep()
-        # Remove the executed command
-        self.__cmd_to_exec.pop(0)
 
     def _publishing_callback(self):
         """Tracking publishing timer callback"""
@@ -249,6 +265,7 @@ class Controller(Component):
             self.publishers_dict[ControllerOutputs.LOCAL_PLAN.key].publish(
                 self.local_plan
             )
+
         # Publish interpolated path
         if self.interpolated_path:
             self.publishers_dict[ControllerOutputs.INTERPOLATION.key].publish(
@@ -267,7 +284,7 @@ class Controller(Component):
 
     @run_type.setter
     def run_type(self, value: Union[ComponentRunType, str]):
-        """Overrides property setter to restrict to implemented controler run types
+        """Overrides property setter to restrict to implemented controller run types
 
         :param value: Run type
         :type value: Union[ComponentRunType, str]
@@ -284,16 +301,6 @@ class Controller(Component):
             )
 
         self.config.run_type = value
-
-    @property
-    def algorithm(self) -> LocalPlannersID:
-        """
-        Getter of controller algorithm
-
-        :return: _description_
-        :rtype: StrEnum
-        """
-        return self.config.algorithm
 
     @property
     def tracked_point(self) -> Optional[PoseStamped]:
@@ -354,6 +361,41 @@ class Controller(Component):
 
         interpolated_path = self.__controller.interpolated_path(msg_header)
         return interpolated_path
+
+    @property
+    def direct_sensor(self) -> bool:
+        """Getter of flag to use direct sensor data in the controller, if False the controller uses the local map
+
+        :return: Use direct sensor data flag
+        :rtype: bool
+        """
+        return self.config.use_direct_sensor
+
+    @direct_sensor.setter
+    def direct_sensor(self, value: bool) -> None:
+        """Setter of flag to use direct sensor data in the controller, if False the controller uses the local map
+
+        :param value: Use direct sensor data flag
+        :type value: bool
+        """
+        # Note: Only DWA takes local map
+        if self.algorithm != LocalPlannersID.DWA and not value:
+            get_logger(self.node_name).warning(
+                f"Cannot use Local Map with {self.algorithm} - Setting 'direct_sensor' to True"
+            )
+            self.config.use_direct_sensor = True
+            return
+        self.config.use_direct_sensor = value
+
+    @property
+    def algorithm(self) -> LocalPlannersID:
+        """
+        Getter of controller algorithm
+
+        :return: _description_
+        :rtype: StrEnum
+        """
+        return self.config.algorithm
 
     @algorithm.setter
     def algorithm(self, value: Union[str, LocalPlannersID]) -> None:
@@ -419,13 +461,18 @@ class Controller(Component):
             else None
         )
 
-        self.sensor_data: Optional[LaserScanData] = self.callbacks[
-            ControllerInputs.SENSOR_DATA.key
-        ].get_output(
-            transformation=self.__sensor_tf_listener.transform
-            if self.__sensor_tf_listener
-            else None
-        )
+        if self.direct_sensor:
+            self.sensor_data: Optional[LaserScanData] = self.callbacks[
+                ControllerInputs.SENSOR_DATA.key
+            ].get_output(
+                transformation=self.__sensor_tf_listener.transform
+                if self.__sensor_tf_listener
+                else None
+            )
+        else:
+            self.local_map: Optional[np.ndarray] = self.callbacks[
+                ControllerInputs.LOCAL_MAP.key
+            ].get_output()
 
     def attach_callbacks(self) -> None:
         """
@@ -482,6 +529,7 @@ class Controller(Component):
             config_file=self._config_file,
             config_yaml_root_name=f"{self.node_name}.{self.config.algorithm}",
             control_time_step=self.config.control_time_step,
+            prediction_horizon=self.config.prediction_horizon,
         )
 
         # Initialize the velocity command
@@ -492,9 +540,10 @@ class Controller(Component):
         self.__lat_dist_error: float = 0.0
         self.__ori_error: float = 0.0
 
-        self.__ctrl_rate = self.create_rate(self.config.loop_rate)
         self.__execution_rate = self.create_rate(self.config.loop_rate * 10)
-        self.__cmd_to_exec: List[Tuple] = []
+
+        # Command queue to send controller command list to the robot
+        self._cmds_queue: Queue = Queue()
 
         self.__sensor_tf_listener: TFListener = (
             self.depth_tf_listener
@@ -538,22 +587,11 @@ class Controller(Component):
         :param angular_ctr: Angular control command (rad/s)
         :type angular_ctr: float
         """
-        if self.config.use_cmd_list:
-            self.__cmd_vel_array: kompass_msgs.TwistArray = init_twist_array_msg(
-                number_of_cmds=self.config.control_horizon_number_of_steps,
-                init_linear_x_value=linear_ctr_x,
-                init_linear_y_value=linear_ctr_y,
-                init_angular_value=angular_ctr,
-            )
-            self.publishers_dict[ControllerOutputs.MULTI_CMD.key].publish(
-                self.__cmd_vel_array
-            )
-        else:
-            self.__cmd_vel.linear.x = linear_ctr_x
-            self.__cmd_vel.linear.y = linear_ctr_y
-            self.__cmd_vel.angular.z = angular_ctr
+        self.__cmd_vel.linear.x = linear_ctr_x
+        self.__cmd_vel.linear.y = linear_ctr_y
+        self.__cmd_vel.angular.z = angular_ctr
 
-            self.publishers_dict[ControllerOutputs.CMD.key].publish(self.__cmd_vel)
+        self.publishers_dict[ControllerOutputs.CMD.key].publish(self.__cmd_vel)
 
     def execute_cmd(self, vx: float, vy: float, omega: float) -> bool:
         """Execute a control command in closed loop
@@ -570,10 +608,6 @@ class Controller(Component):
         executing_closed_loop = True
         count = 0
         while executing_closed_loop and count < 10:
-            self.get_logger().info(f"Got {count}: ({vx}, {vy}, {omega})")
-            self.get_logger().info(
-                f"Robot current speed {count}: ({self.robot_state.vx}, {self.robot_state.vy}, {self.robot_state.omega})"
-            )
             vx_out = (
                 vx
                 if abs(self.robot_state.vx - vx) > self.config.cmd_tolerance
@@ -612,27 +646,31 @@ class Controller(Component):
         :return: If robot reached end of reference plan
         :rtype: bool
         """
-        self.get_logger().info(f"Robot at ({self.robot_state.x}, {self.robot_state.y})")
         if not self.__controller.path:
             self.get_logger().info("Global plan is not available to controller")
             return False
 
         laser_scan = None
         point_cloud = None
+        local_map = None
 
-        if isinstance(self.sensor_data, LaserScanData):
-            laser_scan = self.sensor_data
+        if self.direct_sensor:
+            if isinstance(self.sensor_data, LaserScanData):
+                laser_scan = self.sensor_data
+            else:
+                point_cloud = self.sensor_data
         else:
-            point_cloud = self.sensor_data
+            local_map = self.local_map
 
         cmd_found: bool = self.__controller.loop_step(
             current_state=self.robot_state,  # type: ignore
             laser_scan=laser_scan,
             point_cloud=point_cloud,
+            local_map=local_map,
         )
 
         # LOG CONTROLLER INFO
-        self.get_logger().info(f"{cmd_found}: {self.__controller.logging_info()}")
+        self.get_logger().debug(f"{cmd_found}: {self.__controller.logging_info()}")
 
         # PUBLISH CONTROL TO ROBOT CMD TOPIC
         if not cmd_found:
@@ -640,20 +678,26 @@ class Controller(Component):
             self.health_status.set_fail_algorithm(
                 algorithm_names=[str(ControlClasses[self.algorithm])]
             )
+            self.__reached_end = False
             return False
 
         self.health_status.set_healthy()
 
-        self.__cmd_to_exec = list(
-            zip(
+        # Empty the commands queue
+        self._cmds_queue.empty()
+
+        [
+            self._cmds_queue.put_nowait(i)
+            for i in zip(
                 self.__controller.linear_x_control,
                 self.__controller.linear_y_control,
                 self.__controller.angular_control,
             )
-        )
+        ]
 
         self.__lat_dist_error = self.__controller.distance_error
         self.__ori_error = self.__controller.orientation_error
+        self.__reached_end = self.__controller.reached_end
 
         if self.__reached_end:
             # Stop robot
@@ -667,7 +711,7 @@ class Controller(Component):
 
     def main_action_callback(self, goal_handle) -> ControlPath.Result:
         """
-        Executes the controle action
+        Executes the control action
         Controller keeps computing robot commands until the end of path is reached
 
         :param goal_handle: Action request
@@ -775,15 +819,20 @@ class Controller(Component):
         At each time step the controller:
         1- Updates all inputs
         2- Computes the commands using the specified algorithm
-        3- Publishe commands
+        3- Publish commands
         Robot is stopped when the end of the path is reached
         """
         super()._execution_step()
+
         # Get inputs from callbacks
         self._update_state()
 
+        got_all: bool = (
+            self.got_all_inputs(inputs_to_exclude=["local_map"])
+            if self.direct_sensor
+            else self.got_all_inputs(inputs_to_exclude=["sensor_data"])
+        )
+
         # Check if all inputs are available
-        if self.got_all_inputs():
+        if got_all:
             self._control()
-        else:
-            self._stop_robot()
