@@ -58,7 +58,7 @@
 `````{py:class} LaserScan
 :canonical: kompass.data_types.LaserScan
 
-Bases: {py:obj}`auto_ros.supported_types.LaserScan`
+Bases: {py:obj}`ros_sugar.supported_types.LaserScan`
 
 ```{autodoc2-docstring} kompass.data_types.LaserScan
 ```
@@ -77,7 +77,7 @@ Bases: {py:obj}`auto_ros.supported_types.LaserScan`
 `````{py:class} PointCloud2
 :canonical: kompass.data_types.PointCloud2
 
-Bases: {py:obj}`auto_ros.supported_types.SupportedType`
+Bases: {py:obj}`ros_sugar.supported_types.SupportedType`
 
 ```{autodoc2-docstring} kompass.data_types.PointCloud2
 ```
@@ -93,7 +93,7 @@ Bases: {py:obj}`auto_ros.supported_types.SupportedType`
 `````{py:class} PointStamped
 :canonical: kompass.data_types.PointStamped
 
-Bases: {py:obj}`auto_ros.supported_types.PointStamped`
+Bases: {py:obj}`ros_sugar.supported_types.PointStamped`
 
 ```{autodoc2-docstring} kompass.data_types.PointStamped
 ```
@@ -109,7 +109,7 @@ Bases: {py:obj}`auto_ros.supported_types.PointStamped`
 `````{py:class} Point
 :canonical: kompass.data_types.Point
 
-Bases: {py:obj}`auto_ros.supported_types.Point`
+Bases: {py:obj}`ros_sugar.supported_types.Point`
 
 ```{autodoc2-docstring} kompass.data_types.Point
 ```
@@ -125,7 +125,7 @@ Bases: {py:obj}`auto_ros.supported_types.Point`
 `````{py:class} Pose
 :canonical: kompass.data_types.Pose
 
-Bases: {py:obj}`auto_ros.supported_types.Pose`
+Bases: {py:obj}`ros_sugar.supported_types.Pose`
 
 ```{autodoc2-docstring} kompass.data_types.Pose
 ```
@@ -141,7 +141,7 @@ Bases: {py:obj}`auto_ros.supported_types.Pose`
 `````{py:class} PoseStamped
 :canonical: kompass.data_types.PoseStamped
 
-Bases: {py:obj}`auto_ros.supported_types.PoseStamped`
+Bases: {py:obj}`ros_sugar.supported_types.PoseStamped`
 
 ```{autodoc2-docstring} kompass.data_types.PoseStamped
 ```
@@ -157,7 +157,7 @@ Bases: {py:obj}`auto_ros.supported_types.PoseStamped`
 `````{py:class} Odometry
 :canonical: kompass.data_types.Odometry
 
-Bases: {py:obj}`auto_ros.supported_types.Odometry`
+Bases: {py:obj}`ros_sugar.supported_types.Odometry`
 
 ```{autodoc2-docstring} kompass.data_types.Odometry
 ```
@@ -176,7 +176,7 @@ Bases: {py:obj}`auto_ros.supported_types.Odometry`
 `````{py:class} TwistArray
 :canonical: kompass.data_types.TwistArray
 
-Bases: {py:obj}`auto_ros.supported_types.SupportedType`
+Bases: {py:obj}`ros_sugar.supported_types.SupportedType`
 
 ```{autodoc2-docstring} kompass.data_types.TwistArray
 ```
@@ -195,7 +195,7 @@ Bases: {py:obj}`auto_ros.supported_types.SupportedType`
 `````{py:class} Path
 :canonical: kompass.data_types.Path
 
-Bases: {py:obj}`auto_ros.supported_types.Path`
+Bases: {py:obj}`ros_sugar.supported_types.Path`
 
 ```{autodoc2-docstring} kompass.data_types.Path
 ```

@@ -49,11 +49,63 @@ Bases: {py:obj}`kompass.components.component.Component`
 ```{autodoc2-docstring} kompass.components.controller.Controller
 ```
 
+````{py:method} create_all_timers()
+:canonical: kompass.components.controller.Controller.create_all_timers
+
+```{autodoc2-docstring} kompass.components.controller.Controller.create_all_timers
+```
+
+````
+
+````{py:method} destroy_all_timers()
+:canonical: kompass.components.controller.Controller.destroy_all_timers
+
+```{autodoc2-docstring} kompass.components.controller.Controller.destroy_all_timers
+```
+
+````
+
 ````{py:property} run_type
 :canonical: kompass.components.controller.Controller.run_type
 :type: kompass.config.ComponentRunType
 
 ```{autodoc2-docstring} kompass.components.controller.Controller.run_type
+```
+
+````
+
+````{py:property} tracked_point
+:canonical: kompass.components.controller.Controller.tracked_point
+:type: typing.Optional[geometry_msgs.msg.PoseStamped]
+
+```{autodoc2-docstring} kompass.components.controller.Controller.tracked_point
+```
+
+````
+
+````{py:property} local_plan
+:canonical: kompass.components.controller.Controller.local_plan
+:type: typing.Optional[nav_msgs.msg.Path]
+
+```{autodoc2-docstring} kompass.components.controller.Controller.local_plan
+```
+
+````
+
+````{py:property} interpolated_path
+:canonical: kompass.components.controller.Controller.interpolated_path
+:type: typing.Optional[nav_msgs.msg.Path]
+
+```{autodoc2-docstring} kompass.components.controller.Controller.interpolated_path
+```
+
+````
+
+````{py:property} direct_sensor
+:canonical: kompass.components.controller.Controller.direct_sensor
+:type: bool
+
+```{autodoc2-docstring} kompass.components.controller.Controller.direct_sensor
 ```
 
 ````

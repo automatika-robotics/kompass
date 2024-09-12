@@ -4,15 +4,23 @@
 
 The Drive Manager can perform one or multiple of the following functionalities based on the desired config:
 
-### Control limit check
-Checks that the incoming control is within the robot control limits.
+```{list-table}
+:widths: 20 70
+* - **Control limiting**
+  - Checks that the incoming control is within the robot control limits. If a control command is outside the robot control limits, the DriveManager limits the value to the maximum/minimum allowed value before passing the command to the robot
 
-### Emergency stop
-Subscribes to direct sensor input and handles emergency stopping
+* - **Emergency stopping**
+  - Checks the direct sensor information from the configured proximity sensors and performs an emergency stop if an obstacle is closer than the allowed safety limit
 
-### Control Smoothing (Filtering)
+* - **Control Smoothing (Filtering)**
+  - Performs smoothing filtering on the incoming control commands before sending the commands to the robot
 
-### Robot Unblocking
+* - **Robot Unblocking**
+  - Moves the robot forward, backwards or rotates in place if the space is free to move the robot away from a blocking point. This action can be configured to be triggered with an external event
+```
+```{seealso}
+Check an example on configuring the robot unblocking functionality with an external event in [this tutorial](/tutorials/events_actions.md)
+```
 
 
 ## Available Run Types
@@ -20,7 +28,7 @@ Subscribes to direct sensor input and handles emergency stopping
 ```{list-table}
 :widths: 10 80
 * - **Timed**
-  - Filters/sends command periodically
+  - Sends incoming command periodically to the robot
 ```
 
 ## Inputs

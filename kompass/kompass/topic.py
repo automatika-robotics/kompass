@@ -4,11 +4,11 @@ from functools import partial
 from typing import Any, List, Union, Optional
 
 from attrs import define, field, make_class
-from auto_ros.publisher import Publisher
-from auto_ros.topic import AllowedTopic as AllowedTopicBase
-from auto_ros.topic import RestrictedTopicsConfig
-from auto_ros.topic import Topic as BaseTopic
-from auto_ros.topic import get_all_msg_types, get_msg_type
+from ros_sugar.publisher import Publisher
+from ros_sugar.topic import AllowedTopic as AllowedTopicBase
+from ros_sugar.topic import RestrictedTopicsConfig
+from ros_sugar.topic import Topic as BaseTopic
+from ros_sugar.topic import get_all_msg_types, get_msg_type
 
 from . import data_types
 from .config import BaseAttrs, BaseValidators
@@ -44,7 +44,7 @@ def _get_msg_types(
 @define(kw_only=True)
 class Topic(BaseTopic):
     """
-    Overrides Topic from auto_ros to add msg_type converter and validator from kompass
+    Overrides Topic from ros_sugar to add msg_type converter and validator from kompass
     """
 
     msg_type: Union[data_types.SupportedType, str] = field(
@@ -62,7 +62,7 @@ class Topic(BaseTopic):
 
 @define(kw_only=True)
 class AllowedTopic(AllowedTopicBase):
-    """Overrides AllowedTopic from auto_ros to add msg_type converter and validator from kompass"""
+    """Overrides AllowedTopic from ros_sugar to add msg_type converter and validator from kompass"""
 
     types: List[Union[data_types.SupportedType, str]] = field(
         converter=_get_msg_types,

@@ -6,12 +6,13 @@
     world: "map"
     scan: "LDS-01"
 
+mapper:
+  loop_rate: 50.0
+
 controller:
-  loop_rate: 5.0
-  outputs:
-    command:
-      name: '/cmd_vel'
-      msg_type: Twist
+  loop_rate: 10.0
+  control_time_step: 0.4
+  prediction_horizon: 4.0
 
   Stanley:
     cross_track_gain: 1.0
@@ -22,9 +23,7 @@ controller:
     heading_gain: 0.3
 
   DWA:
-    control_time_step: 0.05
-    control_horizon: 0.1
-    prediction_horizon: 5.0
+    control_horizon: 1.2
     octree_resolution: 0.1
     max_linear_samples: 20
     max_angular_samples: 20
