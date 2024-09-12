@@ -3,10 +3,10 @@
 from typing import Optional
 
 import numpy as np
-from auto_ros.callbacks import GenericCallback, OccupancyGridCallback
-from auto_ros.callbacks import OdomCallback as BaseOdomCallback
-from auto_ros.callbacks import PointCallback as BasePointCallback
-from auto_ros.callbacks import PoseCallback as BasePoseCallback
+from ros_sugar.callbacks import GenericCallback, OccupancyGridCallback
+from ros_sugar.callbacks import OdomCallback as BaseOdomCallback
+from ros_sugar.callbacks import PointCallback as BasePointCallback
+from ros_sugar.callbacks import PoseCallback as BasePoseCallback
 from geometry_msgs.msg import Point, Pose
 from kompass_core.datatypes.laserscan import LaserScanData
 from kompass_core.datatypes.pointcloud import PointCloudData

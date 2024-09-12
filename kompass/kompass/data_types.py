@@ -4,16 +4,16 @@ import json
 from typing import Optional, Union
 
 import numpy as np
-from auto_ros.supported_types import Bool, ComponentStatus, Float32, Float64
-from auto_ros.supported_types import LaserScan as BaseLaserScan
-from auto_ros.supported_types import OccupancyGrid
-from auto_ros.supported_types import Odometry as BaseOdometry
-from auto_ros.supported_types import Path as BasePath
-from auto_ros.supported_types import Point as BasePoint
-from auto_ros.supported_types import PointStamped as BasePointStamped
-from auto_ros.supported_types import Pose as BasePose
-from auto_ros.supported_types import PoseStamped as BasePoseStamped
-from auto_ros.supported_types import SupportedType, Twist
+from ros_sugar.supported_types import Bool, ComponentStatus, Float32, Float64
+from ros_sugar.supported_types import LaserScan as BaseLaserScan
+from ros_sugar.supported_types import OccupancyGrid
+from ros_sugar.supported_types import Odometry as BaseOdometry
+from ros_sugar.supported_types import Path as BasePath
+from ros_sugar.supported_types import Point as BasePoint
+from ros_sugar.supported_types import PointStamped as BasePointStamped
+from ros_sugar.supported_types import Pose as BasePose
+from ros_sugar.supported_types import PoseStamped as BasePoseStamped
+from ros_sugar.supported_types import SupportedType, Twist
 
 # ROS MESSAGES
 from geometry_msgs.msg import PoseStamped as ROSPoseStamped
