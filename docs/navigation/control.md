@@ -42,7 +42,13 @@ Set from ControllerConfig class or directly from Controller 'run_type' property.
 * - **sensor_data**
   - Direct sensor input
   - `LaserScan, PointCloud2`
-  - 1 + (10 optional)
+  - 1
+  - `Topic(name="/scan", msg_type="LaserScan")`
+
+* - **local_map**
+  - Local occupancy map
+  - `OccupancyGrid`
+  - 1
   - `Topic(name="/scan", msg_type="LaserScan")`
 ```
 
