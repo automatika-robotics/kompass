@@ -50,7 +50,7 @@
 `````{py:class} OdomCallback(input_topic, node_name: typing.Optional[str] = None, get_front: typing.Optional[bool] = False, robot_radius: typing.Optional[float] = None)
 :canonical: kompass.callbacks.OdomCallback
 
-Bases: {py:obj}`auto_ros.callbacks.OdomCallback`
+Bases: {py:obj}`ros_sugar.callbacks.OdomCallback`
 
 ```{autodoc2-docstring} kompass.callbacks.OdomCallback
 ```
@@ -69,7 +69,7 @@ Bases: {py:obj}`auto_ros.callbacks.OdomCallback`
 `````{py:class} PointCallback(input_topic, node_name: typing.Optional[str] = None, get_front: typing.Optional[bool] = False, robot_radius: typing.Optional[float] = None)
 :canonical: kompass.callbacks.PointCallback
 
-Bases: {py:obj}`auto_ros.callbacks.PointCallback`
+Bases: {py:obj}`ros_sugar.callbacks.PointCallback`
 
 ```{autodoc2-docstring} kompass.callbacks.PointCallback
 ```
@@ -149,7 +149,7 @@ Bases: {py:obj}`kompass.callbacks.PointCallback`
 `````{py:class} PoseCallback(input_topic, node_name: typing.Optional[str] = None, get_front: typing.Optional[bool] = False, robot_radius: typing.Optional[float] = None)
 :canonical: kompass.callbacks.PoseCallback
 
-Bases: {py:obj}`auto_ros.callbacks.PoseCallback`
+Bases: {py:obj}`ros_sugar.callbacks.PoseCallback`
 
 ```{autodoc2-docstring} kompass.callbacks.PoseCallback
 ```
@@ -229,7 +229,7 @@ Bases: {py:obj}`kompass.callbacks.PoseCallback`
 `````{py:class} LaserScanCallback(input_topic, node_name: typing.Optional[str] = None, transformation: typing.Optional[tf2_ros.TransformStamped] = None)
 :canonical: kompass.callbacks.LaserScanCallback
 
-Bases: {py:obj}`auto_ros.callbacks.GenericCallback`
+Bases: {py:obj}`ros_sugar.callbacks.GenericCallback`
 
 ```{autodoc2-docstring} kompass.callbacks.LaserScanCallback
 ```
@@ -278,7 +278,7 @@ Bases: {py:obj}`auto_ros.callbacks.GenericCallback`
 `````{py:class} PointCloudCallback(input_topic, node_name: typing.Optional[str] = None, transformation: typing.Optional[tf2_ros.TransformStamped] = None, max_range: typing.Optional[float] = None)
 :canonical: kompass.callbacks.PointCloudCallback
 
-Bases: {py:obj}`auto_ros.callbacks.GenericCallback`
+Bases: {py:obj}`ros_sugar.callbacks.GenericCallback`
 
 ```{autodoc2-docstring} kompass.callbacks.PointCloudCallback
 ```
