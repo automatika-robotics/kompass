@@ -19,6 +19,7 @@ from kompass.components import (
     DriveManager,
     Planner,
     PlannerConfig,
+    LocalMapper,
 )
 from kompass.config import RobotConfig
 from kompass.launcher import Launcher
@@ -51,12 +52,16 @@ def kompass_bringup():
     driver = DriveManager(node_name="drive_manager")
 
     # controller.run_type = "ActionServer"
-    controller.algorithm = LocalPlannersID.DWA
+    controller.algorithm = LocalPlannersID.STANLEY
     controller.outputs(command=Topic(name="/cmd_vel", msg_type="Twist"))
+    controller.direct_sensor = True
+    # controller.
 
     planner.run_type = "Timed"
     goal_topic = Topic(name="/clicked_point", msg_type="PointStamped")
     planner.inputs(goal_point=goal_topic)
+
+    mapper = LocalMapper(node_name="mapper")
 
     # DEFINE EVENTS
     event_control_fail = event.OnDifferent(
@@ -86,9 +91,11 @@ def kompass_bringup():
         event_emergency_stop: unblock_action,
     }
 
+    driver.on_fail(action=Action(driver.restart))
+
     # Setup the launcher
     launcher = Launcher(
-        components=[planner, controller],
+        components=[planner, controller, driver],
         config_file=config_file,
         activate_all_components_on_start=True,
         multi_processing=True,
