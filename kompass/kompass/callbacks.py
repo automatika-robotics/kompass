@@ -411,20 +411,20 @@ class LaserScanCallback(GenericCallback):
         Takes LaserScan ROS message and converts it to LaserScanData
         :return: LaserScanData
         """
-        raw_data = LaserScanData()
-        raw_data.angle_min = msg.angle_min
-        raw_data.angle_max = msg.angle_max
-        raw_data.angles = np.arange(msg.angle_min, msg.angle_max, msg.angle_increment)
-        raw_data.angle_increment = msg.angle_increment
-        raw_data.time_increment = msg.time_increment
-        raw_data.scan_time = msg.scan_time
-        raw_data.range_min = msg.range_min
-        raw_data.range_max = msg.range_max
         _no_nan_ranges = np.nan_to_num(msg.ranges, nan=msg.range_max)
-        raw_data.ranges = _no_nan_ranges.clip(min=0.0, max=msg.range_max)
-        raw_data.intensities = np.array(msg.intensities)
+        ranges = _no_nan_ranges.clip(min=0.0, max=msg.range_max)
 
-        return raw_data
+        return LaserScanData(
+            angle_min=msg.angle_min,
+            angle_max=msg.angle_max,
+            angle_increment=msg.angle_increment,
+            time_increment=msg.time_increment,
+            scan_time=msg.scan_time,
+            range_min=msg.range_min,
+            range_max=msg.range_max,
+            ranges=ranges,
+            intensities=np.array(msg.intensities),
+        )
 
     def _transform(self, msg: LaserScan, transform: TransformStamped) -> LaserScanData:
         """
