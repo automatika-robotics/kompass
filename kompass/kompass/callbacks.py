@@ -566,7 +566,7 @@ class PointCloudCallback(GenericCallback):
         clear_last: bool = False,
         discard_underground: bool = True,
         **_,
-    ) -> PointCloudData:
+    ) -> Optional[PointCloudData]:
         """
         Gets the laserscan data by applying the transformation if given.
         :returns:   Topic content

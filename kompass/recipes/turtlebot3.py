@@ -14,12 +14,7 @@ from ros_sugar_interfaces.msg import ComponentStatus
 from kompass import event
 from kompass.actions import Action
 
-from kompass.components import (
-    Controller,
-    DriveManager,
-    Planner,
-    PlannerConfig
-)
+from kompass.components import Controller, DriveManager, Planner, PlannerConfig
 from kompass.config import RobotConfig
 from kompass.launcher import Launcher
 from kompass.topic import Topic

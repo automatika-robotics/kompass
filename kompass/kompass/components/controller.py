@@ -4,7 +4,7 @@ from queue import Queue, Empty
 import numpy as np
 
 from rclpy.logging import get_logger
-from rclpy.callback_groups import ReentrantCallbackGroup, MutuallyExclusiveCallbackGroup
+from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
 
 # ROS MSGS
 from nav_msgs.msg import Path
@@ -488,7 +488,7 @@ class Controller(Component):
         )
 
         if self.direct_sensor:
-            self.sensor_data: Optional[LaserScanData] = self.callbacks[
+            self.sensor_data = self.callbacks[
                 ControllerInputs.SENSOR_DATA.key
             ].get_output(
                 transformation=self.__sensor_tf_listener.transform
@@ -631,17 +631,15 @@ class Controller(Component):
 
         self.publishers_dict[ControllerOutputs.CMD.key].publish(self.__cmd_vel)
 
-    def execute_cmd(self, vx: float, vy: float, omega: float) -> bool:
+    def execute_cmd(self, vx: float, vy: float, omega: float):
         """Execute a control command in closed loop
 
-        :param vx: _description_
+        :param vx: Linear Vx velocity (m/s)
         :type vx: float
-        :param vy: _description_
+        :param vy: Linear Vy velocity (m/s)
         :type vy: float
-        :param omega: _description_
+        :param omega: Angular velocity (rad/s)
         :type omega: float
-        :return: _description_
-        :rtype: bool
         """
         executing_closed_loop = True
         count = 0
