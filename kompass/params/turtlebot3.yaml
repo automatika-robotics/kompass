@@ -10,17 +10,17 @@ mapper:
   loop_rate: 50.0
 
 controller:
-  loop_rate: 10.0
-  control_time_step: 0.4
+  loop_rate: 2.0
+  control_time_step: 0.5
   prediction_horizon: 4.0
 
   Stanley:
-    cross_track_gain: 1.0
-    heading_gain: 0.3
+    cross_track_gain: 0.1
+    heading_gain: 2.0
 
   DVZ:
-    cross_track_gain: 1.0
-    heading_gain: 0.3
+    cross_track_gain: 0.1
+    heading_gain: 1.0
 
   DWA:
     control_horizon: 1.2

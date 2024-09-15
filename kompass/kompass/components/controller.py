@@ -4,7 +4,7 @@ from queue import Queue, Empty
 import numpy as np
 
 from rclpy.logging import get_logger
-from rclpy.callback_groups import ReentrantCallbackGroup
+from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
 
 # ROS MSGS
 from nav_msgs.msg import Path
@@ -128,6 +128,13 @@ class ControllerConfig(ComponentConfig):
     closed_loop: bool = field(default=False)
     cmd_tolerance: float = field(default=0.1)
     use_direct_sensor: bool = field(default=False)
+    publish_ctrl_in_parallel: bool = field(init=False)
+
+    def __attrs_post_init__(self):
+        """Class post init
+        Sets publish in parallel to true for DWA controller
+        """
+        self.publish_ctrl_in_parallel = self.algorithm == LocalPlannersID.DWA
 
 
 class Controller(Component):
@@ -208,39 +215,56 @@ class Controller(Component):
     def create_all_timers(self):
         """Overrides create_all_timers from BaseComponent to add timers for commands execution and tracking publishing"""
         super().create_all_timers()
-        callback_group = ReentrantCallbackGroup()
-        self.get_logger().info(
-            f"Creating execution timer with step: {self.config.control_time_step}"
-        )
-        self.__cmd_execution_timer = self.create_timer(
-            self.config.control_time_step,
-            self._execution_callback,
-            callback_group=callback_group,
-        )
+
+        # Create timer for publishing commands if parallel publishing is enabled
+        if self.config.publish_ctrl_in_parallel:
+            self.get_logger().info(
+                f"Creating execution timer with step: {self.config.control_time_step}"
+            )
+            self.__cmd_execution_timer = self.create_timer(
+                self.config.control_time_step,
+                self._execution_callback,
+                callback_group=MutuallyExclusiveCallbackGroup(),
+            )
+        else:
+            self.get_logger().info(
+                f"Creating execution rate with freq: {1 / self.config.control_time_step}"
+            )
+            # Create rate to publish in sequence during control
+            self.__cmd_execution_rate = self.create_rate(
+                1 / self.config.control_time_step
+            )
+        # Create timer to publish additional control tracking info
         self.__info_publishing_timer = self.create_timer(
             1 / self.config.loop_rate,
             self._publishing_callback,
-            callback_group=callback_group,
+            callback_group=MutuallyExclusiveCallbackGroup(),
         )
 
     def destroy_all_timers(self):
         """Overrides destroy_all_timers from BaseComponent to destroy the timers for commands execution and tracking publishing"""
         super().destroy_all_timers()
-        self.destroy_timer(self.__cmd_execution_timer)
+        # Destroy execution timer/rate
+        if self.config.publish_ctrl_in_parallel:
+            self.destroy_timer(self.__cmd_execution_timer)
+        else:
+            self.destroy_rate(self.__cmd_execution_rate)
+
         self.destroy_timer(self.__info_publishing_timer)
 
     def _execution_callback(self):
         """Commands execution timer callback"""
         try:
-            cmd = self._cmds_queue.get()
+            cmd = self._cmds_queue.get_nowait()
         except Empty:
-            self.get_logger().debug("No command to execute")
+            self.get_logger().info("No command to execute")
             return
         # If end is reached do not publish new command
         if self.__reached_end:
-            self.get_logger().debug("No command to execute")
+            self.get_logger().info("No command to execute")
             return
 
+        self.get_logger().info(f"Publishing new command: {cmd[0]}, {cmd[1]}, {cmd[2]}")
         # Send command to execute
         if self.config.closed_loop:
             # Execute in closed loop
@@ -252,6 +276,7 @@ class Controller(Component):
                 linear_ctr_y=cmd[1],
                 angular_ctr=cmd[2],
             )
+            self.get_logger().info("Done Publishing")
 
     def _publishing_callback(self):
         """Tracking publishing timer callback"""
@@ -408,6 +433,7 @@ class Controller(Component):
         :raises ValueError: If given int value is not one of the values in LocalPlannersID or FollowersID
         """
         self.config.algorithm = value
+        self.config.publish_ctrl_in_parallel = value == LocalPlannersID.DWA
 
     @component_action
     def set_algorithm(
@@ -430,10 +456,10 @@ class Controller(Component):
         """
         try:
             if keep_alive:
-                self.config.algorithm = algorithm_value
+                self.algorithm = algorithm_value
             else:
                 self.stop()
-                self.config.algorithm = algorithm_value
+                self.algorithm = algorithm_value
                 self.start()
         except Exception:
             raise
@@ -462,7 +488,7 @@ class Controller(Component):
         )
 
         if self.direct_sensor:
-            self.sensor_data: Optional[LaserScanData] = self.callbacks[
+            self.sensor_data = self.callbacks[
                 ControllerInputs.SENSOR_DATA.key
             ].get_output(
                 transformation=self.__sensor_tf_listener.transform
@@ -483,15 +509,25 @@ class Controller(Component):
             self._set_path_to_controller
         )
 
-        sensor_callback = self.callbacks[ControllerInputs.SENSOR_DATA.key]
-        if isinstance(sensor_callback, PointCloudCallback):
-            sensor_callback.max_range = (
-                self.config.control_horizon_number_of_steps
-                * self.robot.ctrl_vx_limits.max_vel
-            )
-            self.get_logger().info(
-                f"Setting PointCloud max range to robot max forward horizon '{sensor_callback.max_range}' to limit computations"
-            )
+        if self.direct_sensor:
+            # Remove callback for the local map and destroy subscriber
+            _callback = self.callbacks.pop(ControllerInputs.LOCAL_MAP.key)
+            self.destroy_subscription(_callback._subscriber)
+
+            # If direct sensor information is used set maximum range for PointCloud data
+            sensor_callback = self.callbacks[ControllerInputs.SENSOR_DATA.key]
+            if isinstance(sensor_callback, PointCloudCallback):
+                sensor_callback.max_range = (
+                    self.config.control_horizon_number_of_steps
+                    * self.robot.ctrl_vx_limits.max_vel
+                )
+                self.get_logger().info(
+                    f"Setting PointCloud max range to robot max forward horizon '{sensor_callback.max_range}' to limit computations"
+                )
+        else:
+            # Remove callback for the sensor data and destroy subscriber
+            _callback = self.callbacks.pop(key=ControllerInputs.SENSOR_DATA.key)
+            self.destroy_subscription(_callback._subscriber)
 
     def _set_path_to_controller(self, msg, **_) -> None:
         """
@@ -545,13 +581,15 @@ class Controller(Component):
         # Command queue to send controller command list to the robot
         self._cmds_queue: Queue = Queue()
 
-        self.__sensor_tf_listener: TFListener = (
-            self.depth_tf_listener
-            if self.in_topics.sensor_data.msg_type._ros_type == PointCloud2
-            else self.scan_tf_listener
-        )
+        if self.direct_sensor:
+            # Setup transform listener
+            self.__sensor_tf_listener: TFListener = (
+                self.depth_tf_listener
+                if self.in_topics.sensor_data.msg_type._ros_type == PointCloud2
+                else self.scan_tf_listener
+            )
 
-        self.sensor_data: Optional[Union[LaserScanData, PointCloudData]] = None
+            self.sensor_data: Optional[Union[LaserScanData, PointCloudData]] = None
 
     def init_flags(self):
         """
@@ -593,17 +631,15 @@ class Controller(Component):
 
         self.publishers_dict[ControllerOutputs.CMD.key].publish(self.__cmd_vel)
 
-    def execute_cmd(self, vx: float, vy: float, omega: float) -> bool:
+    def execute_cmd(self, vx: float, vy: float, omega: float):
         """Execute a control command in closed loop
 
-        :param vx: _description_
+        :param vx: Linear Vx velocity (m/s)
         :type vx: float
-        :param vy: _description_
+        :param vy: Linear Vy velocity (m/s)
         :type vy: float
-        :param omega: _description_
+        :param omega: Angular velocity (rad/s)
         :type omega: float
-        :return: _description_
-        :rtype: bool
         """
         executing_closed_loop = True
         count = 0
@@ -670,7 +706,7 @@ class Controller(Component):
         )
 
         # LOG CONTROLLER INFO
-        self.get_logger().debug(f"{cmd_found}: {self.__controller.logging_info()}")
+        self.get_logger().info(f"{cmd_found}: {self.__controller.logging_info()}")
 
         # PUBLISH CONTROL TO ROBOT CMD TOPIC
         if not cmd_found:
@@ -686,8 +722,9 @@ class Controller(Component):
         # Empty the commands queue
         self._cmds_queue.empty()
 
+        # Put new control commands to the queue
         [
-            self._cmds_queue.put_nowait(i)
+            self._cmds_queue.put(i)
             for i in zip(
                 self.__controller.linear_x_control,
                 self.__controller.linear_y_control,
@@ -695,17 +732,29 @@ class Controller(Component):
             )
         ]
 
+        # Update controller path tracking info (errors/end_reached)
         self.__lat_dist_error = self.__controller.distance_error
         self.__ori_error = self.__controller.orientation_error
-        self.__reached_end = self.__controller.reached_end
+        self.__reached_end = self.__controller.reached_end()
 
+        # If end is reached stop the robot
         if self.__reached_end:
+            self.get_logger().info("Stopping robot!")
             # Stop robot
             self._stop_robot()
             # Clear path
             self.callbacks[ControllerInputs.PLAN.key].clear_last_msg()
             # Unset reached_end for new incoming paths
             self.__reached_end = False
+            return True
+
+        # If commands are to be published in sequence
+        if not self.config.publish_ctrl_in_parallel:
+            # While queue is not empty
+            while self._cmds_queue.qsize() > 0:
+                self.get_logger().info(f"Queue size: {self._cmds_queue.qsize()}")
+                self._execution_callback()
+                self.__cmd_execution_rate.sleep()
 
         return True
 
@@ -827,11 +876,7 @@ class Controller(Component):
         # Get inputs from callbacks
         self._update_state()
 
-        got_all: bool = (
-            self.got_all_inputs(inputs_to_exclude=["local_map"])
-            if self.direct_sensor
-            else self.got_all_inputs(inputs_to_exclude=["sensor_data"])
-        )
+        got_all: bool = self.got_all_inputs()
 
         # Check if all inputs are available
         if got_all:

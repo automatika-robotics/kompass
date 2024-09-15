@@ -14,12 +14,7 @@ from ros_sugar_interfaces.msg import ComponentStatus
 from kompass import event
 from kompass.actions import Action
 
-from kompass.components import (
-    Controller,
-    DriveManager,
-    Planner,
-    PlannerConfig,
-)
+from kompass.components import Controller, DriveManager, Planner, PlannerConfig
 from kompass.config import RobotConfig
 from kompass.launcher import Launcher
 from kompass.topic import Topic
@@ -50,9 +45,10 @@ def kompass_bringup():
     controller = Controller(node_name="controller")
     driver = DriveManager(node_name="drive_manager")
 
-    # controller.run_type = "ActionServer"
-    controller.algorithm = LocalPlannersID.DWA
+    # Configure Controller options
+    controller.algorithm = LocalPlannersID.STANLEY
     controller.outputs(command=Topic(name="/cmd_vel", msg_type="Twist"))
+    controller.direct_sensor = True
 
     planner.run_type = "Timed"
     goal_topic = Topic(name="/clicked_point", msg_type="PointStamped")
@@ -62,13 +58,6 @@ def kompass_bringup():
     event_control_fail = event.OnDifferent(
         "control_fail",
         Topic(name="controller_status", msg_type="ComponentStatus"),
-        ComponentStatus.STATUS_HEALTHY,
-        ("status"),
-    )
-
-    event_planner_fail = event.OnDifferent(
-        "planner_fail",
-        Topic(name="planner_status", msg_type="ComponentStatus"),
         ComponentStatus.STATUS_HEALTHY,
         ("status"),
     )
@@ -82,13 +71,14 @@ def kompass_bringup():
 
     driver.events_actions = {
         event_control_fail: unblock_action,
-        event_planner_fail: unblock_action,
         event_emergency_stop: unblock_action,
     }
 
+    driver.on_fail(action=Action(driver.restart))
+
     # Setup the launcher
     launcher = Launcher(
-        components=[planner, controller],
+        components=[planner, controller, driver],
         config_file=config_file,
         activate_all_components_on_start=True,
         multi_processing=True,
