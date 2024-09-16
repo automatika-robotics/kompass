@@ -180,7 +180,7 @@ class Controller(Component):
     def __init__(
         self,
         *,
-        node_name: str,
+        component_name: str,
         config_file: Optional[str] = None,
         config: Optional[ControllerConfig] = None,
         inputs=None,
@@ -206,7 +206,7 @@ class Controller(Component):
             outputs=out_topics,
             allowed_inputs=ControllerInputs,
             allowed_outputs=ControllerOutputs,
-            node_name=node_name,
+            component_name=component_name,
             **kwargs,
         )
 
@@ -218,7 +218,7 @@ class Controller(Component):
 
         # Create timer for publishing commands if parallel publishing is enabled
         if self.config.publish_ctrl_in_parallel:
-            self.get_logger().info(
+            self.get_logger().debug(
                 f"Creating execution timer with step: {self.config.control_time_step}"
             )
             self.__cmd_execution_timer = self.create_timer(
@@ -227,7 +227,7 @@ class Controller(Component):
                 callback_group=MutuallyExclusiveCallbackGroup(),
             )
         else:
-            self.get_logger().info(
+            self.get_logger().debug(
                 f"Creating execution rate with freq: {1 / self.config.control_time_step}"
             )
             # Create rate to publish in sequence during control
@@ -257,14 +257,14 @@ class Controller(Component):
         try:
             cmd = self._cmds_queue.get_nowait()
         except Empty:
-            self.get_logger().info("No command to execute")
+            self.get_logger().debug("No command to execute")
             return
         # If end is reached do not publish new command
         if self.__reached_end:
-            self.get_logger().info("No command to execute")
+            self.get_logger().debug("No command to execute")
             return
 
-        self.get_logger().info(f"Publishing new command: {cmd[0]}, {cmd[1]}, {cmd[2]}")
+        self.get_logger().debug(f"Publishing new command: {cmd[0]}, {cmd[1]}, {cmd[2]}")
         # Send command to execute
         if self.config.closed_loop:
             # Execute in closed loop
@@ -276,7 +276,6 @@ class Controller(Component):
                 linear_ctr_y=cmd[1],
                 angular_ctr=cmd[2],
             )
-            self.get_logger().info("Done Publishing")
 
     def _publishing_callback(self):
         """Tracking publishing timer callback"""
@@ -585,7 +584,7 @@ class Controller(Component):
             # Setup transform listener
             self.__sensor_tf_listener: TFListener = (
                 self.depth_tf_listener
-                if self.in_topics.sensor_data.msg_type._ros_type == PointCloud2
+                if self._input_topics.sensor_data.msg_type._ros_type == PointCloud2
                 else self.scan_tf_listener
             )
 
@@ -663,7 +662,7 @@ class Controller(Component):
                 else 0.0
             )
             executing_closed_loop = vx_out or vy_out or omega_out
-            self.get_logger().info(
+            self.get_logger().debug(
                 f"Publishing {count}: ({vx_out}, {vy_out}, {omega_out})"
             )
             count += 1
@@ -683,7 +682,7 @@ class Controller(Component):
         :rtype: bool
         """
         if not self.__controller.path:
-            self.get_logger().info("Global plan is not available to controller")
+            self.get_logger().warning("Global plan is not available to controller")
             return False
 
         laser_scan = None
@@ -706,7 +705,7 @@ class Controller(Component):
         )
 
         # LOG CONTROLLER INFO
-        self.get_logger().info(f"{cmd_found}: {self.__controller.logging_info()}")
+        self.get_logger().debug(f"{cmd_found}: {self.__controller.logging_info()}")
 
         # PUBLISH CONTROL TO ROBOT CMD TOPIC
         if not cmd_found:
@@ -752,7 +751,6 @@ class Controller(Component):
         if not self.config.publish_ctrl_in_parallel:
             # While queue is not empty
             while self._cmds_queue.qsize() > 0:
-                self.get_logger().info(f"Queue size: {self._cmds_queue.qsize()}")
                 self._execution_callback()
                 self.__cmd_execution_rate.sleep()
 

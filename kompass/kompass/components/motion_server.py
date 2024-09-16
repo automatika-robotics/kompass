@@ -95,7 +95,7 @@ class MotionServer(Component):
     def __init__(
         self,
         *,
-        node_name: str,
+        component_name: str,
         config: Optional[MotionServerConfig] = None,
         config_file: Optional[str] = None,
         robot_cmd_topic: Optional[Topic] = None,
@@ -105,8 +105,8 @@ class MotionServer(Component):
     ):
         """__init__.
 
-        :param node_name:
-        :type node_name: str
+        :param component_name:
+        :type component_name: str
         :param config:
         :type config: Optional[MotionServerConfig]
         :param config_file:
@@ -136,7 +136,7 @@ class MotionServer(Component):
         super().__init__(
             config=config,
             config_file=config_file,
-            node_name=node_name,
+            component_name=component_name,
             callback_group=callback_group,
             outputs=out_topics,
             inputs=in_topics,

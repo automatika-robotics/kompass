@@ -39,15 +39,13 @@ Available Events:
 
 """
 
+from ros_sugar.core import Event, InternalEvent, OnInternalEvent
 from ros_sugar.events import (
-    Event,
-    InternalEvent,
     OnChange,
     OnChangeEqual,
     OnDifferent,
     OnEqual,
     OnGreater,
-    OnInternalEvent,
     OnLess,
     available_events,
 )
