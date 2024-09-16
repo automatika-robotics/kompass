@@ -89,7 +89,7 @@ class DriveManager(Component):
 
     def __init__(
         self,
-        node_name: str,
+        component_name: str,
         config_file: Optional[str] = None,
         config: Optional[DriveManagerConfig] = None,
         inputs=None,
@@ -98,8 +98,8 @@ class DriveManager(Component):
     ) -> None:
         """__init__.
 
-        :param node_name:
-        :type node_name: str
+        :param component_name:
+        :type component_name: str
         :param config_file:
         :type config_file: Optional[str]
         :param config:
@@ -130,7 +130,7 @@ class DriveManager(Component):
             outputs=out_topics,
             allowed_inputs=DriverInputs,
             allowed_outputs=DriverOutputs,
-            node_name=node_name,
+            component_name=component_name,
             **kwargs,
         )
         self.config: DriveManagerConfig = config

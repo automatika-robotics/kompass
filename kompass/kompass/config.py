@@ -4,7 +4,7 @@ import math
 from typing import Union
 
 import numpy as np
-import ros_sugar.base_validators as BaseValidators
+import ros_sugar.config.base_validators as BaseValidators
 from attrs import Factory, define, field
 from kompass_core.models import (
     AngularCtrlLimits,
@@ -12,8 +12,8 @@ from kompass_core.models import (
     RobotGeometry,
     RobotType,
 )
-from ros_sugar.base_attrs import BaseAttrs
 from ros_sugar.config import (
+    BaseAttrs,
     BaseComponentConfig,
     BaseConfig,
     ComponentRunType,

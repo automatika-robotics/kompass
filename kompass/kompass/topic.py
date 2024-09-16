@@ -4,11 +4,11 @@ from functools import partial
 from typing import Any, List, Union, Optional
 
 from attrs import define, field, make_class
-from ros_sugar.publisher import Publisher
-from ros_sugar.topic import AllowedTopic as AllowedTopicBase
-from ros_sugar.topic import RestrictedTopicsConfig
-from ros_sugar.topic import Topic as BaseTopic
-from ros_sugar.topic import get_all_msg_types, get_msg_type
+from ros_sugar.io import Publisher
+from ros_sugar.io import AllowedTopic as AllowedTopicBase
+from ros_sugar.io import RestrictedTopicsConfig
+from ros_sugar.io import Topic as BaseTopic
+from ros_sugar.io import get_all_msg_types, get_msg_type
 
 from . import data_types
 from .config import BaseAttrs, BaseValidators

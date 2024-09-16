@@ -4,8 +4,8 @@ from typing import Dict, List, Optional
 
 from .actions import Action
 from .event import Event
-from ros_sugar.launcher import Launcher as BaseLauncher
-from ros_sugar.launcher import logger
+from ros_sugar import Launcher as BaseLauncher
+from ros_sugar import logger
 
 from .components.component import Component
 from .config import RobotConfig, RobotFrames
@@ -70,6 +70,8 @@ class Launcher(BaseLauncher):
             multi_processing=multi_processing,
             activate_all_components_on_start=activate_all_components_on_start,
             components_to_activate_on_start=components_to_activate_on_start,
+            package_name="kompass",
+            executable_entry_point="executable",
         )
         self.components = components
 
@@ -141,7 +143,10 @@ class Launcher(BaseLauncher):
             components_updated_for_key = []
             # Check if any component has this key in their inputs keys
             for component in self.components:
-                if component.in_topics and key in component.in_topics.asdict().keys():
+                if (
+                    component._input_topics
+                    and key in component._input_topics.asdict().keys()
+                ):
                     # Update input value
                     component.inputs(**{key: value})
                     components_updated_for_key.append(component.node_name)
@@ -161,7 +166,10 @@ class Launcher(BaseLauncher):
             components_updated_for_key = []
             # Check if any component has this key in their output keys
             for component in self.components:
-                if component.out_topics and key in component.out_topics.asdict().keys():
+                if (
+                    component._output_topics
+                    and key in component._output_topics.asdict().keys()
+                ):
                     # Update input value
                     component.outputs(**{key: value})
                     components_updated_for_key.append(component.node_name)
@@ -171,21 +179,3 @@ class Launcher(BaseLauncher):
         )
         self._update_components_launch_cmd_args()
         return
-
-    def _setup_components_in_processes(
-        self,
-        package_name: str = "kompass",
-        executable_entry_point: str = "executable",
-        ros_log_level: str = "info",
-    ):
-        """
-        Sets up the launcher with a components dictionary
-
-        :param components_list: Components dictionary {name: component}
-        :type components_list: List[Component]
-        :param package_name: Package of all components, defaults to "kompass"
-        :type package_name: str, optional
-        """
-        super()._setup_components_in_processes(
-            package_name, executable_entry_point, ros_log_level
-        )

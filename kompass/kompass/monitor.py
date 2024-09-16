@@ -2,7 +2,7 @@ from enum import Enum
 from typing import Dict, List, Optional, Union
 
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup, ReentrantCallbackGroup
-from ros_sugar.monitor import Monitor as BaseMonitor
+from ros_sugar.core import Monitor as BaseMonitor
 
 from .actions import Action
 from .components.component import Component

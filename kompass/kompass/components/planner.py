@@ -144,7 +144,7 @@ class Planner(Component):
 
     def __init__(
         self,
-        node_name: str,
+        component_name: str,
         config_file: Optional[str] = None,
         config: Optional[PlannerConfig] = None,
         inputs: Optional[Dict[str, Topic]] = None,
@@ -175,7 +175,7 @@ class Planner(Component):
             outputs=out_topics,
             allowed_inputs=PlannerInputs,
             allowed_outputs=PlannerOutputs,
-            node_name=node_name,
+            component_name=component_name,
             **kwargs,
         )
 
