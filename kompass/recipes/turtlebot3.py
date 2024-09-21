@@ -37,7 +37,7 @@ def kompass_bringup():
     package_dir = get_package_share_directory(package_name="kompass")
     config_file = os.path.join(package_dir, "params", "turtlebot3.yaml")
 
-    # DEFINE COMPONENTS
+    # Setup your robot configuration
     my_robot = RobotConfig(
         model_type=RobotType.DIFFERENTIAL_DRIVE,
         geometry_type=RobotGeometry.Type.CYLINDER,

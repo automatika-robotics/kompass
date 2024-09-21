@@ -41,7 +41,7 @@ Bases: {py:obj}`kompass.config.ComponentConfig`
 
 ````
 
-`````{py:class} Controller(*, node_name: str, config_file: typing.Optional[str] = None, config: typing.Optional[kompass.components.controller.ControllerConfig] = None, inputs=None, outputs=None, **kwargs)
+`````{py:class} Controller(*, component_name: str, config_file: typing.Optional[str] = None, config: typing.Optional[kompass.components.controller.ControllerConfig] = None, inputs=None, outputs=None, **kwargs)
 :canonical: kompass.components.controller.Controller
 
 Bases: {py:obj}`kompass.components.component.Component`
@@ -76,7 +76,7 @@ Bases: {py:obj}`kompass.components.component.Component`
 
 ````{py:property} tracked_point
 :canonical: kompass.components.controller.Controller.tracked_point
-:type: typing.Optional[geometry_msgs.msg.PoseStamped]
+:type: typing.Optional[numpy.ndarray]
 
 ```{autodoc2-docstring} kompass.components.controller.Controller.tracked_point
 ```
@@ -151,7 +151,7 @@ Bases: {py:obj}`kompass.components.component.Component`
 
 ````
 
-````{py:method} execute_cmd(vx: float, vy: float, omega: float) -> bool
+````{py:method} execute_cmd(vx: float, vy: float, omega: float)
 :canonical: kompass.components.controller.Controller.execute_cmd
 
 ```{autodoc2-docstring} kompass.components.controller.Controller.execute_cmd

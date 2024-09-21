@@ -38,7 +38,7 @@ Action(s) set for 'on_any_fail' is executed for *any* failure for which no fallb
     from kompass.components.component import Component
     from kompass.actions import Actions
 
-    my_component = Component(node_name='test_component')
+    my_component = Component(component_name='test_component')
 
     # Set fallback for component failure to restart the component
     my_component.on_component_fail(fallback=Actions.restart(component=my_component))

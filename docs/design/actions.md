@@ -20,7 +20,7 @@ Actions are defined with:
     def function():
         logging.info("I am executing an action!")
 
-    my_component = Component(node_name='test_component')
+    my_component = Component(component_name='test_component')
     new_config = ComponentConfig(loop_rate=50.0)
     action1 = Action(method=my_component.start)
     action2 = Action(method=my_component.reconfigure, args=(new_config, True),)
@@ -52,7 +52,7 @@ Kompass comes with a set of pre-defined component level actions and system level
 ```python
     from kompass.actions import Actions
 
-    my_component = BaseComponent(node_name='test_component')
+    my_component = BaseComponent(component_name='test_component')
     action1 = Actions.start(component=my_component)
     action2 = Actions.log(msg="I am executing a cool action!")
 ```

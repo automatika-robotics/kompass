@@ -15,20 +15,6 @@ from .config import RobotConfig, RobotFrames
 class Launcher(BaseLauncher):
     """
     System Launcher extending the base Launcher in [ROS Sugar](https://github.com/automatika-robotics/ros_sugar)
-
-    Launcher is a class created to provide a more pythonic way to launch and configure ROS nodes.
-
-    Launcher starts a pre-configured component or a set of components as ROS2 nodes using multi-threaded or multi-process execution. Launcher spawns an internal [Monitor](./monitor.md) node in a separate thread in both execution types.
-
-
-    Launcher can also manage a set of Events-Actions through its internal Monitor node (See Monitor class).
-
-    ## Available options:
-    - Enable/Disable events monitoring
-    - Enable/Disable multi-processing, if disabled the components are launched in threads
-    - Select to activate one, many or all components on start (lifecycle nodes activation)
-
-    Launcher forwards all the provided Events to its internal Monitor, when the Monitor detects an Event trigger it emits an InternalEvent back to the Launcher. Execution of the Action is done directly by the Launcher or a request is forwarded to the Monitor depending on the selected run method (multi-processes or multi-threaded).
     """
 
     def __init__(
@@ -37,25 +23,14 @@ class Launcher(BaseLauncher):
         config_file: str | None = None,
         enable_monitoring: bool = True,
     ) -> None:
-        """__init__.
+        """Initialize a launcher to manager components launch in ROS2
 
-        :param components:
-        :type components: List[Component]
-        :param events_actions:
-        :type events_actions: Dict[Event, Action] | None
-        :param namespace:
-        :type namespace: str
-        :param config_file:
-        :type config_file: str | None
-        :param enable_monitoring:
-        :type enable_monitoring: bool
-        :param multi_processing:
-        :type multi_processing: bool
-        :param activate_all_components_on_start:
-        :type activate_all_components_on_start: bool
-        :param components_to_activate_on_start:
-        :type components_to_activate_on_start: Optional[List[Component]]
-        :rtype: None
+        :param namespace: ROS2 namespace for all the nodes, defaults to ""
+        :type namespace: str, optional
+        :param config_file: Path to Yaml configuration file, defaults to None
+        :type config_file: str | None, optional
+        :param enable_monitoring: Enable components health status monitoring, defaults to True
+        :type enable_monitoring: bool, optional
         """
         super().__init__(
             namespace=namespace,
@@ -107,7 +82,7 @@ class Launcher(BaseLauncher):
         activate_all_components_on_start: bool = True,
         components_to_activate_on_start: Optional[List[Component]] = None,
     ):
-        """Adds ROS Agents components to the launcher
+        """Adds [ROS Agents](https://github.com/automatika-robotics/ros-agents) components to the launcher
 
         :param components: ROS Agents components
         :type components: List[Component]

@@ -44,8 +44,8 @@ from geometry_msgs.msg import Pose
 from kompass_interfaces.msg import PathTrackingError
 
 # Create your components
-planner = Planner(node_name='test_planner')
-controller = Controller(node_name='test_controller')
+planner = Planner(component_name='test_planner')
+controller = Controller(component_name='test_controller')
 
 
 # Configure your components here

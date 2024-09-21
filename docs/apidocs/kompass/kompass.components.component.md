@@ -27,10 +27,10 @@ orphan: true
 
 ### API
 
-`````{py:class} Component(node_name: str, config: typing.Optional[kompass.config.ComponentConfig] = None, config_file: typing.Optional[str] = None, inputs: typing.Optional[kompass.config.BaseAttrs] = None, outputs: typing.Optional[kompass.config.BaseAttrs] = None, fallbacks: typing.Optional[ros_sugar.fallbacks.ComponentFallbacks] = None, allowed_inputs: typing.Optional[type[kompass.topic.RestrictedTopicsConfig]] = None, allowed_outputs: typing.Optional[type[kompass.topic.RestrictedTopicsConfig]] = None, callback_group=None, **kwargs)
+`````{py:class} Component(component_name: str, config: typing.Optional[kompass.config.ComponentConfig] = None, config_file: typing.Optional[str] = None, inputs: typing.Optional[kompass.config.BaseAttrs] = None, outputs: typing.Optional[kompass.config.BaseAttrs] = None, fallbacks: typing.Optional[ros_sugar.core.ComponentFallbacks] = None, allowed_inputs: typing.Optional[type[kompass.topic.RestrictedTopicsConfig]] = None, allowed_outputs: typing.Optional[type[kompass.topic.RestrictedTopicsConfig]] = None, callback_group=None, **kwargs)
 :canonical: kompass.components.component.Component
 
-Bases: {py:obj}`ros_sugar.component.BaseComponent`
+Bases: {py:obj}`ros_sugar.core.BaseComponent`
 
 ```{autodoc2-docstring} kompass.components.component.Component
 ```
@@ -60,22 +60,6 @@ Bases: {py:obj}`ros_sugar.component.BaseComponent`
 
 ````
 
-````{py:method} destroy_all_subscribers()
-:canonical: kompass.components.component.Component.destroy_all_subscribers
-
-```{autodoc2-docstring} kompass.components.component.Component.destroy_all_subscribers
-```
-
-````
-
-````{py:method} destroy_all_publishers()
-:canonical: kompass.components.component.Component.destroy_all_publishers
-
-```{autodoc2-docstring} kompass.components.component.Component.destroy_all_publishers
-```
-
-````
-
 ````{py:method} inputs(**kwargs)
 :canonical: kompass.components.component.Component.inputs
 
@@ -96,30 +80,6 @@ Bases: {py:obj}`ros_sugar.component.BaseComponent`
 :canonical: kompass.components.component.Component.configure
 
 ```{autodoc2-docstring} kompass.components.component.Component.configure
-```
-
-````
-
-````{py:method} update_cmd_args_list()
-:canonical: kompass.components.component.Component.update_cmd_args_list
-
-```{autodoc2-docstring} kompass.components.component.Component.update_cmd_args_list
-```
-
-````
-
-````{py:method} add_ros_subscriber(callback: kompass.callbacks.GenericCallback)
-:canonical: kompass.components.component.Component.add_ros_subscriber
-
-```{autodoc2-docstring} kompass.components.component.Component.add_ros_subscriber
-```
-
-````
-
-````{py:method} add_ros_publisher(publisher: kompass.topic.Publisher)
-:canonical: kompass.components.component.Component.add_ros_publisher
-
-```{autodoc2-docstring} kompass.components.component.Component.add_ros_publisher
 ```
 
 ````
@@ -159,53 +119,10 @@ Bases: {py:obj}`ros_sugar.component.BaseComponent`
 
 ````
 
-````{py:method} got_all_inputs(inputs_to_check: typing.Optional[typing.List[str]] = None, inputs_to_exclude: typing.Optional[typing.List[str]] = None) -> bool
-:canonical: kompass.components.component.Component.got_all_inputs
-
-```{autodoc2-docstring} kompass.components.component.Component.got_all_inputs
-```
-
-````
-
-````{py:method} get_missing_inputs() -> list[str]
-:canonical: kompass.components.component.Component.get_missing_inputs
-
-```{autodoc2-docstring} kompass.components.component.Component.get_missing_inputs
-```
-
-````
-
 ````{py:method} callbacks_inputs_check(inputs_to_check: typing.Optional[typing.List[str]] = None, inputs_to_execlude: typing.Optional[typing.List[str]] = None) -> bool
 :canonical: kompass.components.component.Component.callbacks_inputs_check
 
 ```{autodoc2-docstring} kompass.components.component.Component.callbacks_inputs_check
-```
-
-````
-
-````{py:property} inputs_json
-:canonical: kompass.components.component.Component.inputs_json
-:type: typing.Union[str, bytes, bytearray]
-
-```{autodoc2-docstring} kompass.components.component.Component.inputs_json
-```
-
-````
-
-````{py:property} outputs_json
-:canonical: kompass.components.component.Component.outputs_json
-:type: typing.Union[str, bytes, bytearray]
-
-```{autodoc2-docstring} kompass.components.component.Component.outputs_json
-```
-
-````
-
-````{py:property} events_json
-:canonical: kompass.components.component.Component.events_json
-:type: typing.Union[str, bytes]
-
-```{autodoc2-docstring} kompass.components.component.Component.events_json
 ```
 
 ````

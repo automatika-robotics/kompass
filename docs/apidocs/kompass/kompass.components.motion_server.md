@@ -41,7 +41,7 @@ Bases: {py:obj}`kompass.config.ComponentConfig`
 
 ````
 
-`````{py:class} MotionServer(*, node_name: str, config: typing.Optional[kompass.components.motion_server.MotionServerConfig] = None, config_file: typing.Optional[str] = None, robot_cmd_topic: typing.Optional[kompass.topic.Topic] = None, robot_odom_topic: typing.Optional[kompass.topic.Topic] = None, callback_group: typing.Optional[rclpy.callback_groups.CallbackGroup] = None, **kwargs)
+`````{py:class} MotionServer(*, component_name: str, config: typing.Optional[kompass.components.motion_server.MotionServerConfig] = None, config_file: typing.Optional[str] = None, robot_cmd_topic: typing.Optional[kompass.topic.Topic] = None, robot_odom_topic: typing.Optional[kompass.topic.Topic] = None, callback_group: typing.Optional[rclpy.callback_groups.CallbackGroup] = None, **kwargs)
 :canonical: kompass.components.motion_server.MotionServer
 
 Bases: {py:obj}`kompass.components.component.Component`

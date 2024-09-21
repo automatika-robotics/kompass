@@ -6,7 +6,7 @@ from attrs import field
 # ROS INTERFACES
 from geometry_msgs.msg import PoseStamped
 from kompass_core.utils.geometry import from_euler_to_quaternion
-from nav_msgs.msg import MapMetaData, Path
+from nav_msgs.msg import Path
 
 # KOMPASS NAVIGATION
 from kompass_core.models import Robot, RobotState
@@ -132,7 +132,7 @@ class Planner(Component):
             loop_rate=1.0
         )
 
-        planner = Planner(node_name="planner", config=config)
+        planner = Planner(component_name="planner", config=config)
 
         # Add rviz clicked_point as input topic
         planner.run_type = ComponentRunType.EVENT   # Can also pass a string "Event"

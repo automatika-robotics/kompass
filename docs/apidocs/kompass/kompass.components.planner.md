@@ -41,7 +41,7 @@ Bases: {py:obj}`kompass.config.ComponentConfig`
 
 ````
 
-`````{py:class} Planner(node_name: str, config_file: typing.Optional[str] = None, config: typing.Optional[kompass.components.planner.PlannerConfig] = None, inputs: typing.Optional[typing.Dict[str, kompass.topic.Topic]] = None, outputs: typing.Optional[typing.Dict[str, kompass.topic.Topic]] = None, **kwargs)
+`````{py:class} Planner(component_name: str, config_file: typing.Optional[str] = None, config: typing.Optional[kompass.components.planner.PlannerConfig] = None, inputs: typing.Optional[typing.Dict[str, kompass.topic.Topic]] = None, outputs: typing.Optional[typing.Dict[str, kompass.topic.Topic]] = None, **kwargs)
 :canonical: kompass.components.planner.Planner
 
 Bases: {py:obj}`kompass.components.component.Component`
@@ -129,16 +129,6 @@ Bases: {py:obj}`kompass.components.component.Component`
 
 ````
 
-````{py:method} destroy_all_subscribers()
-:canonical: kompass.components.planner.Planner.destroy_all_subscribers
-
-````
-
-````{py:method} destroy_all_publishers()
-:canonical: kompass.components.planner.Planner.destroy_all_publishers
-
-````
-
 ````{py:method} inputs(**kwargs)
 :canonical: kompass.components.planner.Planner.inputs
 
@@ -146,21 +136,6 @@ Bases: {py:obj}`kompass.components.component.Component`
 
 ````{py:method} outputs(**kwargs)
 :canonical: kompass.components.planner.Planner.outputs
-
-````
-
-````{py:method} update_cmd_args_list()
-:canonical: kompass.components.planner.Planner.update_cmd_args_list
-
-````
-
-````{py:method} add_ros_subscriber(callback: kompass.callbacks.GenericCallback)
-:canonical: kompass.components.planner.Planner.add_ros_subscriber
-
-````
-
-````{py:method} add_ros_publisher(publisher: kompass.topic.Publisher)
-:canonical: kompass.components.planner.Planner.add_ros_publisher
 
 ````
 
@@ -187,36 +162,8 @@ Bases: {py:obj}`kompass.components.component.Component`
 
 ````
 
-````{py:method} got_all_inputs(inputs_to_check: typing.Optional[typing.List[str]] = None, inputs_to_exclude: typing.Optional[typing.List[str]] = None) -> bool
-:canonical: kompass.components.planner.Planner.got_all_inputs
-
-````
-
-````{py:method} get_missing_inputs() -> list[str]
-:canonical: kompass.components.planner.Planner.get_missing_inputs
-
-````
-
 ````{py:method} callbacks_inputs_check(inputs_to_check: typing.Optional[typing.List[str]] = None, inputs_to_execlude: typing.Optional[typing.List[str]] = None) -> bool
 :canonical: kompass.components.planner.Planner.callbacks_inputs_check
-
-````
-
-````{py:property} inputs_json
-:canonical: kompass.components.planner.Planner.inputs_json
-:type: typing.Union[str, bytes, bytearray]
-
-````
-
-````{py:property} outputs_json
-:canonical: kompass.components.planner.Planner.outputs_json
-:type: typing.Union[str, bytes, bytearray]
-
-````
-
-````{py:property} events_json
-:canonical: kompass.components.planner.Planner.events_json
-:type: typing.Union[str, bytes]
 
 ````
 

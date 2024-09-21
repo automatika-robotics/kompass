@@ -54,7 +54,7 @@ Bases: {py:obj}`enum.Enum`
 `````{py:class} Monitor(componenets_names: typing.List[str], enable_health_status_monitoring: bool = True, events: typing.Optional[typing.List[kompass.event.Event]] = None, actions: typing.Optional[typing.Dict[str, kompass.actions.Action]] = None, config: typing.Optional[kompass.config.BaseConfig] = None, services_components: typing.Optional[typing.List[kompass.components.component.Component]] = None, action_servers_components: typing.Optional[typing.List[kompass.components.component.Component]] = None, activate_on_start: typing.Optional[typing.List[kompass.components.component.Component]] = None, start_on_init: bool = False, component_name: str = 'monitor', callback_group: typing.Optional[typing.Union[rclpy.callback_groups.MutuallyExclusiveCallbackGroup, rclpy.callback_groups.ReentrantCallbackGroup]] = None, **kwargs)
 :canonical: kompass.monitor.Monitor
 
-Bases: {py:obj}`ros_sugar.monitor.Monitor`
+Bases: {py:obj}`ros_sugar.core.Monitor`
 
 ```{autodoc2-docstring} kompass.monitor.Monitor
 ```

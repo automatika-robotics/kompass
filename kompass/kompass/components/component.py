@@ -33,7 +33,7 @@ class Component(BaseComponent):
                                 input_2=Topic(name="/location", msg_type="Odometry"),
                             )
             inputs = NewTopicsClass()
-            my_component = Component(node_name='my_node', inputs=inputs)
+            my_component = Component(component_name='my_node', inputs=inputs)
         ```
 
     Components in Kompass can be defined to accept only restricted types of inputs/outputs to help lock the functionality of a specific Component implementation.
@@ -45,7 +45,7 @@ class Component(BaseComponent):
                 PLAN = AllowedTopic(key="input_1", types=["Path"])
                 LOCATION = AllowedTopic(key="input_2", types=["Odometry", "PoseStamped", "Pose"])
 
-            my_component = Component(node_name='my_node', allowed_inputs=AllowedInputs)
+            my_component = Component(component_name='my_node', allowed_inputs=AllowedInputs)
         ```
     """
 

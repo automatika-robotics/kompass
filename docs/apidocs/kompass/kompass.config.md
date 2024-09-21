@@ -34,7 +34,7 @@
 `````{py:class} RobotFrames
 :canonical: kompass.config.RobotFrames
 
-Bases: {py:obj}`ros_sugar.base_attrs.BaseAttrs`
+Bases: {py:obj}`ros_sugar.config.BaseAttrs`
 
 ```{autodoc2-docstring} kompass.config.RobotFrames
 ```
@@ -84,7 +84,7 @@ Bases: {py:obj}`ros_sugar.base_attrs.BaseAttrs`
 `````{py:class} RobotConfig
 :canonical: kompass.config.RobotConfig
 
-Bases: {py:obj}`ros_sugar.base_attrs.BaseAttrs`
+Bases: {py:obj}`ros_sugar.config.BaseAttrs`
 
 ```{autodoc2-docstring} kompass.config.RobotConfig
 ```

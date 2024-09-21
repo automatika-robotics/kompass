@@ -164,7 +164,7 @@ class Controller(Component):
         my_config = ControllerConfig(loop_rate=10.0, control_horizon_number_of_steps=7)
 
         # Init a controller object
-        my_controller = Controller(node_name="controller", config=my_config)
+        my_controller = Controller(component_name="controller", config=my_config)
 
         # Change an input
         my_controller.inputs(plan=Topic(name='/global_path', msg_type='Path'))

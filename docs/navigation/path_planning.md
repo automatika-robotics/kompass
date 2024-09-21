@@ -115,7 +115,7 @@ OMPL geometric planners (see [available OMPL integrations](../integrations/ompl.
         loop_rate=1.0 # 1Hz
     )
 
-    planner = Planner(node_name="planner", config=config)
+    planner = Planner(component_name="planner", config=config)
 
     planner.run_type = ComponentRunType.EVENT   # Can also pass a string "Event"
 

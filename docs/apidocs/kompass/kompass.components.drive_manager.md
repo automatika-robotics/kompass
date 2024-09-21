@@ -41,7 +41,7 @@ Bases: {py:obj}`kompass.config.ComponentConfig`
 
 ````
 
-`````{py:class} DriveManager(node_name: str, config_file: typing.Optional[str] = None, config: typing.Optional[kompass.components.drive_manager.DriveManagerConfig] = None, inputs=None, outputs=None, **kwargs)
+`````{py:class} DriveManager(component_name: str, config_file: typing.Optional[str] = None, config: typing.Optional[kompass.components.drive_manager.DriveManagerConfig] = None, inputs=None, outputs=None, **kwargs)
 :canonical: kompass.components.drive_manager.DriveManager
 
 Bases: {py:obj}`kompass.components.component.Component`
@@ -114,16 +114,6 @@ Bases: {py:obj}`kompass.components.component.Component`
 
 ````
 
-````{py:method} destroy_all_subscribers()
-:canonical: kompass.components.drive_manager.DriveManager.destroy_all_subscribers
-
-````
-
-````{py:method} destroy_all_publishers()
-:canonical: kompass.components.drive_manager.DriveManager.destroy_all_publishers
-
-````
-
 ````{py:method} inputs(**kwargs)
 :canonical: kompass.components.drive_manager.DriveManager.inputs
 
@@ -136,21 +126,6 @@ Bases: {py:obj}`kompass.components.component.Component`
 
 ````{py:method} configure(config_file: str)
 :canonical: kompass.components.drive_manager.DriveManager.configure
-
-````
-
-````{py:method} update_cmd_args_list()
-:canonical: kompass.components.drive_manager.DriveManager.update_cmd_args_list
-
-````
-
-````{py:method} add_ros_subscriber(callback: kompass.callbacks.GenericCallback)
-:canonical: kompass.components.drive_manager.DriveManager.add_ros_subscriber
-
-````
-
-````{py:method} add_ros_publisher(publisher: kompass.topic.Publisher)
-:canonical: kompass.components.drive_manager.DriveManager.add_ros_publisher
 
 ````
 
@@ -177,36 +152,8 @@ Bases: {py:obj}`kompass.components.component.Component`
 
 ````
 
-````{py:method} got_all_inputs(inputs_to_check: typing.Optional[typing.List[str]] = None, inputs_to_exclude: typing.Optional[typing.List[str]] = None) -> bool
-:canonical: kompass.components.drive_manager.DriveManager.got_all_inputs
-
-````
-
-````{py:method} get_missing_inputs() -> list[str]
-:canonical: kompass.components.drive_manager.DriveManager.get_missing_inputs
-
-````
-
 ````{py:method} callbacks_inputs_check(inputs_to_check: typing.Optional[typing.List[str]] = None, inputs_to_execlude: typing.Optional[typing.List[str]] = None) -> bool
 :canonical: kompass.components.drive_manager.DriveManager.callbacks_inputs_check
-
-````
-
-````{py:property} inputs_json
-:canonical: kompass.components.drive_manager.DriveManager.inputs_json
-:type: typing.Union[str, bytes, bytearray]
-
-````
-
-````{py:property} outputs_json
-:canonical: kompass.components.drive_manager.DriveManager.outputs_json
-:type: typing.Union[str, bytes, bytearray]
-
-````
-
-````{py:property} events_json
-:canonical: kompass.components.drive_manager.DriveManager.events_json
-:type: typing.Union[str, bytes]
 
 ````
 

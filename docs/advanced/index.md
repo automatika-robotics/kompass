@@ -9,6 +9,7 @@ title: Advanced
 :maxdepth: 1
 :caption: Advanced
 
+design
 advanced_conf/index
 algorithms/index
 ```

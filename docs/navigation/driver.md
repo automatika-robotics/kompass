@@ -98,7 +98,7 @@ Check an example on configuring the robot unblocking functionality with an exter
     # critical_zone_distance: for emergency stp (m)
     my_config = DriveManagerConfig(cmd_rate=10.0, critical_zone_distance=0.05)
 
-    driver = DriveManager(node_name="driver", config=my_config)
+    driver = DriveManager(component_name="driver", config=my_config)
 
     # Change the robot command output
     driver.outputs(robot_command=Topic(name='/my_robot_cmd', msg_type='Twist'))

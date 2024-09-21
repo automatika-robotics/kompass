@@ -46,7 +46,7 @@
 ````{py:class} Topic
 :canonical: kompass.topic.Topic
 
-Bases: {py:obj}`ros_sugar.topic.Topic`
+Bases: {py:obj}`ros_sugar.io.Topic`
 
 ```{autodoc2-docstring} kompass.topic.Topic
 ```
@@ -56,7 +56,7 @@ Bases: {py:obj}`ros_sugar.topic.Topic`
 ````{py:class} AllowedTopic
 :canonical: kompass.topic.AllowedTopic
 
-Bases: {py:obj}`ros_sugar.topic.AllowedTopic`
+Bases: {py:obj}`ros_sugar.io.AllowedTopic`
 
 ```{autodoc2-docstring} kompass.topic.AllowedTopic
 ```
