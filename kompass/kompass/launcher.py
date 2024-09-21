@@ -1,6 +1,7 @@
 """System Launcher extending the base Launcher in [ROS Sugar](https://github.com/automatika-robotics/ros_sugar)"""
 
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union
+from launch.action import Action as ROSLaunchAction
 
 from .actions import Action
 from .event import Event
@@ -32,14 +33,9 @@ class Launcher(BaseLauncher):
 
     def __init__(
         self,
-        components: List[Component],
-        events_actions: Dict[Event, Action] | None = None,
         namespace: str = "",
         config_file: str | None = None,
         enable_monitoring: bool = True,
-        multi_processing: bool = True,
-        activate_all_components_on_start: bool = False,
-        components_to_activate_on_start: Optional[List[Component]] = None,
     ) -> None:
         """__init__.
 
@@ -62,23 +58,84 @@ class Launcher(BaseLauncher):
         :rtype: None
         """
         super().__init__(
-            components=components,
-            events_actions=events_actions,
             namespace=namespace,
             config_file=config_file,
             enable_monitoring=enable_monitoring,
+        )
+
+    def kompass(
+        self,
+        components: List[Component],
+        events_actions: Dict[
+            Event, Union[Action, ROSLaunchAction, List[Union[Action, ROSLaunchAction]]]
+        ]
+        | None = None,
+        multi_processing: bool = True,
+        activate_all_components_on_start: bool = True,
+        components_to_activate_on_start: Optional[List[Component]] = None,
+    ):
+        """Adds Kompass components to the launcher
+
+        :param components: Kompass components
+        :type components: List[Component]
+        :param events_actions: Events/actions dictionary, defaults to None
+        :type events_actions: Dict[ Event, Union[Action, ROSLaunchAction, List[Union[Action, ROSLaunchAction]]] ] | None, optional
+        :param multi_processing: Run components in multiple processes, defaults to True
+        :type multi_processing: bool, optional
+        :param activate_all_components_on_start: Activate all components on start, defaults to True
+        :type activate_all_components_on_start: bool, optional
+        :param components_to_activate_on_start: List of component to activate on start, defaults to None
+        :type components_to_activate_on_start: Optional[List[Component]], optional
+        """
+        self.add_pkg(
+            components=components,
+            package_name="kompass",
+            executable_entry_point="executable",
+            events_actions=events_actions,
             multi_processing=multi_processing,
             activate_all_components_on_start=activate_all_components_on_start,
             components_to_activate_on_start=components_to_activate_on_start,
-            package_name="kompass",
-            executable_entry_point="executable",
         )
-        self.components = components
+
+    def agents(
+        self,
+        components: List[Component],
+        events_actions: Dict[
+            Event, Union[Action, ROSLaunchAction, List[Union[Action, ROSLaunchAction]]]
+        ]
+        | None = None,
+        activate_all_components_on_start: bool = True,
+        components_to_activate_on_start: Optional[List[Component]] = None,
+    ):
+        """Adds ROS Agents components to the launcher
+
+        :param components: ROS Agents components
+        :type components: List[Component]
+        :param events_actions: Events/actions dictionary, defaults to None
+        :type events_actions: Dict[ Event, Union[Action, ROSLaunchAction, List[Union[Action, ROSLaunchAction]]] ] | None, optional
+        :param multi_processing: Run components in multiple processes, defaults to True
+        :type multi_processing: bool, optional
+        :param activate_all_components_on_start: Activate all components on start, defaults to True
+        :type activate_all_components_on_start: bool, optional
+        :param components_to_activate_on_start: List of component to activate on start, defaults to None
+        :type components_to_activate_on_start: Optional[List[Component]], optional
+        """
+        self.add_pkg(
+            components=components,
+            package_name="ros_agents",
+            executable_entry_point="executable",
+            events_actions=events_actions,
+            multi_processing=False,
+            activate_all_components_on_start=activate_all_components_on_start,
+            components_to_activate_on_start=components_to_activate_on_start,
+        )
 
     def _update_components_launch_cmd_args(self):
         """_update_components_launch_cmd_args."""
-        for component in self.components:
-            component.update_cmd_args_list()
+        for idx, component in enumerate(self.components):
+            pkg_name, _ = self._pkg_executable[idx]
+            if pkg_name == "kompass":
+                component.update_cmd_args_list()
 
     @property
     def robot(self) -> Dict[str, RobotConfig]:
@@ -142,9 +199,11 @@ class Launcher(BaseLauncher):
         for key, value in kwargs.items():
             components_updated_for_key = []
             # Check if any component has this key in their inputs keys
-            for component in self.components:
+            for idx, component in enumerate(self.components):
+                pkg_name, _ = self._pkg_executable[idx]
                 if (
-                    component._input_topics
+                    pkg_name == "kompass"
+                    and component._input_topics
                     and key in component._input_topics.asdict().keys()
                 ):
                     # Update input value
@@ -165,9 +224,11 @@ class Launcher(BaseLauncher):
         for key, value in kwargs.items():
             components_updated_for_key = []
             # Check if any component has this key in their output keys
-            for component in self.components:
+            for idx, component in enumerate(self.components):
+                pkg_name, _ = self._pkg_executable[idx]
                 if (
-                    component._output_topics
+                    pkg_name == "kompass"
+                    and component._output_topics
                     and key in component._output_topics.asdict().keys()
                 ):
                     # Update input value

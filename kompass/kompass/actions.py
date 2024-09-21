@@ -32,6 +32,6 @@ Actions are defined with:
 ```
 """
 
-from ros_sugar.actions import ComponentActions, Action, ComponentLaunchAction
+from ros_sugar.actions import ComponentActions, Action, ComponentLaunchAction, LogInfo
 
-__all__ = ["Action", "ComponentActions", "ComponentLaunchAction"]
+__all__ = ["Action", "ComponentActions", "ComponentLaunchAction", "LogInfo"]
