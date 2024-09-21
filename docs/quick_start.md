@@ -205,8 +205,7 @@ my_robot = RobotConfig(
     geometry_params=np.array([0.1, 0.3]),
     ctrl_vx_limits=LinearCtrlLimits(max_vel=0.2, max_acc=1.5, max_decel=2.5),
     ctrl_omega_limits=AngularCtrlLimits(
-        max_vel=0.4, max_acc=2.0, max_decel=2.0, max_steer=np.pi / 3
-    ),
+        max_vel=0.4, max_acc=2.0, max_decel=2.0, max_steer=np.pi / 3)
 )
 
 # Set the robot frames
@@ -214,8 +213,7 @@ robot_frames = RobotFrames(
     robot_base='base_link',
     odom='odom',
     world='map',
-    scan='LDS-01'
-)
+    scan='LDS-01')
 
 # Setup components with default config, inputs and outputs
 planner_config = PlannerConfig(loop_rate=1.0)       # 1 Hz
@@ -239,8 +237,7 @@ launcher = Launcher()
 launcher.kompass(
     components=[planner, controller, driver],
     activate_all_components_on_start=True,
-    multi_processing=True,
-)
+    multi_processing=True)
 
 # Set the robot
 launcher.robot = robot_config

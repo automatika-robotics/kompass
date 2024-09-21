@@ -2,7 +2,7 @@
 
 Events/Actions are a powerful tool to make your robot application adaptive to the changing working conditions (both internal and external to the robot), or to extend the operational scope of your application by adapting it to new spaces/usecases.
 
-In this tutorial we will extend the Turtlebot3 getting started [recipe](../quick_start.md) by adding a few events/actions to the system.
+In this tutorial we will extend the Turtlebot3 quick start [recipe](../quick_start.md) by adding a few events/actions to the system.
 
 ## First Event/Action Pair
 
@@ -51,12 +51,12 @@ If you are using Kompass with the [Costmap 2D](wiki.ros.org/costmap_2d) node: Yo
 ```
 
 ```{note}
-In the getting started [recipe](../quick_start.md) we added a generic on_fail policy to restart the failed component. This policy will be applied whenever any type of failure is occurs, including the previously used algorithm failure. We can choose to keep this policy, meaning that while the driver is executing the `move_to_unblock` action, then the planner or controller will get restarted.
+In the quick start [recipe](../quick_start.md) we added a generic on_fail policy to restart the failed component. This policy will be applied whenever any type of failure is occurs, including the previously used algorithm failure. We can choose to keep this policy, meaning that while the driver is executing the `move_to_unblock` action, then the planner or controller will get restarted.
 ```
 
 ## Tweak the system using events
 
-In our [_getting started_](../quick_start.md) tutorial we used the Planner with a `Timed` run type and used RVIZ clicked point as the goal point input. In this configuration, once a point is clicked on RVIZ (a message is published on the topic), the Planner will keep producing a new plan each loop step from the current position to the clicked point. To track the mission during execution and end the mission once the point is reached we can run the Planner as an `ActionServer`. In this case the Planner produces a new plan on an incoming action request and will no longer take goals directly from RVIZ topic.
+In our [_quick start_](../quick_start.md) example we used the Planner with a `Timed` run type and used RVIZ clicked point as the goal point input. In this configuration, once a point is clicked on RVIZ (a message is published on the topic), the Planner will keep producing a new plan each loop step from the current position to the clicked point. To track the mission during execution and end the mission once the point is reached we can run the Planner as an `ActionServer`. In this case the Planner produces a new plan on an incoming action request and will no longer take goals directly from RVIZ topic.
 
 We will use events here to run the Planner as an `ActionServer` and accept the goal directly from RVIZ to get the best of both worlds.
 
@@ -155,7 +155,7 @@ event_planner_system_fail = event.OnEqual(
     "planner_system_fail",
     Topic(name="planner_status", msg_type="ComponentStatus"),
     ComponentStatus.STATUS_FAILURE_SYSTEM_LEVEL,
-    ("status"),
+    "status",
 )
 ```
 
@@ -205,9 +205,7 @@ from kompass.config import RobotConfig
 from kompass.launcher import Launcher
 from kompass.topic import Topic
 
-from ament_index_python.packages import (
-    get_package_share_directory,
-)
+from ament_index_python.packages import get_package_share_directory
 
 
 package_dir = get_package_share_directory(package_name="kompass")
@@ -220,8 +218,7 @@ my_robot = RobotConfig(
     geometry_params=np.array([0.1, 0.3]),
     ctrl_vx_limits=LinearCtrlLimits(max_vel=0.2, max_acc=1.5, max_decel=2.5),
     ctrl_omega_limits=AngularCtrlLimits(
-        max_vel=0.4, max_acc=2.0, max_decel=2.0, max_steer=np.pi / 3
-    ),
+        max_vel=0.4, max_acc=2.0, max_decel=2.0, max_steer=np.pi / 3)
 )
 
 config = PlannerConfig(robot=my_robot, loop_rate=1.0)
@@ -257,7 +254,7 @@ event_planner_system_fail = event.OnEqual(
     "planner_system_fail",
     Topic(name="planner_status", msg_type="ComponentStatus"),
     ComponentStatus.STATUS_FAILURE_SYSTEM_LEVEL,
-    ("status"),
+    "status",
 )
 
 # Unblock action
@@ -296,15 +293,12 @@ send_goal.event_parser(goal_point_parser, output_mapping="action_request_msg")
 
 # Load map action
 load_map_req = LoadMap()
-load_map_req.map_url = os.path.join(
-        package_dir, "maps", "turtlebot3_webots.yaml"
-    )
+load_map_req.map_url = os.path.join(package_dir, "maps", "turtlebot3_webots.yaml")
 
 action_load_map = ComponentActions.send_srv_request(
     srv_name="/map_server/load_map",
     srv_type=LoadMap,
-    srv_request_msg=load_map_req,
-)
+    srv_request_msg=load_map_req)
 
 # Define Events/Actions dictionary
 events_actions = {
@@ -325,8 +319,7 @@ launcher.kompass(
     components=[planner, controller, mapper, driver],
     events_actions=events_actions,
     activate_all_components_on_start=True,
-    multi_processing=True,
-)
+    multi_processing=True)
 
 # Get odom from localizer filtered odom for all components
 odom_topic = Topic(name="/odometry/filtered", msg_type="Odometry")
