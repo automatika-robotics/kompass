@@ -8,7 +8,9 @@ from sensor_msgs.msg import PointCloud2
 from geometry_msgs.msg import Pose
 
 # KOMPASS
-from kompass_core.mapping.local_mapper import LocalMapperConfig as LocalMapperHandlerConfig
+from kompass_core.mapping.local_mapper import (
+    LocalMapperConfig as LocalMapperHandlerConfig,
+)
 from kompass_core.mapping.local_mapper import LocalMapper as LocalMapperHandler
 from kompass_core.mapping.laserscan_model import LaserScanModelConfig
 from kompass_core.datatypes.pose import PoseData
@@ -53,7 +55,8 @@ _mapper_default_inputs = create_topics_config(
 
 # Create default outputs - Used if no outputs config is provided to the controller
 _mapper_default_outputs = create_topics_config(
-    "LocalMapperOutputs", occupancy_layer=Topic(name="/local_map/occupancy_layer", msg_type="OccupancyGrid")
+    "LocalMapperOutputs",
+    occupancy_layer=Topic(name="/local_map/occupancy_layer", msg_type="OccupancyGrid"),
     # , probability_layer=Topic(name="/local_map/probability_layer", msg_type="OccupancyGrid")
 )
 
@@ -63,8 +66,11 @@ class LocalMapperConfig(ComponentConfig):
     """
     LocalMapperConfig parameters
     """
-    map_params: LocalMapperHandlerConfig = field(default=Factory(LocalMapperHandlerConfig))
-    laserscan_model : LaserScanModelConfig = field(default=Factory(LaserScanModelConfig))
+
+    map_params: LocalMapperHandlerConfig = field(
+        default=Factory(LocalMapperHandlerConfig)
+    )
+    laserscan_model: LaserScanModelConfig = field(default=Factory(LaserScanModelConfig))
 
 
 class LocalMapper(Component):
@@ -135,8 +141,7 @@ class LocalMapper(Component):
         self.sensor_data: Optional[Union[LaserScanData, PointCloudData]] = None
 
         self._local_map_builder = LocalMapperHandler(
-            config=self.config.map_params,
-            scan_model_config=self.config.laserscan_model
+            config=self.config.map_params, scan_model_config=self.config.laserscan_model
         )
 
     def _update_state(self) -> None:
@@ -174,10 +179,18 @@ class LocalMapper(Component):
         origin_pose_msg.position.x = self._local_map_builder.lower_right_corner_pose.x
         origin_pose_msg.position.y = self._local_map_builder.lower_right_corner_pose.y
         origin_pose_msg.position.z = self._local_map_builder.lower_right_corner_pose.z
-        origin_pose_msg.orientation.x = self._local_map_builder.lower_right_corner_pose.qx
-        origin_pose_msg.orientation.y = self._local_map_builder.lower_right_corner_pose.qy
-        origin_pose_msg.orientation.z = self._local_map_builder.lower_right_corner_pose.qz
-        origin_pose_msg.orientation.w = self._local_map_builder.lower_right_corner_pose.qw
+        origin_pose_msg.orientation.x = (
+            self._local_map_builder.lower_right_corner_pose.qx
+        )
+        origin_pose_msg.orientation.y = (
+            self._local_map_builder.lower_right_corner_pose.qy
+        )
+        origin_pose_msg.orientation.z = (
+            self._local_map_builder.lower_right_corner_pose.qz
+        )
+        origin_pose_msg.orientation.w = (
+            self._local_map_builder.lower_right_corner_pose.qw
+        )
 
         msg_header = Header()
         msg_header.stamp = self.get_ros_time()
@@ -190,12 +203,11 @@ class LocalMapper(Component):
             origin=origin_pose_msg,
             width=self._local_map_builder.grid_width,
             height=self._local_map_builder.grid_height,
-            resolution=self.config.map_params.resolution
+            resolution=self.config.map_params.resolution,
         )
 
     def _update_map_from_scan(self, **_):
-        """Update local map from scan
-        """
+        """Update local map from scan"""
         if not self.sensor_data:
             return
 
@@ -207,9 +219,7 @@ class LocalMapper(Component):
 
         self._local_map_builder.scan_update_model.range_max = self.sensor_data.range_max
 
-        self._local_map_builder.update_from_scan(
-            pose_robot_in_world, self.sensor_data
-        )
+        self._local_map_builder.update_from_scan(pose_robot_in_world, self.sensor_data)
 
     def _execution_step(self):
         """
