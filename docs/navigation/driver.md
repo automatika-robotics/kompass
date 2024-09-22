@@ -92,6 +92,7 @@ Check an example on configuring the robot unblocking functionality with an exter
 ## Usage Example:
 ```python
     from kompass.components import DriveManager, DriveManagerConfig
+    from kompass.topic import Topic
 
     # Setup custom configuration
     # cmd_rate: rate for sending commands to the robot (Hz)

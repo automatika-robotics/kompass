@@ -112,7 +112,7 @@ class Planner(Component):
     ```python
         from kompass.components import Planner, PlannerConfig
         from kompass.config import ComponentRunType
-        from Navigation.models import RobotType, Robot, LinearCtrlLimits, AngularCtrlLimits
+        from kompass_core.models import RobotType, Robot, LinearCtrlLimits, AngularCtrlLimits
         import numpy as np
 
         # Configure your robot

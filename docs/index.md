@@ -25,6 +25,7 @@ navigation/robot
 navigation/path_planning
 navigation/control
 navigation/driver
+navigation/mapper
 navigation/motion_server
 navigation/mapping_localization
 ```

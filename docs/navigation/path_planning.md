@@ -95,7 +95,8 @@ OMPL geometric planners (see [available OMPL integrations](../integrations/ompl.
 ```python
     from kompass.components import Planner, PlannerConfig
     from kompass.config import ComponentRunType
-    from Navigation.models import RobotType, Robot, RobotGeometry, LinearCtrlLimits, AngularCtrlLimits
+    from kompass.topic import Topic
+    from kompass_core.models import RobotType, Robot, RobotGeometry, LinearCtrlLimits, AngularCtrlLimits
     import numpy as np
 
     # Configure your robot

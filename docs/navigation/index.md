@@ -28,6 +28,7 @@ robot
 path_planning
 control
 driver
+mapper
 motion_server
 mapping_localization
 ```

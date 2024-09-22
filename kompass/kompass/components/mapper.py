@@ -1,22 +1,18 @@
-from typing import Optional, Union
+from typing import Optional
 from attrs import define, field, Factory
 import numpy as np
 
 # ROS MSGS
 from std_msgs.msg import Header
-from sensor_msgs.msg import PointCloud2
 from geometry_msgs.msg import Pose
 
 # KOMPASS
-from kompass_core.mapping.local_mapper import (
-    LocalMapperConfig as LocalMapperHandlerConfig,
-)
-from kompass_core.mapping.local_mapper import LocalMapper as LocalMapperHandler
+from kompass_core.mapping import MapConfig
+from kompass_core.mapping import LocalMapper as LocalMapperHandler
 from kompass_core.mapping.laserscan_model import LaserScanModelConfig
 from kompass_core.datatypes.pose import PoseData
-from kompass_core.models import Robot, RobotState
+from kompass_core.models import RobotState
 from kompass_core.datatypes.laserscan import LaserScanData
-from kompass_core.datatypes.pointcloud import PointCloudData
 
 # KOMPASS ROS
 from ..config import ComponentConfig
@@ -27,15 +23,13 @@ from ..topic import (
     create_topics_config,
     update_topics_config,
 )
-from .component import Component, TFListener
+from .component import Component
 
 
 class LocalMapperInputs(RestrictedTopicsConfig):
     # Restricted Topics Config for LocalMapper component authorized input topics
 
-    SENSOR_DATA: AllowedTopic = AllowedTopic(
-        key="sensor_data", types=["LaserScan", "PointCloud2"]
-    )
+    SENSOR_DATA: AllowedTopic = AllowedTopic(key="sensor_data", types=["LaserScan"])
     LOCATION: AllowedTopic = AllowedTopic(key="location", types=["Odometry"])
 
 
@@ -43,7 +37,6 @@ class LocalMapperOutputs(RestrictedTopicsConfig):
     # Restricted Topics Config for LocalMapper component authorized output topics
 
     MAP_OCC = AllowedTopic(key="occupancy_layer", types=["OccupancyGrid"])
-    # MAP_PROP = AllowedTopic(key="probability_layer", types=["OccupancyGrid"])
 
 
 # Create default inputs - Used if no inputs config is provided to the controller
@@ -57,7 +50,6 @@ _mapper_default_inputs = create_topics_config(
 _mapper_default_outputs = create_topics_config(
     "LocalMapperOutputs",
     occupancy_layer=Topic(name="/local_map/occupancy_layer", msg_type="OccupancyGrid"),
-    # , probability_layer=Topic(name="/local_map/probability_layer", msg_type="OccupancyGrid")
 )
 
 
@@ -67,9 +59,7 @@ class LocalMapperConfig(ComponentConfig):
     LocalMapperConfig parameters
     """
 
-    map_params: LocalMapperHandlerConfig = field(
-        default=Factory(LocalMapperHandlerConfig)
-    )
+    map_params: MapConfig = field(default=Factory(MapConfig))
     laserscan_model: LaserScanModelConfig = field(default=Factory(LaserScanModelConfig))
 
 
@@ -125,20 +115,7 @@ class LocalMapper(Component):
             None  # robot current state - to be updated from odom
         )
 
-        self.__robot = Robot(
-            robot_type=self.config.robot.model_type,
-            geometry_type=self.config.robot.geometry_type,
-            geometry_params=self.config.robot.geometry_params,
-            state=self.robot_state,
-        )
-
-        self.__sensor_tf_listener: TFListener = (
-            self.depth_tf_listener
-            if self._input_topics.sensor_data.msg_type._ros_type == PointCloud2
-            else self.scan_tf_listener
-        )
-
-        self.sensor_data: Optional[Union[LaserScanData, PointCloudData]] = None
+        self.sensor_data: Optional[LaserScanData] = None
 
         self._local_map_builder = LocalMapperHandler(
             config=self.config.map_params, scan_model_config=self.config.laserscan_model
@@ -157,14 +134,12 @@ class LocalMapper(Component):
             else None
         )
 
-        self.sensor_data: Optional[Union[LaserScanData, PointCloudData]] = (
-            self.callbacks[
-                LocalMapperInputs.SENSOR_DATA.key
-            ].get_output(
-                transformation=self.__sensor_tf_listener.transform
-                if self.__sensor_tf_listener
-                else None
-            )
+        self.sensor_data: Optional[LaserScanData] = self.callbacks[
+            LocalMapperInputs.SENSOR_DATA.key
+        ].get_output(
+            transformation=self.scan_tf_listener.transform
+            if self.scan_tf_listener
+            else None
         )
 
     def publish_data(self):

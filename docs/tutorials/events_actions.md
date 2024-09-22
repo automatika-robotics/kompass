@@ -92,6 +92,7 @@ The only thing left is to parse the clicked point message published on the event
 
 ```python
 from kompass_interfaces.msg import PathTrackingError
+from geomerty_msgs.msg import PointStamped
 
 # Define a method to parse a message of type PointStamped to the planner PlanPath Goal
 def goal_point_parser(*, msg: PointStamped, **_):

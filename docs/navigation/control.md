@@ -2,7 +2,7 @@
 
 Local planning and control is essential for any mobile robot in real-world applications to deal with unexpected situations while tracking the global trajectory.
 
-Controller component used for path tracking and control around dynamic obstacles during navigation.
+Controller is used for path tracking and control around dynamic obstacles during navigation.
 
 ## Available Run Types
 Set from ControllerConfig class or directly from Controller 'run_type' property.
@@ -92,6 +92,9 @@ Set from ControllerConfig class or directly from Controller 'run_type' property.
 
 ## Usage Example:
 ```python
+    from kompass.components import ControllerConfig, Controller
+    from kompass.topic import Topic
+
     # Setup custom configuration
     my_config = ControllerConfig(loop_rate=10.0)
 

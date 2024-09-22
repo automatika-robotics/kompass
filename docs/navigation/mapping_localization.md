@@ -1,6 +1,6 @@
-# Mapping and Localization
+# Global Mapping and Localization
 
-## References
+To use Kompass on your robot you can refer to one of the following open-source packages for implementing the global mapping and localization system:
 
 - [Robot Localization Package](https://github.com/automaticaddison/robot_localization)
 - [SLAM Toolbox](https://github.com/SteveMacenski/slam_toolbox)
