@@ -3,7 +3,7 @@
 Kompass components create automatic subscribers and callbacks to all inputs and publishers to all outputs. Kompass comes with a set of supported message types; each supported type has an associated callback and publisher.
 
 ```{tip}
-Access all callbacks in a component in `self.callbacks: Dict[str, GenericCallback]` and get the topic incoming message using `get_ouput` method in the callback class
+Access all callbacks in a component in `self.callbacks: Dict[str, GenericCallback]` and get the topic incoming message using `get_output` method in the callback class
 ```
 
 ```{tip}
@@ -20,92 +20,92 @@ Below is a list of supported messages and the types accepted by their publishers
   - Callback return type
   - Publisher converts from
 
-* - **[String](../apidocs/ros_sugar/ros_sugar.io.supported_types.md/#classes)**
+* - **[String](https://automatika-robotics.github.io/ros-sugar/apidocs/ros_sugar/ros_sugar.io.supported_types.md/#classes)**
   - std_msgs
   - `str`
   - `str`
 
-* - **[Bool](../apidocs/ros_sugar/ros_sugar.io.supported_types.md/#classes)**
+* - **[Bool](https://automatika-robotics.github.io/ros-sugar/apidocs/ros_sugar/ros_sugar.io.supported_types.md/#classes)**
   - std_msgs
   - `bool`
   - `bool`
 
-* - **[Float32](../apidocs/ros_sugar/ros_sugar.io.supported_types.md/#classes)**
+* - **[Float32](https://automatika-robotics.github.io/ros-sugar/apidocs/ros_sugar/ros_sugar.io.supported_types.md/#classes)**
   - std_msgs
   - `float`
   - `float`
 
-* - **[Float64](../apidocs/ros_sugar/ros_sugar.io.supported_types.md/#classes)**
+* - **[Float64](https://automatika-robotics.github.io/ros-sugar/apidocs/ros_sugar/ros_sugar.io.supported_types.md/#classes)**
   - std_msgs
   - `float`
   - `float`
 
-* - **[Point](../apidocs/ros_sugar/ros_sugar.io.supported_types.md/#classes)**
+* - **[Point](../apidocs/kompass/kompass.data_types.md/#classes)**
   - geometry_msgs
   - `kompass_core.models.RobotState`
   - `numpy.ndarray`
 
-* - **[PointStamped](../apidocs/ros_sugar/ros_sugar.io.supported_types.md/#classes)**
+* - **[PointStamped](../apidocs/kompass/kompass.data_types.md/#classes)**
   - geometry_msgs
   - `kompass_core.models.RobotState`
   - `numpy.ndarray`
 
-* - **[Pose](../apidocs/ros_sugar/ros_sugar.io.supported_types.md/#classes)**
+* - **[Pose](../apidocs/kompass/kompass.data_types.md/#classes)**
   - geometry_msgs
   - `kompass_core.models.RobotState`
   - `numpy.ndarray`
 
-* - **[PoseStamped](../apidocs/ros_sugar/ros_sugar.io.supported_types.md/#classes)**
+* - **[PoseStamped](../apidocs/kompass/kompass.data_types.md/#classes)**
   - geometry_msgs
   - `kompass_core.models.RobotState`
   - `numpy.ndarray`
 
-* - **[Twist](../apidocs/ros_sugar/ros_sugar.io.supported_types.md/#classes)**
+* - **[Twist](https://automatika-robotics.github.io/ros-sugar/apidocs/ros_sugar/ros_sugar.io.supported_types.md/#classes)**
   - geometry_msgs
   - `geometry_msgs.msg.Twist`
   - `geometry_msgs.msg.Twist`
 
-* - **[TwistArray](../apidocs/ros_sugar/ros_sugar.io.supported_types.md/#classes)**
+* - **[TwistArray](../apidocs/kompass/kompass.data_types.md/#classes)**
   - kompass_interfaces
   - `kompass_interfaces.msg.TwistArray`
   - `kompass_interfaces.msg.TwistArray`
 
-* - **[Image](../apidocs/ros_sugar/ros_sugar.io.supported_types.md/#classes)**
+* - **[Image](https://automatika-robotics.github.io/ros-sugar/apidocs/ros_sugar/ros_sugar.io.supported_types.md/#classes)**
   - sensor_msgs
   - `numpy.ndarray`
   - `numpy.ndarray`
 
-* - **[Audio](../apidocs/ros_sugar/ros_sugar.io.supported_types.md/#classes)**
+* - **[Audio](https://automatika-robotics.github.io/ros-sugar/apidocs/ros_sugar/ros_sugar.io.supported_types.md/#classes)**
   - sensor_msgs
   - `bytes`
   - `str | bytes`
 
-* - **[Odometry](../apidocs/ros_sugar/ros_sugar.io.supported_types.md/#classes)**
+* - **[Odometry](../apidocs/kompass/kompass.data_types.md/#classes)**
   - nav_msgs
   - `kompass_core.models.RobotState`
   - `kompass_core.models.RobotState`
 
-* - **[LaserScan](../apidocs/ros_sugar/ros_sugar.io.supported_types.md/#classes)**
+* - **[LaserScan](../apidocs/kompass/kompass.data_types.md/#classes)**
   - sensor_msgs
   - `kompass_core.datatypes.LaserScanData`
   - `kompass_core.datatypes.LaserScanData`
 
-* - **[PointCloud2](../apidocs/ros_sugar/ros_sugar.io.supported_types.md/#classes)**
+* - **[PointCloud2](../apidocs/kompass/kompass.data_types.md/#classes)**
   - sensor_msgs
   - `kompass_core.datatypes.PointCloudData`
   - `sensor_msgs.msg.PointCloud2`
 
-* - **[Path](../apidocs/ros_sugar/ros_sugar.io.supported_types.md/#classes)**
+* - **[Path](https://automatika-robotics.github.io/ros-sugar/apidocs/ros_sugar/ros_sugar.io.supported_types.md/#classes)**
   - nav_msgs
   - `nav_msgs.msg.Path`
   - `nav_msgs.msg.Path`
 
-* - **[OccupancyGrid](../apidocs/ros_sugar/ros_sugar.io.supported_types.md/#classes)**
+* - **[OccupancyGrid](https://automatika-robotics.github.io/ros-sugar/apidocs/ros_sugar/ros_sugar.io.supported_types.md/#classes)**
   - nav_msgs
   - `nav_msgs.msg.OccupancyGrid | np.ndarray | Dict`
   - `numpy.ndarray`
 
-* - **[ComponentStatus](../apidocs/ros_sugar/ros_sugar.io.supported_types.md/#classes)**
+* - **[ComponentStatus](https://automatika-robotics.github.io/ros-sugar/apidocs/ros_sugar/ros_sugar.io.supported_types.md/#classes)**
   - ros_sugar_interfaces
   - `ros_sugar_interfaces.msg.ComponentStatus`
   - `ros_sugar_interfaces.msg.ComponentStatus`
