@@ -95,6 +95,8 @@ coverage.xml
 
 # Sphinx documentation
 docs/_build/
+docs/Makefile
+docs/apidocs/
 
 #vscode
 .vscode
