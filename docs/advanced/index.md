@@ -12,4 +12,5 @@ title: Advanced
 design
 advanced_conf/index
 algorithms/index
+types
 ```
