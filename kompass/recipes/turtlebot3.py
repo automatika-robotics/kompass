@@ -1,6 +1,5 @@
 import numpy as np
 import os
-
 from kompass_core.models import (
     AngularCtrlLimits,
     LinearCtrlLimits,
@@ -10,11 +9,21 @@ from kompass_core.models import (
 from kompass_core.control import LocalPlannersID
 
 from ros_sugar_interfaces.msg import ComponentStatus
+from kompass_interfaces.action import PlanPath
+from kompass_interfaces.msg import PathTrackingError
+from geometry_msgs.msg import Pose, PointStamped
 
 from kompass import event
 from kompass.actions import Action
 
-from kompass.components import Controller, DriveManager, Planner, PlannerConfig
+from kompass.components import (
+    Controller,
+    DriveManager,
+    Planner,
+    PlannerConfig,
+    LocalMapper,
+)
+from kompass.actions import ComponentActions, LogInfo
 from kompass.config import RobotConfig
 from kompass.launcher import Launcher
 from kompass.topic import Topic
@@ -28,7 +37,7 @@ def kompass_bringup():
     package_dir = get_package_share_directory(package_name="kompass")
     config_file = os.path.join(package_dir, "params", "turtlebot3.yaml")
 
-    # DEFINE COMPONENTS
+    # Setup your robot configuration
     my_robot = RobotConfig(
         model_type=RobotType.DIFFERENTIAL_DRIVE,
         geometry_type=RobotGeometry.Type.CYLINDER,
@@ -40,54 +49,92 @@ def kompass_bringup():
     )
 
     config = PlannerConfig(robot=my_robot, loop_rate=1.0)
-    planner = Planner(node_name="planner", config=config, config_file=config_file)
+    planner = Planner(component_name="planner", config=config, config_file=config_file)
 
-    controller = Controller(node_name="controller")
-    driver = DriveManager(node_name="drive_manager")
+    controller = Controller(component_name="controller")
+    driver = DriveManager(component_name="drive_manager")
+    mapper = LocalMapper(component_name="mapper")
 
     # Configure Controller options
     controller.algorithm = LocalPlannersID.STANLEY
-    controller.outputs(command=Topic(name="/cmd_vel", msg_type="Twist"))
-    controller.direct_sensor = True
+    controller.direct_sensor = False
 
-    planner.run_type = "Timed"
-    goal_topic = Topic(name="/clicked_point", msg_type="PointStamped")
-    planner.inputs(goal_point=goal_topic)
+    planner.run_type = "ActionServer"
+
+    driver.on_fail(action=Action(driver.restart))
 
     # DEFINE EVENTS
-    event_control_fail = event.OnDifferent(
-        "control_fail",
-        Topic(name="controller_status", msg_type="ComponentStatus"),
-        ComponentStatus.STATUS_HEALTHY,
-        ("status"),
-    )
     event_emergency_stop = event.OnEqual(
         "emergency_stop",
         Topic(name="emergency_stop", msg_type="Bool"),
         True,
-        ("data"),
+        "data",
+    )
+    event_controller_fail = event.OnEqual(
+        "controller_fail",
+        Topic(name="controller_status", msg_type="ComponentStatus"),
+        ComponentStatus.STATUS_FAILURE_ALGORITHM_LEVEL,
+        "status",
     )
     unblock_action = Action(method=driver.move_to_unblock)
 
-    driver.events_actions = {
-        event_control_fail: unblock_action,
-        event_emergency_stop: unblock_action,
+    # On any clicked point
+    event_clicked_point = event.OnGreater(
+        "rviz_goal",
+        Topic(name="/clicked_point", msg_type="PointStamped"),
+        0,
+        ["header", "stamp", "sec"],
+    )
+
+    # Define an Action to send a goal to the planner ActionServer
+    send_goal: Action = ComponentActions.send_action_goal(
+        action_name="/planner/plan_path",
+        action_type=PlanPath,
+        action_request_msg=PlanPath.Goal(),
+    )
+
+    # Define a method to parse a message of type PointStamped to the planner PlanPath Goal
+    def goal_point_parser(*, msg: PointStamped, **_):
+        action_request = PlanPath.Goal()
+        goal = Pose()
+        goal.position.x = msg.point.x
+        goal.position.y = msg.point.y
+        action_request.goal = goal
+        end_tolerance = PathTrackingError()
+        end_tolerance.orientation_error = 0.2
+        end_tolerance.lateral_distance_error = 0.05
+        action_request.end_tolerance = end_tolerance
+        return action_request
+
+    # Adds the parser method as an Event parser of the send_goal action
+    send_goal.event_parser(goal_point_parser, output_mapping="action_request_msg")
+
+    # Define Events/Actions dictionary
+    events_actions = {
+        event_clicked_point: [LogInfo(msg="Got new goal point"), send_goal],
+        event_emergency_stop: [
+            ComponentActions.restart(component=planner),
+            unblock_action,
+        ],
+        event_controller_fail: unblock_action,
     }
 
-    driver.on_fail(action=Action(driver.restart))
-
     # Setup the launcher
-    launcher = Launcher(
-        components=[planner, controller, driver],
-        config_file=config_file,
+    launcher = Launcher(config_file=config_file)
+
+    # Add Kompass components
+    launcher.kompass(
+        components=[planner, controller, mapper, driver],
+        events_actions=events_actions,
         activate_all_components_on_start=True,
         multi_processing=True,
     )
 
-    # Get odom from localizer filtered odom
+    # Get odom from localizer filtered odom for all components
     odom_topic = Topic(name="/odometry/filtered", msg_type="Odometry")
     launcher.inputs(location=odom_topic)
 
+    # Set the robot config for all components
     launcher.robot = my_robot
 
     launcher.bringup(ros_log_level="info", introspect=True)

@@ -25,25 +25,19 @@ navigation/robot
 navigation/path_planning
 navigation/control
 navigation/driver
+navigation/mapper
 navigation/motion_server
 navigation/mapping_localization
 ```
 
 <!-- # Design -->
 
-```{toctree}
+<!-- ```{toctree}
 :maxdepth: 1
 :caption: Design Concepts
 
-design/component
-design/topics
-design/status
-design/events
-design/actions
-design/fallbacks
-design/launcher
-design/monitor
-```
+design
+``` -->
 
 <!-- # Integrations and Plugins -->
 

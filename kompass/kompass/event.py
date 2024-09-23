@@ -42,6 +42,7 @@ Available Events:
 from ros_sugar.core import Event, InternalEvent, OnInternalEvent
 from ros_sugar.events import (
     OnChange,
+    OnAny,
     OnChangeEqual,
     OnDifferent,
     OnEqual,
@@ -54,6 +55,7 @@ __all__ = [
     "Event",
     "InternalEvent",
     "OnChange",
+    "OnAny",
     "OnChangeEqual",
     "OnDifferent",
     "OnEqual",

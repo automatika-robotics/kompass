@@ -9,6 +9,9 @@ A robot can be configured using RobotConfig and RobotFrames Classes by specifyin
 Example:
 
 ```python
+import numpy as np
+from kompass_core.models import RobotConfig, RobotType, RobotGeometry
+
 robot_config = RobotConfig(
     model_type=RobotType.ACKERMANN,
     geometry_type=RobotGeometry.Type.BOX,
@@ -38,6 +41,9 @@ Parameters: (x, y, z)
 Example:
 
 ```python
+import numpy as np
+from kompass_core.models import RobotConfig, RobotType, RobotGeometry
+
 robot_config = RobotConfig(
     model_type=RobotType.ACKERMANN,
     geometry_type=RobotGeometry.Type.BOX,
@@ -51,6 +57,9 @@ Parameters: (rad, lz)
 Example:
 
 ```python
+import numpy as np
+from kompass_core.models import RobotConfig, RobotType, RobotGeometry
+
 robot_config = RobotConfig(
     model_type=RobotType.ACKERMANN,
     geometry_type=RobotGeometry.Type.CYLINDER,
@@ -65,6 +74,9 @@ Parameters: (rad)
 Example:
 
 ```python
+import numpy as np
+from kompass_core.models import RobotConfig, RobotType, RobotGeometry
+
 robot_config = RobotConfig(
     model_type=RobotType.ACKERMANN,
     geometry_type=RobotGeometry.Type.SPHERE,
@@ -79,6 +91,9 @@ Parameters: (x, y, z)
 Example:
 
 ```python
+import numpy as np
+from kompass_core.models import RobotConfig, RobotType, RobotGeometry
+
 robot_config = RobotConfig(
     model_type=RobotType.ACKERMANN,
     geometry_type=RobotGeometry.Type.ELLIPSOID,
@@ -93,6 +108,9 @@ Parameters: (rad, lz)
 Example:
 
 ```python
+import numpy as np
+from kompass_core.models import RobotConfig, RobotType, RobotGeometry
+
 robot_config = RobotConfig(
     model_type=RobotType.ACKERMANN,
     geometry_type=RobotGeometry.Type.CAPSULE,
@@ -107,6 +125,9 @@ Parameters: (rad, lz)
 Example:
 
 ```python
+import numpy as np
+from kompass_core.models import RobotConfig, RobotType, RobotGeometry
+
 robot_config = RobotConfig(
     model_type=RobotType.ACKERMANN,
     geometry_type=RobotGeometry.Type.CONE,
@@ -127,6 +148,8 @@ For both linear and angular control limits we need to set:
 Additionally, for angular control limits we can set the maximum steering angle (rad)
 
 ```python
+from kompass_core.models import LinearCtrlLimits, AngularCtrlLimits
+import numpy as np
 
 ctrl_vx_limits = LinearCtrlLimits(max_vel=1.0, max_acc=1.5, max_decel=2.5)
 ctrl_vy_limits = LinearCtrlLimits(max_vel=0.5, max_acc=0.7, max_decel=3.5)
@@ -150,3 +173,17 @@ Sensor frames:
 - scan: Lasescan frame
 - rgb: RGB camera frame
 - depth: Depth camera frame
+
+```python
+from kompass.config import RobotFrames
+
+robot_frames = RobotFrames(
+    robot_base='base_link',
+    odom='odom',
+    world='map',
+    scan='scan',
+    rgb='camera/rgb',
+    depth='camera/depth',
+)
+
+```

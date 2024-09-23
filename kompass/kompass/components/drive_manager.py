@@ -253,7 +253,9 @@ class DriveManager(Component):
         traveled_distance = 0.0
 
         # FRONT MOVEMENT
-        while unblocking and traveled_distance < max_distance:
+        while (
+            unblocking and traveled_distance < max_distance and not self.emergency_stop
+        ):
             ranges_in_front = self.laser_scan.get_ranges(angle_min, angle_max)
             if (
                 all(range > step_distance for range in ranges_in_front)
@@ -289,7 +291,9 @@ class DriveManager(Component):
         traveled_distance = 0.0
 
         # FRONT MOVEMENT
-        while unblocking and traveled_distance < max_distance:
+        while (
+            unblocking and traveled_distance < max_distance and not self.emergency_stop
+        ):
             ranges_in_back = self.laser_scan.get_ranges(angle_min, angle_max)
             if all(range > step_distance for range in ranges_in_back):
                 self.cmd = Twist()
@@ -603,7 +607,10 @@ class DriveManager(Component):
 
         if self.multi_command or self.command:
             self.check_limits()
-
             self.publishers_dict[DriverOutputs.CMD.key].publish(self.cmd)
         else:
             self.get_logger().debug("Nothing to process, waiting for commands")
+
+        # Clear published command
+        self.command = None
+        self.multi_command = None

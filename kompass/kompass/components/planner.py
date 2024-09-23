@@ -6,7 +6,7 @@ from attrs import field
 # ROS INTERFACES
 from geometry_msgs.msg import PoseStamped
 from kompass_core.utils.geometry import from_euler_to_quaternion
-from nav_msgs.msg import MapMetaData, Path
+from nav_msgs.msg import Path
 
 # KOMPASS NAVIGATION
 from kompass_core.models import Robot, RobotState
@@ -112,7 +112,7 @@ class Planner(Component):
     ```python
         from kompass.components import Planner, PlannerConfig
         from kompass.config import ComponentRunType
-        from Navigation.models import RobotType, Robot, LinearCtrlLimits, AngularCtrlLimits
+        from kompass_core.models import RobotType, Robot, LinearCtrlLimits, AngularCtrlLimits
         import numpy as np
 
         # Configure your robot
@@ -132,7 +132,7 @@ class Planner(Component):
             loop_rate=1.0
         )
 
-        planner = Planner(node_name="planner", config=config)
+        planner = Planner(component_name="planner", config=config)
 
         # Add rviz clicked_point as input topic
         planner.run_type = ComponentRunType.EVENT   # Can also pass a string "Event"
@@ -210,7 +210,7 @@ class Planner(Component):
         self.goal: Optional[RobotState] = None
         self.robot_state: Optional[RobotState] = None
         self.map: Optional[np.ndarray] = None
-        self.map_data: Optional[MapMetaData] = None
+        self.map_data: Optional[Dict] = None
         self.reached_end: bool = False
 
         self.__robot = Robot(
@@ -416,7 +416,7 @@ class Planner(Component):
                 self._update_state()
 
                 # plan a new path
-                got_plan = self._plan(self.robot_state, goal_state, publish_path=True)
+                got_plan = self._plan(self.robot_state, goal_state)
 
                 if got_plan:
                     # publish feedback
@@ -473,7 +473,7 @@ class Planner(Component):
                 if not hasattr(self, "_last_path_cost"):
                     self._last_path_cost = self.ompl_planner.path_cost
                 current_cost = self.ompl_planner.path_cost
-                self.get_logger().debug(f"Got cost: {current_cost}")
+                self.get_logger().debug(f"Got path with cost: {current_cost}")
                 # If the current cost is less -> Update the path
                 # This is to prevent publishing less optimal paths produced by sampling methods
                 if current_cost <= self._last_path_cost:
@@ -540,7 +540,7 @@ class Planner(Component):
             else None
         )
 
-        self.map_data: Optional[MapMetaData] = self.callbacks[
+        self.map_data: Optional[Dict] = self.callbacks[
             PlannerInputs.MAP.key
         ].get_output(get_metadata=True)
 

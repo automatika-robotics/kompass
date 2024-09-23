@@ -9,15 +9,18 @@ from kompass.components import (
     MotionServerConfig,
     Planner,
     PlannerConfig,
+    LocalMapperConfig,
+    LocalMapper,
 )
 
-_kompass_components = [Planner, Controller, DriveManager, MotionServer]
+_kompass_components = [Planner, Controller, DriveManager, MotionServer, LocalMapper]
 
 _kompass_configs = [
     PlannerConfig,
     ControllerConfig,
     DriveManagerConfig,
     MotionServerConfig,
+    LocalMapperConfig,
 ]
 
 
@@ -37,4 +40,6 @@ def main(args=None):
 
     :raises ValueError: If component cannot be started with provided arguments
     """
-    executable_main(list_of_components=_kompass_components, list_of_configs=_kompass_configs)
+    executable_main(
+        list_of_components=_kompass_components, list_of_configs=_kompass_configs
+    )

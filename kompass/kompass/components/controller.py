@@ -164,7 +164,7 @@ class Controller(Component):
         my_config = ControllerConfig(loop_rate=10.0, control_horizon_number_of_steps=7)
 
         # Init a controller object
-        my_controller = Controller(node_name="controller", config=my_config)
+        my_controller = Controller(component_name="controller", config=my_config)
 
         # Change an input
         my_controller.inputs(plan=Topic(name='/global_path', msg_type='Path'))
@@ -264,7 +264,7 @@ class Controller(Component):
             self.get_logger().debug("No command to execute")
             return
 
-        self.get_logger().debug(f"Publishing new command: {cmd[0]}, {cmd[1]}, {cmd[2]}")
+        self.get_logger().info(f"Publishing new command: {cmd[0]}, {cmd[1]}, {cmd[2]}")
         # Send command to execute
         if self.config.closed_loop:
             # Execute in closed loop
@@ -282,7 +282,9 @@ class Controller(Component):
         # Publish tracked point on the global path
         if self.tracked_point:
             self.publishers_dict[ControllerOutputs.TRACKING.key].publish(
-                self.tracked_point
+                self.tracked_point,
+                frame_id=self.config.frames.world,
+                ros_time=self.get_ros_time(),
             )
         # Publish local plan
         if self.local_plan:
@@ -327,7 +329,7 @@ class Controller(Component):
         self.config.run_type = value
 
     @property
-    def tracked_point(self) -> Optional[PoseStamped]:
+    def tracked_point(self) -> Optional[np.ndarray]:
         """
         Getter of tracked pose on the reference path if a path is set to the controller
 
@@ -339,19 +341,13 @@ class Controller(Component):
         if not tracked_state:
             return None
 
-        msg_header = Header()
-        msg_header.frame_id = self.config.frames.world
-        msg_header.stamp = self.get_ros_time()
+        position = [tracked_state.x, tracked_state.x, 0.0]
+        orientation = from_euler_to_quaternion(
+            yaw=tracked_state.yaw, pitch=0.0, roll=0.0
+        )
 
-        pose_stamped = PoseStamped()
-        pose_stamped.header = msg_header
-        pose_stamped.pose.position.x = tracked_state.x
-        pose_stamped.pose.position.y = tracked_state.y
-
-        q_rot = from_euler_to_quaternion(yaw=tracked_state.yaw, pitch=0.0, roll=0.0)
-        pose_stamped.pose.orientation.z = q_rot[3]
-        pose_stamped.pose.orientation.w = q_rot[0]
-        return pose_stamped
+        pose = position.extend(orientation)
+        return pose
 
     @property
     def local_plan(self) -> Optional[Path]:
@@ -525,7 +521,7 @@ class Controller(Component):
                 )
         else:
             # Remove callback for the sensor data and destroy subscriber
-            _callback = self.callbacks.pop(key=ControllerInputs.SENSOR_DATA.key)
+            _callback = self.callbacks.pop(ControllerInputs.SENSOR_DATA.key)
             self.destroy_subscription(_callback._subscriber)
 
     def _set_path_to_controller(self, msg, **_) -> None:
@@ -575,7 +571,7 @@ class Controller(Component):
         self.__lat_dist_error: float = 0.0
         self.__ori_error: float = 0.0
 
-        self.__execution_rate = self.create_rate(self.config.loop_rate * 10)
+        self.__execution_rate = self.create_rate(10 / self.config.control_time_step)
 
         # Command queue to send controller command list to the robot
         self._cmds_queue: Queue = Queue()
@@ -624,6 +620,7 @@ class Controller(Component):
         :param angular_ctr: Angular control command (rad/s)
         :type angular_ctr: float
         """
+        self.__cmd_vel = Twist()
         self.__cmd_vel.linear.x = linear_ctr_x
         self.__cmd_vel.linear.y = linear_ctr_y
         self.__cmd_vel.angular.z = angular_ctr
@@ -707,6 +704,16 @@ class Controller(Component):
         # LOG CONTROLLER INFO
         self.get_logger().debug(f"{cmd_found}: {self.__controller.logging_info()}")
 
+        # If end is reached stop the robot
+        if self.__reached_end:
+            # Stop robot
+            self._stop_robot()
+            # Clear path
+            self.callbacks[ControllerInputs.PLAN.key].clear_last_msg()
+            # Unset reached_end for new incoming paths
+            self.__reached_end = False
+            return True
+
         # PUBLISH CONTROL TO ROBOT CMD TOPIC
         if not cmd_found:
             self.get_logger().warn("Control command not found")
@@ -719,7 +726,7 @@ class Controller(Component):
         self.health_status.set_healthy()
 
         # Empty the commands queue
-        self._cmds_queue.empty()
+        self._cmds_queue.queue.clear()
 
         # Put new control commands to the queue
         [
@@ -731,24 +738,16 @@ class Controller(Component):
             )
         ]
 
+        self.get_logger().info(f"Added {self._cmds_queue.qsize()} new commands")
+
         # Update controller path tracking info (errors/end_reached)
         self.__lat_dist_error = self.__controller.distance_error
         self.__ori_error = self.__controller.orientation_error
         self.__reached_end = self.__controller.reached_end()
 
-        # If end is reached stop the robot
-        if self.__reached_end:
-            self.get_logger().info("Stopping robot!")
-            # Stop robot
-            self._stop_robot()
-            # Clear path
-            self.callbacks[ControllerInputs.PLAN.key].clear_last_msg()
-            # Unset reached_end for new incoming paths
-            self.__reached_end = False
-            return True
-
         # If commands are to be published in sequence
         if not self.config.publish_ctrl_in_parallel:
+            self.get_logger().info("HERE!")
             # While queue is not empty
             while self._cmds_queue.qsize() > 0:
                 self._execution_callback()

@@ -95,7 +95,8 @@ OMPL geometric planners (see [available OMPL integrations](../integrations/ompl.
 ```python
     from kompass.components import Planner, PlannerConfig
     from kompass.config import ComponentRunType
-    from Navigation.models import RobotType, Robot, RobotGeometry, LinearCtrlLimits, AngularCtrlLimits
+    from kompass.topic import Topic
+    from kompass_core.models import RobotType, Robot, RobotGeometry, LinearCtrlLimits, AngularCtrlLimits
     import numpy as np
 
     # Configure your robot
@@ -115,7 +116,7 @@ OMPL geometric planners (see [available OMPL integrations](../integrations/ompl.
         loop_rate=1.0 # 1Hz
     )
 
-    planner = Planner(node_name="planner", config=config)
+    planner = Planner(component_name="planner", config=config)
 
     planner.run_type = ComponentRunType.EVENT   # Can also pass a string "Event"
 

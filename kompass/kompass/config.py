@@ -35,7 +35,7 @@ __all__ = [
 @define(kw_only=True)
 class RobotFrames(BaseAttrs):
     """
-    Class for robot coordiante frames configuration
+    Class for robot coordinate frames configuration
     """
 
     robot_base: str = field(default="base_link")

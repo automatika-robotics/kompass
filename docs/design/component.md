@@ -51,7 +51,7 @@ config = ComponentConfig(run_type=ComponentRunType.EVENT)
 config = ComponentConfig(run_type="Event")
 
 # Can set from Component
-comp = Component(node_name='test')
+comp = Component(component_name='test')
 comp.run_type = "Server"    # or ComponentRunType.SERVER
 
 ```
@@ -68,7 +68,7 @@ Configuring an input/output of a Component is very straightforward and can be do
 ```python
     from kompass.components import DriveManager
 
-    driver = DriveManager(node_name="driver")
+    driver = DriveManager(component_name="driver")
 
     # Configure an input
     driver.inputs(sensor_data=[Topic(name='/scan', msg_type='LaserScan'),

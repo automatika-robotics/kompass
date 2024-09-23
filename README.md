@@ -38,4 +38,4 @@ Kompass is made available under the MIT license. Details can be found in the [LI
 
 ## Contributions
 
-Kompass has been developed in collaboration betweeen [Automatika Robotics](https://automatikarobotics.com/) and [Inria](https://inria.fr/). Contributions from the community are most welcome.
+Kompass has been developed in collaboration between [Automatika Robotics](https://automatikarobotics.com/) and [Inria](https://inria.fr/). Contributions from the community are most welcome.
