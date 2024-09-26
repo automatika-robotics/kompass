@@ -3,10 +3,9 @@ import numpy as np
 from attrs import define, field
 from geometry_msgs.msg import Twist
 from kompass_core.datatypes.laserscan import LaserScanData
-from kompass_core.control import LaserScanBasedStop
 from kompass_core.models import RobotGeometry, RobotState, RobotType
+from kompass_core.utils.geometry import convert_to_0_2pi
 from scipy import signal
-
 from kompass_interfaces.msg import TwistArray
 
 # KOMPASS ROS
@@ -134,6 +133,8 @@ class DriveManager(Component):
             **kwargs,
         )
         self.config: DriveManagerConfig = config
+
+        # TODO: Raise error here, similar to the property
         self.config.run_type = "Timed"
 
     @property
@@ -165,7 +166,6 @@ class DriveManager(Component):
         """
         self.emergency_stop: bool = False
         self._unblocking_on: bool = False
-        self.__last_unblocked_backwards: bool = False
 
     def init_variables(self):
         """
@@ -176,20 +176,26 @@ class DriveManager(Component):
         self.cmd = Twist()
         self._previous_command = None
 
-        robot_radius = RobotGeometry.get_radius(
+        self.robot_radius = RobotGeometry.get_radius(
             self.config.robot.geometry_type, self.config.robot.geometry_params
         )
-        if not robot_radius:
+
+        if not self.robot_radius:
             raise ValueError(
                 "Unknown robot radius. Cannot start drive manager with unknown robot size."
             )
-        self.emergency_handler = LaserScanBasedStop(
-            robot_radius=robot_radius,
-            critical_zone_angle=self.config.critical_zone_angle,
-            critical_zone_distance=self.config.critical_zone_distance,
-        )
+
+        # define the critical zone for the emergency stop
+        self.critical_zone = {
+            "left_angle": np.radians(self.config.critical_zone_angle) / 2,
+            "right_angle": (2 * np.pi)
+            - (np.radians(self.config.critical_zone_angle) / 2),
+            "distance": self.config.critical_zone_distance + self.robot_radius,
+        }
 
         self.laser_scan: Optional[LaserScanData] = None
+
+        self.emergency_stop_dict = {}
 
     def attach_callbacks(self):
         """
@@ -198,7 +204,12 @@ class DriveManager(Component):
         """
         # Attach emergency check to all sensor data callbacks
         for callback in self.callbacks[DriverInputs.SENSOR_DATA.key].values():
-            callback.on_callback_execute(self._check_emergency_stop)
+            if isinstance(callback, LaserScanCallback):
+                callback.on_callback_execute(self._check_emergency_stop_lidar)
+            else:
+                callback.on_callback_execute(
+                    self._check_emergency_stop_proximity_sensor
+                )
 
         # Attach filtering to commands callback
         self.callbacks[DriverInputs.CMD.key].on_callback_execute(self._filter_commands)
@@ -244,30 +255,32 @@ class DriveManager(Component):
         :return: If unblocking is successful
         :rtype: bool
         """
-        angle_min = -self.config.critical_zone_angle * np.pi / 360
-        angle_max = self.config.critical_zone_angle * np.pi / 360
 
         unblocking = True
         step_distance = self.robot.ctrl_vx_limits.max_vel / (2 * self.config.cmd_rate)
         cmd_rate = self.create_rate(self.config.cmd_rate)
         traveled_distance = 0.0
 
+        angles: np.ndarray = convert_to_0_2pi(self.laser_scan.angles)
+
+        # Get indices of angles in front of the robot
+        angles_in_critical_indices = (angles <= self.critical_zone["left_angle"]) | (
+            angles >= self.critical_zone["right_angle"]
+        )
+
         # FRONT MOVEMENT
-        while (
-            unblocking and traveled_distance < max_distance and not self.emergency_stop
-        ):
-            ranges_in_front = self.laser_scan.get_ranges(angle_min, angle_max)
-            if (
-                all(range > step_distance for range in ranges_in_front)
-                and not self.emergency_stop
+        while unblocking and traveled_distance < max_distance:
+            # Check if max_distance forward is clear
+            if np.min(self.laser_scan.ranges[angles_in_critical_indices]) < (
+                max_distance + self.robot_radius
             ):
+                unblocking = False
+            else:
                 self.cmd = Twist()
                 self.cmd.linear.x = self.robot.ctrl_vx_limits.max_vel / 2
                 self.publishers_dict[DriverOutputs.CMD.key].publish(self.cmd)
                 traveled_distance += step_distance
                 cmd_rate.sleep()
-            else:
-                unblocking = False
 
         # Return true if unblocking forward is done
         return traveled_distance >= max_distance
@@ -282,8 +295,12 @@ class DriveManager(Component):
         :rtype: bool
         """
         # Behind the robot
-        angle_min = np.pi - self.config.critical_zone_angle * np.pi / 360
-        angle_max = np.pi + self.config.critical_zone_angle * np.pi / 360
+        angles: np.ndarray = convert_to_0_2pi(self.laser_scan.angles)
+
+        # Get indices of angles behind the robot
+        angles_in_critical_indices = (
+            angles <= convert_to_0_2pi(self.critical_zone["left_angle"] + np.pi)
+        ) & (angles >= convert_to_0_2pi(self.critical_zone["right_angle"] + np.pi))
 
         unblocking = True
         step_distance = self.robot.ctrl_vx_limits.max_vel / (2 * self.config.cmd_rate)
@@ -291,29 +308,29 @@ class DriveManager(Component):
         traveled_distance = 0.0
 
         # FRONT MOVEMENT
-        while (
-            unblocking and traveled_distance < max_distance and not self.emergency_stop
-        ):
-            ranges_in_back = self.laser_scan.get_ranges(angle_min, angle_max)
-            if all(range > step_distance for range in ranges_in_back):
+        while unblocking and traveled_distance < max_distance:
+            # Check if max_distance behind the robot is clear
+            if np.min(self.laser_scan.ranges[angles_in_critical_indices]) < (
+                max_distance + self.robot_radius
+            ):
+                unblocking = False
+            else:
                 self.cmd = Twist()
                 self.cmd.linear.x = -self.robot.ctrl_vx_limits.max_vel / 2
                 self.publishers_dict[DriverOutputs.CMD.key].publish(self.cmd)
                 traveled_distance += step_distance
                 cmd_rate.sleep()
-            else:
-                unblocking = False
 
         # Return true if unblocking forward is done
         return traveled_distance >= max_distance
 
-    def __unblock_rotate_in_place(self, robot_radius: float) -> bool:
+    def __unblock_rotate_in_place(self, safety_margin: Optional[float] = None) -> bool:
         """Rotate in place to unblock the robot
 
-        :param max_distance: Maximum distance (m)
-        :type max_distance: float
+        :param safety_margin: Margin clear of obstacles to perform rotation, defaults to 5% of the robot radius
+        :type safety_margin: Optional[float], optional
 
-        :return: If unblocking is successful
+        :return: If unblocking action is successful
         :rtype: bool
         """
         unblocking = True
@@ -321,12 +338,15 @@ class DriveManager(Component):
         traveled_radius = 0.0
         max_travel = np.pi / 2
 
+        if not safety_margin:
+            # Set by default to 10% of the robot radius
+            safety_margin = 0.05 * self.robot_radius
+
         # FRONT MOVEMENT
         while unblocking and traveled_radius < max_travel:
-            if all(
-                range > robot_radius + self.config.critical_zone_distance
-                for range in self.laser_scan.ranges
-            ):
+            if any(self.laser_scan.ranges < (1 + safety_margin) * self.robot_radius):
+                unblocking = False
+            else:
                 self.cmd = Twist()
                 self.cmd.angular.z = self.robot.ctrl_omega_limits.max_vel / 2
                 self.publishers_dict[DriverOutputs.CMD.key].publish(self.cmd)
@@ -334,54 +354,35 @@ class DriveManager(Component):
                     2 * self.config.cmd_rate
                 )
                 cmd_rate.sleep()
-            else:
-                unblocking = False
 
         # Return true if unblocking forward is done
         return traveled_radius >= max_travel
 
-    def move_to_unblock(self, max_distance: float = 0.2):
+    def move_to_unblock(self, max_distance: float = 0.4):
         """Moves the robot forward/backward or rotate in place to get out of blocking spots
 
         :param max_distance: Maximum distance to move when attempting to unblock, defaults to 0.2
         :type max_distance: float, optional
         """
+        # TODO: Expose 4 unblocking actions to the api (forward, backward and rotation + the move_to_unblock)
         if not self.laser_scan:
             self.get_logger().error(
                 "Scan unavailable - Unblocking functionality requires LaserScan information"
             )
             return
 
-        robot_radius: Optional[float] = RobotGeometry.get_radius(
-            self.robot.geometry_type, self.robot.geometry_params
-        )
-
-        if not robot_radius:
-            self.get_logger().error(
-                "Robot size unavailable - Unblocking functionality requires size information"
-            )
-            return
-
         self._unblocking_on = True
         # Try unblocking forward:
-        unblocked = self.__unblock_forward(max_distance)
-        if not unblocked and not self.__last_unblocked_backwards:
-            unblocked = self.__unblock_backward(max_distance)
-            self.__last_unblocked_backwards = True
-        if (
-            not unblocked
-            and self.robot.model_type != RobotType.ACKERMANN
-            and self.__last_unblocked_backwards
-        ):
-            unblocked = self.__unblock_rotate_in_place(robot_radius)
-            self.__last_unblocked_backwards = False
+        unblocked = self.__unblock_backward(max_distance)
+        if not unblocked and self.robot.model_type != RobotType.ACKERMANN:
+            unblocked = self.__unblock_rotate_in_place()
+        if not unblocked:
+            unblocked = self.__unblock_forward(max_distance)
 
         if not unblocked:
-            self.get_logger().error(
-                f"Robot unblocking Failed due to nearby obstacles at distance less than {self.robot.ctrl_vx_limits.max_vel / (2 * self.config.cmd_rate)}"
-            )
+            self.get_logger().error("Robot unblocking Failed due to nearby obstacles")
         else:
-            self.get_logger().info("Robot Unblocking Done!")
+            self.get_logger().info("Robot Unblocking Action Done!")
         self._unblocking_on = False
         return
 
@@ -529,26 +530,34 @@ class DriveManager(Component):
 
         return current + inc_max * np.sign(increment)
 
-    def _check_emergency_stop(
-        self, output: Optional[Union[LaserScanData, float]], topic: Topic, **_
+    def _check_emergency_stop_proximity_sensor(
+        self, output: Optional[float], topic: Topic, **_
+    ):
+        if output:
+            self.emergency_stop_dict[topic.name] = (
+                output < self.critical_zone["distance"] - self.robot_radius
+            )
+
+    def _check_emergency_stop_lidar(
+        self, output: Optional[LaserScanData], topic: Topic, **_
     ):
         """
         If emergency stop is required from direct sensor -> sets command to zero
         """
         # Update emergency stop check
         if output:
-            self.emergency_stop = self.emergency_handler.obstacle_check(output)
+            angles: np.ndarray = convert_to_0_2pi(output.angles)
 
-            if self.emergency_stop:
-                self.get_logger().warn(
-                    "Robot Should be stopped now -> Emergency behavior ON"
-                )
-                self.cmd = Twist()  # set to zero
-            else:
-                self.health_status.set_healthy()
-        else:
-            self.emergency_stop = False
-            self.health_status.set_fail_system(topic_names=[topic.name])
+            angles_in_critical_indices = (
+                angles <= self.critical_zone["left_angle"]
+            ) | (angles >= self.critical_zone["right_angle"])
+
+            emergency_stop = np.any(
+                output.ranges[angles_in_critical_indices]
+                <= self.critical_zone["distance"]
+            )
+
+            self.emergency_stop_dict[topic.name] = bool(emergency_stop)
 
     def check_limits(self):
         """
@@ -592,7 +601,13 @@ class DriveManager(Component):
         super()._execution_step()
         self._update_state()
 
+        self.emergency_stop = any(self.emergency_stop_dict.values())
+
         self.publishers_dict[DriverOutputs.STOP.key].publish(bool(self.emergency_stop))
+
+        if self._unblocking_on:
+            # If unblocking is ongoing do not publish any other command
+            return
 
         if self.emergency_stop:
             # STOP ROBOT
