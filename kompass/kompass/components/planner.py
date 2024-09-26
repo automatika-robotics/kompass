@@ -1,5 +1,5 @@
 from typing import Dict, Optional
-
+import time
 import numpy as np
 from attrs import field
 
@@ -372,8 +372,8 @@ class Planner(Component):
         # Clear any previous path
         self._clear_path()
 
-        server_rate = self.create_rate(self.config.loop_rate)
         self._update_state()
+
         # Get request
         end_goal_tolerance: PathTrackingError = goal_handle.request.end_tolerance
 
@@ -425,7 +425,8 @@ class Planner(Component):
                     action_feedback_msg.plan = None
                 # TODO: Fix feedback publishing -> now giving rclpy message generating error
                 # goal_handle.publish_feedback(action_feedback_msg)
-                server_rate.sleep()
+                # server_rate.sleep()
+                time.sleep(1 / self.config.loop_rate)
         except Exception as e:
             self.get_logger().error(f"Action execution error - {e}")
             goal_handle.abort()
@@ -437,7 +438,9 @@ class Planner(Component):
         action_result.end_displacement.orientation_error = end_state_error.yaw
 
         action_result.reached_end = True
-        goal_handle.success()
+        goal_handle.succeed()
+
+        # self.destroy_rate(server_rate)
 
         return action_result
 
@@ -473,17 +476,18 @@ class Planner(Component):
                 if not hasattr(self, "_last_path_cost"):
                     self._last_path_cost = self.ompl_planner.path_cost
                 current_cost = self.ompl_planner.path_cost
-                self.get_logger().debug(f"Got path with cost: {current_cost}")
+                self.get_logger().debug(f"Got new plan with cost: {current_cost}")
                 # If the current cost is less -> Update the path
                 # This is to prevent publishing less optimal paths produced by sampling methods
                 if current_cost <= self._last_path_cost:
                     # Simplify solution
                     self.path = self.ompl_planner.simplify_solution()
-                    self._last_path_cost = current_cost
+                    # self._last_path_cost = current_cost
 
                 self.health_status.set_healthy()
 
             if not self.path:
+                self.get_logger().error("Planner failed to find a path!")
                 # Failed to find a path -> algorithm failure
                 self.health_status.set_fail_algorithm(
                     algorithm_names=[self.ompl_planner.planner_id]
