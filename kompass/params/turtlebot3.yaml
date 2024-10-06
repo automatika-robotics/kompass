@@ -9,8 +9,12 @@
 mapper:
   loop_rate: 50.0
 
-driver:
+drive_manager:
   loop_rate: 5.0
+  outputs:
+    robot_command:
+      name: 'cmd_vel'
+      msg_type:   'Twist'
 
 controller:
   # loop_rate: 10.0
@@ -20,12 +24,12 @@ controller:
   prediction_horizon: 4.0
 
   Stanley:
-    cross_track_gain: 0.1
+    cross_track_gain: 1.0
     heading_gain: 2.0
 
   DVZ:
-    cross_track_gain: 0.1
-    heading_gain: 1.0
+    cross_track_gain: 1.0
+    heading_gain: 2.0
     K_angular: 1.0
     K_linear: 1.0
     min_front_margin: 1.0
@@ -51,14 +55,8 @@ planner:
     goal_point:
       name: '/clicked_point'
       msg_type:  'PointStamped'
-  visualization:  True
-  detailed_logging: True
+
   loop_rate: 1.0
-  number_of_sent_cmds : 5
-  safety_stop_dist:  0.1
-  stop_angle_range : 0.52
-  points_per_meter: 10
-  retries: 0
   algorithm: 'ompl'
   ompl:
     log_level: 'WARN'
