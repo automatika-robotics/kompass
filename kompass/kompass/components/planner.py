@@ -197,7 +197,7 @@ class Planner(Component):
         :param config_file: Yaml file
         :type config_file: str
         """
-        Component.configure(self, config_file)
+        super().configure(config_file)
         if hasattr(self, "ompl_planner"):
             self.ompl_planner.configure(config_file, self.node_name)
 
@@ -440,8 +440,6 @@ class Planner(Component):
         action_result.reached_end = True
         goal_handle.succeed()
 
-        # self.destroy_rate(server_rate)
-
         return action_result
 
     def _plan(
@@ -454,7 +452,7 @@ class Planner(Component):
         # goal_point is excluded since goal can be provided by either a topic, service call or action goal
         if self.got_all_inputs(inputs_to_check=["map_layer"]):
             self.get_logger().debug(
-                f"Setting planning problem with {self.ompl_planner.planner_id} from [{start.x},{start.y}] to [{goal.x}, {goal.y}]"
+                f"Setting planning problem with {self.ompl_planner.planner_id} from [{start.x},{start.y}] to [{goal.x}, {goal.y}] and map data {self.map_data}"
             )
 
             self.ompl_planner.setup_problem(

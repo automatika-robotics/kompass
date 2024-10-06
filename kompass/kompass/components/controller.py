@@ -115,9 +115,9 @@ class ControllerConfig(ComponentConfig):
     use_cmd_list: bool = field(
         default=False
     )  # To send a list of future commands to the drive manager (if True) or a single commands (if False)
-    prediction_horizon: int = field(
-        default=10, validator=BaseValidators.in_range(min_value=1, max_value=1e9)
-    )  # Number of future control commands to compute at each loop step
+    prediction_horizon: float = field(
+        default=1.0, validator=BaseValidators.in_range(min_value=1, max_value=1e9)
+    )  # future time horizon to compute at each loop step
     control_time_step: float = field(
         default=0.1, validator=BaseValidators.in_range(min_value=1e-9, max_value=1e9)
     )  # Time step between two control commands
@@ -264,7 +264,7 @@ class Controller(Component):
             self.get_logger().debug("No command to execute")
             return
 
-        self.get_logger().info(f"Publishing new command: {cmd[0]}, {cmd[1]}, {cmd[2]}")
+        self.get_logger().debug(f"Publishing new command: {cmd[0]}, {cmd[1]}, {cmd[2]}")
         # Send command to execute
         if self.config.closed_loop:
             # Execute in closed loop
@@ -280,7 +280,7 @@ class Controller(Component):
     def _publishing_callback(self):
         """Tracking publishing timer callback"""
         # Publish tracked point on the global path
-        if self.tracked_point:
+        if self.tracked_point is not None:
             self.publishers_dict[ControllerOutputs.TRACKING.key].publish(
                 self.tracked_point,
                 frame_id=self.config.frames.world,
@@ -341,13 +341,12 @@ class Controller(Component):
         if not tracked_state:
             return None
 
-        position = [tracked_state.x, tracked_state.x, 0.0]
+        position = [tracked_state.x, tracked_state.y, 0.0]
         orientation = from_euler_to_quaternion(
             yaw=tracked_state.yaw, pitch=0.0, roll=0.0
         )
-
-        pose = position.extend(orientation)
-        return pose
+        position.extend(orientation)
+        return np.array(position)
 
     @property
     def local_plan(self) -> Optional[Path]:
