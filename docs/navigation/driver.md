@@ -1,8 +1,8 @@
 # Drive Manager
 
-[DriveManager](../apidocs/Kompass/Kompass.components.drive_manager.md) is responsible for direct control communication with the robot. It is used to perform last checks on any control command before passing it to the robot to ensure that the commands falls within the robot control limits, satisfies smoothness conditions and does not lead to a collision with a nearby obstacle.
+[DriveManager](../apidocs/kompass/kompass.components.drive_manager.md) is responsible for direct control communication with the robot. It is used to perform last checks on any control command before passing it to the robot to ensure that the commands falls within the robot control limits, satisfies smoothness conditions and does not lead to a collision with a nearby obstacle.
 
-The Drive Manager can perform one or multiple of the following functionalities based on the desired config:
+The DriveManager component can perform one or multiple of the following functionalities based on the desired config:
 
 ```{list-table}
 :widths: 20 70
@@ -18,6 +18,34 @@ The Drive Manager can perform one or multiple of the following functionalities b
 * - **Robot Unblocking**
   - Moves the robot forward, backwards or rotates in place if the space is free to move the robot away from a blocking point. This action can be configured to be triggered with an external event
 ```
+
+DriveManager also includes built-in movement actions used for directly control the robot or unblocking the robot in certain conditions:
+
+```{list-table}
+:widths: 20 70
+:header-rows: 1
+
+* - Action
+  - Function
+
+* - **[move_forward](../apidocs/kompass/kompass.components.drive_manager.md/#kompass.components.drive_manager.DriveManager)**
+  - Moves the robot forward for `max_distance` meters, if the forward direction is clear of obstacles.
+
+* - **[move_backward](../apidocs/kompass/kompass.components.drive_manager.md/#kompass.components.drive_manager.DriveManager)**
+  - Moves the robot backwards for `max_distance` meters, if the backward direction is clear of obstacles.
+
+* - **[rotate_in_place](../apidocs/kompass/kompass.components.drive_manager.md/#kompass.components.drive_manager.DriveManager)**
+  - Rotates the robot in place for `max_rotation` radians, if the given safety margin around the robot is clear of obstacles.
+
+
+* - **[move_to_unblock](../apidocs/kompass/kompass.components.drive_manager.md/#kompass.components.drive_manager.DriveManager)**
+  - Moves the robot forward, backwards or rotates in place if the space is free to move the robot away from a blocking point.
+```
+
+```{note}
+All the previous movement actions require `LaserScan` information to determine if the movement direction is collision-free
+```
+
 ```{seealso}
 Check an example on configuring the robot unblocking functionality with an external event in [this tutorial](/tutorials/events_actions.md)
 ```
