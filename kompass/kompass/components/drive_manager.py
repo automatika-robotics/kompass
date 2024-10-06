@@ -246,13 +246,13 @@ class DriveManager(Component):
                 )
                 self.laser_scan: Optional[LaserScanData] = callback.get_output()
 
-    def __unblock_forward(self, max_distance: float) -> bool:
-        """Move forward to unblock the robot
+    def move_forward(self, max_distance: float) -> bool:
+        """Moves the robot forward if the forward direction is clear of obstacles
 
         :param max_distance: Maximum distance (m)
         :type max_distance: float
 
-        :return: If unblocking is successful
+        :return: If the movement action is performed
         :rtype: bool
         """
 
@@ -285,13 +285,13 @@ class DriveManager(Component):
         # Return true if unblocking forward is done
         return traveled_distance >= max_distance
 
-    def __unblock_backward(self, max_distance: float) -> bool:
-        """Move backwards to unblock the robot
+    def move_backward(self, max_distance: float) -> bool:
+        """Moves the robot backwards if the backward direction is clear of obstacles
 
         :param max_distance: Maximum distance (m)
         :type max_distance: float
 
-        :return: If unblocking is successful
+        :return: If the movement action is performed
         :rtype: bool
         """
         # Behind the robot
@@ -324,26 +324,33 @@ class DriveManager(Component):
         # Return true if unblocking forward is done
         return traveled_distance >= max_distance
 
-    def __unblock_rotate_in_place(self, safety_margin: Optional[float] = None) -> bool:
-        """Rotate in place to unblock the robot
+    def rotate_in_place(
+        self, max_rotation: float, safety_margin: Optional[float] = None
+    ) -> bool:
+        """Rotates the robot in place if a safety margin around the robot is clear
 
-        :param safety_margin: Margin clear of obstacles to perform rotation, defaults to 5% of the robot radius
+        :param safety_margin: Margin clear of obstacles to perform rotation, if None defaults to 5% of the robot_radius
         :type safety_margin: Optional[float], optional
 
-        :return: If unblocking action is successful
+        :return: If the movement action is performed
         :rtype: bool
         """
+        if self.robot.model_type == RobotType.ACKERMANN:
+            self.get_logger().error(
+                "Rotation in place action is called but ACKERMANN type robot cannot rotate in place. Aborting"
+            )
+            return
+
         unblocking = True
         cmd_rate = self.create_rate(self.config.cmd_rate)
         traveled_radius = 0.0
-        max_travel = np.pi / 2
 
         if not safety_margin:
             # Set by default to 10% of the robot radius
             safety_margin = 0.05 * self.robot_radius
 
         # FRONT MOVEMENT
-        while unblocking and traveled_radius < max_travel:
+        while unblocking and traveled_radius < max_rotation:
             if any(self.laser_scan.ranges < (1 + safety_margin) * self.robot_radius):
                 unblocking = False
             else:
@@ -356,35 +363,56 @@ class DriveManager(Component):
                 cmd_rate.sleep()
 
         # Return true if unblocking forward is done
-        return traveled_radius >= max_travel
+        return traveled_radius >= max_rotation
 
-    def move_to_unblock(self, max_distance: float = 0.4):
+    def move_to_unblock(
+        self,
+        max_distance_forward: Optional[float] = None,
+        max_distance_backwards: Optional[float] = None,
+        max_rotation: float = np.pi / 4,
+        rotation_safety_margin: Optional[float] = None,
+    ) -> bool:
         """Moves the robot forward/backward or rotate in place to get out of blocking spots
 
-        :param max_distance: Maximum distance to move when attempting to unblock, defaults to 0.2
-        :type max_distance: float, optional
+        :param max_distance_forward: Maximum distance to move forward (meters), if None defaults to 2 * robot_radius
+        :type max_distance_forward: Optional[float], optional
+        :param max_distance_backwards: Maximum distance to move backwards (meters), if None defaults to 2 * robot_radius
+        :type max_distance_backwards: Optional[float], optional
+        :param max_rotation: Maximum rotation angle (radians), defaults to np.pi/4
+        :type max_rotation: float, optional
+        :param rotation_safety_margin: Safety margin to perform rotation in place (meters), if None defaults to 5% of robot_radius
+        :type rotation_safety_margin: Optional[float], optional
+
+        :return: If one of the movement actions is performed
+        :rtype: bool
         """
-        # TODO: Expose 4 unblocking actions to the api (forward, backward and rotation + the move_to_unblock)
         if not self.laser_scan:
             self.get_logger().error(
                 "Scan unavailable - Unblocking functionality requires LaserScan information"
             )
             return
 
+        if not max_distance_forward:
+            max_distance_forward = 2 * self.robot_radius
+
+        if not max_distance_backwards:
+            max_distance_backwards = 2 * self.robot_radius
+
         self._unblocking_on = True
         # Try unblocking forward:
-        unblocked = self.__unblock_backward(max_distance)
+        unblocked = self.move_backward(max_distance_backwards)
         if not unblocked and self.robot.model_type != RobotType.ACKERMANN:
-            unblocked = self.__unblock_rotate_in_place()
+            unblocked = self.move_rotate_in_place(max_rotation, rotation_safety_margin)
         if not unblocked:
-            unblocked = self.__unblock_forward(max_distance)
+            unblocked = self.move_forward(max_distance_forward)
 
         if not unblocked:
             self.get_logger().error("Robot unblocking Failed due to nearby obstacles")
         else:
             self.get_logger().info("Robot Unblocking Action Done!")
         self._unblocking_on = False
-        return
+
+        return unblocked
 
     def __filter_multi_cmds(self, cmd_list, max_acc: float):
         """__filter_multi_cmds.
