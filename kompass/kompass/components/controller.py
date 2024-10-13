@@ -128,13 +128,7 @@ class ControllerConfig(ComponentConfig):
     closed_loop: bool = field(default=False)
     cmd_tolerance: float = field(default=0.1)
     use_direct_sensor: bool = field(default=False)
-    publish_ctrl_in_parallel: bool = field(init=False)
-
-    def __attrs_post_init__(self):
-        """Class post init
-        Sets publish in parallel to true for DWA controller
-        """
-        self.publish_ctrl_in_parallel = self.algorithm == LocalPlannersID.DWA
+    publish_ctrl_in_parallel: bool = field(default=False)
 
 
 class Controller(Component):

@@ -418,14 +418,13 @@ class Planner(Component):
                 # plan a new path
                 got_plan = self._plan(self.robot_state, goal_state)
 
-                if got_plan:
+                if got_plan and self.ros_path:
                     # publish feedback
-                    action_feedback_msg.plan = self.path
+                    action_feedback_msg.plan = self.ros_path
                 else:
                     action_feedback_msg.plan = None
-                # TODO: Fix feedback publishing -> now giving rclpy message generating error
-                # goal_handle.publish_feedback(action_feedback_msg)
-                # server_rate.sleep()
+                goal_handle.publish_feedback(action_feedback_msg)
+                self.get_logger().info(f"Action Feedback: {action_feedback_msg}")
                 time.sleep(1 / self.config.loop_rate)
         except Exception as e:
             self.get_logger().error(f"Action execution error - {e}")
@@ -438,6 +437,9 @@ class Planner(Component):
         action_result.end_displacement.orientation_error = end_state_error.yaw
 
         action_result.reached_end = True
+        self.get_logger().error(
+            f"End Goal Reached with result {action_result} -> Ending Action"
+        )
         goal_handle.succeed()
 
         return action_result
