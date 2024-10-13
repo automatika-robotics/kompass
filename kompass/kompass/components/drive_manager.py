@@ -339,7 +339,7 @@ class DriveManager(Component):
             self.get_logger().error(
                 "Rotation in place action is called but ACKERMANN type robot cannot rotate in place. Aborting"
             )
-            return
+            return False
 
         unblocking = True
         cmd_rate = self.create_rate(self.config.cmd_rate)
@@ -390,7 +390,7 @@ class DriveManager(Component):
             self.get_logger().error(
                 "Scan unavailable - Unblocking functionality requires LaserScan information"
             )
-            return
+            return False
 
         if not max_distance_forward:
             max_distance_forward = 2 * self.robot_radius
