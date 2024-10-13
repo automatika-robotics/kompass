@@ -42,14 +42,14 @@ def kompass_bringup():
         model_type=RobotType.DIFFERENTIAL_DRIVE,
         geometry_type=RobotGeometry.Type.CYLINDER,
         geometry_params=np.array([0.1, 0.3]),
-        ctrl_vx_limits=LinearCtrlLimits(max_vel=0.2, max_acc=1.5, max_decel=2.5),
+        ctrl_vx_limits=LinearCtrlLimits(max_vel=0.4, max_acc=1.5, max_decel=2.5),
         ctrl_omega_limits=AngularCtrlLimits(
             max_vel=0.4, max_acc=2.0, max_decel=2.0, max_steer=np.pi / 3
         ),
     )
 
     config = PlannerConfig(robot=my_robot, loop_rate=1.0)
-    planner = Planner(component_name="planner", config=config, config_file=config_file)
+    planner = Planner(component_name="planner", config=config)
 
     controller = Controller(component_name="controller")
     driver = DriveManager(component_name="drive_manager")
@@ -57,9 +57,10 @@ def kompass_bringup():
 
     # Configure Controller options
     controller.algorithm = LocalPlannersID.STANLEY
-    controller.direct_sensor = False
+    controller.direct_sensor = True
 
-    planner.run_type = "ActionServer"
+    planner.run_type = "Timed"
+    # planner.inputs(goal_point=Topic(name="/clicked_point", msg_type="PointStamped"))
 
     driver.on_fail(action=Action(driver.restart))
 
@@ -80,10 +81,11 @@ def kompass_bringup():
 
     # On any clicked point
     event_clicked_point = event.OnGreater(
-        "rviz_goal",
+        "agents_goal",
         Topic(name="/clicked_point", msg_type="PointStamped"),
         0,
         ["header", "stamp", "sec"],
+        or_equal=True,
     )
 
     # Define an Action to send a goal to the planner ActionServer
@@ -124,7 +126,7 @@ def kompass_bringup():
 
     # Add Kompass components
     launcher.kompass(
-        components=[planner, controller, mapper, driver],
+        components=[planner, controller, driver],
         events_actions=events_actions,
         activate_all_components_on_start=True,
         multi_processing=True,

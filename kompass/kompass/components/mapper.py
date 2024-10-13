@@ -183,7 +183,7 @@ class LocalMapper(Component):
 
     def _update_map_from_scan(self, **_):
         """Update local map from scan"""
-        if not self.sensor_data:
+        if not self.sensor_data or not self.robot_state:
             return
 
         pose_robot_in_world = PoseData()

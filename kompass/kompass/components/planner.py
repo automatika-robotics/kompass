@@ -1,5 +1,5 @@
 from typing import Dict, Optional
-
+import time
 import numpy as np
 from attrs import field
 
@@ -197,7 +197,7 @@ class Planner(Component):
         :param config_file: Yaml file
         :type config_file: str
         """
-        Component.configure(self, config_file)
+        super().configure(config_file)
         if hasattr(self, "ompl_planner"):
             self.ompl_planner.configure(config_file, self.node_name)
 
@@ -372,8 +372,8 @@ class Planner(Component):
         # Clear any previous path
         self._clear_path()
 
-        server_rate = self.create_rate(self.config.loop_rate)
         self._update_state()
+
         # Get request
         end_goal_tolerance: PathTrackingError = goal_handle.request.end_tolerance
 
@@ -418,14 +418,16 @@ class Planner(Component):
                 # plan a new path
                 got_plan = self._plan(self.robot_state, goal_state)
 
-                if got_plan:
+                if got_plan and self.ros_path:
                     # publish feedback
-                    action_feedback_msg.plan = self.path
+                    action_feedback_msg.plan = self.ros_path
                 else:
                     action_feedback_msg.plan = None
-                # TODO: Fix feedback publishing -> now giving rclpy message generating error
-                # goal_handle.publish_feedback(action_feedback_msg)
-                server_rate.sleep()
+                goal_handle.publish_feedback(action_feedback_msg)
+                self.get_logger().info(f"Action Feedback: {action_feedback_msg}")
+                # NOTE: using Python time directly, as ros rate sleep (from self.create_rate) was not functioning as expected
+                time.sleep(1 / self.config.loop_rate)
+
         except Exception as e:
             self.get_logger().error(f"Action execution error - {e}")
             goal_handle.abort()
@@ -437,7 +439,10 @@ class Planner(Component):
         action_result.end_displacement.orientation_error = end_state_error.yaw
 
         action_result.reached_end = True
-        goal_handle.success()
+        self.get_logger().error(
+            f"End Goal Reached with result {action_result} -> Ending Action"
+        )
+        goal_handle.succeed()
 
         return action_result
 
@@ -451,7 +456,7 @@ class Planner(Component):
         # goal_point is excluded since goal can be provided by either a topic, service call or action goal
         if self.got_all_inputs(inputs_to_check=["map_layer"]):
             self.get_logger().debug(
-                f"Setting planning problem with {self.ompl_planner.planner_id} from [{start.x},{start.y}] to [{goal.x}, {goal.y}]"
+                f"Setting planning problem with {self.ompl_planner.planner_id} from [{start.x},{start.y}] to [{goal.x}, {goal.y}] and map data {self.map_data}"
             )
 
             self.ompl_planner.setup_problem(
@@ -473,17 +478,18 @@ class Planner(Component):
                 if not hasattr(self, "_last_path_cost"):
                     self._last_path_cost = self.ompl_planner.path_cost
                 current_cost = self.ompl_planner.path_cost
-                self.get_logger().debug(f"Got path with cost: {current_cost}")
+                self.get_logger().debug(f"Got new plan with cost: {current_cost}")
                 # If the current cost is less -> Update the path
                 # This is to prevent publishing less optimal paths produced by sampling methods
                 if current_cost <= self._last_path_cost:
                     # Simplify solution
                     self.path = self.ompl_planner.simplify_solution()
-                    self._last_path_cost = current_cost
+                    # self._last_path_cost = current_cost
 
                 self.health_status.set_healthy()
 
             if not self.path:
+                self.get_logger().error("Planner failed to find a path!")
                 # Failed to find a path -> algorithm failure
                 self.health_status.set_fail_algorithm(
                     algorithm_names=[self.ompl_planner.planner_id]

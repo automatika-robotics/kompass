@@ -164,7 +164,6 @@ class Component(BaseComponent):
             topic=f"{self.get_name()}_status",
             qos_profile=1,
         )
-
         self.publishers_dict = {
             key: Publisher(output)
             for key, output in self._output_topics.__dict__.items()
@@ -221,35 +220,6 @@ class Component(BaseComponent):
             self._output_topics.from_yaml(
                 config_file, nested_root_name=f"{self.node_name}.outputs"
             )
-
-    # def update_cmd_args_list(self):
-    #     """
-    #     Updates the launch_cmd_args property (To be called after a parameter update)
-    #     """
-    #     self.launch_cmd_args = [
-    #         "--component_type",
-    #         self.__class__.__name__,
-    #         "--config_type",
-    #         self.config.__class__.__name__,
-    #         "--inputs",
-    #         self.inputs_json,
-    #         "--outputs",
-    #         self.outputs_json,
-    #         "--config",
-    #         self.config_json,
-    #         "--node_name",
-    #         self.node_name,
-    #     ]
-    #     if self._config_file:
-    #         self.launch_cmd_args = ["--config_file", self._config_file]
-
-    #     if self.events:
-    #         self.launch_cmd_args = [
-    #             "--events",
-    #             self.events_json,
-    #             "--actions",
-    #             self.actions_json,
-    #         ]
 
     @property
     def odom_tf_listener(self) -> Optional[TFListener]:

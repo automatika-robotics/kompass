@@ -10,7 +10,7 @@ from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
 from nav_msgs.msg import Path
 from std_msgs.msg import Header
 from sensor_msgs.msg import PointCloud2
-from geometry_msgs.msg import PoseStamped, Twist
+from geometry_msgs.msg import Twist
 
 # KOMPASS
 from kompass_core.models import Robot, RobotCtrlLimits, RobotState
@@ -115,9 +115,9 @@ class ControllerConfig(ComponentConfig):
     use_cmd_list: bool = field(
         default=False
     )  # To send a list of future commands to the drive manager (if True) or a single commands (if False)
-    prediction_horizon: int = field(
-        default=10, validator=BaseValidators.in_range(min_value=1, max_value=1e9)
-    )  # Number of future control commands to compute at each loop step
+    prediction_horizon: float = field(
+        default=1.0, validator=BaseValidators.in_range(min_value=1, max_value=1e9)
+    )  # future time horizon to compute at each loop step
     control_time_step: float = field(
         default=0.1, validator=BaseValidators.in_range(min_value=1e-9, max_value=1e9)
     )  # Time step between two control commands
@@ -128,13 +128,7 @@ class ControllerConfig(ComponentConfig):
     closed_loop: bool = field(default=False)
     cmd_tolerance: float = field(default=0.1)
     use_direct_sensor: bool = field(default=False)
-    publish_ctrl_in_parallel: bool = field(init=False)
-
-    def __attrs_post_init__(self):
-        """Class post init
-        Sets publish in parallel to true for DWA controller
-        """
-        self.publish_ctrl_in_parallel = self.algorithm == LocalPlannersID.DWA
+    publish_ctrl_in_parallel: bool = field(default=False)
 
 
 class Controller(Component):
@@ -264,7 +258,7 @@ class Controller(Component):
             self.get_logger().debug("No command to execute")
             return
 
-        self.get_logger().info(f"Publishing new command: {cmd[0]}, {cmd[1]}, {cmd[2]}")
+        self.get_logger().debug(f"Publishing new command: {cmd[0]}, {cmd[1]}, {cmd[2]}")
         # Send command to execute
         if self.config.closed_loop:
             # Execute in closed loop
@@ -280,7 +274,7 @@ class Controller(Component):
     def _publishing_callback(self):
         """Tracking publishing timer callback"""
         # Publish tracked point on the global path
-        if self.tracked_point:
+        if self.tracked_point is not None:
             self.publishers_dict[ControllerOutputs.TRACKING.key].publish(
                 self.tracked_point,
                 frame_id=self.config.frames.world,
@@ -341,13 +335,12 @@ class Controller(Component):
         if not tracked_state:
             return None
 
-        position = [tracked_state.x, tracked_state.x, 0.0]
+        position = [tracked_state.x, tracked_state.y, 0.0]
         orientation = from_euler_to_quaternion(
             yaw=tracked_state.yaw, pitch=0.0, roll=0.0
         )
-
-        pose = position.extend(orientation)
-        return pose
+        position.extend(orientation)
+        return np.array(position)
 
     @property
     def local_plan(self) -> Optional[Path]:
@@ -528,7 +521,11 @@ class Controller(Component):
         """
         Set a new plan to the controller/follower
         """
+        self.__reached_end = False
         self.__controller.set_path(global_path=msg)
+        self.__goal_point = RobotState(
+            x=msg.poses[-1].pose.position.x, y=msg.poses[-1].pose.position.y
+        )
 
     def init_variables(self):
         """
@@ -694,15 +691,7 @@ class Controller(Component):
         else:
             local_map = self.local_map
 
-        cmd_found: bool = self.__controller.loop_step(
-            current_state=self.robot_state,  # type: ignore
-            laser_scan=laser_scan,
-            point_cloud=point_cloud,
-            local_map=local_map,
-        )
-
-        # LOG CONTROLLER INFO
-        self.get_logger().debug(f"{cmd_found}: {self.__controller.logging_info()}")
+        self.__reached_end = self.reached_point(self.__goal_point)
 
         # If end is reached stop the robot
         if self.__reached_end:
@@ -713,6 +702,16 @@ class Controller(Component):
             # Unset reached_end for new incoming paths
             self.__reached_end = False
             return True
+
+        cmd_found: bool = self.__controller.loop_step(
+            current_state=self.robot_state,  # type: ignore
+            laser_scan=laser_scan,
+            point_cloud=point_cloud,
+            local_map=local_map,
+        )
+
+        # LOG CONTROLLER INFO
+        self.get_logger().debug(f"{cmd_found}: {self.__controller.logging_info()}")
 
         # PUBLISH CONTROL TO ROBOT CMD TOPIC
         if not cmd_found:
@@ -738,16 +737,12 @@ class Controller(Component):
             )
         ]
 
-        self.get_logger().info(f"Added {self._cmds_queue.qsize()} new commands")
-
         # Update controller path tracking info (errors/end_reached)
         self.__lat_dist_error = self.__controller.distance_error
         self.__ori_error = self.__controller.orientation_error
-        self.__reached_end = self.__controller.reached_end()
 
         # If commands are to be published in sequence
         if not self.config.publish_ctrl_in_parallel:
-            self.get_logger().info("HERE!")
             # While queue is not empty
             while self._cmds_queue.qsize() > 0:
                 self._execution_callback()
@@ -859,6 +854,23 @@ class Controller(Component):
 
         return result
 
+    def reached_point(self, goal_point: RobotState) -> bool:
+        """
+        Checks if the current robot state is close to a given goal point
+
+        :param goal_point: Goal point
+        :type goal_point: RobotState
+        :param tolerance: Tolerance to goal
+        :type tolerance: PathTrackingError
+
+        :return: If the distance to the goal is less than the given tolerance
+        :rtype: bool
+        """
+        if not self.robot_state:
+            return False
+        dist: float = self.robot_state.distance(goal_point)
+        return dist <= self.__controller._config.goal_dist_tolerance
+
     def _execution_step(self):
         """
         Controller main execution step
@@ -876,5 +888,5 @@ class Controller(Component):
         got_all: bool = self.got_all_inputs()
 
         # Check if all inputs are available
-        if got_all:
+        if got_all and not self.__reached_end:
             self._control()

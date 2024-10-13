@@ -12,6 +12,7 @@
   <member_of_group>rosidl_interface_packages</member_of_group>
 
   <depend>python3-pykdl</depend>
+  <depend>python3-setproctitle</depend>
   <depend>kompass_interfaces</depend>
 
   <test_depend>ament_copyright</test_depend>
