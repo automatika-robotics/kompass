@@ -225,9 +225,9 @@ class DriveManager(Component):
         if hasattr(self, "command"):
             self._previous_command = self.command
 
-        self.command: Twist = self.callbacks[DriverInputs.CMD.key].get_output()
+        self.command: Optional[Twist] = self.callbacks[DriverInputs.CMD.key].get_output()
 
-        self.multi_command: TwistArray = self.callbacks[
+        self.multi_command: Optional[TwistArray] = self.callbacks[
             DriverInputs.MULTI_CMD.key
         ].get_output()
 
