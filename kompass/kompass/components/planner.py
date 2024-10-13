@@ -425,7 +425,9 @@ class Planner(Component):
                     action_feedback_msg.plan = None
                 goal_handle.publish_feedback(action_feedback_msg)
                 self.get_logger().info(f"Action Feedback: {action_feedback_msg}")
+                # NOTE: using Python time directly, as ros rate sleep (from self.create_rate) was not functioning as expected
                 time.sleep(1 / self.config.loop_rate)
+
         except Exception as e:
             self.get_logger().error(f"Action execution error - {e}")
             goal_handle.abort()
