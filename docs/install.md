@@ -18,6 +18,6 @@ Kompass is built to be used with ROS2. All ROS2 distributions starting from _Fox
 mkdir -p kompass_ws/src
 cd kompass_ws
 git clone https://github.com/automatika-robotics/ros-sugar
-git clone https://github.com/automatika-robotics/kompass-ros
+git clone https://github.com/automatika-robotics/kompass
 colcon build
 ```
