@@ -11,6 +11,7 @@ mapper:
 
 drive_manager:
   loop_rate: 5.0
+  critical_zone_distance: 0.15
   outputs:
     robot_command:
       name: 'cmd_vel'

@@ -45,7 +45,7 @@ class Launcher(BaseLauncher):
             Event, Union[Action, ROSLaunchAction, List[Union[Action, ROSLaunchAction]]]
         ]
         | None = None,
-        multi_processing: bool = True,
+        multiprocessing: bool = True,
         activate_all_components_on_start: bool = True,
         components_to_activate_on_start: Optional[List[Component]] = None,
     ):
@@ -67,7 +67,7 @@ class Launcher(BaseLauncher):
             package_name="kompass",
             executable_entry_point="executable",
             events_actions=events_actions,
-            multi_processing=multi_processing,
+            multiprocessing=multiprocessing,
             activate_all_components_on_start=activate_all_components_on_start,
             components_to_activate_on_start=components_to_activate_on_start,
         )
@@ -105,13 +105,6 @@ class Launcher(BaseLauncher):
             components_to_activate_on_start=components_to_activate_on_start,
         )
 
-    def _update_components_launch_cmd_args(self):
-        """_update_components_launch_cmd_args."""
-        for idx, component in enumerate(self.components):
-            pkg_name, _ = self._pkg_executable[idx]
-            if pkg_name == "kompass":
-                component.update_cmd_args_list()
-
     @property
     def robot(self) -> Dict[str, RobotConfig]:
         """
@@ -137,7 +130,6 @@ class Launcher(BaseLauncher):
         for component in self.components:
             if hasattr(component.config, "robot"):
                 component.config.robot = config
-        self._update_components_launch_cmd_args()
 
     @property
     def frames(self) -> Dict[str, RobotFrames]:
@@ -164,7 +156,6 @@ class Launcher(BaseLauncher):
         for component in self.components:
             if hasattr(component.config, "frames"):
                 component.config.frames = frames_config
-        self._update_components_launch_cmd_args()
 
     def inputs(self, **kwargs):
         """
@@ -188,8 +179,6 @@ class Launcher(BaseLauncher):
         logger.info(
             f"The following components got updated for each provided input key: {components_keys_updated}"
         )
-        self._update_components_launch_cmd_args()
-        return
 
     def outputs(self, **kwargs):
         """
@@ -213,5 +202,3 @@ class Launcher(BaseLauncher):
         logger.info(
             f"The following components got updated for each provided output key: {components_keys_updated}"
         )
-        self._update_components_launch_cmd_args()
-        return

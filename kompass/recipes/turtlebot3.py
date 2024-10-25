@@ -126,10 +126,9 @@ def kompass_bringup():
 
     # Add Kompass components
     launcher.kompass(
-        components=[planner, controller, driver],
+        components=[planner, controller, driver, mapper],
         events_actions=events_actions,
-        activate_all_components_on_start=True,
-        multi_processing=True,
+        multiprocessing=True,
     )
 
     # Get odom from localizer filtered odom for all components

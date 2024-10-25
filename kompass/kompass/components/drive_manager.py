@@ -2,9 +2,8 @@ from typing import Optional, Union
 import numpy as np
 from attrs import define, field
 from geometry_msgs.msg import Twist
-from kompass_core.datatypes.laserscan import LaserScanData
+from kompass_core.datatypes import LaserScanData
 from kompass_core.models import RobotGeometry, RobotState, RobotType
-from kompass_core.utils.geometry import convert_to_0_2pi
 from scipy import signal
 from kompass_interfaces.msg import TwistArray
 
@@ -225,7 +224,9 @@ class DriveManager(Component):
         if hasattr(self, "command"):
             self._previous_command = self.command
 
-        self.command: Optional[Twist] = self.callbacks[DriverInputs.CMD.key].get_output()
+        self.command: Optional[Twist] = self.callbacks[
+            DriverInputs.CMD.key
+        ].get_output()
 
         self.multi_command: Optional[TwistArray] = self.callbacks[
             DriverInputs.MULTI_CMD.key
@@ -261,19 +262,15 @@ class DriveManager(Component):
         cmd_rate = self.create_rate(self.config.cmd_rate)
         traveled_distance = 0.0
 
-        angles: np.ndarray = convert_to_0_2pi(self.laser_scan.angles)
-
-        # Get indices of angles in front of the robot
-        angles_in_critical_indices = (angles <= self.critical_zone["left_angle"]) | (
-            angles >= self.critical_zone["right_angle"]
+        ranges_in_front = self.laser_scan.get_ranges(
+            right_angle=self.critical_zone["right_angle"],
+            left_angle=self.critical_zone["left_angle"],
         )
 
         # FRONT MOVEMENT
         while unblocking and traveled_distance < max_distance:
             # Check if max_distance forward is clear
-            if np.min(self.laser_scan.ranges[angles_in_critical_indices]) < (
-                max_distance + self.robot_radius
-            ):
+            if np.min(ranges_in_front) < (max_distance + self.robot_radius):
                 unblocking = False
             else:
                 self.cmd = Twist()
@@ -294,13 +291,10 @@ class DriveManager(Component):
         :return: If the movement action is performed
         :rtype: bool
         """
-        # Behind the robot
-        angles: np.ndarray = convert_to_0_2pi(self.laser_scan.angles)
-
-        # Get indices of angles behind the robot
-        angles_in_critical_indices = (
-            angles <= convert_to_0_2pi(self.critical_zone["left_angle"] + np.pi)
-        ) & (angles >= convert_to_0_2pi(self.critical_zone["right_angle"] + np.pi))
+        ranges_in_back = self.laser_scan.get_ranges(
+            right_angle=self.critical_zone["right_angle"] + np.pi,
+            left_angle=self.critical_zone["left_angle"] + np.pi,
+        )
 
         unblocking = True
         step_distance = self.robot.ctrl_vx_limits.max_vel / (2 * self.config.cmd_rate)
@@ -310,9 +304,7 @@ class DriveManager(Component):
         # FRONT MOVEMENT
         while unblocking and traveled_distance < max_distance:
             # Check if max_distance behind the robot is clear
-            if np.min(self.laser_scan.ranges[angles_in_critical_indices]) < (
-                max_distance + self.robot_radius
-            ):
+            if np.min(ranges_in_back) < (max_distance + self.robot_radius):
                 unblocking = False
             else:
                 self.cmd = Twist()
@@ -574,16 +566,22 @@ class DriveManager(Component):
         """
         # Update emergency stop check
         if output:
-            angles: np.ndarray = convert_to_0_2pi(output.angles)
+            forward: bool = True if not self.cmd else self.cmd.linear.x >= 0
 
-            angles_in_critical_indices = (
-                angles <= self.critical_zone["left_angle"]
-            ) | (angles >= self.critical_zone["right_angle"])
+            if forward:
+                # Check in front
+                ranges_to_check = output.get_ranges(
+                    right_angle=self.critical_zone["right_angle"],
+                    left_angle=self.critical_zone["left_angle"],
+                )
+            else:
+                # Moving backwards -> Check behind
+                ranges_to_check = output.get_ranges(
+                    right_angle=self.critical_zone["right_angle"] + np.pi,
+                    left_angle=self.critical_zone["left_angle"] + np.pi,
+                )
 
-            emergency_stop = np.any(
-                output.ranges[angles_in_critical_indices]
-                <= self.critical_zone["distance"]
-            )
+            emergency_stop = np.any(ranges_to_check <= self.critical_zone["distance"])
 
             self.emergency_stop_dict[topic.name] = bool(emergency_stop)
 
