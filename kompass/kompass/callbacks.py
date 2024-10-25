@@ -257,7 +257,7 @@ class PoseCallback(BasePoseCallback):
         if not self.msg:
             return None
 
-        # If a trnsform is given apply it to the message
+        # If a transform is given apply it to the message
         if transformation or self.transformation:
             pose_transformed = self._transform(
                 self.msg, transformation or self.transformation
@@ -324,7 +324,7 @@ class PoseStampedCallback(PoseCallback):
         if not self.msg:
             return None
 
-        # If a trnsform is given apply it to the message
+        # If a transform is given apply it to the message
         if transformation or self.transformation:
             pose_transformed = self._transform(
                 self.msg.pose, transformation or self.transformation
