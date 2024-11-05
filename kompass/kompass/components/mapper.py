@@ -96,7 +96,6 @@ class LocalMapper(Component):
             component_name=component_name,
             **kwargs,
         )
-        self.config.map_params.resolution = 0.05
 
     def attach_callbacks(self) -> None:
         """

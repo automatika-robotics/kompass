@@ -394,7 +394,7 @@ class DriveManager(Component):
         # Try unblocking forward:
         unblocked = self.move_backward(max_distance_backwards)
         if not unblocked and self.robot.model_type != RobotType.ACKERMANN:
-            unblocked = self.move_rotate_in_place(max_rotation, rotation_safety_margin)
+            unblocked = self.rotate_in_place(max_rotation, rotation_safety_margin)
         if not unblocked:
             unblocked = self.move_forward(max_distance_forward)
 
