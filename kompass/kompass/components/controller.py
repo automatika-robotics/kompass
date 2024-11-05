@@ -2,6 +2,7 @@ from typing import Optional, Union
 from attrs import define, field
 from queue import Queue, Empty
 import numpy as np
+import time
 
 from rclpy.logging import get_logger
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
@@ -568,8 +569,6 @@ class Controller(Component):
         self.__lat_dist_error: float = 0.0
         self.__ori_error: float = 0.0
 
-        self.__execution_rate = self.create_rate(10 / self.config.control_time_step)
-
         # Command queue to send controller command list to the robot
         self._cmds_queue: Queue = Queue()
 
@@ -636,7 +635,8 @@ class Controller(Component):
         """
         executing_closed_loop = True
         count = 0
-        while executing_closed_loop and count < 10:
+        MAX_INTERMEDIATE_STEPS = 10
+        while executing_closed_loop and count < MAX_INTERMEDIATE_STEPS:
             vx_out = (
                 vx
                 if abs(self.robot_state.vx - vx) > self.config.cmd_tolerance
@@ -657,15 +657,14 @@ class Controller(Component):
             )
             executing_closed_loop = vx_out or vy_out or omega_out
             self.get_logger().debug(
-                f"Publishing {count}: ({vx_out}, {vy_out}, {omega_out})"
-            )
+                f"Publishing {count}: ({vx_out}, {vy_out}, {omega_out})")
             count += 1
             self._publish_control(
                 linear_ctr_x=vx_out,
                 angular_ctr=omega_out,
                 linear_ctr_y=vy_out,
             )
-            self.__execution_rate.sleep()
+            time.sleep(self.config.control_time_step / MAX_INTERMEDIATE_STEPS)
             self._update_state()
 
     def _control(self) -> bool:
