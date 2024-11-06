@@ -8,7 +8,7 @@ from kompass_core.models import (
 )
 from kompass_core.control import LocalPlannersID
 
-from ros_sugar_interfaces.msg import ComponentStatus
+from sugar.msg import ComponentStatus
 from kompass_interfaces.action import PlanPath
 from kompass_interfaces.msg import PathTrackingError
 from geometry_msgs.msg import Pose, PointStamped
@@ -56,8 +56,8 @@ def kompass_bringup():
     mapper = LocalMapper(component_name="mapper")
 
     # Configure Controller options
-    controller.algorithm = LocalPlannersID.STANLEY
-    controller.direct_sensor = True
+    controller.algorithm = LocalPlannersID.DWA
+    controller.direct_sensor = False
 
     planner.run_type = "Timed"
     # planner.inputs(goal_point=Topic(name="/clicked_point", msg_type="PointStamped"))
@@ -115,7 +115,6 @@ def kompass_bringup():
     events_actions = {
         event_clicked_point: [LogInfo(msg="Got new goal point"), send_goal],
         event_emergency_stop: [
-            ComponentActions.restart(component=planner),
             unblock_action,
         ],
         event_controller_fail: unblock_action,
