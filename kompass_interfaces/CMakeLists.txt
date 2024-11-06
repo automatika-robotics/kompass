@@ -37,8 +37,6 @@ set(msg_files
   "msg/motion/TwistArray.msg"
   "msg/motion/MotionStatus.msg"
 
-  "msg/control/ControllerInfo.msg"
-
   "msg/prediction/PredictedTrajectories.msg"
   "msg/prediction/PredictedOccupancies.msg"
 )
