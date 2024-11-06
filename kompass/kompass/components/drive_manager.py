@@ -1,5 +1,6 @@
 from typing import Optional, Union
 import numpy as np
+import time
 from attrs import define, field
 from geometry_msgs.msg import Twist
 from kompass_core.datatypes import LaserScanData
@@ -17,6 +18,7 @@ from ..topic import (
     update_topics_config,
 )
 from .component import Component
+from .utils import twist_array_to_ros_twist
 from ..callbacks import LaserScanCallback
 
 
@@ -63,16 +65,62 @@ _driver_default_outputs = create_topics_config(
 @define(kw_only=True)
 class DriveManagerConfig(ComponentConfig):
     """
-    Drive manager node config
+    DriveManager component configuration parameters
+
+    ```{list-table}
+    :widths: 10 20 70
+    :header-rows: 1
+
+    * - Name
+      - Type, Default
+      - Description
+
+    * - **closed_loop**
+      - `bool`, `True`
+      - Publish commands in closed loop by checking the robot velocity from the odometry topic
+
+    * - **cmd_rate**
+      - `float`, `10.0`
+      - Rate for sending the commands to the robot in closed loop (Hz)
+
+    * - **closed_loop_span**
+      - `int`, `3`
+      - Max number of commands to send in a closed loop execution
+
+    * - **smooth_commands**
+      - `bool`, `False`
+      - Filter (smooth) incoming velocity commands to limit the acceleration
+
+    * - **cmd_tolerance**
+      - `float`, `0.1`
+      - Tolerance value when checking for reaching the command in closed loop
+
+    * - **critical_zone_angle**
+      - `float`, `0.1`
+      - Angle range for the emergency stop critical zone (deg)
+
+    * - **critical_zone_distance**
+      - `float`, `0.05`
+      - Distance for the emergency stop critical zone (meters)
+
+    ```
     """
+
+    closed_loop: bool = field(default=True)
 
     cmd_rate: float = field(
         default=10.0, validator=BaseValidators.in_range(min_value=1e-9, max_value=1e9)
     )  # Rate for sending the commands to the robot (Hz)
 
-    smooth_commands: bool = field(default=True)
+    smooth_commands: bool = field(default=False)
 
-    closed_loop: bool = field(default=True)  # Checks feedback from odometry topic
+    closed_loop_span: int = field(
+        default=3, validator=BaseValidators.in_range(min_value=1, max_value=10)
+    )
+
+    cmd_tolerance: float = field(
+        default=0.1
+    )  # tolerance value when checking for reaching the command in closed loop
 
     critical_zone_angle: float = field(
         default=45.0, validator=BaseValidators.in_range(min_value=1e-9, max_value=360.0)
@@ -133,8 +181,11 @@ class DriveManager(Component):
         )
         self.config: DriveManagerConfig = config
 
-        # TODO: Raise error here, similar to the property
-        self.config.run_type = "Timed"
+        if self.config.run_type not in [
+            ComponentRunType.TIMED,
+            ComponentRunType.TIMED.value,
+        ]:
+            raise ValueError("DriveManager works only as a Timed component")
 
     @property
     def run_type(self) -> ComponentRunType:
@@ -172,8 +223,9 @@ class DriveManager(Component):
         """
 
         # robot output command
-        self.cmd = Twist()
-        self._previous_command = None
+        self.command: Optional[Twist] = None
+        self.multi_command: Optional[TwistArray] = None
+        self._previous_command: Optional[Twist] = None
 
         self.robot_radius = RobotGeometry.get_radius(
             self.config.robot.geometry_type, self.config.robot.geometry_params
@@ -210,11 +262,28 @@ class DriveManager(Component):
                     self._check_emergency_stop_proximity_sensor
                 )
 
-        # Attach filtering to commands callback
-        self.callbacks[DriverInputs.CMD.key].on_callback_execute(self._filter_commands)
+        if self.config.smooth_commands:
+            # Attach filtering to commands callback
+            self.callbacks[DriverInputs.CMD.key].add_post_processors([
+                self._filter_commands
+            ])
 
-        self.callbacks[DriverInputs.MULTI_CMD.key].on_callback_execute(
-            self._filter_multi_commands
+            self.callbacks[DriverInputs.MULTI_CMD.key].add_post_processors([
+                self._filter_multi_commands
+            ])
+
+        # Limit commands before publishing
+        self.publishers_dict[DriverOutputs.CMD.key].add_pre_processors([
+            self._limit_command_vel
+        ])
+
+    def __update_robot_state(self):
+        self.robot_state: RobotState = self.callbacks[
+            DriverInputs.LOCATION.key
+        ].get_output(
+            transformation=self.odom_tf_listener.transform
+            if self.odom_tf_listener
+            else None
         )
 
     def _update_state(self):
@@ -224,21 +293,15 @@ class DriveManager(Component):
         if hasattr(self, "command"):
             self._previous_command = self.command
 
-        self.command: Optional[Twist] = self.callbacks[
-            DriverInputs.CMD.key
-        ].get_output()
+        self.command: Optional[Twist] = self.callbacks[DriverInputs.CMD.key].get_output(
+            clear_last=True
+        )
 
         self.multi_command: Optional[TwistArray] = self.callbacks[
             DriverInputs.MULTI_CMD.key
-        ].get_output()
+        ].get_output(clear_last=True)
 
-        self.robot_state: RobotState = self.callbacks[
-            DriverInputs.LOCATION.key
-        ].get_output(
-            transformation=self.odom_tf_listener.transform
-            if self.odom_tf_listener
-            else None
-        )
+        self.__update_robot_state()
 
         for callback in self.callbacks[DriverInputs.SENSOR_DATA.key].values():
             if isinstance(callback, LaserScanCallback):
@@ -246,6 +309,61 @@ class DriveManager(Component):
                     self.scan_tf_listener.transform if self.scan_tf_listener else None
                 )
                 self.laser_scan: Optional[LaserScanData] = callback.get_output()
+
+    def execute_cmd_open_loop(self, cmd: Twist, max_time: float):
+        """Execute a control command in open loop
+
+        :param cmd: Velocity Twist message
+        :type cmd: Twist
+        :param max_time: Maximum time for the open loop execution (s)
+        :type max_time: float
+        """
+        _step = 1 / self.config.cmd_rate
+        _timer_count = 0.0
+        while _timer_count < max_time:
+            _timer_count += _step
+            self.publishers_dict[DriverOutputs.CMD.key].publish(cmd)
+            time.sleep(_step)
+
+    def execute_cmd_closed_loop(self, cmd: Twist, max_time: float):
+        """Execute a control command in closed loop
+
+        :param cmd: Velocity Twist message
+        :type cmd: Twist
+        :param max_time: Maximum time for the closed loop execution (s)
+        :type max_time: float
+        """
+        executing_closed_loop = True
+        _step = 1 / self.config.cmd_rate
+        _timer_count = 0.0
+        while executing_closed_loop and _timer_count < max_time:
+            vx_out = (
+                cmd.linear.x
+                if abs(self.robot_state.vx - cmd.linear.x) > self.config.cmd_tolerance
+                or abs(cmd.linear.x) < self.config.cmd_tolerance
+                else 0.0
+            )
+            vy_out = (
+                cmd.linear.y
+                if abs(self.robot_state.vy - cmd.linear.y) > self.config.cmd_tolerance
+                or abs(cmd.linear.y) < self.config.cmd_tolerance
+                else 0.0
+            )
+            omega_out = (
+                cmd.angular.z
+                if abs(self.robot_state.omega - cmd.angular.z)
+                > self.config.cmd_tolerance
+                or abs(cmd.angular.z) < self.config.cmd_tolerance
+                else 0.0
+            )
+            executing_closed_loop = vx_out or vy_out or omega_out
+
+            _timer_count += _step
+            _cmd = self.__make_twist(vx_out, vy_out, omega_out)
+
+            self.publishers_dict[DriverOutputs.CMD.key].publish(_cmd)
+            time.sleep(_step)
+            self.__update_robot_state()
 
     def move_forward(self, max_distance: float) -> bool:
         """Moves the robot forward if the forward direction is clear of obstacles
@@ -273,9 +391,10 @@ class DriveManager(Component):
             if np.min(ranges_in_front) < (max_distance + self.robot_radius):
                 unblocking = False
             else:
-                self.cmd = Twist()
-                self.cmd.linear.x = self.robot.ctrl_vx_limits.max_vel / 2
-                self.publishers_dict[DriverOutputs.CMD.key].publish(self.cmd)
+                _cmd = self.__make_twist(
+                    vx=self.robot.ctrl_vx_limits.max_vel / 2, vy=0.0, omega=0.0
+                )
+                self.publishers_dict[DriverOutputs.CMD.key].publish(_cmd)
                 traveled_distance += step_distance
                 cmd_rate.sleep()
 
@@ -307,9 +426,10 @@ class DriveManager(Component):
             if np.min(ranges_in_back) < (max_distance + self.robot_radius):
                 unblocking = False
             else:
-                self.cmd = Twist()
-                self.cmd.linear.x = -self.robot.ctrl_vx_limits.max_vel / 2
-                self.publishers_dict[DriverOutputs.CMD.key].publish(self.cmd)
+                _cmd = self.__make_twist(
+                    vx=-self.robot.ctrl_vx_limits.max_vel / 2, vy=0.0, omega=0.0
+                )
+                self.publishers_dict[DriverOutputs.CMD.key].publish(_cmd)
                 traveled_distance += step_distance
                 cmd_rate.sleep()
 
@@ -346,9 +466,10 @@ class DriveManager(Component):
             if any(self.laser_scan.ranges < (1 + safety_margin) * self.robot_radius):
                 unblocking = False
             else:
-                self.cmd = Twist()
-                self.cmd.angular.z = self.robot.ctrl_omega_limits.max_vel / 2
-                self.publishers_dict[DriverOutputs.CMD.key].publish(self.cmd)
+                _cmd = self.__make_twist(
+                    vx=0.0, vy=0.0, omega=self.robot.ctrl_omega_limits.max_vel / 2
+                )
+                self.publishers_dict[DriverOutputs.CMD.key].publish(_cmd)
                 traveled_radius += self.robot.ctrl_omega_limits.max_vel / (
                     2 * self.config.cmd_rate
                 )
@@ -406,6 +527,25 @@ class DriveManager(Component):
 
         return unblocked
 
+    def __make_twist(self, vx: float, vy: float, omega: float) -> Twist:
+        """Create a Twist message
+
+        :param vx: Linear X velocity (m/s)
+        :type vx: float
+        :param vy: Linear Y velocity (m/s)
+        :type vy: float
+        :param omega: Angular velocity (rad/s)
+        :type omega: float
+
+        :return: Twist message
+        :rtype: Twist
+        """
+        _cmd = Twist()
+        _cmd.linear.x = vx
+        _cmd.linear.y = vy
+        _cmd.angular.z = omega
+        return _cmd
+
     def __filter_multi_cmds(self, cmd_list, max_acc: float):
         """__filter_multi_cmds.
 
@@ -419,21 +559,22 @@ class DriveManager(Component):
         b, a = signal.butter(1, w_lin, "low")
         return signal.filtfilt(b, a, cmds)
 
-    def _filter_multi_commands(self, msg, **_):
+    def _filter_multi_commands(self, output: TwistArray, **_) -> TwistArray:
         """
         Filters commands list using a low pass filter based on acceleration limit
         """
+
         # Use a low pass filter based on maximum allowed acceleration if multi commands are available
         self._filtered_linear_commands_x = self.__filter_multi_cmds(
-            msg.linear.x, self.config.robot.ctrl_vx_limits.max_acc
+            output.linear_velocities.x, self.config.robot.ctrl_vx_limits.max_acc
         )
 
         self._filtered_linear_commands_y = self.__filter_multi_cmds(
-            msg.linear.y, self.config.robot.ctrl_vy_limits.max_acc
+            output.linear_velocities.y, self.config.robot.ctrl_vy_limits.max_acc
         )
 
         self._filtered_angular_commands = self.__filter_multi_cmds(
-            msg.angular.z, self.config.robot.ctrl_omega_limits.max_acc
+            output.angular_velocities.z, self.config.robot.ctrl_omega_limits.max_acc
         )
 
     def _check_bounds(self, target, previous, max_acc, max_decel, freq):
@@ -461,88 +602,98 @@ class DriveManager(Component):
             return True
         return False
 
-    def _filter_commands(self, msg: Twist, **_):
+    def _filter_commands(self, output: Twist, **_) -> Twist:
         """
         Filter incoming commands based on last command and acceleration limits
         """
-        if self._previous_command:
-            # Check and restrict linear velocity
-            if self._check_bounds(
-                msg.linear.x,
+        # If no previous command is recorded yet
+        if not self._previous_command:
+            return output
+
+        _cmd = Twist()
+        # Check and restrict linear velocity
+        if self._check_bounds(
+            output.linear.x,
+            self._previous_command.linear.x,
+            self.config.robot.ctrl_vx_limits.max_acc,
+            self.config.robot.ctrl_vx_limits.max_decel,
+            self.config.loop_rate,
+        ):
+            _cmd.linear.x = self._limit_command_acc(
+                output.linear.x,
                 self._previous_command.linear.x,
                 self.config.robot.ctrl_vx_limits.max_acc,
                 self.config.robot.ctrl_vx_limits.max_decel,
                 self.config.loop_rate,
-            ):
-                self.cmd.linear.x = self._restrict_command(
-                    msg.linear.x,
-                    self._previous_command.linear.x,
-                    self.config.robot.ctrl_vx_limits.max_acc,
-                    self.config.robot.ctrl_vx_limits.max_decel,
-                    self.config.loop_rate,
-                )
-            else:
-                self.cmd.linear.x = msg.linear.x
+            )
+        else:
+            _cmd.linear.x = output.linear.x
 
-            if self._check_bounds(
-                msg.linear.y,
+        if self._check_bounds(
+            output.linear.y,
+            self._previous_command.linear.y,
+            self.config.robot.ctrl_vy_limits.max_acc,
+            self.config.robot.ctrl_vy_limits.max_decel,
+            self.config.loop_rate,
+        ):
+            _cmd.linear.y = self._limit_command_acc(
+                output.linear.y,
                 self._previous_command.linear.y,
                 self.config.robot.ctrl_vy_limits.max_acc,
                 self.config.robot.ctrl_vy_limits.max_decel,
                 self.config.loop_rate,
-            ):
-                self.cmd.linear.y = self._restrict_command(
-                    msg.linear.y,
-                    self._previous_command.linear.y,
-                    self.config.robot.ctrl_vy_limits.max_acc,
-                    self.config.robot.ctrl_vy_limits.max_decel,
-                    self.config.loop_rate,
-                )
-            else:
-                self.cmd.linear.x = msg.linear.x
+            )
+        else:
+            _cmd.linear.x = output.linear.x
 
-            # Check and restrict angular velocity
-            if self._check_bounds(
-                msg.angular.z,
+        # Check and restrict angular velocity
+        if self._check_bounds(
+            output.angular.z,
+            self._previous_command.angular.z,
+            self.config.robot.ctrl_omega_limits.max_acc,
+            self.config.robot.ctrl_omega_limits.max_decel,
+            self.config.loop_rate,
+        ):
+            _cmd.angular.z = self._limit_command_acc(
+                output.angular.z,
                 self._previous_command.angular.z,
                 self.config.robot.ctrl_omega_limits.max_acc,
                 self.config.robot.ctrl_omega_limits.max_decel,
                 self.config.loop_rate,
-            ):
-                self.cmd.angular.z = self._restrict_command(
-                    msg.angular.z,
-                    self._previous_command.angular.z,
-                    self.config.robot.ctrl_omega_limits.max_acc,
-                    self.config.robot.ctrl_omega_limits.max_decel,
-                    self.config.loop_rate,
-                )
-            else:
-                self.cmd.angular.z = msg.angular.z
-        # If no previous command is recorded yet
+            )
         else:
-            self.cmd = msg
+            _cmd.angular.z = output.angular.z
 
-    def _restrict_command(self, target, current, max_acc, max_decel, freq) -> float:
-        """
-        Restricts command based on acceleration limits
+        return _cmd
 
-        :param target: _description_
-        :type target: _type_
-        :param current: _description_
-        :type current: _type_
-        :param max_acc: _description_
-        :type max_acc: _type_
-        :param max_decel: _description_
-        :type max_decel: _type_
-        :param freq: _description_
-        :type freq: _type_
-        :return: _description_
+    def _limit_command_acc(
+        self,
+        target: float,
+        current: float,
+        max_acc: float,
+        max_decel: float,
+        freq: float,
+    ) -> float:
+        """Restricts command based on acceleration limits
+
+        :param target: Target velocity (m/s)
+        :type target: float
+        :param current: Current velocity (m/s)
+        :type current: float
+        :param max_acc: Maximum acceleration (m/s^2)
+        :type max_acc: float
+        :param max_decel: Maximum deceleration (m/s^2)
+        :type max_decel: float
+        :param freq: frequency (Hz)
+        :type freq: float
+
+        :return: Velocity value (m/s)
         :rtype: float
         """
         # Increment that should ideally be applied
         increment = target - current
 
-        # If previous and tagret are in different direction -> go to maximum allowed
+        # If previous and target are in different direction -> go to maximum allowed
         if current * target < 0 or increment * target < 0:
             inc_max = max_decel / freq
         else:
@@ -566,7 +717,7 @@ class DriveManager(Component):
         """
         # Update emergency stop check
         if output:
-            forward: bool = True if not self.cmd else self.cmd.linear.x >= 0
+            forward: bool = True if not self.command else self.command.linear.x >= 0
 
             if forward:
                 # Check in front
@@ -585,40 +736,40 @@ class DriveManager(Component):
 
             self.emergency_stop_dict[topic.name] = bool(emergency_stop)
 
-    def check_limits(self):
-        """
-        Check and limit the control commands
+    def _limit_command_vel(self, output: Twist) -> Twist:
+        """Check and limit the control commands
 
         :param cmd: Robot control command
         :type cmd: Twist
 
-        :return: Limited control command
-        :rtype: Twist
+        :return: False if no control command is available
+        :rtype: bool
         """
-        if abs(self.cmd.linear.x) > self.config.robot.ctrl_vx_limits.max_vel:
+
+        if abs(output.linear.x) > self.config.robot.ctrl_vx_limits.max_vel:
             self.get_logger().warn(
                 f"Limiting linear velocity by allowed maximum {self.config.robot.ctrl_vx_limits.max_vel}"
             )
-            self.cmd.linear.x = (
-                np.sign(self.cmd.linear.x) * self.config.robot.ctrl_vx_limits.max_vel
+            output.linear.x = (
+                np.sign(output.linear.x) * self.config.robot.ctrl_vx_limits.max_vel
             )
 
-        if abs(self.cmd.linear.y) > self.config.robot.ctrl_vy_limits.max_vel:
+        if abs(output.linear.y) > self.config.robot.ctrl_vy_limits.max_vel:
             self.get_logger().warn(
                 f"Limiting linear velocity by allowed maximum {self.config.robot.ctrl_vy_limits.max_vel}"
             )
-            self.cmd.linear.y = (
-                np.sign(self.cmd.linear.y) * self.config.robot.ctrl_vy_limits.max_vel
+            output.linear.y = (
+                np.sign(output.linear.y) * self.config.robot.ctrl_vy_limits.max_vel
             )
 
-        if abs(self.cmd.angular.z) > self.config.robot.ctrl_omega_limits.max_vel:
+        if abs(output.angular.z) > self.config.robot.ctrl_omega_limits.max_vel:
             self.get_logger().warn(
                 f"Limiting angular velocity by allowed maximum {self.config.robot.ctrl_omega_limits.max_vel}"
             )
-            self.cmd.angular.z = (
-                np.sign(self.cmd.angular.z)
-                * self.config.robot.ctrl_omega_limits.max_vel
+            output.angular.z = (
+                np.sign(output.angular.z) * self.config.robot.ctrl_omega_limits.max_vel
             )
+        return output
 
     def _execution_step(self):
         """
@@ -633,25 +784,40 @@ class DriveManager(Component):
 
         if self._unblocking_on:
             # If unblocking is ongoing do not publish any other command
+            self.command = None
+            self.multi_command = None
             return
 
         if self.emergency_stop:
             # STOP ROBOT
-            self.cmd = Twist()
-            self.publishers_dict[DriverOutputs.CMD.key].publish(self.cmd)
+            self.publishers_dict[DriverOutputs.CMD.key].publish(Twist())
             return
 
-        # Apply acceleration limit check
+        if self.command:
+            if self.config.closed_loop:
+                self.execute_cmd_closed_loop(
+                    self.command,
+                    max_time=self.config.closed_loop_span / self.config.cmd_rate,
+                )
+            else:
+                self.publishers_dict[DriverOutputs.CMD.key].publish(self.command)
+            # Clear published command
+            self.command = None
+            return
+
         if self.multi_command:
-            self.cmd.linear.x = self.multi_command.linear_velocities.x[0]
-            self.cmd.angular.z = self.multi_command.angular_velocities.z[0]
+            # TODO: Stop publishing old multi command when a new multi command is received
+            for idx in range(len(self.multi_command.linear_velocities.x)):
+                _cmd = twist_array_to_ros_twist(self.multi_command, idx=idx)
+                if self.config.closed_loop:
+                    self.execute_cmd_closed_loop(
+                        _cmd, max_time=self.multi_command.time_step
+                    )
+                else:
+                    self.execute_cmd_open_loop(
+                        _cmd, max_time=self.multi_command.time_step
+                    )
+            self.multi_command = None
+            return
 
-        if self.multi_command or self.command:
-            self.check_limits()
-            self.publishers_dict[DriverOutputs.CMD.key].publish(self.cmd)
-        else:
-            self.get_logger().debug("Nothing to process, waiting for commands")
-
-        # Clear published command
-        self.command = None
-        self.multi_command = None
+        self.get_logger().debug("Nothing to process, waiting for commands")
