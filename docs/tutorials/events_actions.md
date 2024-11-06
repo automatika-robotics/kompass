@@ -186,7 +186,7 @@ from kompass_core.models import (
 )
 from kompass_core.control import LocalPlannersID
 
-from ros_sugar_interfaces.msg import ComponentStatus
+from sugar.msg import ComponentStatus
 from kompass_interfaces.action import PlanPath
 from kompass_interfaces.msg import PathTrackingError
 from geometry_msgs.msg import Pose, PointStamped

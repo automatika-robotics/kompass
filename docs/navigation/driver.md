@@ -116,6 +116,9 @@ Check an example on configuring the robot unblocking functionality with an exter
   - `Topic(name="/emergency_stop", msg_type="Bool")`
 ```
 
+## Configuration Parameters:
+
+See [DriveManagerConfig](../apidocs/kompass/kompass.components.drive_manager.md/#kompass.components.drive_manager.DriveManagerConfig)
 
 ## Usage Example:
 ```python

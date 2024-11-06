@@ -29,7 +29,7 @@ Planner can be used with all four available RunTypes:
   - Offers a PlanPath ROS action and continuously computes a plan once an action request is received until goal point is reached
 ```
 
-## Planner Inputs
+## Inputs
 Planner requires configuring three inputs:
 
 ```{list-table}
@@ -65,7 +65,7 @@ Planner requires configuring three inputs:
 :::
 
 
-## Planner Outputs
+## Outputs
 Planner offers two outputs:
 
 ```{list-table}

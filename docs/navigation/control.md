@@ -16,7 +16,7 @@ Set from ControllerConfig class or directly from Controller 'run_type' property.
   - Offers a ControlPath ROS action and continuously computes a new control once an action request is received until goal point is reached
 ```
 
-## Controller Inputs
+## Inputs
 
 ```{list-table}
 :widths: 10 30 15 20 20
@@ -52,7 +52,7 @@ Set from ControllerConfig class or directly from Controller 'run_type' property.
   - `Topic(name="/scan", msg_type="LaserScan")`
 ```
 
-## Controller Outputs
+## Outputs
 
 ```{list-table}
 :widths: 10 30 15 20
@@ -88,6 +88,10 @@ Set from ControllerConfig class or directly from Controller 'run_type' property.
 - [Stanley](../advanced/algorithms/stanley.md) (pure follower)
 - [DVZ](../advanced/algorithms/dvz.md) (Deformable Virtual Zone)
 - [DWA](../advanced/algorithms/dwa.md) (Dynamic Window Approach)
+
+## Configuration Parameters:
+
+See [ControllerConfig](../apidocs/kompass/kompass.components.controller.md/#kompass.components.controller.ControllerConfig)
 
 
 ## Usage Example:
