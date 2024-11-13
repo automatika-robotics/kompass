@@ -6,23 +6,52 @@ Kompass is designed using [ROS Sugar](https://automatika-robotics.github.io/ros-
 Check the design concepts in detail by referring to ROS Sugar [documentation](https://automatika-robotics.github.io/ros-sugar)
 ```
 
-:::{figure-md} fig-comp
 
-<img src="../_static/images/diagrams/component.jpg" alt="Kompass Component" width="700px">
+```{figure} ../_static/images/diagrams/component_dark.png
+:class: only-dark
+:alt: Kompass Component
+:align: center
 
 Component Structure
-:::
+```
 
-:::{figure-md} fig-multi-thread
+```{figure} ../_static/images/diagrams/component_light.png
+:class: only-light
+:alt: Kompass Component
+:align: center
 
-<img src="../_static/images/diagrams/multi_threaded.jpg" alt="Multi-threaded execution" width="500px">
+Component Structure
+```
+
+```{figure} ../_static/images/diagrams/multi_threaded_dark.png
+:class: only-dark
+:alt: Kompass Multi-threaded execution
+:align: center
 
 Multi-threaded execution
-:::
+```
 
-:::{figure-md} fig-multi-process
+```{figure} ../_static/images/diagrams/multi_threaded_light.png
+:class: only-light
+:alt: Kompass Multi-threaded execution
+:align: center
 
-<img src="../_static/images/diagrams/multi_process.jpg" alt="Multi-process execution" width="500px">
+Multi-threaded execution
+```
+
+
+```{figure} ../_static/images/diagrams/multi_process_dark.png
+:class: only-dark
+:alt: Kompass Multi-process execution
+:align: center
 
 Multi-process execution
-:::
+```
+
+```{figure} ../_static/images/diagrams/multi_process_light.png
+:class: only-light
+:alt: Kompass Multi-process execution
+:align: center
+
+Multi-threaded execution
+```
