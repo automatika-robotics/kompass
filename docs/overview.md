@@ -16,21 +16,43 @@ This is an alpha release of Kompass. Breaking changes are to be expected.
 
 Kompass is divided into several interacting components each responsible for one of the navigation subtasks:
 
-:::{figure-md} fig-components-tasks
 
-<img src="_static/images/diagrams/system_components.jpg" alt="Kompass Components Tasks" width="1000px">
+```{figure} _static/images/diagrams/system_components_dark.png
+:class: only-dark
+:alt: Kompass Components and Main Tasks
+:align: center
 
 Kompass Components and Main Tasks
-:::
+```
+
+```{figure} _static/images/diagrams/system_components_light.png
+:class: only-light
+:alt: Kompass Components and Main Tasks
+:align: center
+
+Kompass Components and Main Tasks
+```
 
 Each of the previous components runs as a ROS2 lifecycle node and communicates with the other components using ROS2 topics, services or action servers:
 
-:::{figure-md} fig-components-system
 
-<img src="_static/images/diagrams/system_graph.jpg" alt="Kompass Full System" width="1000px">
 
-Kompass Full System for Autonomous Navigation
-:::
+```{figure} /_static/images/diagrams/system_graph_dark.png
+:class: only-dark
+:alt: Kompass Full System
+:align: center
+
+System Diagram for Point Navigation
+```
+
+```{figure} /_static/images/diagrams/system_graph_light.png
+:class: only-light
+:alt: Kompass Full System
+:align: center
+
+System Diagram for Point Navigation
+```
+
 
 To learn more about the functionalities and configuration of each component check the component dedicated documentation page:
 
