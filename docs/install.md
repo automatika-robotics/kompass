@@ -10,9 +10,13 @@ Kompass is built to be used with ROS2. All ROS2 distributions starting from _Fox
 
 ## Build Kompass from source
 
-- Kompass Core provides optimized implementation of planning and control algorithms for Kompass. To install it see instructions [here](https://github.com/automatika-robotics/kompass-core).
+- Kompass Core provides optimized implementation of planning and control algorithms for Kompass. To install it:
+```shell
+sudo apt install libompl-dev libfcl-dev libpcl-dev
+pip install kompass-core
+```
 
-- Finally, build ROS Sugar and Kompass from source as shown below:
+- Build ROS Sugar and Kompass from source as shown below:
 
 ```shell
 mkdir -p kompass_ws/src
