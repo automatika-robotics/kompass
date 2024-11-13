@@ -12,8 +12,6 @@ Kompass is an event-driven navigation system designed with an easy-to-use and in
 - Do a deep dive into Kompass [**components**](https://automatika-robotics.github.io/kompass/navigation/index.html) 🤖
 - Learn more about the [**design concepts**](https://automatika-robotics.github.io/kompass/design/index.html) of Kompass 📚
 
-> [!NOTE]
-> This is an alpha release of Kompass. Breaking changes are to be expected.
 
 Kompass is divided into several interacting components each responsible for one of the navigation subtasks:
 

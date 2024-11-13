@@ -10,9 +10,6 @@ Kompass is a framework for building robust and comprehensive event-driven naviga
 - Do a deep dive into Kompass [**components**](navigation/index.md) 🤖
 - Learn more about the [**design concepts**](design/index.md) of Kompass 📚
 
-```{note}
-This is an alpha release of Kompass. Breaking changes are to be expected.
-```
 
 Kompass is divided into several interacting components each responsible for one of the navigation subtasks:
 
