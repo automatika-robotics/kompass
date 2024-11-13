@@ -17,7 +17,12 @@ Kompass is an event-driven navigation system designed with an easy-to-use and in
 
 Kompass is divided into several interacting components each responsible for one of the navigation subtasks:
 
-![Kompass Components Tasks](docs/_static/images/diagrams/system_components.jpg)
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/_static/images/diagrams/system_components_dark.png">
+  <source media="(prefers-color-scheme: light)" srcset="docs/_static/images/diagrams/system_components_light.png">
+  <img alt="Kompass Components Tasks" src="docs/_static/images/diagrams/system_components_dark.png"  width="50%">
+</picture>
 
 Each of the previous components runs as a ROS2 lifecycle node and communicates with the other components using ROS2 topics, services or action servers:
 
