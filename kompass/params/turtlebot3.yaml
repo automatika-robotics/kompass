@@ -51,6 +51,7 @@ controller:
       obstacles_distance_weight: 2.0
       smoothness_weight: 1.0
       jerk_weight: 0.0
+    max_num_threads: 1
 
 planner:
   inputs:
