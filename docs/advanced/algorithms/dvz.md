@@ -84,11 +84,11 @@ $ \Theta_D = \frac{\int_{0}^{2\pi} (R - d_h(\alpha))\alpha d\alpha}{I_D}   \in [
 
 ## usage Example
 
-DVZ algorithm can be used in the [Controller](../../navigation/control.md) component by setting 'algorithm' property or component config parameter. The Controller will configure Stanley algorithm using the default values of all the previous configuration parameters. To configure custom values of the parameters, a YAML file is passed to the component.
+DVZ algorithm can be used in the [Controller](../../navigation/control.md) component by setting 'algorithm' property or component config parameter. The Controller will configure DVZ algorithm using the default values of all the previous configuration parameters. To configure custom values of the parameters, a YAML file is passed to the component.
 
 
 ```{code-block} python
-:caption: stanley.py
+:caption: dvz.py
 
 from kompass.components import Controller, ControllerConfig
 from kompass.robot import (
@@ -111,7 +111,7 @@ my_robot = RobotConfig(
         max_vel=0.4, max_acc=2.0, max_decel=2.0, max_steer=np.pi / 3)
 )
 
-# Set Stanley algorithm using the config class
+# Set DVZ algorithm using the config class
 controller_config = ControllerConfig(algorithm="DVZ")  # or LocalPlannersID.DVZ
 
 # Set YAML config file

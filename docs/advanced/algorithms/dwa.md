@@ -1,6 +1,6 @@
 # DWA (Dynamic Window Approach)
 
-DWA is a popular local planning method developed since the 90s.[^1] DWA is a sampling-method consists of sampling a set of constant velocity trajectories within a window of admissible reachable velocities. This window of reachable velocities will change based on the current velocity and the acceleration limits, i.e. a Dynamic Window.
+DWA is a popular local planning method developed since the 90s.[^1] DWA is a sampling-method that consists of sampling a set of constant velocity trajectories within a window of admissible reachable velocities. This window of reachable velocities will change based on the current velocity and the acceleration limits, i.e. a Dynamic Window.
 
 At each step, the reachable velocity range is computed based on the acceleration limits and the motion model of the robot. Then a set of constant velocity trajectories is [sampled](#trajectory-samples-generator) within the range after checking its [admissibility](#admissible-trajectory-criteria). Finally, the best trajectory is selected using the trajectory [cost evaluation](#trajectory-selection) functions.
 
@@ -76,7 +76,7 @@ At each step, the reachable velocity range is computed based on the acceleration
 * - max_num_threads
   - `int`
   - `1`
-  - Maximum number of threads used when running the controller. Must be between `1` and `1e6`.
+  - Maximum number of threads used when running the controller. Must be between `1` and `1e2`.
 
 ```
 

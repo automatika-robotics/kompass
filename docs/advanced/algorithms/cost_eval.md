@@ -1,6 +1,6 @@
 # Trajectory Cost Evaluation
 
-Kompass includes built-in cost evaluation functions (implemented in [kompass_cpp](https://github.com/automatika-robotics/kompass-navigation/tree/dev/src/kompass_cpp)) and supports running custom cost evaluation functions to calculate the overall cost of a trajectory during navigation.
+Kompass includes built-in cost evaluation functions (implemented in [kompass_cpp](https://github.com/automatika-robotics/kompass-core/blob/main/src/kompass_cpp/kompass_cpp/include/utils/cost_evaluator.h)) and supports running custom cost evaluation functions to calculate the overall cost of a trajectory during navigation.
 
 ```{list-table}
 :widths: 20 80
