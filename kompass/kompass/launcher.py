@@ -22,6 +22,7 @@ class Launcher(BaseLauncher):
         namespace: str = "",
         config_file: str | None = None,
         enable_monitoring: bool = True,
+        **kwargs,
     ) -> None:
         """Initialize a launcher to manager components launch in ROS2
 
@@ -36,6 +37,7 @@ class Launcher(BaseLauncher):
             namespace=namespace,
             config_file=config_file,
             enable_monitoring=enable_monitoring,
+            **kwargs,
         )
 
     def kompass(

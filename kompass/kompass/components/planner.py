@@ -484,7 +484,7 @@ class Planner(Component):
                 if current_cost <= self._last_path_cost:
                     # Simplify solution
                     self.path = self.ompl_planner.simplify_solution()
-                    # self._last_path_cost = current_cost
+                    self._last_path_cost = current_cost
 
                 self.health_status.set_healthy()
 

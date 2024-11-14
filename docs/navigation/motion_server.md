@@ -37,7 +37,7 @@ The Motion Recording action can also be configured to start based on an external
 ```
 
 
-## MotionServer Inputs:
+## Inputs:
 
 ```{list-table}
 :widths: 10 30 15 20 20
@@ -62,7 +62,7 @@ The Motion Recording action can also be configured to start based on an external
 
 ```
 
-## MotionServer Outputs:
+## Outputs:
 
 ```{list-table}
 :widths: 10 30 15 20

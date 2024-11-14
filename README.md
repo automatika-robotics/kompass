@@ -12,16 +12,23 @@ Kompass is an event-driven navigation system designed with an easy-to-use and in
 - Do a deep dive into Kompass [**components**](https://automatika-robotics.github.io/kompass/navigation/index.html) 🤖
 - Learn more about the [**design concepts**](https://automatika-robotics.github.io/kompass/design/index.html) of Kompass 📚
 
-> [!NOTE]
-> This is an alpha release of Kompass. Breaking changes are to be expected.
 
 Kompass is divided into several interacting components each responsible for one of the navigation subtasks:
 
-![Kompass Components Tasks](docs/_static/images/diagrams/system_components.jpg)
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/_static/images/diagrams/system_components_dark.png">
+  <source media="(prefers-color-scheme: light)" srcset="docs/_static/images/diagrams/system_components_light.png">
+  <img alt="Kompass Components Tasks" src="docs/_static/images/diagrams/system_components_dark.png"  width="100%">
+</picture>
 
 Each of the previous components runs as a ROS2 lifecycle node and communicates with the other components using ROS2 topics, services or action servers:
 
-![Kompass Full System](docs/_static/images/diagrams/system_graph.jpg)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/_static/images/diagrams/system_graph_dark.png">
+  <source media="(prefers-color-scheme: light)" srcset="docs/_static/images/diagrams/system_graph_light.png">
+  <img alt="System Diagram for Point Navigation" src="docs/_static/images/diagrams/system_graph_dark.png"  width="100%">
+</picture>
 
 To learn more about the functionalities and configuration of each component check the component dedicated documentation page:
 

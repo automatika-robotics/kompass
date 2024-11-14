@@ -383,7 +383,6 @@ class LaserScanCallback(GenericCallback):
     def _get_output(
         self,
         transformation: Optional[TransformStamped] = None,
-        clear_last: bool = False,
         **_,
     ) -> Optional[LaserScanData]:
         """
@@ -399,10 +398,6 @@ class LaserScanCallback(GenericCallback):
             )
         else:
             laser_scan_data = self._process(self.msg)
-
-        # Clear last message to get only recent values of the scan
-        if clear_last:
-            self.msg = None
 
         return laser_scan_data
 
@@ -563,7 +558,6 @@ class PointCloudCallback(GenericCallback):
     def _get_output(
         self,
         transformation: Optional[TransformStamped] = None,
-        clear_last: bool = False,
         discard_underground: bool = True,
         **_,
     ) -> Optional[PointCloudData]:
@@ -581,9 +575,5 @@ class PointCloudCallback(GenericCallback):
             )
         else:
             xyz_points = self._process(self.msg, discard_underground)
-
-        # Clear last message to get only recent values of the scan
-        if clear_last:
-            self.msg = None
 
         return xyz_points

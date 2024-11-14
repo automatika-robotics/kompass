@@ -36,6 +36,39 @@ __all__ = [
 class RobotFrames(BaseAttrs):
     """
     Class for robot coordinate frames configuration
+    ```{list-table}
+    :widths: 10 20 70
+    :header-rows: 1
+
+    * - Frame
+      - Default
+      - Description
+
+    * - **world**
+      - "map"
+      - Reference world frame
+
+    * - **robot_base**
+      - "base_link"
+      - Robot base link frame
+
+    * - **odom**
+      - "odom"
+      - Robot odometry frame
+
+    * - **scan**
+      - "base_link"
+      - LaseScan sensor base frame
+
+    * - **rgb**
+      - "camera_link"
+      - RGB camera base frame
+
+    * - **depth**
+      - "camera_depth_link"
+      - Depth camera base frame
+
+    ```
     """
 
     robot_base: str = field(default="base_link")
@@ -50,6 +83,40 @@ class RobotFrames(BaseAttrs):
 class RobotConfig(BaseAttrs):
     """
     Class for robot configuration (type, model, limitations, etc.)
+
+    ```{list-table}
+    :widths: 10 20 70
+    :header-rows: 1
+
+    * - Name
+      - Type, Default
+      - Description
+
+    * - **model_type**
+      - [RobotType](https://github.com/automatika-robotics/kompass-core/blob/main/src/kompass_core/models.py#L1095) | str, `ACKERMANN`
+      - Robot motion model type
+
+    * - **geometry_type**
+      - [RobotGeometry.Type](https://github.com/automatika-robotics/kompass-core/blob/main/src/kompass_core/models.py#L643) | str, `CYLINDER`
+      - Robot 3D geometry shape type
+
+    * - **geometry_type**
+      - `np.ndarray`, `[0.2, 1.0]`
+      - Robot 3D geometry shape parameters
+
+    * - **ctrl_vx_limits**
+      - [LinearCtrlLimits](https://github.com/automatika-robotics/kompass-core/blob/main/src/kompass_core/models.py#L1153)
+      - Forward linear velocity (x-direction) control limits parameters
+
+    * - **ctrl_omega_limits**
+      - [AngularCtrlLimits](https://github.com/automatika-robotics/kompass-core/blob/main/src/kompass_core/models.py#L1168)
+      - Angular velocity control limits parameters
+
+    * - **ctrl_vy_limits**
+      - [LinearCtrlLimits](https://github.com/automatika-robotics/kompass-core/blob/main/src/kompass_core/models.py#L1153)
+      - Lateral linear velocity (y-direction) control limits parameters
+
+    ```
     """
 
     # Robot Motion Model Type
@@ -94,7 +161,34 @@ class RobotConfig(BaseAttrs):
 class ComponentConfig(BaseComponentConfig):
     """
     KOMPASS Component extended parameters
+
+    ```{list-table}
+    :widths: 20 80
+    :header-rows: 1
+
+    * - Name
+      - Description
+
+    * - **robot**
+      - Robot configuration parameters. See [RobotConfig](#kompass.config.RobotConfig) class for details.
+
+    * - **frames**
+      - Robot TF frames configuration. See [RobotFrames](#kompass.config.RobotFrames) class for details.
+
+    * - **topic_subscription_timeout**
+      - Timeout when waiting for an input topic to become available (s)
+
+    * - **topic_try_wait_timeout**
+      - Time interval when waiting for input topic to become available (s)
+
+    ```
     """
+
+    # Robot config
+    robot: RobotConfig = field(default=Factory(RobotConfig))
+
+    # Robot Frames
+    frames: RobotFrames = field(default=Factory(RobotFrames))
 
     topic_subscription_timeout: float = field(
         default=20.0, validator=BaseValidators.in_range(min_value=1e-3, max_value=1e9)
@@ -103,12 +197,3 @@ class ComponentConfig(BaseComponentConfig):
     topic_try_wait_timeout: float = field(
         default=0.1, validator=BaseValidators.in_range(min_value=1e-3, max_value=1e9)
     )
-
-    # Robot config
-    robot: RobotConfig = field(default=Factory(RobotConfig))
-
-    # Robot Frames
-    frames: RobotFrames = field(default=Factory(RobotFrames))
-
-    action_type: str = field(default="test")  # used only if run_type='ActionServer'
-    service_type: str = field(default="test")  # used only if run_type='Server'

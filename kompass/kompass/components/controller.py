@@ -1,7 +1,8 @@
-from typing import Optional, Union
+from typing import Optional, Union, List
 from attrs import define, field
 from queue import Queue, Empty
 import numpy as np
+from ..utils import StrEnum
 
 from rclpy.logging import get_logger
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
@@ -38,7 +39,7 @@ from ..callbacks import PointCloudCallback
 
 # KOMPASS MSGS/SRVS/ACTIONS
 from .component import Component, TFListener
-from .utils import init_twist_array_msg, send_control_feedback
+from .utils import init_twist_array_msg
 
 
 class ControllerInputs(RestrictedTopicsConfig):
@@ -84,51 +85,88 @@ _controller_default_outputs = create_topics_config(
 )
 
 
-def _set_algorithm(
-    value: Union[str, LocalPlannersID],
-) -> LocalPlannersID:
+class CmdPublishType(StrEnum):
     """
-    Setter of algorithm with str value or enum value from FollowersID
+    Control command publishing method:
 
-    :param value: Algorithm value
-    :type value: Optional[LocalPlannersID]
+    ```{list-table}
+    :widths: 20 70
+    :header-rows: 1
 
-    :raises ValueError: If given str value is not one of the values in LocalPlannersID or FollowersID
+    * - Value
+      - Description
+
+    * - **TWIST_SEQUENCE (Literal "Sequence")**
+      - the controller publishes a Twist message in the same thread running the control algorithm. If a series of commands is computed (up to the control horizon), the controller publishes the commands one by one before running the control algorithm again
+
+    * - **TWIST_PARALLEL (Literal "Parallel")**
+      - the controller handles publishing a Twist message in a new thread. If a series of commands is computed (up to the control horizon), the controller publishes the commands one by one in parallel while running the control algorithm again
+
+    * - **TWIST_ARRAY (Literal "Array")**
+      - the controller publishes a TwistArray msg of all the computed control commands (up to the control horizon)
+    ```
+
     """
-    if isinstance(value, str):
-        if val := LocalPlannersID.get_enum(value):
-            return val
 
-        else:
-            raise ValueError(
-                f"Controller algorithm cannot be set to '{value}'. Valid algorithm values are: '{LocalPlannersID.values()}'"
-            )
-    return value
+    TWIST_SEQUENCE = "Sequence"
+    TWIST_PARALLEL = "Parallel"
+    TWIST_ARRAY = "Array"
 
 
 @define
 class ControllerConfig(ComponentConfig):
     """
-    Controller parameters
+    Controller component configuration parameters
+
+    ```{list-table}
+    :widths: 10 20 70
+    :header-rows: 1
+
+    * - Name
+      - Type, Default
+      - Description
+
+    * - **algorithm**
+      - `LocalPlannersID| str`, `DWA`
+      - Algorithm used to compute the control command
+
+    * - **control_time_step**
+      - `float`, `0.1`
+      - Time step in MPC-like controllers (s)
+
+    * - **prediction_horizon**
+      - `float`, `1.0`
+      - Prediction horizon in MPC-like controllers (s)
+
+    * - **use_direct_sensor**
+      - `bool`, `False`
+      - To used direct sensor information, otherwise the node subscriber to a local map
+
+    * - **ctrl_publish_type**
+      - `CmdPublishType | str`, `TWIST_ARRAY`
+      - How to publish the control commands
+    ```
     """
 
-    use_cmd_list: bool = field(
-        default=False
-    )  # To send a list of future commands to the drive manager (if True) or a single commands (if False)
-    prediction_horizon: float = field(
-        default=1.0, validator=BaseValidators.in_range(min_value=1, max_value=1e9)
-    )  # future time horizon to compute at each loop step
+    algorithm: Union[LocalPlannersID, str] = field(
+        default=LocalPlannersID.DWA,
+        converter=lambda value: LocalPlannersID(value)
+        if isinstance(value, str)
+        else value,
+    )
     control_time_step: float = field(
         default=0.1, validator=BaseValidators.in_range(min_value=1e-9, max_value=1e9)
     )  # Time step between two control commands
-
-    algorithm: Union[LocalPlannersID, str] = field(
-        default=LocalPlannersID.DWA, converter=lambda value: _set_algorithm(value)
-    )
-    closed_loop: bool = field(default=False)
-    cmd_tolerance: float = field(default=0.1)
+    prediction_horizon: float = field(
+        default=1.0, validator=BaseValidators.in_range(min_value=1, max_value=1e9)
+    )  # future time horizon to compute at each loop step
     use_direct_sensor: bool = field(default=False)
-    publish_ctrl_in_parallel: bool = field(default=False)
+    ctrl_publish_type: Union[str, CmdPublishType] = field(
+        default=CmdPublishType.TWIST_ARRAY,
+        converter=lambda value: CmdPublishType(value)
+        if isinstance(value, str)
+        else value,
+    )
 
 
 class Controller(Component):
@@ -211,7 +249,7 @@ class Controller(Component):
         super().create_all_timers()
 
         # Create timer for publishing commands if parallel publishing is enabled
-        if self.config.publish_ctrl_in_parallel:
+        if self.config.ctrl_publish_type == CmdPublishType.TWIST_PARALLEL:
             self.get_logger().debug(
                 f"Creating execution timer with step: {self.config.control_time_step}"
             )
@@ -220,7 +258,7 @@ class Controller(Component):
                 self._execution_callback,
                 callback_group=MutuallyExclusiveCallbackGroup(),
             )
-        else:
+        elif self.config.ctrl_publish_type == CmdPublishType.TWIST_SEQUENCE:
             self.get_logger().debug(
                 f"Creating execution rate with freq: {1 / self.config.control_time_step}"
             )
@@ -239,9 +277,9 @@ class Controller(Component):
         """Overrides destroy_all_timers from BaseComponent to destroy the timers for commands execution and tracking publishing"""
         super().destroy_all_timers()
         # Destroy execution timer/rate
-        if self.config.publish_ctrl_in_parallel:
+        if self.config.ctrl_publish_type == CmdPublishType.TWIST_PARALLEL:
             self.destroy_timer(self.__cmd_execution_timer)
-        else:
+        elif self.config.ctrl_publish_type == CmdPublishType.TWIST_SEQUENCE:
             self.destroy_rate(self.__cmd_execution_rate)
 
         self.destroy_timer(self.__info_publishing_timer)
@@ -258,18 +296,11 @@ class Controller(Component):
             self.get_logger().debug("No command to execute")
             return
 
-        self.get_logger().debug(f"Publishing new command: {cmd[0]}, {cmd[1]}, {cmd[2]}")
-        # Send command to execute
-        if self.config.closed_loop:
-            # Execute in closed loop
-            self.execute_cmd(cmd[0], cmd[1], cmd[2])
-        else:
-            # Publish once
-            self._publish_control(
-                linear_ctr_x=cmd[0],
-                linear_ctr_y=cmd[1],
-                angular_ctr=cmd[2],
-            )
+        self._publish_control(
+            linear_ctr_x=cmd[0],
+            linear_ctr_y=cmd[1],
+            angular_ctr=cmd[2],
+        )
 
     def _publishing_callback(self):
         """Tracking publishing timer callback"""
@@ -421,7 +452,6 @@ class Controller(Component):
         :raises ValueError: If given int value is not one of the values in LocalPlannersID or FollowersID
         """
         self.config.algorithm = value
-        self.config.publish_ctrl_in_parallel = value == LocalPlannersID.DWA
 
     @component_action
     def set_algorithm(
@@ -560,15 +590,10 @@ class Controller(Component):
             prediction_horizon=self.config.prediction_horizon,
         )
 
-        # Initialize the velocity command
         self.__cmd_vel = Twist()
-        self.__cmd_vel_array = kompass_msgs.TwistArray()
-
         self.__reached_end = False
         self.__lat_dist_error: float = 0.0
         self.__ori_error: float = 0.0
-
-        self.__execution_rate = self.create_rate(10 / self.config.control_time_step)
 
         # Command queue to send controller command list to the robot
         self._cmds_queue: Queue = Queue()
@@ -595,78 +620,61 @@ class Controller(Component):
         Publishes a zero velocity command to stop the robot
         """
         # send zero command to stop the robot
-        if self.config.use_cmd_list:
-            self.__cmd_vel_array = init_twist_array_msg(
-                self.config.control_horizon_number_of_steps
+        if self.config.ctrl_publish_type == CmdPublishType.TWIST_ARRAY:
+            _cmd_vel_array = init_twist_array_msg(
+                int(self.config.prediction_horizon / self.config.control_time_step)
             )
             self.publishers_dict[ControllerOutputs.MULTI_CMD.key].publish(
-                self.__cmd_vel_array
+                _cmd_vel_array
             )
         else:
-            self.__cmd_vel = Twist()  # zero command
-            self.publishers_dict[ControllerOutputs.CMD.key].publish(self.__cmd_vel)
+            self.publishers_dict[ControllerOutputs.CMD.key].publish(Twist())
 
     def _publish_control(
         self, linear_ctr_x: float, linear_ctr_y: float, angular_ctr: float
     ):
         """
-        Publish the computed command to ROS
+        Publish a Twist command to ROS
 
-        :param linear_ctr: Linear control command (m/s)
-        :type linear_ctr: float
+        :param linear_ctr_x: Linear control command (m/s)
+        :type linear_ctr_x: float
+        :param linear_ctr_y: Linear control command (m/s)
+        :type linear_ctr_y: float
         :param angular_ctr: Angular control command (rad/s)
         :type angular_ctr: float
         """
-        self.__cmd_vel = Twist()
-        self.__cmd_vel.linear.x = linear_ctr_x
-        self.__cmd_vel.linear.y = linear_ctr_y
-        self.__cmd_vel.angular.z = angular_ctr
+        _cmd_vel = Twist()
+        _cmd_vel.linear.x = linear_ctr_x
+        _cmd_vel.linear.y = linear_ctr_y
+        _cmd_vel.angular.z = angular_ctr
 
-        self.publishers_dict[ControllerOutputs.CMD.key].publish(self.__cmd_vel)
+        self.publishers_dict[ControllerOutputs.CMD.key].publish(_cmd_vel)
 
-    def execute_cmd(self, vx: float, vy: float, omega: float):
-        """Execute a control command in closed loop
-
-        :param vx: Linear Vx velocity (m/s)
-        :type vx: float
-        :param vy: Linear Vy velocity (m/s)
-        :type vy: float
-        :param omega: Angular velocity (rad/s)
-        :type omega: float
+    def _publish_multi_control(
+        self,
+        linear_ctr_x: List[float],
+        linear_ctr_y: List[float],
+        angular_ctr: List[float],
+    ):
         """
-        executing_closed_loop = True
-        count = 0
-        while executing_closed_loop and count < 10:
-            vx_out = (
-                vx
-                if abs(self.robot_state.vx - vx) > self.config.cmd_tolerance
-                or abs(vx) < self.config.cmd_tolerance
-                else 0.0
-            )
-            vy_out = (
-                vy
-                if abs(self.robot_state.vy - vy) > self.config.cmd_tolerance
-                or abs(vy) < self.config.cmd_tolerance
-                else 0.0
-            )
-            omega_out = (
-                omega
-                if abs(self.robot_state.omega - omega) > self.config.cmd_tolerance
-                or abs(omega) < self.config.cmd_tolerance
-                else 0.0
-            )
-            executing_closed_loop = vx_out or vy_out or omega_out
-            self.get_logger().debug(
-                f"Publishing {count}: ({vx_out}, {vy_out}, {omega_out})"
-            )
-            count += 1
-            self._publish_control(
-                linear_ctr_x=vx_out,
-                angular_ctr=omega_out,
-                linear_ctr_y=vy_out,
-            )
-            self.__execution_rate.sleep()
-            self._update_state()
+        Publish a set of command (TwistArray) to ROS
+
+        :param linear_ctr_x: Linear control commands (m/s)
+        :type linear_ctr_x: List[float]
+        :param linear_ctr_y: Linear control commands (m/s)
+        :type linear_ctr_y: List[float]
+        :param angular_ctr: Angular control commands (rad/s)
+        :type angular_ctr: List[float]
+        """
+        _cmd_vel_array = init_twist_array_msg(
+            number_of_cmds=len(linear_ctr_x),
+            linear_x=linear_ctr_x,
+            linear_y=linear_ctr_y,
+            angular=angular_ctr,
+        )
+        _cmd_vel_array.time_step = self.config.control_time_step
+
+        self.publishers_dict[ControllerOutputs.MULTI_CMD.key].publish(_cmd_vel_array)
 
     def _control(self) -> bool:
         """
@@ -724,6 +732,19 @@ class Controller(Component):
 
         self.health_status.set_healthy()
 
+        # Update controller path tracking info (errors/end_reached)
+        self.__lat_dist_error = self.__controller.distance_error
+        self.__ori_error = self.__controller.orientation_error
+
+        if self.config.ctrl_publish_type == CmdPublishType.TWIST_ARRAY:
+            # publish a Twist Array
+            self._publish_multi_control(
+                linear_ctr_x=self.__controller.linear_x_control,
+                linear_ctr_y=self.__controller.linear_y_control,
+                angular_ctr=self.__controller.angular_control,
+            )
+            return True
+
         # Empty the commands queue
         self._cmds_queue.queue.clear()
 
@@ -737,12 +758,8 @@ class Controller(Component):
             )
         ]
 
-        # Update controller path tracking info (errors/end_reached)
-        self.__lat_dist_error = self.__controller.distance_error
-        self.__ori_error = self.__controller.orientation_error
-
         # If commands are to be published in sequence
-        if not self.config.publish_ctrl_in_parallel:
+        if self.config.ctrl_publish_type == CmdPublishType.TWIST_SEQUENCE:
             # While queue is not empty
             while self._cmds_queue.qsize() > 0:
                 self._execution_callback()
@@ -818,17 +835,18 @@ class Controller(Component):
                 break
 
             # Send controller feedback
-            # TODO: update the computation time using timeit, for controller performance tracking
-            compute_time = 0.0
-            feedback_msg = send_control_feedback(
-                feedback_msg,
-                self.__cmd_vel.linear.x,
-                self.__cmd_vel.angular.z,
-                self.config.control_horizon_number_of_steps,
-                compute_time,
-                self.__lat_dist_error,
-                self.__ori_error,
+            # TODO: Add an option to update the computation time using timeit and send it in feedback, for controller performance tracking
+            feedback_msg.control_list = init_twist_array_msg(
+                number_of_cmds=len(self.__controller.linear_x_control),
+                linear_x=self.__controller.linear_x_control,
+                linear_y=self.__controller.linear_x_control,
+                angular=self.__controller.linear_x_control,
             )
+
+            feedback_msg.global_path_deviation.orientation_error = self.__lat_dist_error
+            feedback_msg.global_path_deviation.lateral_distance_error = self.__ori_error
+            feedback_msg.prediction_horizon = self.config.prediction_horizon
+
             self.get_logger().info(
                 "Controlling Path: {0}".format(feedback_msg.control_feedback)
             )

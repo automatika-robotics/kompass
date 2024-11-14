@@ -1,7 +1,6 @@
 import time
 from typing import Dict, List, Optional, Union
 import json
-from ros_sugar_interfaces.msg import ComponentStatus
 from ros_sugar.core import ComponentFallbacks, BaseComponent
 from ros_sugar.events import json_to_events_list
 from ros_sugar.tf import TFListener, TFListenerConfig
@@ -158,22 +157,10 @@ class Component(BaseComponent):
         """
         Creates all node publishers
         """
-        self.get_logger().info("STARTING ALL PUBLISHERS")
-        self.health_status_publisher = self.create_publisher(
-            msg_type=ComponentStatus,
-            topic=f"{self.get_name()}_status",
-            qos_profile=1,
-        )
         self.publishers_dict = {
             key: Publisher(output)
             for key, output in self._output_topics.__dict__.items()
         }
-
-        for publisher in self.publishers_dict.values():
-            publisher.set_node_name(self.node_name)
-            # Set ROS publisher for each output publisher
-            publisher = publisher.set_publisher(self._add_ros_publisher(publisher))
-
         super().create_all_publishers()
 
     # INPUTS/OUTPUTS AND CONFIGURATION

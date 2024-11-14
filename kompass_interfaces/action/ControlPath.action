@@ -7,4 +7,10 @@ int32 controller          # select a controller
 PathTrackingError destination_error
 ---
 # Feedback
-ControllerInfo control_feedback
+PathTrackingError global_path_deviation
+
+float64 prediction_horizon
+float64 compute_time
+
+geometry_msgs/Twist control
+TwistArray control_list

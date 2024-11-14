@@ -1,9 +1,9 @@
 import numpy as np
+from typing import Optional, List
 from geometry_msgs.msg import Twist
 from nav_msgs.msg import Odometry
 from kompass_core.models import RobotState
 
-from kompass_interfaces.action import ControlPath
 from kompass_interfaces.msg import TwistArray
 
 
@@ -53,76 +53,47 @@ def twist_array_to_ros_twist(cmd_list: TwistArray, idx: int) -> Twist:
     return cmd_vel
 
 
-def send_control_feedback(
-    feedback_msg: ControlPath.Feedback,
-    vel_lin: float,
-    vel_ang: float,
-    N_horizon: int,
-    t_compute: float,
-    lat_dist_error: float,
-    ori_error: float,
-) -> ControlPath.Feedback:
-    """
-    Updates the controller feedback msg logs info
-
-    :param feedback_msg: Control feedback msg
-    :type feedback_msg: ControlPath.Feedback
-    :param vel_lin: Linear velocity control (m/s)
-    :type vel_lin: float
-    :param vel_ang: Angular velocity control (rad/s)
-    :type vel_ang: float
-    :param N_horizon: Number of prediction time steps
-    :type N_horizon: int
-    :param t_compute: Control computation time (s)
-    :type t_compute: float
-    :param lat_dist_error: Lateral distance between the robot and the global path (m)
-    :type lat_dist_error: float
-    :param ori_error: Orientation difference between the robot and the global path (rad)
-    :type ori_error: float
-    :return: Updated control feedback msg
-    :rtype: ControlPath.Feedback
-    """
-    feedback_msg.control_feedback.linear_velocity_control = vel_lin
-    feedback_msg.control_feedback.angular_velocity_control = vel_ang
-    feedback_msg.control_feedback.global_path_deviation.orientation_error = (
-        lat_dist_error
+def __restrict_list_length(list_values: List[float], list_len: int):
+    return (
+        list_values[:list_len]
+        if len(list_values) >= list_len
+        else list_values.extend((list_len - len(list_values)) * [0.0])
     )
-    feedback_msg.control_feedback.global_path_deviation.lateral_distance_error = (
-        ori_error
-    )
-    feedback_msg.control_feedback.prediction_horizon = N_horizon
-    feedback_msg.control_feedback.compute_time = t_compute
-
-    return feedback_msg
 
 
 def init_twist_array_msg(
     number_of_cmds: int,
-    init_linear_x_value: float = 0.0,
-    init_linear_y_value: float = 0.0,
-    init_angular_value: float = 0.0,
+    linear_x: Optional[List[float]] = None,
+    linear_y: Optional[List[float]] = None,
+    angular: Optional[List[float]] = None,
 ) -> TwistArray:
-    """
-    Initilizes the TwistArray ROS msg with a set of zero commands of a given length or with given values
+    """Initializes the TwistArray ROS msg with a set of zero commands of a given length or with given values
 
-    :param number_of_cmds: Number of Twist commands (list length)
+    :param number_of_cmds: _description_
     :type number_of_cmds: int
-    :param init_linear_x_value: Initial value for linear velocities (forward), defaults to 0.0
-    :type init_linear_x_value: float, optional
-    :param init_linear_y_value: Initial value for linear velocities (lateral), defaults to 0.0
-    :type init_linear_y_value: float, optional
-    :param init_angular_value: Initial value for angular velocities, defaults to 0.0
-    :type init_angular_value: float, optional
+    :param linear_x: linear_velocities.x, defaults to None
+    :type linear_x: Optional[List[float]], optional
+    :param linear_y: linear_velocities.y, defaults to None
+    :type linear_y: Optional[List[float]], optional
+    :param angular: angular_velocities.z, defaults to None
+    :type angular: Optional[List[float]], optional
 
-    :return: Resulting ros message
+    :return: ROS message
     :rtype: TwistArray
     """
+    if linear_x:
+        linear_x = __restrict_list_length(linear_x, number_of_cmds)
+    if linear_y:
+        linear_y = __restrict_list_length(linear_y, number_of_cmds)
+    if angular:
+        angular = __restrict_list_length(angular, number_of_cmds)
+
     cmd_list = TwistArray()
     init_list = number_of_cmds * [0.0]
-    cmd_list.linear_velocities.x = number_of_cmds * [init_linear_x_value]
-    cmd_list.linear_velocities.y = number_of_cmds * [init_linear_y_value]
+    cmd_list.linear_velocities.x = linear_x if linear_x else init_list
+    cmd_list.linear_velocities.y = linear_y if linear_y else init_list
     cmd_list.linear_velocities.z = init_list
     cmd_list.angular_velocities.x = init_list
     cmd_list.angular_velocities.y = init_list
-    cmd_list.angular_velocities.z = number_of_cmds * [init_angular_value]
+    cmd_list.angular_velocities.z = angular if angular else init_list
     return cmd_list

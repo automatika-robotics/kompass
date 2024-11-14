@@ -1,14 +1,15 @@
 import numpy as np
 import os
-from kompass_core.models import (
+from kompass.robot import (
     AngularCtrlLimits,
     LinearCtrlLimits,
     RobotGeometry,
     RobotType,
+    RobotConfig,
 )
-from kompass_core.control import LocalPlannersID
+from kompass.control import LocalPlannersID
 
-from ros_sugar_interfaces.msg import ComponentStatus
+from sugar.msg import ComponentStatus
 from kompass_interfaces.action import PlanPath
 from kompass_interfaces.msg import PathTrackingError
 from geometry_msgs.msg import Pose, PointStamped
@@ -24,7 +25,6 @@ from kompass.components import (
     LocalMapper,
 )
 from kompass.actions import ComponentActions, LogInfo
-from kompass.config import RobotConfig
 from kompass.launcher import Launcher
 from kompass.topic import Topic
 
@@ -56,21 +56,21 @@ def kompass_bringup():
     mapper = LocalMapper(component_name="mapper")
 
     # Configure Controller options
-    controller.algorithm = LocalPlannersID.STANLEY
-    controller.direct_sensor = True
+    controller.algorithm = LocalPlannersID.DWA
+    controller.direct_sensor = False
 
     planner.run_type = "Timed"
     # planner.inputs(goal_point=Topic(name="/clicked_point", msg_type="PointStamped"))
 
     driver.on_fail(action=Action(driver.restart))
 
-    # DEFINE EVENTS
-    event_emergency_stop = event.OnEqual(
-        "emergency_stop",
-        Topic(name="emergency_stop", msg_type="Bool"),
-        True,
-        "data",
-    )
+    # DEFINE EVENTS - Uncomment this code to add reactive behavior in case of emergency stopping
+    # event_emergency_stop = event.OnEqual(
+    #     "emergency_stop",
+    #     Topic(name="emergency_stop", msg_type="Bool"),
+    #     True,
+    #     "data",
+    # )
     event_controller_fail = event.OnEqual(
         "controller_fail",
         Topic(name="controller_status", msg_type="ComponentStatus"),
@@ -114,11 +114,12 @@ def kompass_bringup():
     # Define Events/Actions dictionary
     events_actions = {
         event_clicked_point: [LogInfo(msg="Got new goal point"), send_goal],
-        event_emergency_stop: [
-            ComponentActions.restart(component=planner),
-            unblock_action,
-        ],
         event_controller_fail: unblock_action,
+        # Add the event action - Uncomment this code to add reactive behavior in case of emergency stopping
+        # event_emergency_stop: [
+        #     ComponentActions.restart(component=planner),
+        #     unblock_action,
+        # ],
     }
 
     # Setup the launcher
@@ -126,7 +127,7 @@ def kompass_bringup():
 
     # Add Kompass components
     launcher.kompass(
-        components=[planner, controller, driver, mapper],
+        components=[planner, controller, mapper, driver],
         events_actions=events_actions,
         multiprocessing=True,
     )

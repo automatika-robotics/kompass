@@ -16,8 +16,11 @@ Kompass main system components each responsible for one of the navigation subtas
 * - **[DriveManager](kompass.components.drive_manager.md)**
   - This component is used for direct communication with the robot: filtering/limiting/sending commands, performing emergency stop and robot unblocking actions.
 
+* - **[LocalMapper](kompass.components.mapper.md)**
+  - This component is responsible for generating this local map during the navigation.
+
 * - **[MotionServer](kompass.components.motion_server.md)**
-  - This component takes in text input and outputs an audio representation of the text using TTS models (e.g. SpeechT5). The generated audio can be played using any audio playback device available on the agent.
+  - This component used for automatic testing by sending automatic reference commands to the robot and recording resulting motion.
 
 ```
 """

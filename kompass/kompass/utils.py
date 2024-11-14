@@ -10,6 +10,7 @@ from ros_sugar.utils import (
     launch_action,
     log_srv,
 )
+from kompass_core.control import StrEnum
 from sensor_msgs.msg import PointCloud2
 from tf2_ros import TransformStamped
 import PyKDL
@@ -19,6 +20,7 @@ import struct
 __all__ = [
     "IncompatibleSetup",
     "IntEnum",
+    "StrEnum",
     "action_handler",
     "camel_to_snake_case",
     "component_action",
