@@ -1,12 +1,13 @@
 import numpy as np
 import os
-from kompass_core.models import (
+from kompass.robot import (
     AngularCtrlLimits,
     LinearCtrlLimits,
     RobotGeometry,
     RobotType,
+    RobotConfig,
 )
-from kompass_core.control import LocalPlannersID
+from kompass.control import LocalPlannersID
 
 from sugar.msg import ComponentStatus
 from kompass_interfaces.action import PlanPath
@@ -24,7 +25,6 @@ from kompass.components import (
     LocalMapper,
 )
 from kompass.actions import ComponentActions, LogInfo
-from kompass.config import RobotConfig
 from kompass.launcher import Launcher
 from kompass.topic import Topic
 
