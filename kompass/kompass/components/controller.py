@@ -97,7 +97,7 @@ class CmdPublishType(StrEnum):
       - Description
 
     * - **TWIST_SEQUENCE (Literal "Sequence")**
-      - the controller publishes a Twist message in the same thread running the control algorithm. If a series of commands is computed (up to the control horizon), the controller
+      - the controller publishes a Twist message in the same thread running the control algorithm. If a series of commands is computed (up to the control horizon), the controller publishes the commands one by one before running the control algorithm again
 
     * - **TWIST_PARALLEL (Literal "Parallel")**
       - the controller handles publishing a Twist message in a new thread. If a series of commands is computed (up to the control horizon), the controller publishes the commands one by one in parallel while running the control algorithm again

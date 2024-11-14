@@ -64,7 +64,7 @@ def kompass_bringup():
 
     driver.on_fail(action=Action(driver.restart))
 
-    # DEFINE EVENTS
+    # DEFINE EVENTS - Uncomment this code to add reactive behavior in case of emergency stopping
     # event_emergency_stop = event.OnEqual(
     #     "emergency_stop",
     #     Topic(name="emergency_stop", msg_type="Bool"),
@@ -115,6 +115,11 @@ def kompass_bringup():
     events_actions = {
         event_clicked_point: [LogInfo(msg="Got new goal point"), send_goal],
         event_controller_fail: unblock_action,
+        # Add the event action - Uncomment this code to add reactive behavior in case of emergency stopping
+        # event_emergency_stop: [
+        #     ComponentActions.restart(component=planner),
+        #     unblock_action,
+        # ],
     }
 
     # Setup the launcher
