@@ -15,6 +15,7 @@ mapper:
 
 drive_manager:
   loop_rate: 20.0
+  cmd_rate: 10.0
   critical_zone_distance: 0.15
   outputs:
     robot_command:
@@ -22,15 +23,10 @@ drive_manager:
       msg_type:   'Twist'
 
 controller:
-  # outputs:
-  #   command:
-  #     name: 'cmd_vel'
-  #     msg_type:   'Twist'
-  closed_loop: False
   loop_rate: 10.0
   control_time_step: 0.1
   prediction_horizon: 4.0
-  publish_ctrl_in_parallel: True
+  ctrl_publish_type: 'Array'
 
   Stanley:
     cross_track_gain: 1.0

@@ -65,12 +65,12 @@ def kompass_bringup():
     driver.on_fail(action=Action(driver.restart))
 
     # DEFINE EVENTS
-    event_emergency_stop = event.OnEqual(
-        "emergency_stop",
-        Topic(name="emergency_stop", msg_type="Bool"),
-        True,
-        "data",
-    )
+    # event_emergency_stop = event.OnEqual(
+    #     "emergency_stop",
+    #     Topic(name="emergency_stop", msg_type="Bool"),
+    #     True,
+    #     "data",
+    # )
     event_controller_fail = event.OnEqual(
         "controller_fail",
         Topic(name="controller_status", msg_type="ComponentStatus"),
@@ -114,9 +114,6 @@ def kompass_bringup():
     # Define Events/Actions dictionary
     events_actions = {
         event_clicked_point: [LogInfo(msg="Got new goal point"), send_goal],
-        event_emergency_stop: [
-            unblock_action,
-        ],
         event_controller_fail: unblock_action,
     }
 
@@ -125,7 +122,7 @@ def kompass_bringup():
 
     # Add Kompass components
     launcher.kompass(
-        components=[planner, controller, driver, mapper],
+        components=[planner, controller, mapper, driver],
         events_actions=events_actions,
         multiprocessing=True,
     )

@@ -108,15 +108,15 @@ class DriveManagerConfig(ComponentConfig):
 
     closed_loop: bool = field(default=True)
 
+    closed_loop_span: int = field(
+        default=3, validator=BaseValidators.in_range(min_value=1, max_value=10)
+    )
+
     cmd_rate: float = field(
         default=10.0, validator=BaseValidators.in_range(min_value=1e-9, max_value=1e9)
     )  # Rate for sending the commands to the robot (Hz)
 
     smooth_commands: bool = field(default=False)
-
-    closed_loop_span: int = field(
-        default=3, validator=BaseValidators.in_range(min_value=1, max_value=10)
-    )
 
     cmd_tolerance: float = field(
         default=0.1

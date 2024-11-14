@@ -4,7 +4,6 @@ from geometry_msgs.msg import Twist
 from nav_msgs.msg import Odometry
 from kompass_core.models import RobotState
 
-from kompass_interfaces.action import ControlPath
 from kompass_interfaces.msg import TwistArray
 
 

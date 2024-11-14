@@ -2,8 +2,7 @@ from typing import Optional, Union, List
 from attrs import define, field
 from queue import Queue, Empty
 import numpy as np
-from enum import IntEnum
-import time
+from ..utils import StrEnum
 
 from rclpy.logging import get_logger
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
@@ -86,29 +85,7 @@ _controller_default_outputs = create_topics_config(
 )
 
 
-def _set_algorithm(
-    value: Union[str, LocalPlannersID],
-) -> LocalPlannersID:
-    """
-    Setter of algorithm with str value or enum value from FollowersID
-
-    :param value: Algorithm value
-    :type value: Optional[LocalPlannersID]
-
-    :raises ValueError: If given str value is not one of the values in LocalPlannersID or FollowersID
-    """
-    if isinstance(value, str):
-        if val := LocalPlannersID.get_enum(value):
-            return val
-
-        else:
-            raise ValueError(
-                f"Controller algorithm cannot be set to '{value}'. Valid algorithm values are: '{LocalPlannersID.values()}'"
-            )
-    return value
-
-
-class CmdPublishType(IntEnum):
+class CmdPublishType(StrEnum):
     """
     Control command publishing method:
 
@@ -119,21 +96,21 @@ class CmdPublishType(IntEnum):
     * - Value
       - Description
 
-    * - **TWIST_SEQUENCE (Literal 1)**
+    * - **TWIST_SEQUENCE (Literal "Sequence")**
       - the controller publishes a Twist message in the same thread running the control algorithm. If a series of commands is computed (up to the control horizon), the controller
 
-    * - **TWIST_PARALLEL (Literal 2)**
+    * - **TWIST_PARALLEL (Literal "Parallel")**
       - the controller handles publishing a Twist message in a new thread. If a series of commands is computed (up to the control horizon), the controller publishes the commands one by one in parallel while running the control algorithm again
 
-    * - **TWIST_ARRAY (Literal 3)**
+    * - **TWIST_ARRAY (Literal "Array")**
       - the controller publishes a TwistArray msg of all the computed control commands (up to the control horizon)
     ```
 
     """
 
-    TWIST_SEQUENCE = 1
-    TWIST_PARALLEL = 2
-    TWIST_ARRAY = 3
+    TWIST_SEQUENCE = "Sequence"
+    TWIST_PARALLEL = "Parallel"
+    TWIST_ARRAY = "Array"
 
 
 @define
@@ -166,13 +143,16 @@ class ControllerConfig(ComponentConfig):
       - To used direct sensor information, otherwise the node subscriber to a local map
 
     * - **ctrl_publish_type**
-      - `CmdPublishType | int`, `TWIST_ARRAY`
+      - `CmdPublishType | str`, `TWIST_ARRAY`
       - How to publish the control commands
     ```
     """
 
     algorithm: Union[LocalPlannersID, str] = field(
-        default=LocalPlannersID.DWA, converter=lambda value: _set_algorithm(value)
+        default=LocalPlannersID.DWA,
+        converter=lambda value: LocalPlannersID(value)
+        if isinstance(value, str)
+        else value,
     )
     control_time_step: float = field(
         default=0.1, validator=BaseValidators.in_range(min_value=1e-9, max_value=1e9)
@@ -181,11 +161,11 @@ class ControllerConfig(ComponentConfig):
         default=1.0, validator=BaseValidators.in_range(min_value=1, max_value=1e9)
     )  # future time horizon to compute at each loop step
     use_direct_sensor: bool = field(default=False)
-    ctrl_publish_type: Union[int, CmdPublishType] = field(
-        default=3,
-        converter=lambda value: value
-        if isinstance(value, int)
-        else CmdPublishType(value),
+    ctrl_publish_type: Union[str, CmdPublishType] = field(
+        default=CmdPublishType.TWIST_ARRAY,
+        converter=lambda value: CmdPublishType(value)
+        if isinstance(value, str)
+        else value,
     )
 
 
@@ -269,7 +249,7 @@ class Controller(Component):
         super().create_all_timers()
 
         # Create timer for publishing commands if parallel publishing is enabled
-        if self.config.ctrl_publish_type == CmdPublishType.TWIST_PARALLEL.value:
+        if self.config.ctrl_publish_type == CmdPublishType.TWIST_PARALLEL:
             self.get_logger().debug(
                 f"Creating execution timer with step: {self.config.control_time_step}"
             )
@@ -278,7 +258,7 @@ class Controller(Component):
                 self._execution_callback,
                 callback_group=MutuallyExclusiveCallbackGroup(),
             )
-        elif self.config.ctrl_publish_type == CmdPublishType.TWIST_SEQUENCE.value:
+        elif self.config.ctrl_publish_type == CmdPublishType.TWIST_SEQUENCE:
             self.get_logger().debug(
                 f"Creating execution rate with freq: {1 / self.config.control_time_step}"
             )
@@ -297,9 +277,9 @@ class Controller(Component):
         """Overrides destroy_all_timers from BaseComponent to destroy the timers for commands execution and tracking publishing"""
         super().destroy_all_timers()
         # Destroy execution timer/rate
-        if self.config.ctrl_publish_type == CmdPublishType.TWIST_PARALLEL.value:
+        if self.config.ctrl_publish_type == CmdPublishType.TWIST_PARALLEL:
             self.destroy_timer(self.__cmd_execution_timer)
-        elif self.config.ctrl_publish_type == CmdPublishType.TWIST_SEQUENCE.value:
+        elif self.config.ctrl_publish_type == CmdPublishType.TWIST_SEQUENCE:
             self.destroy_rate(self.__cmd_execution_rate)
 
         self.destroy_timer(self.__info_publishing_timer)
@@ -640,7 +620,7 @@ class Controller(Component):
         Publishes a zero velocity command to stop the robot
         """
         # send zero command to stop the robot
-        if self.config.ctrl_publish_type == CmdPublishType.TWIST_ARRAY.value:
+        if self.config.ctrl_publish_type == CmdPublishType.TWIST_ARRAY:
             _cmd_vel_array = init_twist_array_msg(
                 int(self.config.prediction_horizon / self.config.control_time_step)
             )
@@ -756,7 +736,7 @@ class Controller(Component):
         self.__lat_dist_error = self.__controller.distance_error
         self.__ori_error = self.__controller.orientation_error
 
-        if self.config.ctrl_publish_type == CmdPublishType.TWIST_ARRAY.value:
+        if self.config.ctrl_publish_type == CmdPublishType.TWIST_ARRAY:
             # publish a Twist Array
             self._publish_multi_control(
                 linear_ctr_x=self.__controller.linear_x_control,
@@ -779,7 +759,7 @@ class Controller(Component):
         ]
 
         # If commands are to be published in sequence
-        if self.config.ctrl_publish_type == CmdPublishType.TWIST_SEQUENCE.value:
+        if self.config.ctrl_publish_type == CmdPublishType.TWIST_SEQUENCE:
             # While queue is not empty
             while self._cmds_queue.qsize() > 0:
                 self._execution_callback()
