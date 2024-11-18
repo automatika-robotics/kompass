@@ -1,4 +1,5 @@
 from typing import Optional, Union, List
+import time
 from attrs import define, field
 from queue import Queue, Empty
 import numpy as np
@@ -6,6 +7,7 @@ from ..utils import StrEnum
 
 from rclpy.logging import get_logger
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
+from rclpy.action.server import ActionServer, CancelResponse, GoalResponse
 
 # ROS MSGS
 from nav_msgs.msg import Path
@@ -15,14 +17,15 @@ from geometry_msgs.msg import Twist
 
 # KOMPASS
 from kompass_core.models import Robot, RobotCtrlLimits, RobotState
-from kompass_core.datatypes.laserscan import LaserScanData
-from kompass_core.datatypes.pointcloud import PointCloudData
+from kompass_core.datatypes import LaserScanData, PointCloudData, TrackingData
 from kompass_core.utils.geometry import from_euler_to_quaternion
 from kompass_core.control import ControlClasses, LocalPlannersID, ControllerType
+from kompass_core.control.vision_follower import VisionFollower
 
 # KOMPASS MSGS/SRVS/ACTIONS
 import kompass_interfaces.msg as kompass_msgs
-from kompass_interfaces.action import ControlPath
+from kompass_interfaces.srv import StopVisionTracking
+from kompass_interfaces.action import ControlPath, TrackVisionTarget
 
 from ..config import BaseValidators, ComponentConfig, ComponentRunType
 
@@ -50,6 +53,9 @@ class ControllerInputs(RestrictedTopicsConfig):
         key="sensor_data", types=["LaserScan", "PointCloud2"]
     )
     LOCAL_MAP: AllowedTopic = AllowedTopic(key="local_map", types=["OccupancyGrid"])
+    VISION_DETECTIONS: AllowedTopic = AllowedTopic(
+        key="vision_tracking", types=["Trackings"]
+    )
     LOCATION: AllowedTopic = AllowedTopic(key="location", types=["Odometry"])
 
 
@@ -72,6 +78,7 @@ _controller_default_inputs = create_topics_config(
     sensor_data=Topic(name="/scan", msg_type="LaserScan"),
     local_map=Topic(name="/local_map/occupancy_layer", msg_type="OccupancyGrid"),
     location=Topic(name="/odom", msg_type="Odometry"),
+    vision_tracking=Topic(name="/trackings", msg_type="Trackings"),
 )
 
 # Create default outputs - Used if no outputs config is provided to the controller
@@ -111,6 +118,11 @@ class CmdPublishType(StrEnum):
     TWIST_SEQUENCE = "Sequence"
     TWIST_PARALLEL = "Parallel"
     TWIST_ARRAY = "Array"
+
+
+class ControllerMode(StrEnum):
+    PATH_FOLLOWER = "path_follower"
+    VISION_FOLLOWER = "vision_object_follower"
 
 
 @define
@@ -164,6 +176,13 @@ class ControllerConfig(ComponentConfig):
     ctrl_publish_type: Union[str, CmdPublishType] = field(
         default=CmdPublishType.TWIST_ARRAY,
         converter=lambda value: CmdPublishType(value)
+        if isinstance(value, str)
+        else value,
+    )
+    _mode: Union[str, ControllerMode] = field(
+        init=False,
+        default=ControllerMode.PATH_FOLLOWER,
+        converter=lambda value: ControllerMode(value)
         if isinstance(value, str)
         else value,
     )
@@ -244,6 +263,24 @@ class Controller(Component):
 
         self._block_types()
 
+    def create_all_action_servers(self):
+        """
+        Action servers creation
+        """
+        super().create_all_action_servers()
+        # callback group to avoid parallel execution of action loops
+        action_callback_group = MutuallyExclusiveCallbackGroup()
+        self.action_server = ActionServer(
+            node=self,
+            action_type=TrackVisionTarget,
+            action_name=f"{self.node_name}/track_vision_target",
+            execute_callback=self._vision_tracking_callback,
+            goal_callback=self._main_action_goal_callback,
+            handle_accepted_callback=self._main_action_handle_accepted_callback,
+            cancel_callback=self._main_action_cancel_callback,
+            callback_group=action_callback_group,
+        )
+
     def create_all_timers(self):
         """Overrides create_all_timers from BaseComponent to add timers for commands execution and tracking publishing"""
         super().create_all_timers()
@@ -283,6 +320,24 @@ class Controller(Component):
             self.destroy_rate(self.__cmd_execution_rate)
 
         self.destroy_timer(self.__info_publishing_timer)
+
+    def create_all_services(self):
+        """
+        Creates all node services
+        """
+        self.__vision_tracking_srv = self.create_service(
+            StopVisionTracking,
+            f"{self.node_name}/end_vision_tracking",
+            self._end_vision_tracking_srv_callback,
+        )
+        super().create_all_services()
+
+    def destroy_all_services(self):
+        """
+        Destroys all node services
+        """
+        self.destroy_service(self.__vision_tracking_srv)
+        super().destroy_all_services()
 
     def _execution_callback(self):
         """Commands execution timer callback"""
@@ -483,13 +538,29 @@ class Controller(Component):
             raise
         return True
 
+    def activate_vision_mode(self):
+        """Activate object following mode using vision detections"""
+        self.config._mode = ControllerMode.VISION_FOLLOWER
+        # Activate vision subscriber
+        callback = self.callbacks[ControllerInputs.VISION_DETECTIONS.key]
+        callback.set_subscriber(self._add_ros_subscriber(callback))
+
+    def deactivate_vision_mode(self):
+        """Deactivate object following mode using vision detections"""
+        self.config._mode = ControllerMode.PATH_FOLLOWER
+        # Delete vision subscriber
+        callback = self.callbacks[ControllerInputs.VISION_DETECTIONS.key]
+        if callback._subscriber:
+            self.destroy_subscription(callback._subscriber)
+            callback._subscriber = None
+
     def _block_types(self) -> None:
         """
         Main service and action types of the controller component
         """
         self.action_type = ControlPath
 
-    def _update_state(self) -> None:
+    def _update_state(self, vision_track_id: Optional[int] = None) -> None:
         """
         Updates node inputs from associated callbacks
         """
@@ -517,6 +588,13 @@ class Controller(Component):
             self.local_map: Optional[np.ndarray] = self.callbacks[
                 ControllerInputs.LOCAL_MAP.key
             ].get_output()
+
+        if self.config._mode == ControllerMode.VISION_FOLLOWER and self.__tracked_label:
+            self.vision_trackings = self.callbacks[
+                ControllerInputs.VISION_DETECTIONS.key
+            ].get_output(
+                label=self.__tracked_label, id=vision_track_id, clear_last=True
+            )
 
     def attach_callbacks(self) -> None:
         """
@@ -590,10 +668,10 @@ class Controller(Component):
             prediction_horizon=self.config.prediction_horizon,
         )
 
-        self.__cmd_vel = Twist()
         self.__reached_end = False
         self.__lat_dist_error: float = 0.0
         self.__ori_error: float = 0.0
+        self.__tracked_label: Optional[str] = None
 
         # Command queue to send controller command list to the robot
         self._cmds_queue: Queue = Queue()
@@ -607,6 +685,8 @@ class Controller(Component):
             )
 
             self.sensor_data: Optional[Union[LaserScanData, PointCloudData]] = None
+
+        self.vision_trackings: Optional[TrackingData] = None
 
     def init_flags(self):
         """
@@ -676,7 +756,7 @@ class Controller(Component):
 
         self.publishers_dict[ControllerOutputs.MULTI_CMD.key].publish(_cmd_vel_array)
 
-    def _control(self) -> bool:
+    def _path_control(self) -> bool:
         """
         Gets robot control command using reference commands
 
@@ -767,6 +847,172 @@ class Controller(Component):
 
         return True
 
+    def _end_vision_tracking_srv_callback(
+        self, request: StopVisionTracking.Request, response: StopVisionTracking.Response
+    ) -> StopVisionTracking.Response:
+        """Service callback to end Vision target tracking action
+
+        :param request: Request to end the vision tracking
+        :type request: StopVisionTracking.Request
+        :param response: Service response
+        :type response: StopVisionTracking.Response
+
+        :return: Service response
+        :rtype: StopVisionTracking.Response
+        """
+        # Vision tracking mode is already not active
+        if (
+            self.config._mode == ControllerMode.PATH_FOLLOWER
+            or not self.__tracked_label
+        ):
+            response.success = True
+            return response
+
+        # There is a label in the request and it is not being tracked
+        if request.label != "" and self.__tracked_label != request.label:
+            response.success = True
+            return response
+
+        self.get_logger().warn(
+            f"Deactivating Vision Tracking Action for tracked label '{self.__tracked_label}'"
+        )
+        self.deactivate_vision_mode()
+
+        # Wait for the action server to unset the tracked label
+        _counter: int = 0
+        while self.__tracked_label and _counter < 10:
+            time.sleep(1 / self.config.loop_rate)
+            if not self.__tracked_label:
+                response.success = True
+                return response
+
+        response.success = False
+        return response
+
+    def _vision_tracking_callback(self, goal_handle) -> TrackVisionTarget.Result:
+        self.get_logger().info("Started vision tracking control action...")
+
+        self.activate_vision_mode()
+
+        # SETUP ACTION REQUEST/FEEDBACK/RESULT
+        request_msg = goal_handle.request
+
+        self.__tracked_label: Optional[str] = request_msg.label
+
+        feedback_msg = TrackVisionTarget.Feedback()
+
+        result = TrackVisionTarget.Result()
+
+        # Check if inputs are available until timeout
+        if not self.callbacks_inputs_check(inputs_to_check=["vision_tracking"]):
+            self.get_logger().error(
+                "Requested action inputs are not available -> Aborting Action"
+            )
+            goal_handle.abort()
+            return result
+
+        self._update_state()
+
+        if not self.vision_trackings:
+            # TODO: Add wait here to get the tracking
+            self.get_logger().error(
+                f"Tracking information is not available for requested label '{self.__tracked_label}' -> Aborting Action"
+            )
+            goal_handle.abort()
+            return result
+
+        # Get ID of the label from the current detection and set as the tracked ID
+        _tracked_id = self.vision_trackings.id
+
+        _controller = VisionFollower(
+            robot=self.__robot,
+            ctrl_limits=self.__robot_ctr_limits,
+            config_file=self._config_file,
+            config_yaml_root_name=f"{self.node_name}.vision_tracker",
+        )
+
+        # time the tracking period
+        start_time = time.time()
+
+        # While the vision tracking mode is not unset by a service call or an event action
+        while self.config._mode == ControllerMode.VISION_FOLLOWER:
+            self._update_state(vision_track_id=_tracked_id)
+
+            if not self.vision_trackings:
+                # tracking is lost
+                # TODO: Add a call to rotate in place to attempt finding the target
+                # For now -> end action
+                break
+
+            _controller.loop_step(tracking=self.vision_trackings)
+
+            # Publish feedback
+            feedback_msg.score = self.vision_trackings.score
+            feedback_msg.center_xy = self.vision_trackings.center_xy
+            feedback_msg.size_xy = self.vision_trackings.size_xy
+            feedback_msg.distance = 0.0
+            feedback_msg.orientation = 0.0
+
+            # Publish control
+            if self.config.ctrl_publish_type == CmdPublishType.TWIST_ARRAY:
+                # publish a Twist Array
+                self._publish_multi_control(
+                    linear_ctr_x=_controller.linear_x_control,
+                    linear_ctr_y=_controller.linear_y_control,
+                    angular_ctr=_controller.angular_control,
+                )
+            else:
+                # Empty the commands queue
+                self._cmds_queue.queue.clear()
+
+                # Put new control commands to the queue
+                [
+                    self._cmds_queue.put(i)
+                    for i in zip(
+                        _controller.linear_x_control,
+                        _controller.linear_y_control,
+                        _controller.angular_control,
+                    )
+                ]
+
+                # If commands are to be published in sequence
+                if self.config.ctrl_publish_type == CmdPublishType.TWIST_SEQUENCE:
+                    # While queue is not empty
+                    while self._cmds_queue.qsize() > 0:
+                        self._execution_callback()
+                        self.__cmd_execution_rate.sleep()
+
+            self.get_logger().info("Following tracked target: {0}".format(feedback_msg))
+
+            goal_handle.publish_feedback(feedback_msg)
+
+            time.sleep(1 / self.config.loop_rate)
+
+        end_time = time.time()
+
+        if self.vision_trackings:
+            # WHEN PATH TRACKER SERVICE RETURNS RESULT
+            self.get_logger().warning("Ending tracking action")
+            # Update the result msg
+            result.success = True
+            result.tracked_duration = end_time - start_time
+            goal_handle.succeed()
+
+        else:
+            self.get_logger().warning(
+                "Vision target is lost -> Aborting tracking action"
+            )
+            result.success = False
+            result.tracked_duration = end_time - start_time
+            goal_handle.abort()
+
+        # Unset the tracked label
+        self.__tracked_label = None
+
+        self._stop_robot()
+
+        return result
+
     def main_action_callback(self, goal_handle) -> ControlPath.Result:
         """
         Executes the control action
@@ -813,23 +1059,25 @@ class Controller(Component):
             )
 
         # Check if inputs are available until timeout
-        if not self.callbacks_inputs_check():
+        if not self.callbacks_inputs_check(inputs_to_exclude=["vision_tracking"]):
             self.get_logger().error(
                 "Requested action inputs are not available -> Aborting"
             )
             goal_handle.abort()
             return result
 
+        # Set current mode to path following
+        # Note: This will automatically end the vision target tracking action if it is ongoing
+        self.config._mode = ControllerMode.PATH_FOLLOWER
+
         self.__controller.set_path(self.plan)  # type: ignore
 
         self.__reached_end: bool = False
 
-        action_rate = self.create_rate(self.config.loop_rate)
-
         while not self.__reached_end:
             self._update_state()
 
-            cmd_found: bool = self._control()
+            cmd_found: bool = self._path_control()
 
             if not cmd_found:
                 break
@@ -853,7 +1101,7 @@ class Controller(Component):
 
             goal_handle.publish_feedback(feedback_msg)
 
-            action_rate.sleep()
+            time.sleep(1 / self.config.loop_rate)
 
         if self.__reached_end:
             # WHEN PATH TRACKER SERVICE RETURNS RESULT
@@ -900,11 +1148,16 @@ class Controller(Component):
         """
         super()._execution_step()
 
+        # PATH FOLLOWER MODE
+        if self.config._mode == ControllerMode.VISION_FOLLOWER:
+            # If vision mode is activated -> do nothing
+            return
+
         # Get inputs from callbacks
         self._update_state()
 
-        got_all: bool = self.got_all_inputs()
+        got_all: bool = self.got_all_inputs(inputs_to_exclude=["vision_tracking"])
 
         # Check if all inputs are available
         if got_all and not self.__reached_end:
-            self._control()
+            self._path_control()

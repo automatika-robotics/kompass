@@ -25,6 +25,7 @@ from sensor_msgs.msg import LaserScan as ROSLaserScan
 from sensor_msgs.msg import PointCloud2 as ROSPointCloud2
 
 from kompass_interfaces.msg import TwistArray as ROSTwistArray
+from agents_interfaces.msg import Trackings as ROSTrackings
 
 from .callbacks import (
     GenericCallback,
@@ -35,6 +36,7 @@ from .callbacks import (
     PoseCallback,
     PoseStampedCallback,
     PointCloudCallback,
+    TrackingsCallback,
 )
 
 __all__ = [
@@ -51,7 +53,15 @@ __all__ = [
     "Bool",
     "Float32",
     "Float64",
+    "Trackings",
 ]
+
+
+class Trackings(SupportedType):
+    """Class to support ROS2 agents_interfaces/msg/Trackings message"""
+
+    _ros_type = ROSTrackings
+    callback = TrackingsCallback
 
 
 class LaserScan(BaseLaserScan):

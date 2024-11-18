@@ -128,6 +128,7 @@ class DriveManagerConfig(ComponentConfig):
     critical_zone_distance: float = field(
         default=0.05, validator=BaseValidators.in_range(min_value=1e-9, max_value=1e9)
     )  # Distance for the critical zone (meters)
+    disable_safety_stop: bool = field(default=False)
 
 
 class DriveManager(Component):
@@ -792,6 +793,20 @@ class DriveManager(Component):
             # STOP ROBOT
             self.publishers_dict[DriverOutputs.CMD.key].publish(Twist())
             return
+
+        if self.command or self.multi_command:
+            if not self.config.disable_safety_stop and not self.laser_scan:
+                self.get_logger().warn(
+                    "LaserScan data is not available -> disabling command publish to robot. To use the DriveManager without safety stop set 'disable_safety_stop' to 'True'",
+                    once=True,
+                )
+                return
+            if not self.robot_state and self.config.closed_loop:
+                self.get_logger().warn(
+                    "Robot state is not available and command publish is set to closed loop -> disabling command publish to robot. To use the DriveManager without robot state set 'closed_loop' to 'False'",
+                    once=True,
+                )
+                return
 
         if self.command:
             if self.config.closed_loop:

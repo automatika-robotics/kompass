@@ -245,7 +245,7 @@ class Planner(Component):
             f"{self.node_name}/load_plan_from_file",
             self._load_plan_from_file_srv_callback,
         )
-        self.__record_motion = self.create_service(
+        self.__record_motion_srv = self.create_service(
             StartPathRecording,
             f"{self.node_name}/start_path_recording",
             self._start_path_recording_callback,
@@ -259,6 +259,7 @@ class Planner(Component):
         """
         self.destroy_service(self.__save_plan_srv)
         self.destroy_service(self.__load_plan_srv)
+        self.destroy_service(self.__record_motion_srv)
         # Call component service destruction (for main service if running as a server)
         Component.destroy_all_services(self)
 
