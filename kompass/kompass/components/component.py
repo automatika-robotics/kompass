@@ -275,13 +275,13 @@ class Component(BaseComponent):
     def callbacks_inputs_check(
         self,
         inputs_to_check: Optional[List[str]] = None,
-        inputs_to_execlude: Optional[List[str]] = None,
+        inputs_to_exclude: Optional[List[str]] = None,
     ) -> bool:
         """
         Check that all node inputs are provided before executing callback
         """
         input_wait_time: float = 0.0
-        while not self.got_all_inputs(inputs_to_check, inputs_to_execlude):
+        while not self.got_all_inputs(inputs_to_check, inputs_to_exclude):
             unavailable_topics = self.get_missing_inputs()
             self.get_logger().warn(
                 f"{self.node_name} inputs: '{unavailable_topics}' are not available. Waiting for maximum of {self.config.topic_subscription_timeout}seconds...",

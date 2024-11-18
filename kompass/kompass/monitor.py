@@ -28,7 +28,7 @@ class Monitor(BaseMonitor):
 
     def __init__(
         self,
-        componenets_names: List[str],
+        components_names: List[str],
         enable_health_status_monitoring: bool = True,
         events: Optional[List[Event]] = None,
         actions: Optional[Dict[str, Action]] = None,
@@ -44,7 +44,7 @@ class Monitor(BaseMonitor):
         **kwargs,
     ):
         super().__init__(
-            componenets_names=componenets_names,
+            components_names=components_names,
             enable_health_status_monitoring=enable_health_status_monitoring,
             events=events,
             actions=actions,
@@ -81,7 +81,7 @@ class Monitor(BaseMonitor):
     #     """
     #     create all subscribers
 
-    #     Currently the node subcribes to three messages:
+    #     Currently the node subscribes to three messages:
     #     1) velocity command
     #     2) odometry / position message
     #     3) path message
