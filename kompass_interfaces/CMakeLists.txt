@@ -10,25 +10,12 @@ find_package(ament_cmake REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
 find_package(builtin_interfaces REQUIRED)
 find_package(std_msgs REQUIRED)
+find_package(geometry_msgs REQUIRED)
 find_package(nav_msgs REQUIRED)
 
 
 set(msg_files
-
-  "msg/geometry/Path.msg"
-  "msg/geometry/Point.msg"
-  "msg/geometry/Pose2D.msg"
-  "msg/geometry/Pose3D.msg"
-  "msg/geometry/Quaternion.msg"
-
-
-  "msg/map/GridMetaData.msg"
   "msg/map/Obstacles.msg"
-  "msg/map/OccupancyGrid.msg"
-
-  "msg/vision/BoundingBox.msg"
-  "msg/vision/Detection.msg"
-  "msg/vision/DetectionArray.msg"
 
   "msg/motion/PathTrackingError.msg"
   "msg/motion/PathTrackingErrorArray.msg"
@@ -46,6 +33,7 @@ set(action_files
   "action/FollowPath.action"
   "action/ControlPath.action"
   "action/TrackPath.action"
+  "action/TrackVisionTarget.action"
   "action/IntelligentRest.action"
   "action/MotionRecording.action"
 )
@@ -59,14 +47,14 @@ set(service_files
   "srv/motion/GetCmdList.srv"
   "srv/motion/PlanPath.srv"
 
-  "srv/control/GetMppiSamples.srv"
+  "srv/control/StopVisionTracking.srv"
 )
 
 rosidl_generate_interfaces(${PROJECT_NAME}
   ${msg_files}
   ${action_files}
   ${service_files}
-  DEPENDENCIES builtin_interfaces std_msgs nav_msgs
+  DEPENDENCIES builtin_interfaces std_msgs nav_msgs geometry_msgs
 )
 
 ament_export_dependencies(rosidl_default_runtime)

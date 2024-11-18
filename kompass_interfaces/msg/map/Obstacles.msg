@@ -2,7 +2,7 @@
 std_msgs/Header header
 
 # MetaData for the map
-GridMetaData info
+nav_msgs/MapMetaData info
 
 
 #occupancy info
