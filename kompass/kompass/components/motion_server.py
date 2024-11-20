@@ -11,13 +11,7 @@ from rclpy.callback_groups import CallbackGroup
 from kompass_interfaces.action import MotionRecording
 
 from ..config import BaseValidators, ComponentConfig, ComponentRunType
-from ..topic import (
-    AllowedTopic,
-    RestrictedTopicsConfig,
-    Topic,
-    create_topics_config,
-    update_topics_config,
-)
+from ..topic import AllowedTopic, RestrictedTopicsConfig, Topic, update_topics
 from .component import Component
 
 
@@ -50,17 +44,15 @@ class MotionServerInputs(RestrictedTopicsConfig):
     LOCATION = AllowedTopic(key="location", types=["Odometry"])
 
 
-_default_outputs = create_topics_config(
-    "MotionServerOutputs",
-    command=Topic(name="/control", msg_type="Twist"),
-)
+_default_outputs = {
+    "command": Topic(name="/control", msg_type="Twist"),
+}
 
-_default_inputs = create_topics_config(
-    "MotionServerInputs",
-    run=Topic(name="/run_tests", msg_type="Bool"),
-    robot_command=Topic(name="/cmd_vel", msg_type="Twist"),
-    location=Topic(name="/odom", msg_type="Odometry"),
-)
+_default_inputs = {
+    "run": Topic(name="/run_tests", msg_type="Bool"),
+    "robot_command": Topic(name="/cmd_vel", msg_type="Twist"),
+    "location": Topic(name="/odom", msg_type="Odometry"),
+}
 
 
 class MotionServer(Component):
@@ -123,15 +115,15 @@ class MotionServer(Component):
             config = MotionServerConfig()
 
         # Get default component outputs
-        out_topics = _default_outputs()
-        in_topics = _default_inputs()
+        out_topics = _default_outputs
+        in_topics = _default_inputs
 
         if robot_cmd_topic:
-            out_topics = update_topics_config(out_topics, command=robot_cmd_topic)
-            in_topics = update_topics_config(in_topics, robot_command=robot_cmd_topic)
+            out_topics = update_topics(out_topics, command=robot_cmd_topic)
+            in_topics = update_topics(in_topics, robot_command=robot_cmd_topic)
 
         if robot_odom_topic:
-            in_topics = update_topics_config(in_topics, location=robot_odom_topic)
+            in_topics = update_topics(in_topics, location=robot_odom_topic)
 
         super().__init__(
             config=config,
@@ -181,7 +173,7 @@ class MotionServer(Component):
         """
         if self.run_type == ComponentRunType.EVENT:
             # Run tests on True
-            self.callbacks[MotionServerInputs.RUN.key].on_callback_execute(
+            self.get_callback(MotionServerInputs.RUN.key).on_callback_execute(
                 self.run_motion_response_tests
             )
 
@@ -189,13 +181,13 @@ class MotionServer(Component):
         """
         Updates all inputs
         """
-        self.robot_cmd: Optional[Twist] = self.callbacks[
+        self.robot_cmd: Optional[Twist] = self.get_callback(
             MotionServerInputs.CMD.key
-        ].get_output()
+        ).get_output()
 
-        self.robot_state: Optional[RobotState] = self.callbacks[
+        self.robot_state: Optional[RobotState] = self.get_callback(
             MotionServerInputs.LOCATION.key
-        ].get_output(
+        ).get_output(
             transformation=self.odom_tf_listener.transform
             if self.odom_tf_listener
             else None
@@ -435,7 +427,7 @@ class MotionServer(Component):
 
         # Publish zero to stop the robot
         cmd_vel = Twist()
-        self.publishers_dict[MotionServerOutputs.CMD.key].publish(cmd_vel)
+        self.get_publisher(MotionServerOutputs.CMD.key).publish(cmd_vel)
 
     def generate_basic_ctr_tests(self, number_of_steps: int) -> List[Dict]:
         """
@@ -563,7 +555,7 @@ class MotionServer(Component):
                 cmd_vel.linear.x = test[cmd_idx, 0]
                 cmd_vel.angular.z = test[cmd_idx, 1]
                 # send to robot
-                self.publishers_dict[MotionServerOutputs.CMD.key].publish(cmd_vel)
+                self.get_publisher(MotionServerOutputs.CMD.key).publish(cmd_vel)
 
                 self._update_state()
 

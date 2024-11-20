@@ -404,16 +404,11 @@ class TrackingsCallback(GenericCallback):
             processed = TrackingData(
                 label=track.labels[id_index],
                 id=track.ids[id_index],
-                score=track.scores[id_index],
-                center_xy=[
-                    (bbox_2d.bottom_right_x + bbox_2d.top_left_x) / 2,
-                    (bbox_2d.bottom_right_y + bbox_2d.top_left_y) / 2,
-                ],
+                center_xy=[track.centroids[id_index].x, track.centroids[id_index].y],
                 size_xy=[
                     abs(bbox_2d.bottom_right_x - bbox_2d.top_left_x),
                     abs(bbox_2d.bottom_right_y - bbox_2d.top_left_y),
                 ],
-                centroid_xy=[track.centroids[id_index].x, track.centroids[id_index].y],
                 velocity_xy=[
                     track.estimated_velocities[id_index].x,
                     track.estimated_velocities[id_index].y,

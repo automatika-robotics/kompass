@@ -1,9 +1,9 @@
 """Inputs/Outputs configuration classes"""
 
 from functools import partial
-from typing import Any, List, Union, Optional
+from typing import List, Union, Optional, Dict
 
-from attrs import define, field, make_class
+from attrs import define, field
 from ros_sugar.io import Publisher
 from ros_sugar.io import AllowedTopic as AllowedTopicBase
 from ros_sugar.io import RestrictedTopicsConfig
@@ -11,15 +11,14 @@ from ros_sugar.io import Topic as BaseTopic
 from ros_sugar.io import get_all_msg_types, get_msg_type
 
 from . import data_types
-from .config import BaseAttrs, BaseValidators
+from .config import BaseValidators
 
 __all__ = [
     "Publisher",
     "AllowedTopic",
     "RestrictedTopicsConfig",
     "Topic",
-    "create_topics_config",
-    "update_topics_config",
+    "update_topics",
 ]
 
 
@@ -47,17 +46,9 @@ class Topic(BaseTopic):
     Overrides Topic from ros_sugar to add msg_type converter and validator from kompass
     """
 
-    msg_type: Union[data_types.SupportedType, str] = field(
-        converter=partial(get_msg_type, msg_types_module=data_types),
-        validator=BaseValidators.in_(
-            partial(get_all_msg_types, msg_types_module=data_types)()
-        ),
+    _additional_datatypes: List[type] = field(
+        default=get_all_msg_types(msg_types_module=data_types), init=False
     )
-    ros_msg_type: Any = field(init=False)
-
-    @msg_type.validator
-    def _update_ros_type(self, _, value):
-        self.ros_msg_type = value._ros_type
 
 
 @define(kw_only=True)
@@ -155,64 +146,14 @@ def _get_allowed_number(
     return None
 
 
-def create_topics_config(name: str, **kwargs) -> type[BaseAttrs]:
-    """
-    Creates topics config class out of given keywords and topics
-
-    :param name: Config class name
-    :type name: str
-
-    :raises TypeError: If given kwargs values are not of type Topic
-
-    :return: New topics configuration class
-    :rtype: BaseAttrs
-    """
-    result_dict = {}
-    if "allowed_config" in kwargs.keys():
-        allowed_config = kwargs["allowed_config"]
-        kwargs.pop("allowed_config")
-        for key, value in kwargs.items():
-            allowed_number_of_topics: Optional[int] = _get_allowed_number(
-                key, value, allowed_config
-            )
-            if allowed_number_of_topics:
-                if allowed_number_of_topics > 1 and not isinstance(value, list):
-                    result_dict[str(key)] = [value]
-                else:
-                    result_dict[str(key)] = value
-    else:
-        for key, value in kwargs.items():
-            if isinstance(value, Topic):
-                result_dict[str(key)] = value
-            else:
-                raise TypeError("Input/Output config can only take Topic values")
-    conf = {
-        key: field(default=val, type=Topic)
-        if not isinstance(val, list)
-        else field(default=val, type=List[Topic])
-        for key, val in result_dict.items()
-    }
-    attrs_class = make_class(name, conf, bases=(BaseAttrs,))
-    return attrs_class
-
-
-def update_topics_config(old_config_obj: BaseAttrs, **kwargs):
-    """
-    Updates the topics (inputs/outputs)
-
-    :param old_config_obj: Existing topics config to be updated
-    :type old_config_obj: BaseAttrs
-
-    :return: Updated topics config
-    :rtype: BaseAttrs
-    """
+def update_topics(topics_dict: Dict[str, Topic], **kwargs):
     if "allowed_config" in kwargs.keys():
         allowed_config = kwargs["allowed_config"]
         kwargs.pop("allowed_config")
         for key, value in kwargs.items():
             if _get_allowed_number(key, value, allowed_config):
-                setattr(old_config_obj, key, value)
+                topics_dict[key] = value
     else:
         for key, value in kwargs.items():
-            setattr(old_config_obj, key, value)
-    return old_config_obj
+            topics_dict[key] = value
+    return topics_dict

@@ -171,8 +171,8 @@ class Launcher(BaseLauncher):
                 pkg_name, _ = self._pkg_executable[idx]
                 if (
                     pkg_name == "kompass"
-                    and component._input_topics
-                    and key in component._input_topics.asdict().keys()
+                    and hasattr(component, "in_topics")
+                    and key in component._inputs_keys
                 ):
                     # Update input value
                     component.inputs(**{key: value})
@@ -194,8 +194,8 @@ class Launcher(BaseLauncher):
                 pkg_name, _ = self._pkg_executable[idx]
                 if (
                     pkg_name == "kompass"
-                    and component._output_topics
-                    and key in component._output_topics.asdict().keys()
+                    and hasattr(component, "out_topics")
+                    and key in component._outputs_keys
                 ):
                     # Update input value
                     component.outputs(**{key: value})

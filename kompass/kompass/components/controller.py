@@ -1,4 +1,4 @@
-from typing import Optional, Union, List
+from typing import Optional, Union, List, Dict
 import time
 from attrs import define, field
 from queue import Queue, Empty
@@ -7,11 +7,10 @@ from ..utils import StrEnum
 
 from rclpy.logging import get_logger
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
-from rclpy.action.server import ActionServer, CancelResponse, GoalResponse
+from rclpy.action.server import ActionServer
 
 # ROS MSGS
 from nav_msgs.msg import Path
-from std_msgs.msg import Header
 from sensor_msgs.msg import PointCloud2
 from geometry_msgs.msg import Twist
 
@@ -34,8 +33,7 @@ from ..topic import (
     AllowedTopic,
     RestrictedTopicsConfig,
     Topic,
-    create_topics_config,
-    update_topics_config,
+    update_topics,
 )
 from ..utils import component_action
 from ..callbacks import PointCloudCallback
@@ -66,30 +64,28 @@ class ControllerOutputs(RestrictedTopicsConfig):
     MULTI_CMD = AllowedTopic(key="multi_command", types=["TwistArray"])
     INTERPOLATION = AllowedTopic(key="interpolation", types=["Path"])
     LOCAL_PLAN = AllowedTopic(key="local_plan", types=["Path"])
-    TRACKING = AllowedTopic(
-        key="tracked_point", types=["Odometry", "PoseStamped", "Pose"]
+    TRACKED_POINT = AllowedTopic(
+        key="tracked_point", types=["Odometry", "PoseStamped", "Pose", "Detection2D"]
     )
 
 
 # Create default inputs - Used if no inputs config is provided to the controller
-_controller_default_inputs = create_topics_config(
-    "ControllerInputs",
-    plan=Topic(name="/plan", msg_type="Path"),
-    sensor_data=Topic(name="/scan", msg_type="LaserScan"),
-    local_map=Topic(name="/local_map/occupancy_layer", msg_type="OccupancyGrid"),
-    location=Topic(name="/odom", msg_type="Odometry"),
-    vision_tracking=Topic(name="/trackings", msg_type="Trackings"),
-)
+_controller_default_inputs = {
+    "plan": Topic(name="/plan", msg_type="Path"),
+    "sensor_data": Topic(name="/scan", msg_type="LaserScan"),
+    "local_map": Topic(name="/local_map/occupancy_layer", msg_type="OccupancyGrid"),
+    "location": Topic(name="/odom", msg_type="Odometry"),
+    "vision_tracking": Topic(name="/trackings", msg_type="Trackings"),
+}
 
 # Create default outputs - Used if no outputs config is provided to the controller
-_controller_default_outputs = create_topics_config(
-    "ControllerOutputs",
-    command=Topic(name="/control", msg_type="Twist"),
-    multi_command=Topic(name="/control_list", msg_type="TwistArray"),
-    interpolation=Topic(name="/interpolated_path", msg_type="Path"),
-    tracked_point=Topic(name="/tracked_point", msg_type="PoseStamped"),
-    local_plan=Topic(name="/local_path", msg_type="Path"),
-)
+_controller_default_outputs = {
+    "command": Topic(name="/control", msg_type="Twist"),
+    "multi_command": Topic(name="/control_list", msg_type="TwistArray"),
+    "interpolation": Topic(name="/interpolated_path", msg_type="Path"),
+    "tracked_point": Topic(name="/tracked_point", msg_type="PoseStamped"),
+    "local_plan": Topic(name="/local_path", msg_type="Path"),
+}
 
 
 class CmdPublishType(StrEnum):
@@ -234,21 +230,22 @@ class Controller(Component):
         component_name: str,
         config_file: Optional[str] = None,
         config: Optional[ControllerConfig] = None,
-        inputs=None,
-        outputs=None,
+        inputs: Optional[Dict[str, Topic]] = None,
+        outputs: Optional[Dict[str, Topic]] = None,
         **kwargs,
     ) -> None:
         self.config: ControllerConfig = config or ControllerConfig()
 
         # Get default component inputs/outputs
-        in_topics = _controller_default_inputs()
-        out_topics = _controller_default_outputs()
+        in_topics = _controller_default_inputs
+        out_topics = _controller_default_outputs
 
+        # Update defaults from custom topics if provided
         if inputs:
-            in_topics = update_topics_config(in_topics, **inputs)
+            in_topics = update_topics(in_topics, **inputs)
 
         if outputs:
-            out_topics = update_topics_config(out_topics, **outputs)
+            out_topics = update_topics(out_topics, **outputs)
 
         super().__init__(
             config=self.config,
@@ -280,6 +277,7 @@ class Controller(Component):
             cancel_callback=self._main_action_cancel_callback,
             callback_group=action_callback_group,
         )
+        self.deactivate_vision_mode()
 
     def create_all_timers(self):
         """Overrides create_all_timers from BaseComponent to add timers for commands execution and tracking publishing"""
@@ -360,22 +358,40 @@ class Controller(Component):
     def _publishing_callback(self):
         """Tracking publishing timer callback"""
         # Publish tracked point on the global path
-        if self.tracked_point is not None:
-            self.publishers_dict[ControllerOutputs.TRACKING.key].publish(
+        if (
+            self.tracked_point is not None
+            and self.config._mode == ControllerMode.PATH_FOLLOWER
+        ):
+            self.get_publisher(ControllerOutputs.TRACKED_POINT.key).publish(
                 self.tracked_point,
                 frame_id=self.config.frames.world,
-                ros_time=self.get_ros_time(),
+                time_stamp=self.get_ros_time(),
+            )
+        if (
+            self.vision_trackings
+            and self.config._mode == ControllerMode.VISION_FOLLOWER
+        ):
+            self.get_publisher(ControllerOutputs.TRACKED_POINT.key).publish(
+                self.vision_trackings,
+                frame_id=self.get_callback(
+                    ControllerInputs.VISION_DETECTIONS.key
+                ).frame_id,
+                time_stamp=self.get_ros_time(),
             )
         # Publish local plan
         if self.local_plan:
-            self.publishers_dict[ControllerOutputs.LOCAL_PLAN.key].publish(
-                self.local_plan
+            self.get_publisher(ControllerOutputs.LOCAL_PLAN.key).publish(
+                self.local_plan,
+                frame_id=self.config.frames.world,
+                time_stamp=self.get_ros_time(),
             )
 
         # Publish interpolated path
         if self.interpolated_path:
-            self.publishers_dict[ControllerOutputs.INTERPOLATION.key].publish(
-                self.interpolated_path
+            self.get_publisher(ControllerOutputs.INTERPOLATION.key).publish(
+                self.interpolated_path,
+                frame_id=self.config.frames.world,
+                time_stamp=self.get_ros_time(),
             )
 
     @property
@@ -440,12 +456,7 @@ class Controller(Component):
         if self.algorithm != LocalPlannersID.DWA:
             return None
 
-        msg_header = Header()
-        msg_header.frame_id = self.config.frames.world
-        msg_header.stamp = self.get_ros_time()
-
-        local_path = self.__controller.optimal_path(msg_header)
-        return local_path
+        return self.__controller.optimal_path()
 
     @property
     def interpolated_path(self) -> Optional[Path]:
@@ -454,12 +465,7 @@ class Controller(Component):
         :return: Path Interpolation
         :rtype: Optional[Path]
         """
-        msg_header = Header()
-        msg_header.frame_id = self.config.frames.world
-        msg_header.stamp = self.get_ros_time()
-
-        interpolated_path = self.__controller.interpolated_path(msg_header)
-        return interpolated_path
+        return self.__controller.interpolated_path()
 
     @property
     def direct_sensor(self) -> bool:
@@ -542,17 +548,36 @@ class Controller(Component):
         """Activate object following mode using vision detections"""
         self.config._mode = ControllerMode.VISION_FOLLOWER
         # Activate vision subscriber
-        callback = self.callbacks[ControllerInputs.VISION_DETECTIONS.key]
+        callback = self.get_callback(ControllerInputs.VISION_DETECTIONS.key)
         callback.set_subscriber(self._add_ros_subscriber(callback))
+
+        publisher = self.get_publisher(ControllerOutputs.TRACKED_POINT.key)
+        if publisher.output_topic.msg_type != "Detection2D":
+            self.get_logger().error("Replacing topic")
+            # Change tracked point publisher to publish tracked detection
+            error_msg = self._replace_output_topic(
+                publisher.output_topic.name, "/tracked_detection", "Detection2D"
+            )
+            if error_msg:
+                self.get_logger().error(f"{error_msg}")
 
     def deactivate_vision_mode(self):
         """Deactivate object following mode using vision detections"""
-        self.config._mode = ControllerMode.PATH_FOLLOWER
         # Delete vision subscriber
-        callback = self.callbacks[ControllerInputs.VISION_DETECTIONS.key]
+        callback = self.get_callback(ControllerInputs.VISION_DETECTIONS.key)
         if callback._subscriber:
             self.destroy_subscription(callback._subscriber)
             callback._subscriber = None
+
+        publisher = self.get_publisher(ControllerOutputs.TRACKED_POINT.key)
+        if publisher.output_topic.msg_type == "Detection2D":
+            # Change tracked point publisher to publish tracked detection
+            self._replace_output_topic(
+                publisher.output_topic.name,
+                ControllerOutputs.TRACKED_POINT.value.name,
+                ControllerOutputs.TRACKED_POINT.value.msg_type,
+            )
+        self.config._mode = ControllerMode.PATH_FOLLOWER
 
     def _block_types(self) -> None:
         """
@@ -564,54 +589,54 @@ class Controller(Component):
         """
         Updates node inputs from associated callbacks
         """
-        self.plan: Optional[Path] = self.callbacks[
+        self.plan: Optional[Path] = self.get_callback(
             ControllerInputs.PLAN.key
-        ].get_output()
+        ).get_output()
 
-        self.robot_state: Optional[RobotState] = self.callbacks[
+        self.robot_state: Optional[RobotState] = self.get_callback(
             ControllerInputs.LOCATION.key
-        ].get_output(
+        ).get_output(
             transformation=self.odom_tf_listener.transform
             if self.odom_tf_listener
             else None
         )
 
         if self.direct_sensor:
-            self.sensor_data = self.callbacks[
+            self.sensor_data = self.get_callback(
                 ControllerInputs.SENSOR_DATA.key
-            ].get_output(
+            ).get_output(
                 transformation=self.__sensor_tf_listener.transform
                 if self.__sensor_tf_listener
                 else None
             )
         else:
-            self.local_map: Optional[np.ndarray] = self.callbacks[
+            self.local_map: Optional[np.ndarray] = self.get_callback(
                 ControllerInputs.LOCAL_MAP.key
-            ].get_output()
+            ).get_output()
 
         if self.config._mode == ControllerMode.VISION_FOLLOWER and self.__tracked_label:
-            self.vision_trackings = self.callbacks[
+            self.vision_trackings = self.get_callback(
                 ControllerInputs.VISION_DETECTIONS.key
-            ].get_output(
-                label=self.__tracked_label, id=vision_track_id, clear_last=True
-            )
+            ).get_output(label=self.__tracked_label, id=vision_track_id)
 
     def attach_callbacks(self) -> None:
         """
         Attaches method to set received plan to the controller
         """
         # Adds callback to set the path in the controller when a new plan is received
-        self.callbacks[ControllerInputs.PLAN.key].on_callback_execute(
+        self.get_callback(ControllerInputs.PLAN.key).on_callback_execute(
             self._set_path_to_controller
         )
 
         if self.direct_sensor:
             # Remove callback for the local map and destroy subscriber
-            _callback = self.callbacks.pop(ControllerInputs.LOCAL_MAP.key)
+            _callback = self.callbacks.pop(
+                self.in_topic_name(ControllerInputs.LOCAL_MAP.key)
+            )
             self.destroy_subscription(_callback._subscriber)
 
             # If direct sensor information is used set maximum range for PointCloud data
-            sensor_callback = self.callbacks[ControllerInputs.SENSOR_DATA.key]
+            sensor_callback = self.get_callback(ControllerInputs.SENSOR_DATA.key)
             if isinstance(sensor_callback, PointCloudCallback):
                 sensor_callback.max_range = (
                     self.config.control_horizon_number_of_steps
@@ -622,7 +647,9 @@ class Controller(Component):
                 )
         else:
             # Remove callback for the sensor data and destroy subscriber
-            _callback = self.callbacks.pop(ControllerInputs.SENSOR_DATA.key)
+            _callback = self.callbacks.pop(
+                self.in_topic_name(ControllerInputs.SENSOR_DATA.key)
+            )
             self.destroy_subscription(_callback._subscriber)
 
     def _set_path_to_controller(self, msg, **_) -> None:
@@ -677,10 +704,11 @@ class Controller(Component):
         self._cmds_queue: Queue = Queue()
 
         if self.direct_sensor:
+            sensor_topic = self.in_topics[self._inputs_keys.index("sensor_data")]
             # Setup transform listener
             self.__sensor_tf_listener: TFListener = (
                 self.depth_tf_listener
-                if self._input_topics.sensor_data.msg_type._ros_type == PointCloud2
+                if sensor_topic.msg_type._ros_type == PointCloud2
                 else self.scan_tf_listener
             )
 
@@ -704,11 +732,9 @@ class Controller(Component):
             _cmd_vel_array = init_twist_array_msg(
                 int(self.config.prediction_horizon / self.config.control_time_step)
             )
-            self.publishers_dict[ControllerOutputs.MULTI_CMD.key].publish(
-                _cmd_vel_array
-            )
+            self.get_publisher(ControllerOutputs.MULTI_CMD.key).publish(_cmd_vel_array)
         else:
-            self.publishers_dict[ControllerOutputs.CMD.key].publish(Twist())
+            self.get_publisher(ControllerOutputs.CMD.key).publish(Twist())
 
     def _publish_control(
         self, linear_ctr_x: float, linear_ctr_y: float, angular_ctr: float
@@ -728,7 +754,7 @@ class Controller(Component):
         _cmd_vel.linear.y = linear_ctr_y
         _cmd_vel.angular.z = angular_ctr
 
-        self.publishers_dict[ControllerOutputs.CMD.key].publish(_cmd_vel)
+        self.get_publisher(ControllerOutputs.CMD.key).publish(_cmd_vel)
 
     def _publish_multi_control(
         self,
@@ -754,7 +780,7 @@ class Controller(Component):
         )
         _cmd_vel_array.time_step = self.config.control_time_step
 
-        self.publishers_dict[ControllerOutputs.MULTI_CMD.key].publish(_cmd_vel_array)
+        self.get_publisher(ControllerOutputs.MULTI_CMD.key).publish(_cmd_vel_array)
 
     def _path_control(self) -> bool:
         """
@@ -786,7 +812,7 @@ class Controller(Component):
             # Stop robot
             self._stop_robot()
             # Clear path
-            self.callbacks[ControllerInputs.PLAN.key].clear_last_msg()
+            self.get_callback(ControllerInputs.PLAN.key).clear_last_msg()
             # Unset reached_end for new incoming paths
             self.__reached_end = False
             return True
@@ -904,10 +930,13 @@ class Controller(Component):
         result = TrackVisionTarget.Result()
 
         # Check if inputs are available until timeout
-        if not self.callbacks_inputs_check(inputs_to_check=["vision_tracking"]):
+        if not self.callbacks_inputs_check(
+            inputs_to_check=[self.in_topic_name(ControllerInputs.VISION_DETECTIONS.key)]
+        ):
             self.get_logger().error(
                 "Requested action inputs are not available -> Aborting Action"
             )
+            self.deactivate_vision_mode()
             goal_handle.abort()
             return result
 
@@ -918,6 +947,7 @@ class Controller(Component):
             self.get_logger().error(
                 f"Tracking information is not available for requested label '{self.__tracked_label}' -> Aborting Action"
             )
+            self.deactivate_vision_mode()
             goal_handle.abort()
             return result
 
@@ -947,7 +977,6 @@ class Controller(Component):
             _controller.loop_step(tracking=self.vision_trackings)
 
             # Publish feedback
-            feedback_msg.score = self.vision_trackings.score
             feedback_msg.center_xy = self.vision_trackings.center_xy
             feedback_msg.size_xy = self.vision_trackings.size_xy
             feedback_msg.distance = 0.0
@@ -989,6 +1018,8 @@ class Controller(Component):
             time.sleep(1 / self.config.loop_rate)
 
         end_time = time.time()
+
+        self.deactivate_vision_mode()
 
         if self.vision_trackings:
             # WHEN PATH TRACKER SERVICE RETURNS RESULT
@@ -1059,7 +1090,11 @@ class Controller(Component):
             )
 
         # Check if inputs are available until timeout
-        if not self.callbacks_inputs_check(inputs_to_exclude=["vision_tracking"]):
+        if not self.callbacks_inputs_check(
+            inputs_to_exclude=[
+                self.in_topic_name(ControllerInputs.VISION_DETECTIONS.key)
+            ]
+        ):
             self.get_logger().error(
                 "Requested action inputs are not available -> Aborting"
             )
@@ -1156,7 +1191,11 @@ class Controller(Component):
         # Get inputs from callbacks
         self._update_state()
 
-        got_all: bool = self.got_all_inputs(inputs_to_exclude=["vision_tracking"])
+        got_all: bool = self.got_all_inputs(
+            inputs_to_exclude=[
+                self.in_topic_name(ControllerInputs.VISION_DETECTIONS.key)
+            ]
+        )
 
         # Check if all inputs are available
         if got_all and not self.__reached_end:

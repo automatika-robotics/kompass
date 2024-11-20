@@ -31,8 +31,7 @@ from ..topic import (
     Publisher,
     RestrictedTopicsConfig,
     Topic,
-    create_topics_config,
-    update_topics_config,
+    update_topics,
 )
 
 # KOMPASS MSGS/SRVS/ACTIONS
@@ -57,22 +56,20 @@ class PlannerOutputs(RestrictedTopicsConfig):
 
 
 # Default values for inputs / outputs
-_planner_default_inputs = create_topics_config(
-    "PlannerInputs",
-    map_layer=Topic(
+_planner_default_inputs = {
+    "map_layer": Topic(
         name="/map",
         msg_type="OccupancyGrid",
         qos_profile=QoSConfig(durability=qos.DurabilityPolicy.TRANSIENT_LOCAL),
     ),
-    goal_point=Topic(name="/goal", msg_type="PointStamped"),
-    location=Topic(name="/odom", msg_type="Odometry"),
-)
+    "goal_point": Topic(name="/goal", msg_type="PointStamped"),
+    "location": Topic(name="/odom", msg_type="Odometry"),
+}
 
-_planner_default_outputs = create_topics_config(
-    "PlannerOutputs",
-    plan=Topic(name="/plan", msg_type="Path"),
-    reached_end=Topic(name="/reached_end", msg_type="Bool"),
-)
+_planner_default_outputs = {
+    "plan": Topic(name="/plan", msg_type="Path"),
+    "reached_end": Topic(name="/reached_end", msg_type="Bool"),
+}
 
 
 class PlannerConfig(ComponentConfig):
@@ -159,10 +156,10 @@ class Planner(Component):
         out_topics = _planner_default_outputs()
 
         if inputs:
-            in_topics = update_topics_config(in_topics, **inputs)
+            in_topics = update_topics(in_topics, **inputs)
 
         if outputs:
-            out_topics = update_topics_config(out_topics, **outputs)
+            out_topics = update_topics(out_topics, **outputs)
 
         # Type deceleration
         self.callbacks: Dict[str, GenericCallback]
@@ -280,11 +277,13 @@ class Planner(Component):
             self.get_logger().info(
                 "Attaching Planning Callback for Event-Based Planner Component"
             )
-            self.callbacks[PlannerInputs.GOAL.key].on_callback_execute(
+            self.get_callback(PlannerInputs.GOAL.key).on_callback_execute(
                 self._plan_on_goal
             )
         if self.run_type in [ComponentRunType.EVENT, ComponentRunType.TIMED]:
-            self.callbacks[PlannerInputs.GOAL.key].on_callback_execute(self._clear_path)
+            self.get_callback(PlannerInputs.GOAL.key).on_callback_execute(
+                self._clear_path
+            )
 
     def main_service_callback(
         self, request: PlanPathSrv.Request, response: PlanPathSrv.Response
@@ -357,7 +356,7 @@ class Planner(Component):
             return False
         dist: float = self.robot_state.distance(goal_point)
         # self.reached_end = dist <= tolerance.lateral_distance_error
-        # self.publishers_dict[PlannerOutputs.REACHED_GOAL.key].publish(self.reached_end)
+        # self.get_publisher(PlannerOutputs.REACHED_GOAL.key).publish(self.reached_end)
         return dist <= tolerance.lateral_distance_error
 
     def main_action_callback(self, goal_handle: PlanPathAction.Goal):
@@ -405,7 +404,7 @@ class Planner(Component):
         action_feedback_msg.plan = Path()
 
         while not self.got_all_inputs(inputs_to_check=["location"]):
-            topic_name = self.callbacks[PlannerInputs.LOCATION.key].input_topic.name
+            topic_name = self.get_callback(PlannerInputs.LOCATION.key).input_topic.name
             self.get_logger().warn(
                 f"Location input topic '{topic_name}' is not available, waiting...",
                 once=True,
@@ -524,7 +523,7 @@ class Planner(Component):
                 ros_point.pose.orientation.w = q_rot[0]
                 self.ros_path.poses.append(ros_point)
             try:
-                self.publishers_dict[PlannerOutputs.PLAN.key].publish(self.ros_path)
+                self.get_publisher(PlannerOutputs.PLAN.key).publish(self.ros_path)
 
             except Exception as e:
                 self.get_logger().error(f"Publishing exception: {e}")
@@ -535,25 +534,25 @@ class Planner(Component):
         """
         Updates all inputs
         """
-        self.map: Optional[np.ndarray] = self.callbacks[
+        self.map: Optional[np.ndarray] = self.get_callback(
             PlannerInputs.MAP.key
-        ].get_output()
+        ).get_output()
 
-        self.robot_state: Optional[RobotState] = self.callbacks[
+        self.robot_state: Optional[RobotState] = self.get_callback(
             PlannerInputs.LOCATION.key
-        ].get_output(
+        ).get_output(
             transformation=self.odom_tf_listener.transform
             if self.odom_tf_listener
             else None
         )
 
-        self.map_data: Optional[Dict] = self.callbacks[
+        self.map_data: Optional[Dict] = self.get_callback(
             PlannerInputs.MAP.key
-        ].get_output(get_metadata=True)
+        ).get_output(get_metadata=True)
 
-        self.goal: Optional[RobotState] = self.callbacks[
+        self.goal: Optional[RobotState] = self.get_callback(
             PlannerInputs.GOAL.key
-        ].get_output()
+        ).get_output()
 
     def _plan_on_goal(self, msg, **_):
         """
@@ -578,7 +577,7 @@ class Planner(Component):
             )
             self.health_status.set_fail_system(
                 topic_names=[
-                    self.callbacks[PlannerInputs.LOCATION.key].input_topic.name
+                    self.get_callback(PlannerInputs.LOCATION.key).input_topic.name
                 ]
             )
 
@@ -700,7 +699,7 @@ class Planner(Component):
             response.path_length = len(self.ros_path.poses)
             response.global_path = self.ros_path
 
-            self.publishers_dict[PlannerOutputs.PLAN.value.key].publish(self.ros_path)
+            self.get_publisher(PlannerOutputs.PLAN.value.key).publish(self.ros_path)
 
         else:
             self.get_logger().warning("Invalid file -> No plan is loaded")

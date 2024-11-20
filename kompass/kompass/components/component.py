@@ -1,19 +1,13 @@
 import time
-from typing import Dict, List, Optional, Union
-import json
+from typing import Dict, List, Optional
+from omegaconf import OmegaConf
 from ros_sugar.core import ComponentFallbacks, BaseComponent
-from ros_sugar.events import json_to_events_list
 from ros_sugar.tf import TFListener, TFListenerConfig
 
 from ..callbacks import GenericCallback
-from ..config import BaseAttrs, ComponentConfig, RobotConfig
-from ..topic import (
-    Publisher,
-    RestrictedTopicsConfig,
-    Topic,
-    create_topics_config,
-    update_topics_config,
-)
+from ..config import ComponentConfig, RobotConfig
+from ..topic import RestrictedTopicsConfig, Topic, update_topics, get_all_msg_types
+from .. import data_types
 
 
 class Component(BaseComponent):
@@ -53,8 +47,8 @@ class Component(BaseComponent):
         component_name: str,
         config: Optional[ComponentConfig] = None,
         config_file: Optional[str] = None,
-        inputs: Optional[BaseAttrs] = None,
-        outputs: Optional[BaseAttrs] = None,
+        inputs: Optional[Dict[str, Topic]] = None,
+        outputs: Optional[Dict[str, Topic]] = None,
         fallbacks: Optional[ComponentFallbacks] = None,
         allowed_inputs: Optional[type[RestrictedTopicsConfig]] = None,
         allowed_outputs: Optional[type[RestrictedTopicsConfig]] = None,
@@ -84,21 +78,27 @@ class Component(BaseComponent):
         :type callback_group: _type_, optional
         """
 
-        self._input_topics: Optional[BaseAttrs] = inputs
-        self._output_topics: Optional[BaseAttrs] = outputs
+        self._inputs_keys: List[str] = list(inputs)
+        self._outputs_keys: List[str] = list(outputs)
 
         self.__allowed_inputs: Optional[type[RestrictedTopicsConfig]] = allowed_inputs
         self.__allowed_outputs: Optional[type[RestrictedTopicsConfig]] = allowed_outputs
 
         self.config = config or ComponentConfig()
 
+        # Get Kompass types to pass to the base component as additional supported types
+        kompass_types = get_all_msg_types(data_types)
+
         super().__init__(
             component_name=component_name,
             config=self.config,
             config_file=config_file,
+            inputs=list(inputs.values()),
+            outputs=list(outputs.values()),
             callback_group=callback_group,
             enable_health_broadcast=True,
             fallbacks=fallbacks,
+            additional_msg_types=kompass_types,
             **kwargs,
         )
 
@@ -123,45 +123,35 @@ class Component(BaseComponent):
         self.config.robot = config
 
     # CREATION AND DESTRUCTION METHODS
-    def create_all_subscribers(self):
-        """
-        Creates all node subscribers
-        """
-        self.get_logger().info("STARTING ALL SUBSCRIBERS")
-        self.callbacks: Dict[
-            str, Union[GenericCallback, Dict[str, GenericCallback]]
-        ] = {}
-        for key, in_topic in self._input_topics.__dict__.items():
-            if isinstance(in_topic, list):
-                self.callbacks[key] = {
-                    in_t.name: in_t.msg_type.callback(in_t, self.node_name)
-                    for in_t in in_topic
-                }
-            else:
-                # Get callback objects from input topics message types
-                self.callbacks[key] = in_topic.msg_type.callback(
-                    in_topic, self.node_name
-                )
+    # def create_all_subscribers(self):
+    #     """
+    #     Creates all node subscribers
+    #     """
+    #     self.get_logger().info("STARTING ALL SUBSCRIBERS")
+    #     self.callbacks: Dict[
+    #         str, Union[GenericCallback, Dict[str, GenericCallback]]
+    #     ] = {}
+    #     for key, in_topic in self._input_topics.__dict__.items():
+    #         if isinstance(in_topic, list):
+    #             self.callbacks[key] = {
+    #                 in_t.name: in_t.msg_type.callback(in_t, self.node_name)
+    #                 for in_t in in_topic
+    #             }
+    #         else:
+    #             # Get callback objects from input topics message types
+    #             self.callbacks[key] = in_topic.msg_type.callback(
+    #                 in_topic, self.node_name
+    #             )
 
-        # Creates subscriber and attaches it to input callback object
-        for callback in self.callbacks.values():
-            if isinstance(callback, Dict):
-                for callback_item in callback.values():
-                    callback_item.set_subscriber(
-                        self._add_ros_subscriber(callback_item)
-                    )
-            else:
-                callback.set_subscriber(self._add_ros_subscriber(callback))
-
-    def create_all_publishers(self):
-        """
-        Creates all node publishers
-        """
-        self.publishers_dict = {
-            key: Publisher(output)
-            for key, output in self._output_topics.__dict__.items()
-        }
-        super().create_all_publishers()
+    #     # Creates subscriber and attaches it to input callback object
+    #     for callback in self.callbacks.values():
+    #         if isinstance(callback, Dict):
+    #             for callback_item in callback.values():
+    #                 callback_item.set_subscriber(
+    #                     self._add_ros_subscriber(callback_item)
+    #                 )
+    #         else:
+    #             callback.set_subscriber(self._add_ros_subscriber(callback))
 
     # INPUTS/OUTPUTS AND CONFIGURATION
     def inputs(self, **kwargs):
@@ -171,11 +161,14 @@ class Component(BaseComponent):
         if self.__allowed_inputs:
             kwargs["allowed_config"] = self.__allowed_inputs
         # If input topics are not configured create a new class
-        if not self._input_topics:
-            new_topics = create_topics_config(f"{self.node_name}Inputs", **kwargs)
-            self._input_topics = new_topics()
-        else:
-            self._input_topics = update_topics_config(self._input_topics, **kwargs)
+        old_dict = (
+            dict(zip(self._inputs_keys, self.in_topics))
+            if hasattr(self, "in_topics")
+            else {}
+        )
+        topics_dict = update_topics(old_dict, **kwargs)
+        self.in_topics = list(topics_dict.values())
+        self._inputs_keys = list(topics_dict)
 
     def outputs(self, **kwargs):
         """
@@ -183,11 +176,14 @@ class Component(BaseComponent):
         """
         if self.__allowed_outputs:
             kwargs["allowed_config"] = self.__allowed_outputs
-        if not self._output_topics:
-            new_topics = create_topics_config(f"{self.node_name}Inputs", **kwargs)
-            self._output_topics = new_topics()
-        else:
-            self._output_topics = update_topics_config(self._output_topics, **kwargs)
+        old_dict = (
+            dict(zip(self._inputs_keys, self.out_topics))
+            if hasattr(self, "out_topics")
+            else {}
+        )
+        topics_dict = update_topics(old_dict, **kwargs)
+        self.out_topics = list(topics_dict.values())
+        self._outputs_keys = list(topics_dict)
 
     def configure(self, config_file: str):
         """
@@ -197,16 +193,22 @@ class Component(BaseComponent):
         :type config_file: str
         """
         super().configure(config_file)
-        # TODO: handle parsing topics directly with default config if it is not initialized - TODO later as it is not needed for Kompass pre-defined components
-        if self._input_topics:
-            self._input_topics.from_yaml(
-                config_file, nested_root_name=f"{self.node_name}.inputs"
-            )
+        # Set Inputs/Outputs
+        raw_config = OmegaConf.load(config_file)
 
-        if self._output_topics:
-            self._output_topics.from_yaml(
-                config_file, nested_root_name=f"{self.node_name}.outputs"
-            )
+        inputs_config = OmegaConf.select(raw_config, f"{self.node_name}.inputs")
+        for idx, key in enumerate(self._inputs_keys):
+            if hasattr(inputs_config, key):
+                self.in_topics[idx].from_yaml(
+                    config_file, f"{self.node_name}.inputs.{key}"
+                )
+
+        outputs_config = OmegaConf.select(raw_config, f"{self.node_name}.outputs")
+        for idx, key in enumerate(self._outputs_keys):
+            if hasattr(outputs_config, key):
+                self.out_topics[idx].from_yaml(
+                    config_file, f"{self.node_name}.outputs.{key}"
+                )
 
     @property
     def odom_tf_listener(self) -> Optional[TFListener]:
@@ -272,6 +274,50 @@ class Component(BaseComponent):
         tf_listener: TFListener = self.create_tf_listener(tf_config)
         return tf_listener
 
+    def in_topic_name(self, key: str) -> Optional[str]:
+        return (
+            self.in_topics[self._inputs_keys.index(key)].name
+            if hasattr(self, "in_topics")
+            else None
+        )
+
+    def out_topic_name(self, key: str) -> Optional[str]:
+        return (
+            self.out_topics[self._outputs_keys.index(key)].name
+            if hasattr(self, "out_topics")
+            else None
+        )
+
+    def get_in_topic(self, key: str) -> Optional[Topic]:
+        return (
+            self.in_topics[self._inputs_keys.index(key)]
+            if hasattr(self, "in_topics")
+            else None
+        )
+
+    def get_out_topic(self, key: str) -> Optional[Topic]:
+        return (
+            self.out_topics[self._outputs_keys.index(key)]
+            if hasattr(self, "out_topics")
+            else None
+        )
+
+    def get_callback(self, key: str) -> GenericCallback:
+        try:
+            return self.callbacks[self.in_topic_name(key)]
+        except Exception as e:
+            raise KeyError(
+                f"Unknown key '{key}' for component '{self.node_name}' Inputs"
+            ) from e
+
+    def get_publisher(self, key: str) -> GenericCallback:
+        try:
+            return self.publishers_dict[self.out_topic_name(key)]
+        except Exception as e:
+            raise KeyError(
+                f"Unknown key '{key}' for component '{self.node_name}' Outputs"
+            ) from e
+
     def callbacks_inputs_check(
         self,
         inputs_to_check: Optional[List[str]] = None,
@@ -298,72 +344,3 @@ class Component(BaseComponent):
                 return False
             # Inputs are all available -> execute function
         return True
-
-    # TO USE FOR ROS LAUNCH
-    @property
-    def _inputs_json(self) -> Union[str, bytes, bytearray]:
-        """
-        Serialize component inputs to json
-
-        :return: Serialized inputs
-        :rtype:  str | bytes | bytearray
-        """
-        if self._input_topics:
-            return self._input_topics.to_json()
-        return "{}"
-
-    @_inputs_json.setter
-    def _inputs_json(self, value: Union[str, bytes, bytearray]):
-        """
-        Component inputs from serialized inputs (json)
-
-        :return: Serialized inputs
-        :rtype:  str | bytes | bytearray
-
-        :param value: Serialized inputs
-        :type value: Union[str, bytes, bytearray]
-        """
-        if self._input_topics:
-            self._input_topics.from_json(value)
-
-    @property
-    def _outputs_json(self) -> Union[str, bytes, bytearray]:
-        """
-        Serialize component outputs to json
-
-        :return: Serialized inputs
-        :rtype:  str | bytes | bytearray
-        """
-        if self._output_topics:
-            return self._output_topics.to_json()
-        return "{}"
-
-    @_outputs_json.setter
-    def _outputs_json(self, value):
-        if self._output_topics:
-            self._output_topics.from_json(value)
-
-    @property
-    def _events_json(self) -> Union[str, bytes]:
-        """Getter of serialized component Events
-
-        :return: Serialized Events List
-        :rtype: Union[str, bytes]
-        """
-        events_list = []
-        if self.events:
-            for event in self.events:
-                events_list.append(event.json)
-        return json.dumps(events_list)
-
-    @_events_json.setter
-    def _events_json(self, events_serialized: Union[str, bytes]):
-        """Setter of component events from JSON serialized events
-
-        :param events_serialized: Serialized Events List
-        :type events_serialized: Union[str, bytes]
-        """
-        self.events = json_to_events_list(
-            events_serialized,
-            topic_template=Topic(name="dummy_template", msg_type="Bool"),
-        )
