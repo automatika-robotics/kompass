@@ -11,9 +11,18 @@ from kompass.components import (
     PlannerConfig,
     LocalMapperConfig,
     LocalMapper,
+    Visualizer,
+    VisualizerConfig,
 )
 
-_kompass_components = [Planner, Controller, DriveManager, MotionServer, LocalMapper]
+_kompass_components = [
+    Planner,
+    Controller,
+    DriveManager,
+    MotionServer,
+    LocalMapper,
+    Visualizer,
+]
 
 _kompass_configs = [
     PlannerConfig,
@@ -21,6 +30,7 @@ _kompass_configs = [
     DriveManagerConfig,
     MotionServerConfig,
     LocalMapperConfig,
+    VisualizerConfig
 ]
 
 

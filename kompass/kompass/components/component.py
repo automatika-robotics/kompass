@@ -78,8 +78,11 @@ class Component(BaseComponent):
         :type callback_group: _type_, optional
         """
 
-        self._inputs_keys: List[str] = list(inputs)
-        self._outputs_keys: List[str] = list(outputs)
+        self._inputs_keys: List[str] = list(inputs) if inputs else []
+        self._outputs_keys: List[str] = list(outputs) if outputs else []
+
+        outputs = list(outputs.values()) if outputs else []
+        inputs = list(inputs.values()) if inputs else []
 
         self.__allowed_inputs: Optional[type[RestrictedTopicsConfig]] = allowed_inputs
         self.__allowed_outputs: Optional[type[RestrictedTopicsConfig]] = allowed_outputs
@@ -93,8 +96,8 @@ class Component(BaseComponent):
             component_name=component_name,
             config=self.config,
             config_file=config_file,
-            inputs=list(inputs.values()),
-            outputs=list(outputs.values()),
+            inputs=inputs,
+            outputs=outputs,
             callback_group=callback_group,
             enable_health_broadcast=True,
             fallbacks=fallbacks,
