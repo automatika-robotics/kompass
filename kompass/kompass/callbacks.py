@@ -12,6 +12,7 @@ from kompass_core.datatypes import (
     PointCloudData,
     TrackingData,
     ImageMetaData,
+    CompressedImageMetaData
 )
 from .utils import read_pc_points, read_pc_points_with_tf
 from kompass_core.utils import geometry as GeometryUtils
@@ -345,6 +346,24 @@ class PoseStampedCallback(PoseCallback):
         return center_state
 
 
+class DetectionsCallback(GenericCallback):
+    def __init__(
+        self,
+        input_topic,
+        node_name: Optional[str] = None,
+    ) -> None:
+        """__init__.
+
+        :param input_topic:
+        :param node_name:
+        :type node_name: Optional[str]
+        :param transformation:
+        :type transformation: Optional[TransformStamped]
+        :rtype: None
+        """
+        super().__init__(input_topic, node_name)
+
+
 class TrackingsCallback(GenericCallback):
     """ROS2 Trackings Callback Handler to process and transform agents_interfaces/Trackings data"""
 
@@ -401,7 +420,23 @@ class TrackingsCallback(GenericCallback):
         if tracking_index is not None and id_index is not None:
             track = raw_trackings[tracking_index]
             bbox_2d = track.boxes[id_index]
-            processed = TrackingData(
+
+            # Update the source image data if available
+            if track.image.data:
+                img_meta = ImageMetaData(
+                    frame_id=track.image.header.frame_id,
+                    width=track.image.width,
+                    height=track.image.height,
+                    encoding=track.image.encoding,
+                )
+            elif track.compressed_image.data:
+                img_meta = CompressedImageMetaData(
+                    frame_id=track.compressed_image.header.frame_id,
+                    encoding=track.compressed_image.format,
+                )
+            else:
+                img_meta = None
+            return TrackingData(
                 label=track.labels[id_index],
                 id=track.ids[id_index],
                 center_xy=[track.centroids[id_index].x, track.centroids[id_index].y],
@@ -413,13 +448,8 @@ class TrackingsCallback(GenericCallback):
                     track.estimated_velocities[id_index].x,
                     track.estimated_velocities[id_index].y,
                 ],
-                img_meta=ImageMetaData(
-                    width=track.image.width,
-                    height=track.image.height,
-                    encoding=track.image.encoding,
-                ),
+                img_meta=img_meta
             )
-            return processed
         # If requested Id/Label not found
         return None
 
