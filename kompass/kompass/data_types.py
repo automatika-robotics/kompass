@@ -26,7 +26,10 @@ from sensor_msgs.msg import PointCloud2 as ROSPointCloud2
 from vision_msgs.msg import Detection2D as ROSDetection2D, BoundingBox2D
 
 from kompass_interfaces.msg import TwistArray as ROSTwistArray
-from agents_interfaces.msg import Trackings as ROSTrackings, Detections2D as ROSDetections
+from agents_interfaces.msg import (
+    Trackings as ROSTrackings,
+    Detections2D as ROSDetections,
+)
 
 from .callbacks import (
     GenericCallback,

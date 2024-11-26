@@ -37,6 +37,7 @@ from ..topic import (
 )
 from ..utils import component_action
 from ..callbacks import PointCloudCallback
+from ..data_types import Detection2D
 
 # KOMPASS MSGS/SRVS/ACTIONS
 from .component import Component, TFListener
@@ -552,8 +553,8 @@ class Controller(Component):
         callback.set_subscriber(self._add_ros_subscriber(callback))
 
         publisher = self.get_publisher(ControllerOutputs.TRACKED_POINT.key)
-        if publisher.output_topic.msg_type != "Detection2D":
-            self.get_logger().error("Replacing topic")
+        if publisher.output_topic.msg_type != Detection2D:
+            self.get_logger().error("Replacing tracked point topic")
             # Change tracked point publisher to publish tracked detection
             error_msg = self._replace_output_topic(
                 publisher.output_topic.name, "/tracked_detection", "Detection2D"
@@ -570,12 +571,12 @@ class Controller(Component):
             callback._subscriber = None
 
         publisher = self.get_publisher(ControllerOutputs.TRACKED_POINT.key)
-        if publisher.output_topic.msg_type == "Detection2D":
+        if publisher.output_topic.msg_type == Detection2D:
             # Change tracked point publisher to publish tracked detection
             self._replace_output_topic(
                 publisher.output_topic.name,
-                ControllerOutputs.TRACKED_POINT.value.name,
-                ControllerOutputs.TRACKED_POINT.value.msg_type,
+                _controller_default_outputs["tracked_point"].name,
+                _controller_default_outputs["tracked_point"].msg_type,
             )
         self.config._mode = ControllerMode.PATH_FOLLOWER
 
@@ -915,6 +916,22 @@ class Controller(Component):
         response.success = False
         return response
 
+    def __wait_for_trackings(self, tracked_id: Optional[int] = None):
+        """Wait to receive vision_trackings or until timeout
+
+        :param tracked_id: Check if id is available in trackings, defaults to None
+        :type tracked_id: Optional[int], optional
+        """
+        self._update_state(vision_track_id=tracked_id)
+        wait_time = 0.0
+        while (
+            not self.vision_trackings
+            and wait_time < self.config.topic_subscription_timeout
+        ):
+            self._update_state(vision_track_id=tracked_id)
+            wait_time += 1 / self.config.loop_rate
+            time.sleep(1 / self.config.loop_rate)
+
     def _vision_tracking_callback(self, goal_handle) -> TrackVisionTarget.Result:
         self.get_logger().info("Started vision tracking control action...")
 
@@ -929,21 +946,10 @@ class Controller(Component):
 
         result = TrackVisionTarget.Result()
 
-        # Check if inputs are available until timeout
-        if not self.callbacks_inputs_check(
-            inputs_to_check=[self.in_topic_name(ControllerInputs.VISION_DETECTIONS.key)]
-        ):
-            self.get_logger().error(
-                "Requested action inputs are not available -> Aborting Action"
-            )
-            self.deactivate_vision_mode()
-            goal_handle.abort()
-            return result
-
-        self._update_state()
+        # Wait to get the first tracking
+        self.__wait_for_trackings()
 
         if not self.vision_trackings:
-            # TODO: Add wait here to get the tracking
             self.get_logger().error(
                 f"Tracking information is not available for requested label '{self.__tracked_label}' -> Aborting Action"
             )
@@ -966,13 +972,16 @@ class Controller(Component):
 
         # While the vision tracking mode is not unset by a service call or an event action
         while self.config._mode == ControllerMode.VISION_FOLLOWER:
-            self._update_state(vision_track_id=_tracked_id)
+            self.__wait_for_trackings(_tracked_id)
 
             if not self.vision_trackings:
-                # tracking is lost
-                # TODO: Add a call to rotate in place to attempt finding the target
-                # For now -> end action
-                break
+                # This will break the loop and abort the action
+                self.health_status.set_fail_system(
+                    topic_names=[
+                        self.get_in_topic(ControllerInputs.VISION_DETECTIONS.key).name
+                    ]
+                )
+                continue
 
             _controller.loop_step(tracking=self.vision_trackings)
 

@@ -180,7 +180,7 @@ class Component(BaseComponent):
         if self.__allowed_outputs:
             kwargs["allowed_config"] = self.__allowed_outputs
         old_dict = (
-            dict(zip(self._inputs_keys, self.out_topics))
+            dict(zip(self._outputs_keys, self.out_topics))
             if hasattr(self, "out_topics")
             else {}
         )
