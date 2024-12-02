@@ -12,7 +12,6 @@ from ros_sugar.utils import (
 )
 from kompass_core.control import StrEnum
 from sensor_msgs.msg import PointCloud2
-from agents_interfaces.msg import Tracking as ROSTracking
 from tf2_ros import TransformStamped
 import PyKDL
 import struct
@@ -113,17 +112,18 @@ def read_pc_points_with_tf(cloud_msg: PointCloud2, transform: TransformStamped):
         yield p_out
 
 
-def visualize_tracking(ros_tracking: ROSTracking, centroid=False, name="Tracking"):
+def visualize_tracking(ros_tracking, centroid=False, name="Tracking"):
     """
     Visualize the bounding boxes on the image contained in a ROSTracking message.
     """
     import logging
+
     # Extract the image
     if ros_tracking.image.data:
         logging.info("Getting img")
         img = image_pre_processing(ros_tracking.image)
     elif ros_tracking.compressed_image.data:
-        logging.info('Getting compressed')
+        logging.info("Getting compressed")
         img = read_compressed_image(ros_tracking.compressed_image)
     else:
         raise ValueError("No valid image found in ROSTracking message")

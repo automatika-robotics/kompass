@@ -46,9 +46,10 @@ class Topic(BaseTopic):
     Overrides Topic from ros_sugar to add msg_type converter and validator from kompass
     """
 
-    _additional_datatypes: List[type] = field(
-        default=get_all_msg_types(msg_types_module=data_types), init=False
-    )
+    pass
+    # _additional_datatypes: List[type] = field(
+    #     default=get_all_msg_types(msg_types_module=data_types), init=False
+    # )
 
 
 @define(kw_only=True)

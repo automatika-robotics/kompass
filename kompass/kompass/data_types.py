@@ -17,19 +17,15 @@ from ros_sugar.supported_types import SupportedType, Twist
 
 # ROS MESSAGES
 from geometry_msgs.msg import PoseStamped as ROSPoseStamped
-from kompass_core.datatypes import LaserScanData, TrackingData
+from kompass_core.datatypes import LaserScanData
 from nav_msgs.msg import Odometry as ROSOdometry
 from nav_msgs.msg import Path as ROSPath
 from kompass_core.models import RobotState
 from sensor_msgs.msg import LaserScan as ROSLaserScan
 from sensor_msgs.msg import PointCloud2 as ROSPointCloud2
-from vision_msgs.msg import Detection2D as ROSDetection2D, BoundingBox2D
 
 from kompass_interfaces.msg import TwistArray as ROSTwistArray
-from agents_interfaces.msg import (
-    Trackings as ROSTrackings,
-    Detections2D as ROSDetections,
-)
+from agents.ros import Trackings as BaseTrackings, Detections, Detection
 
 from .callbacks import (
     GenericCallback,
@@ -41,7 +37,6 @@ from .callbacks import (
     PoseStampedCallback,
     PointCloudCallback,
     TrackingsCallback,
-    DetectionsCallback,
 )
 
 __all__ = [
@@ -59,41 +54,15 @@ __all__ = [
     "Float32",
     "Float64",
     "Trackings",
+    "Detection",
+    "Detections",
 ]
 
 
-class Trackings(SupportedType):
-    """Class to support ROS2 agents_interfaces/msg/Trackings message"""
+class Trackings(BaseTrackings):
+    """Adds callback for automatika_agents_interfaces/msg/Trackings message"""
 
-    _ros_type = ROSTrackings
     callback = TrackingsCallback
-
-
-class Detection2D(SupportedType):
-    """Class to support ROS2 vision_msgs/msg/Detection2D message"""
-
-    _ros_type = ROSDetection2D
-
-    @classmethod
-    def convert(
-        cls,
-        output: TrackingData,
-        **_,
-    ) -> ROSDetection2D:
-        msg = ROSDetection2D()
-        msg.bbox = BoundingBox2D()
-        msg.bbox.size_x = output.size_xy[0]
-        msg.bbox.size_y = output.size_xy[1]
-        msg.bbox.center.position.x = output.center_xy[0]
-        msg.bbox.center.position.y = output.center_xy[1]
-        return msg
-
-
-class Detections(SupportedType):
-    """Class to support ROS2 agents_interfaces/msg/Detections message"""
-
-    _ros_type = ROSDetections
-    callback = DetectionsCallback
 
 
 class LaserScan(BaseLaserScan):

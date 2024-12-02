@@ -30,7 +30,7 @@ _kompass_configs = [
     DriveManagerConfig,
     MotionServerConfig,
     LocalMapperConfig,
-    VisualizerConfig
+    VisualizerConfig,
 ]
 
 

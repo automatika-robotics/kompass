@@ -1,18 +1,18 @@
 """Callback classes used to process input topics data for supported types in Kompass"""
 
-from typing import Optional, Union, List
+from typing import Optional, Union, Any
 import numpy as np
 
 from ros_sugar.io import GenericCallback, OccupancyGridCallback
 from ros_sugar.io import OdomCallback as BaseOdomCallback
 from ros_sugar.io import PointCallback as BasePointCallback
 from ros_sugar.io import PoseCallback as BasePoseCallback
+from ros_sugar.io.utils import read_compressed_image
 from kompass_core.datatypes import (
     LaserScanData,
     PointCloudData,
     TrackingData,
     ImageMetaData,
-    CompressedImageMetaData
 )
 from .utils import read_pc_points, read_pc_points_with_tf
 from kompass_core.utils import geometry as GeometryUtils
@@ -22,7 +22,6 @@ from nav_msgs.msg import Odometry
 from sensor_msgs.msg import LaserScan, PointCloud2
 from tf2_ros import TransformStamped
 from geometry_msgs.msg import Point, Pose
-from agents_interfaces.msg import Tracking as ROSTracking
 
 __all__ = [
     "OdomCallback",
@@ -346,26 +345,8 @@ class PoseStampedCallback(PoseCallback):
         return center_state
 
 
-class DetectionsCallback(GenericCallback):
-    def __init__(
-        self,
-        input_topic,
-        node_name: Optional[str] = None,
-    ) -> None:
-        """__init__.
-
-        :param input_topic:
-        :param node_name:
-        :type node_name: Optional[str]
-        :param transformation:
-        :type transformation: Optional[TransformStamped]
-        :rtype: None
-        """
-        super().__init__(input_topic, node_name)
-
-
 class TrackingsCallback(GenericCallback):
-    """ROS2 Trackings Callback Handler to process and transform agents_interfaces/Trackings data"""
+    """ROS2 Trackings Callback Handler to process and transform automatika_agents_interfaces/Trackings data"""
 
     def __init__(
         self,
@@ -388,7 +369,7 @@ class TrackingsCallback(GenericCallback):
         id: Optional[int] = None,
         label: Optional[str] = None,
         **_,
-    ) -> Union[List[ROSTracking], TrackingData, None]:
+    ) -> Union[Any, TrackingData, None]:
         """
         Gets the trackings data
         :returns:   Topic content
@@ -430,8 +411,11 @@ class TrackingsCallback(GenericCallback):
                     encoding=track.image.encoding,
                 )
             elif track.compressed_image.data:
-                img_meta = CompressedImageMetaData(
+                data: np.ndarray = read_compressed_image(track.compressed_image.data)
+                img_meta = ImageMetaData(
                     frame_id=track.compressed_image.header.frame_id,
+                    width=data.shape[0],
+                    height=data.shape[1],
                     encoding=track.compressed_image.format,
                 )
             else:
@@ -448,7 +432,7 @@ class TrackingsCallback(GenericCallback):
                     track.estimated_velocities[id_index].x,
                     track.estimated_velocities[id_index].y,
                 ],
-                img_meta=img_meta
+                img_meta=img_meta,
             )
         # If requested Id/Label not found
         return None

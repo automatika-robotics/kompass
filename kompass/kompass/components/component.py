@@ -1,13 +1,18 @@
 import time
-from typing import Dict, List, Optional
+import json
+from typing import Dict, List, Optional, Union
 from omegaconf import OmegaConf
 from ros_sugar.core import ComponentFallbacks, BaseComponent
 from ros_sugar.tf import TFListener, TFListenerConfig
+from ros_sugar.supported_types import add_additional_datatypes
 
 from ..callbacks import GenericCallback
-from ..config import ComponentConfig, RobotConfig
+from ..config import ComponentConfig, RobotConfig, BaseAttrs
 from ..topic import RestrictedTopicsConfig, Topic, update_topics, get_all_msg_types
 from .. import data_types
+
+# Get Kompass types to pass to the base component as additional supported types
+add_additional_datatypes(get_all_msg_types(data_types))
 
 
 class Component(BaseComponent):
@@ -89,9 +94,6 @@ class Component(BaseComponent):
 
         self.config = config or ComponentConfig()
 
-        # Get Kompass types to pass to the base component as additional supported types
-        kompass_types = get_all_msg_types(data_types)
-
         super().__init__(
             component_name=component_name,
             config=self.config,
@@ -101,7 +103,6 @@ class Component(BaseComponent):
             callback_group=callback_group,
             enable_health_broadcast=True,
             fallbacks=fallbacks,
-            additional_msg_types=kompass_types,
             **kwargs,
         )
 
@@ -124,37 +125,6 @@ class Component(BaseComponent):
         :type config: RobotConfig
         """
         self.config.robot = config
-
-    # CREATION AND DESTRUCTION METHODS
-    # def create_all_subscribers(self):
-    #     """
-    #     Creates all node subscribers
-    #     """
-    #     self.get_logger().info("STARTING ALL SUBSCRIBERS")
-    #     self.callbacks: Dict[
-    #         str, Union[GenericCallback, Dict[str, GenericCallback]]
-    #     ] = {}
-    #     for key, in_topic in self._input_topics.__dict__.items():
-    #         if isinstance(in_topic, list):
-    #             self.callbacks[key] = {
-    #                 in_t.name: in_t.msg_type.callback(in_t, self.node_name)
-    #                 for in_t in in_topic
-    #             }
-    #         else:
-    #             # Get callback objects from input topics message types
-    #             self.callbacks[key] = in_topic.msg_type.callback(
-    #                 in_topic, self.node_name
-    #             )
-
-    #     # Creates subscriber and attaches it to input callback object
-    #     for callback in self.callbacks.values():
-    #         if isinstance(callback, Dict):
-    #             for callback_item in callback.values():
-    #                 callback_item.set_subscriber(
-    #                     self._add_ros_subscriber(callback_item)
-    #                 )
-    #         else:
-    #             callback.set_subscriber(self._add_ros_subscriber(callback))
 
     # INPUTS/OUTPUTS AND CONFIGURATION
     def inputs(self, **kwargs):
