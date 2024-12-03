@@ -411,7 +411,7 @@ class TrackingsCallback(GenericCallback):
                     encoding=track.image.encoding,
                 )
             elif track.compressed_image.data:
-                data: np.ndarray = read_compressed_image(track.compressed_image.data)
+                data: np.ndarray = read_compressed_image(track.compressed_image)
                 img_meta = ImageMetaData(
                     frame_id=track.compressed_image.header.frame_id,
                     width=data.shape[0],
