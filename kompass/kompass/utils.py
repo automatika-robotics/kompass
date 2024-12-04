@@ -15,9 +15,6 @@ from sensor_msgs.msg import PointCloud2
 from tf2_ros import TransformStamped
 import PyKDL
 import struct
-from ros_sugar.io.utils import image_pre_processing, read_compressed_image
-import cv2
-
 
 __all__ = [
     "IncompatibleSetup",
@@ -110,36 +107,3 @@ def read_pc_points_with_tf(cloud_msg: PointCloud2, transform: TransformStamped):
     for p_in in read_pc_points(cloud_msg):
         p_out = tf_kdl * PyKDL.Vector(p_in[0], p_in[1], p_in[2])
         yield p_out
-
-
-def visualize_tracking(ros_tracking, centroid=False, name="Tracking"):
-    """
-    Visualize the bounding boxes on the image contained in a ROSTracking message.
-    """
-    import logging
-
-    # Extract the image
-    if ros_tracking.image.data:
-        logging.info("Getting img")
-        img = image_pre_processing(ros_tracking.image)
-    elif ros_tracking.compressed_image.data:
-        logging.info("Getting compressed")
-        img = read_compressed_image(ros_tracking.compressed_image)
-    else:
-        raise ValueError("No valid image found in ROSTracking message")
-
-    # Draw bounding boxes
-    for box in ros_tracking.boxes:
-        top_left = (int(box.top_left_x), int(box.top_left_y))
-        bottom_right = (int(box.bottom_right_x), int(box.bottom_right_y))
-        cv2.rectangle(img, top_left, bottom_right, (0, 255, 0), 2)  # Green rectangle
-
-    if centroid:
-        # Optionally, draw centroids
-        for centroid in ros_tracking.centroids:
-            center = (int(centroid.x), int(centroid.y))
-            cv2.circle(img, center, 3, (0, 0, 255), -1)  # Red circle at the centroid
-    # Display the image
-    cv2.imshow(name, img)
-    cv2.waitKey(1)
-    # cv2.destroyAllWindows()

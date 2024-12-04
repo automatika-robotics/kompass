@@ -941,7 +941,9 @@ class Controller(Component):
         response.success = False
         return response
 
-    def __wait_for_trackings(self, tracked_id: Optional[int] = None, max_wait_time: Optional[float] = None):
+    def __wait_for_trackings(
+        self, tracked_id: Optional[int] = None, max_wait_time: Optional[float] = None
+    ):
         """Wait to receive vision_trackings or until timeout
 
         :param tracked_id: Check if id is available in trackings, defaults to None
@@ -950,13 +952,10 @@ class Controller(Component):
         self._update_state(vision_track_id=tracked_id)
         max_wait_time = max_wait_time or self.config.topic_subscription_timeout
         wait_time = 0.0
-        while (
-            not self.vision_trackings
-            and wait_time < max_wait_time
-        ):
+        while not self.vision_trackings and wait_time < max_wait_time:
             self._update_state(vision_track_id=tracked_id)
-            wait_time += self.config.control_time_step
-            time.sleep(self.config.control_time_step)
+            wait_time += 1 / self.config.loop_rate
+            time.sleep(1 / self.config.loop_rate)
 
     def _vision_tracking_callback(self, goal_handle) -> TrackVisionTarget.Result:
         self.get_logger().info("Started vision tracking control action...")
@@ -989,6 +988,8 @@ class Controller(Component):
         config = VisionFollowerConfig(
             control_time_step=self.config.control_time_step,
             target_distance=self.vision_trackings.depth,
+            target_search_timeout=request_msg.search_timeout,
+            target_search_radius=request_msg.search_radius,
         )
         config = self._configure_algorithm(config)
 
@@ -1005,8 +1006,10 @@ class Controller(Component):
 
         # While the vision tracking mode is not unset by a service call or an event action
         while self.config._mode == ControllerMode.VISION_FOLLOWER:
-            # self.__wait_for_trackings(_tracked_id, max_wait_time=)
-            self._update_state(vision_track_id=_tracked_id)
+            # Wait to get tracking
+            self.__wait_for_trackings(
+                _tracked_id, max_wait_time=config.target_search_pause
+            )
 
             current_tracking = copy(self.vision_trackings)
 
@@ -1025,8 +1028,10 @@ class Controller(Component):
             feedback_msg.center_xy = (
                 current_tracking.center_xy if current_tracking else [0.0, 0.0]
             )
-            feedback_msg.size_xy = current_tracking.size_xy if current_tracking else [0.0, 0.0]
-            feedback_msg.distance = 0.0     # TODO
+            feedback_msg.size_xy = (
+                current_tracking.size_xy if current_tracking else [0.0, 0.0]
+            )
+            feedback_msg.distance = 0.0  # TODO
             feedback_msg.orientation = 0.0  # TODO
 
             # Publish control
