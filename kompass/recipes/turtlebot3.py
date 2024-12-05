@@ -9,7 +9,7 @@ from kompass.robot import (
 )
 from kompass.control import LocalPlannersID
 
-from sugar.msg import ComponentStatus
+from automatika_ros_sugar.msg import ComponentStatus
 from kompass_interfaces.action import PlanPath
 from kompass_interfaces.msg import PathTrackingError
 from geometry_msgs.msg import Pose, PointStamped
@@ -59,8 +59,7 @@ def kompass_bringup():
     controller.algorithm = LocalPlannersID.DWA
     controller.direct_sensor = False
 
-    planner.run_type = "Timed"
-    # planner.inputs(goal_point=Topic(name="/clicked_point", msg_type="PointStamped"))
+    planner.run_type = "ActionServer"
 
     driver.on_fail(action=Action(driver.restart))
 
