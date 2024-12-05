@@ -9,6 +9,7 @@ from ros_sugar import Launcher as BaseLauncher
 from ros_sugar import logger
 
 from .components.component import Component
+from .components.defaults import TopicsKeys
 from .config import RobotConfig, RobotFrames
 
 
@@ -172,7 +173,7 @@ class Launcher(BaseLauncher):
                 if (
                     pkg_name == "kompass"
                     and hasattr(component, "in_topics")
-                    and key in component._inputs_keys
+                    and TopicsKeys(key) in component._inputs_keys
                 ):
                     # Update input value
                     component.inputs(**{key: value})

@@ -21,55 +21,21 @@ from kompass_interfaces.msg import PathTrackingError
 from kompass_interfaces.srv import PathFromToFile, StartPathRecording
 from kompass_interfaces.srv import PlanPath as PlanPathSrv
 
-from ..callbacks import GenericCallback
-
 # KOMPASS ROS
 from ..config import BaseValidators, ComponentConfig, ComponentRunType, QoSConfig
 from ..data_types import Path as KompassPath
 from ..topic import (
-    AllowedTopic,
-    Publisher,
-    RestrictedTopicsConfig,
     Topic,
     update_topics,
 )
-
-# KOMPASS MSGS/SRVS/ACTIONS
 from .component import Component
-
-
-class PlannerInputs(RestrictedTopicsConfig):
-    # Restricted Topics Config for Planner component authorized input topics
-
-    MAP = AllowedTopic(key="map_layer", types=["OccupancyGrid"])
-    GOAL = AllowedTopic(
-        key="goal_point", types=["Odometry", "PoseStamped", "PointStamped"]
-    )
-    LOCATION = AllowedTopic(key="location", types=["Odometry"])
-
-
-class PlannerOutputs(RestrictedTopicsConfig):
-    # Restricted Topics Config for Planner component authorized output topics
-
-    PLAN = AllowedTopic(key="plan", types=["Path"])
-    REACHED_GOAL = AllowedTopic(key="reached_end", types=["Bool"])
-
-
-# Default values for inputs / outputs
-_planner_default_inputs = {
-    "map_layer": Topic(
-        name="/map",
-        msg_type="OccupancyGrid",
-        qos_profile=QoSConfig(durability=qos.DurabilityPolicy.TRANSIENT_LOCAL),
-    ),
-    "goal_point": Topic(name="/goal", msg_type="PointStamped"),
-    "location": Topic(name="/odom", msg_type="Odometry"),
-}
-
-_planner_default_outputs = {
-    "plan": Topic(name="/plan", msg_type="Path"),
-    "reached_end": Topic(name="/reached_end", msg_type="Bool"),
-}
+from .defaults import (
+    TopicsKeys,
+    planner_allowed_inputs,
+    planner_allowed_outputs,
+    planner_default_inputs,
+    planner_default_outputs,
+)
 
 
 class PlannerConfig(ComponentConfig):
@@ -148,53 +114,50 @@ class Planner(Component):
         outputs: Optional[Dict[str, Topic]] = None,
         **kwargs,
     ) -> None:
-        if not config:
-            config = PlannerConfig()
+        config = config or PlannerConfig()
 
-        # Get default component inputs/outputs
-        in_topics = _planner_default_inputs()
-        out_topics = _planner_default_outputs()
-
-        if inputs:
-            in_topics = update_topics(in_topics, **inputs)
-
-        if outputs:
-            out_topics = update_topics(out_topics, **outputs)
-
-        # Type deceleration
-        self.callbacks: Dict[str, GenericCallback]
-        self.publishers_dict: Dict[str, Publisher]
+        # Update defaults from custom topics if provided
+        in_topics = (
+            update_topics(planner_default_inputs, **inputs)
+            if inputs
+            else planner_default_inputs
+        )
+        out_topics = (
+            update_topics(planner_default_outputs, **outputs)
+            if outputs
+            else planner_default_outputs
+        )
 
         super().__init__(
             config=config,
             config_file=config_file,
             inputs=in_topics,
             outputs=out_topics,
-            allowed_inputs=PlannerInputs,
-            allowed_outputs=PlannerOutputs,
+            allowed_inputs=planner_allowed_inputs,
+            allowed_outputs=planner_allowed_outputs,
             component_name=component_name,
+            allowed_run_types=[
+                ComponentRunType.TIMED,
+                ComponentRunType.ACTION_SERVER,
+                ComponentRunType.EVENT,
+            ],
             **kwargs,
         )
 
         self.config: PlannerConfig = config
 
-        self._block_types()
-
-    def _block_types(self):
-        """
-        Main service and action types of the planner component
-        """
+        # Main service and action types of the planner component
         self.service_type = PlanPathSrv
         self.action_type = PlanPathAction
 
-    def configure(self, config_file: str):
+    def config_from_yaml(self, config_file: str):
         """
         Configure the planner node and the algorithm from file
 
         :param config_file: Yaml file
         :type config_file: str
         """
-        super().configure(config_file)
+        super().config_from_yaml(config_file)
         if hasattr(self, "ompl_planner"):
             self.ompl_planner.configure(config_file, self.node_name)
 
@@ -202,8 +165,6 @@ class Planner(Component):
         """
         Overwrites the init variables method called at Node init
         """
-        self._block_types()
-
         self.goal: Optional[RobotState] = None
         self.robot_state: Optional[RobotState] = None
         self.map: Optional[np.ndarray] = None
@@ -220,13 +181,15 @@ class Planner(Component):
         self.ompl_planner = OMPLGeometric(robot=self.__robot)
 
         if self._config_file:
-            self.configure(self._config_file)
+            self.config_from_yaml(self._config_file)
 
         # Path and ROS path message
         self.path = None
         self.recorded_motion = None
         self._recording_on = False
         self.ros_path = None
+
+        self._attach_callbacks()
 
     def create_all_services(self):
         """
@@ -248,7 +211,7 @@ class Planner(Component):
             self._start_path_recording_callback,
         )
         # Call component service creation (for main service if running as a server)
-        Component.create_all_services(self)
+        super().create_all_services()
 
     def destroy_all_services(self):
         """
@@ -258,18 +221,19 @@ class Planner(Component):
         self.destroy_service(self.__load_plan_srv)
         self.destroy_service(self.__record_motion_srv)
         # Call component service destruction (for main service if running as a server)
-        Component.destroy_all_services(self)
+        super().destroy_all_services()
 
-    def _clear_path(self, **_):
+    def _clear_path(self, *_, **__):
         """
         Clear the last computed path
         """
-        self.ompl_planner.clear()
+        if hasattr(self, "ompl_planner"):
+            self.ompl_planner.clear()
         self.path = None
         # Set last path cost to inf to clear last path
         self._last_path_cost = float("inf")
 
-    def attach_callbacks(self):
+    def _attach_callbacks(self):
         """
         Attaches planning method to goal_point topic callback if run_type is event based
         """
@@ -277,12 +241,13 @@ class Planner(Component):
             self.get_logger().info(
                 "Attaching Planning Callback for Event-Based Planner Component"
             )
-            self.get_callback(PlannerInputs.GOAL.key).on_callback_execute(
-                self._plan_on_goal
+            self.attach_custom_callback(
+                self.get_in_topic(TopicsKeys.GOAL_POINT), self._plan_on_goal
             )
+
         if self.run_type in [ComponentRunType.EVENT, ComponentRunType.TIMED]:
-            self.get_callback(PlannerInputs.GOAL.key).on_callback_execute(
-                self._clear_path
+            self.attach_custom_callback(
+                self.get_in_topic(TopicsKeys.GOAL_POINT), self._clear_path
             )
 
     def main_service_callback(
@@ -403,10 +368,11 @@ class Planner(Component):
 
         action_feedback_msg.plan = Path()
 
-        while not self.got_all_inputs(inputs_to_check=["location"]):
-            topic_name = self.get_callback(PlannerInputs.LOCATION.key).input_topic.name
+        while not self.got_all_inputs(
+            inputs_to_check=[self.in_topic_name(TopicsKeys.ROBOT_LOCATION)]
+        ):
             self.get_logger().warn(
-                f"Location input topic '{topic_name}' is not available, waiting...",
+                f"Location input topic '{self.in_topic_name(TopicsKeys.ROBOT_LOCATION)}' is not available, waiting...",
                 once=True,
             )
 
@@ -454,7 +420,9 @@ class Planner(Component):
         """
         # Check if all inputs are available
         # goal_point is excluded since goal can be provided by either a topic, service call or action goal
-        if self.got_all_inputs(inputs_to_check=["map_layer"]):
+        if self.got_all_inputs(
+            inputs_to_check=[self.in_topic_name(TopicsKeys.GLOBAL_MAP)]
+        ):
             self.get_logger().debug(
                 f"Setting planning problem with {self.ompl_planner.planner_id} from [{start.x},{start.y}] to [{goal.x}, {goal.y}] and map data {self.map_data}"
             )
@@ -507,7 +475,7 @@ class Planner(Component):
         # If a plan was produced publish it
         if publish_path and self.path:
             self.ros_path = Path()
-            self.ros_path.header.frame_id = "map"
+            self.ros_path.header.frame_id = self.config.frames.world
             self.ros_path.header.stamp = self.get_ros_time()
             points = self.path.getStates()
 
@@ -523,7 +491,7 @@ class Planner(Component):
                 ros_point.pose.orientation.w = q_rot[0]
                 self.ros_path.poses.append(ros_point)
             try:
-                self.get_publisher(PlannerOutputs.PLAN.key).publish(self.ros_path)
+                self.get_publisher(TopicsKeys.GLOBAL_PLAN).publish(self.ros_path)
 
             except Exception as e:
                 self.get_logger().error(f"Publishing exception: {e}")
@@ -535,11 +503,11 @@ class Planner(Component):
         Updates all inputs
         """
         self.map: Optional[np.ndarray] = self.get_callback(
-            PlannerInputs.MAP.key
+            TopicsKeys.GLOBAL_MAP
         ).get_output()
 
         self.robot_state: Optional[RobotState] = self.get_callback(
-            PlannerInputs.LOCATION.key
+            TopicsKeys.ROBOT_LOCATION
         ).get_output(
             transformation=self.odom_tf_listener.transform
             if self.odom_tf_listener
@@ -547,11 +515,11 @@ class Planner(Component):
         )
 
         self.map_data: Optional[Dict] = self.get_callback(
-            PlannerInputs.MAP.key
+            TopicsKeys.GLOBAL_MAP
         ).get_output(get_metadata=True)
 
         self.goal: Optional[RobotState] = self.get_callback(
-            PlannerInputs.GOAL.key
+            TopicsKeys.GOAL_POINT
         ).get_output()
 
     def _plan_on_goal(self, msg, **_):
@@ -568,7 +536,9 @@ class Planner(Component):
 
         goal_state = RobotState(x=msg.point.x, y=msg.point.y)
 
-        if self.got_all_inputs(inputs_to_check=["location"]):
+        if self.got_all_inputs(
+            inputs_to_check=[self.in_topic_name(TopicsKeys.ROBOT_LOCATION)]
+        ):
             self._plan(self.robot_state, goal_state)
         else:
             # Robot location not known -> cannot plan
@@ -576,9 +546,7 @@ class Planner(Component):
                 f"Got goal point {goal_state} but cannot plan. Robot location is not known"
             )
             self.health_status.set_fail_system(
-                topic_names=[
-                    self.get_callback(PlannerInputs.LOCATION.key).input_topic.name
-                ]
+                topic_names=[self.in_topic_name(TopicsKeys.ROBOT_LOCATION)]
             )
 
     def _execution_step(self):
@@ -586,7 +554,6 @@ class Planner(Component):
         Main execution of the component, executed at each timer tick with rate 'loop_rate' from config
         """
         self._update_state()
-        super()._execution_step()
 
         if self.run_type == ComponentRunType.TIMED and self.goal and self.robot_state:
             self._plan(self.robot_state, self.goal)
@@ -654,13 +621,13 @@ class Planner(Component):
             )
             response.started_recording = True
             response.message = (
-                f"Started recording motion from odom topic {PlannerInputs.LOCATION.key}"
+                f"Started recording motion from odom topic {TopicsKeys.ROBOT_LOCATION}"
             )
         else:
             self.recorded_motion = None
             self._recording_on = False
             response.started_recording = False
-            response.message = f"Cannot start recording. Location not available on topic: {PlannerInputs.LOCATION.key}"
+            response.message = f"Cannot start recording. Location not available on topic: {TopicsKeys.ROBOT_LOCATION}"
         return response
 
     def __record_new_point_callback(self):
@@ -699,7 +666,7 @@ class Planner(Component):
             response.path_length = len(self.ros_path.poses)
             response.global_path = self.ros_path
 
-            self.get_publisher(PlannerOutputs.PLAN.value.key).publish(self.ros_path)
+            self.get_publisher(TopicsKeys.GLOBAL_PLAN).publish(self.ros_path)
 
         else:
             self.get_logger().warning("Invalid file -> No plan is loaded")
