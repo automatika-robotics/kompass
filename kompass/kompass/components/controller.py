@@ -35,7 +35,7 @@ from kompass_interfaces.action import ControlPath, TrackVisionTarget
 from ..config import BaseValidators, ComponentConfig, ComponentRunType
 
 # KOMPASS ROS
-from ..topic import (
+from .ros import (
     Topic,
     update_topics,
 )
@@ -575,7 +575,9 @@ class Controller(Component):
         if self.config._mode == ControllerMode.VISION_FOLLOWER and self.__tracked_label:
             self.vision_trackings = self.get_callback(
                 TopicsKeys.VISION_TRACKINGS
-            ).get_output(label=self.__tracked_label, id=vision_track_id)
+            ).get_output(
+                label=self.__tracked_label, id=vision_track_id, clear_last=True
+            )
 
     def _attach_callbacks(self) -> None:
         """
@@ -902,13 +904,18 @@ class Controller(Component):
         self._update_state(vision_track_id=tracked_id)
         max_wait_time = max_wait_time or self.config.topic_subscription_timeout
         wait_time = 0.0
-        while not self.vision_trackings and wait_time < max_wait_time:
+        while not self.vision_trackings and wait_time <= max_wait_time:
+            self.get_logger().info(
+                f"waiting for tracking {wait_time}s < {max_wait_time}s..."
+            )
             self._update_state(vision_track_id=tracked_id)
             wait_time += 1 / self.config.loop_rate
             time.sleep(1 / self.config.loop_rate)
 
     def _vision_tracking_callback(self, goal_handle) -> TrackVisionTarget.Result:
-        self.get_logger().info("Started vision tracking control action...")
+        self.get_logger().info(
+            f"Started vision tracking control action... {self.config.control_time_step}"
+        )
 
         self.activate_vision_mode()
 
@@ -938,7 +945,9 @@ class Controller(Component):
         config = VisionFollowerConfig(
             control_time_step=self.config.control_time_step,
             target_distance=self.vision_trackings.depth,
-            target_search_timeout=request_msg.search_timeout,
+            target_search_timeout=int(
+                request_msg.search_timeout / self.config.control_time_step
+            ),
             target_search_radius=request_msg.search_radius,
         )
         config = self._configure_algorithm(config)
@@ -958,7 +967,8 @@ class Controller(Component):
         while self.config._mode == ControllerMode.VISION_FOLLOWER:
             # Wait to get tracking
             self.__wait_for_trackings(
-                _tracked_id, max_wait_time=config.target_search_pause
+                _tracked_id,
+                max_wait_time=config.target_search_pause * config.control_time_step,
             )
 
             current_tracking = copy(self.vision_trackings)
@@ -973,7 +983,6 @@ class Controller(Component):
                 goal_handle.abort()
                 return result
 
-            self.get_logger().info(f"track: {current_tracking}")
             # Publish feedback
             feedback_msg.center_xy = (
                 current_tracking.center_xy if current_tracking else [0.0, 0.0]
@@ -992,8 +1001,9 @@ class Controller(Component):
             )
             if self.vision_trackings:
                 self.get_logger().info(
-                    "Following tracked target: {0}".format(feedback_msg)
+                    f"Following tracked target: {_controller.linear_x_control}, {_controller.angular_control}"
                 )
+                self.get_logger().info(f"tracked target: {self.vision_trackings}")
             else:
                 self.get_logger().info(
                     f"Searching for tracked target with control: {_controller.linear_x_control}, {_controller.angular_control}"
