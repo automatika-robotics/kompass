@@ -1,22 +1,8 @@
-"""Inputs/Outputs configuration classes"""
-
 from typing import Optional, Dict
 
-from attrs import define
-from ros_sugar.io import Publisher, get_all_msg_types, AllowedTopics
-from ros_sugar.io import Topic as BaseTopic
-from .components.defaults import TopicsKeys
-
-__all__ = ["Publisher", "Topic", "update_topics", "get_all_msg_types"]
-
-
-@define(kw_only=True)
-class Topic(BaseTopic):
-    """
-    Overrides Topic from ros_sugar to add msg_type converter and validator from kompass
-    """
-
-    pass
+from ros_sugar.io import AllowedTopics
+from ros_sugar.io import Topic
+from .defaults import TopicsKeys
 
 
 def _check_value_type_allowed_config(

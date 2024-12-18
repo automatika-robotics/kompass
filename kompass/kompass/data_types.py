@@ -25,7 +25,11 @@ from sensor_msgs.msg import LaserScan as ROSLaserScan
 from sensor_msgs.msg import PointCloud2 as ROSPointCloud2
 
 from kompass_interfaces.msg import TwistArray as ROSTwistArray
-from agents.ros import Trackings as BaseTrackings, Detections, Detection
+from agents.ros import (
+    Trackings as BaseTrackings,
+    Detections as BaseDetections,
+    Detection,
+)
 
 from .callbacks import (
     GenericCallback,
@@ -37,6 +41,7 @@ from .callbacks import (
     PoseStampedCallback,
     PointCloudCallback,
     TrackingsCallback,
+    DetectionsCallback,
 )
 
 __all__ = [
@@ -57,6 +62,12 @@ __all__ = [
     "Detection",
     "Detections",
 ]
+
+
+class Detections(BaseDetections):
+    """Adds callback for automatika_agents_interfaces/msg/Detections message"""
+
+    callback = DetectionsCallback
 
 
 class Trackings(BaseTrackings):

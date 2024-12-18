@@ -32,6 +32,7 @@ __all__ = [
     "LaserScanCallback",
     "OccupancyGridCallback",
     "TrackingsCallback",
+    "DetectionsCallback",
 ]
 
 
@@ -431,6 +432,94 @@ class TrackingsCallback(GenericCallback):
                 velocity_xy=[
                     track.estimated_velocities[id_index].x,
                     track.estimated_velocities[id_index].y,
+                ],
+                img_meta=img_meta,
+            )
+        # If requested Id/Label not found
+        return None
+
+
+class DetectionsCallback(GenericCallback):
+    """ROS2 Detections Callback Handler to process and transform automatika_agents_interfaces/Detections data"""
+
+    def __init__(
+        self,
+        input_topic,
+        node_name: Optional[str] = None,
+    ) -> None:
+        """__init__.
+
+        :param input_topic:
+        :param node_name:
+        :type node_name: Optional[str]
+        :param transformation:
+        :type transformation: Optional[TransformStamped]
+        :rtype: None
+        """
+        super().__init__(input_topic, node_name)
+
+    def _get_output(
+        self,
+        label: Optional[str] = None,
+        id: Optional[int] = 0,
+        **_,
+    ) -> Union[Any, TrackingData, None]:
+        """
+        Gets the trackings data
+        :returns:   Topic content
+        :rtype:     Union[ROSTrackings, np.ndarray, None]
+        """
+        if not self.msg:
+            # If no op
+            return None
+
+        raw_detections = self.msg.detections
+
+        # If no option is provided return raw trackings
+        if not label:
+            return raw_detections
+
+        # Get requested item from trackings using id or label
+        detection_index = None
+        label_index = None
+        for idx, detection in enumerate(raw_detections):
+            if label in detection.labels:
+                detection_index = idx
+                label_index = detection.labels.index(label)
+                break
+        if detection_index is not None and label_index is not None:
+            det = raw_detections[detection_index]
+            bbox_2d = det.boxes[label_index]
+
+            # Update the source image data if available
+            if det.image.data:
+                img_meta = ImageMetaData(
+                    frame_id=det.image.header.frame_id,
+                    width=det.image.width,
+                    height=det.image.height,
+                    encoding=det.image.encoding,
+                )
+            elif det.compressed_image.data:
+                data: np.ndarray = read_compressed_image(det.compressed_image)
+                img_meta = ImageMetaData(
+                    frame_id=det.compressed_image.header.frame_id,
+                    width=data.shape[0],
+                    height=data.shape[1],
+                    encoding=det.compressed_image.format,
+                )
+            else:
+                img_meta = None
+
+            return TrackingData(
+                label=label,
+                id=id,
+                center_xy=[
+                    (bbox_2d.bottom_right_x + bbox_2d.top_left_x) / 2,
+                    (bbox_2d.top_left_y + bbox_2d.bottom_right_y) / 2,
+                ],
+                size_xy=[
+                    abs(bbox_2d.bottom_right_x - bbox_2d.top_left_x),
+                    abs(bbox_2d.bottom_right_y - bbox_2d.top_left_y),
                 ],
                 img_meta=img_meta,
             )
