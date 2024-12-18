@@ -1,10 +1,10 @@
 from typing import Dict
 from ros_sugar.supported_types import add_additional_datatypes
-from ..topic import get_all_msg_types
 from .. import data_types
-from ros_sugar.io import Topic, AllowedTopics
-from ..config import QoSConfig
+from ros_sugar.io import AllowedTopics, get_all_msg_types
+from ros_sugar.config import QoSConfig
 from rclpy import qos
+from ..ros import Topic
 from ..utils import StrEnum
 
 # Get Kompass types to pass to the base component as additional supported types
@@ -41,7 +41,7 @@ controller_allowed_inputs: Dict[str, AllowedTopics] = {
     TopicsKeys.ROBOT_LOCATION: AllowedTopics(types=["Odometry"]),
     TopicsKeys.SPATIAL_SENSOR: AllowedTopics(types=["LaserScan", "PointCloud2"]),
     TopicsKeys.LOCAL_MAP: AllowedTopics(types=["OccupancyGrid"]),
-    TopicsKeys.VISION_TRACKINGS: AllowedTopics(types=["Trackings"]),
+    TopicsKeys.VISION_TRACKINGS: AllowedTopics(types=["Trackings", "Detections"]),
 }
 
 controller_allowed_outputs: Dict[str, AllowedTopics] = {
@@ -58,7 +58,9 @@ controller_allowed_outputs: Dict[str, AllowedTopics] = {
 controller_default_inputs: Dict[str, Topic] = {
     TopicsKeys.GLOBAL_PLAN: Topic(name="/plan", msg_type="Path"),
     TopicsKeys.SPATIAL_SENSOR: Topic(name="/scan", msg_type="LaserScan"),
-    TopicsKeys.LOCAL_MAP: Topic(name="/local_map/occupancy_layer", msg_type="OccupancyGrid"),
+    TopicsKeys.LOCAL_MAP: Topic(
+        name="/local_map/occupancy_layer", msg_type="OccupancyGrid"
+    ),
     TopicsKeys.ROBOT_LOCATION: Topic(name="/odom", msg_type="Odometry"),
     TopicsKeys.VISION_TRACKINGS: Topic(name="/trackings", msg_type="Trackings"),
 }
@@ -66,7 +68,9 @@ controller_default_inputs: Dict[str, Topic] = {
 # Create default outputs - Used if no outputs config is provided to the controller
 controller_default_outputs: Dict[str, Topic] = {
     TopicsKeys.INTERMEDIATE_CMD: Topic(name="/control", msg_type="Twist"),
-    TopicsKeys.INTERMEDIATE_CMD_LIST: Topic(name="/control_list", msg_type="TwistArray"),
+    TopicsKeys.INTERMEDIATE_CMD_LIST: Topic(
+        name="/control_list", msg_type="TwistArray"
+    ),
     TopicsKeys.INTERPOLATED_PATH: Topic(name="/interpolated_path", msg_type="Path"),
     TopicsKeys.TRACKED_POINT: Topic(name="/tracked_point", msg_type="PoseStamped"),
     TopicsKeys.LOCAL_PLAN: Topic(name="/local_path", msg_type="Path"),
@@ -81,7 +85,9 @@ driver_allowed_inputs: Dict[str, AllowedTopics] = {
         number_required=1,
         number_optional=10,
     ),
-    TopicsKeys.ROBOT_LOCATION: AllowedTopics(types=["Odometry", "PoseStamped", "PointStamped"]),
+    TopicsKeys.ROBOT_LOCATION: AllowedTopics(
+        types=["Odometry", "PoseStamped", "PointStamped"]
+    ),
 }
 
 driver_allowed_outputs: Dict[str, AllowedTopics] = {

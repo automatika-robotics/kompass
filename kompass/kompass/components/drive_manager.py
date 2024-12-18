@@ -10,7 +10,7 @@ from kompass_interfaces.msg import TwistArray
 
 # KOMPASS ROS
 from ..config import BaseValidators, ComponentConfig, ComponentRunType
-from ..topic import Topic, update_topics
+from .ros import Topic, update_topics
 from .component import Component
 from .utils import twist_array_to_ros_twist
 from ..callbacks import LaserScanCallback

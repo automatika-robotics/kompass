@@ -15,7 +15,7 @@ from kompass_core.datatypes.laserscan import LaserScanData
 
 # KOMPASS ROS
 from ..config import ComponentConfig
-from ..topic import Topic, update_topics
+from .ros import Topic, update_topics
 from .component import Component
 from .defaults import (
     TopicsKeys,

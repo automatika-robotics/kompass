@@ -12,9 +12,6 @@ from nav_msgs.msg import Path
 from kompass_core.models import Robot, RobotState
 from kompass_core.third_party.ompl.planner import OMPLGeometric
 
-# RCLPY
-from rclpy import qos
-
 # KOMPASS INTERFACES
 from kompass_interfaces.action import PlanPath as PlanPathAction
 from kompass_interfaces.msg import PathTrackingError
@@ -22,9 +19,9 @@ from kompass_interfaces.srv import PathFromToFile, StartPathRecording
 from kompass_interfaces.srv import PlanPath as PlanPathSrv
 
 # KOMPASS ROS
-from ..config import BaseValidators, ComponentConfig, ComponentRunType, QoSConfig
+from ..config import BaseValidators, ComponentConfig, ComponentRunType
 from ..data_types import Path as KompassPath
-from ..topic import (
+from .ros import (
     Topic,
     update_topics,
 )

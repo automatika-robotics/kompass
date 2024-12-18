@@ -11,7 +11,7 @@ from rclpy.callback_groups import CallbackGroup
 from kompass_interfaces.action import MotionRecording
 
 from ..config import BaseValidators, ComponentConfig, ComponentRunType
-from ..topic import Topic, update_topics
+from .ros import Topic, update_topics
 from .component import Component
 from .defaults import (
     TopicsKeys,
