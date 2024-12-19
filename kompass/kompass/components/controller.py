@@ -906,7 +906,8 @@ class Controller(Component):
         wait_time = 0.0
         while not self.vision_trackings and wait_time <= max_wait_time:
             self.get_logger().info(
-                f"waiting for tracking {wait_time}s < {max_wait_time}s..."
+                f"waiting for tracking, timeout in {round(max_wait_time, 2)}s...",
+                once=True,
             )
             self._update_state(vision_track_id=tracked_id)
             wait_time += 1 / self.config.loop_rate
@@ -957,7 +958,7 @@ class Controller(Component):
             ctrl_limits=self.__robot_ctr_limits,
             config=config,
             config_file=self._config_file,
-            config_yaml_root_name=f"{self.node_name}.vision_tracker",
+            config_yaml_root_name=f"{self.node_name}.VisionFollower",
         )
 
         # time the tracking period
@@ -971,9 +972,7 @@ class Controller(Component):
                 max_wait_time=config.target_search_pause * config.control_time_step,
             )
 
-            current_tracking = copy(self.vision_trackings)
-
-            found_ctrl = _controller.loop_step(tracking=current_tracking)
+            found_ctrl = _controller.loop_step(tracking=self.vision_trackings)
 
             if not found_ctrl:
                 self.get_logger().info(
@@ -985,10 +984,10 @@ class Controller(Component):
 
             # Publish feedback
             feedback_msg.center_xy = (
-                current_tracking.center_xy if current_tracking else [0.0, 0.0]
+                self.vision_trackings.center_xy if self.vision_trackings else [0.0, 0.0]
             )
             feedback_msg.size_xy = (
-                current_tracking.size_xy if current_tracking else [0.0, 0.0]
+                self.vision_trackings.size_xy if self.vision_trackings else [0.0, 0.0]
             )
             feedback_msg.distance = 0.0  # TODO
             feedback_msg.orientation = 0.0  # TODO
