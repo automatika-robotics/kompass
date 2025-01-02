@@ -4,7 +4,6 @@ from attrs import define, field
 from queue import Queue, Empty
 import numpy as np
 from ..utils import StrEnum
-from copy import copy
 
 from rclpy.logging import get_logger
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
@@ -155,16 +154,73 @@ class Controller(Component):
     """
     Controller component used for path tracking and control around dynamic obstacles during navigation.
 
-    ## Input Topics:
-    - *plan*: Global path from current to goal location.<br />  Default ```Topic(name="/plan", msg_type="Path")```
-    - *sensor_data*: Sensory information for direct sensor-based control.<br />  Default ```Topic(name="/scan", msg_type="LaserScan")```
-    - *location*: the robot current location.<br /> Default ```Topic(name="/odom", msg_type="Odometry")```
 
-    ## Output Topics:
-    - *command*: Control command.<br />  Default ```Topic(name="/control", msg_type="Twist")```
-    - *multi_command*: Set of future control commands.<br />  Default ```Topic(name="/control_list", msg_type="TwistArray")```
-    - *interpolation*: Interpolated path.<br />  Default ```Topic(name="/interpolated_path", msg_type="Path")```
-    - *tracked_point*: Tracked path point.<br />  Default ```Topic(name="/tracked_point", msg_type="PoseStamped")```
+    ## Inputs:
+    ```{list-table}
+    :widths: 10 40 10 40
+    :header-rows: 1
+    * - Key Name
+      - Allowed Types
+      - Number
+      - Default
+
+    * - plan
+      - [`nav_msgs.msg.Path`](http://docs.ros.org/en/noetic/api/nav_msgs/html/msg/Path.html)
+      - 1
+      - `Topic(name="/plan", msg_type="Path")`
+
+    * - location
+      - [`nav_msgs.msg.Odometry`](https://docs.ros.org/en/noetic/api/nav_msgs/html/msg/Odometry.html), [`geometry_msgs.msg.PoseStamped`](http://docs.ros.org/en/jade/api/geometry_msgs/html/msg/PoseStamped.html), [`geometry_msgs.msg.Pose`](http://docs.ros.org/en/jade/api/geometry_msgs/html/msg/Pose.html)
+      - 1
+      - `Topic(name="/odom", msg_type="Odometry")`
+
+    * - sensor_data
+      - [`sensor_msgs.msg.LaserScan`](https://docs.ros.org/en/noetic/api/sensor_msgs/html/msg/LaserScan.html), [`sensor_msgs.msg.PointCloud2`](http://docs.ros.org/en/noetic/api/sensor_msgs/html/msg/PointCloud2.html)
+      - 1
+      - `Topic(name="/scan", msg_type="LaserScan")`
+
+    * - local_map
+      - [`nav_msgs.msg.OccupancyGrid`](http://docs.ros.org/en/noetic/api/nav_msgs/html/msg/OccupancyGrid.html)
+      - 1
+      - `Topic(name="/local_map/occupancy_layer", msg_type="OccupancyGrid")`
+
+    * - vision_tracking
+      - [`automatika_embodied_agents.msg.Trackings`](https://github.com/automatika-robotics/ros-agents/tree/main/agents_interfaces/msg), [`automatika_embodied_agents.msg.Detections2D`](https://github.com/automatika-robotics/ros-agents/tree/main/agents_interfaces/msg)
+      - 1
+      - `Topic(name="/trackings", msg_type="Trackings")`
+    ```
+
+    ## Outputs:
+
+    ```{list-table}
+    :widths: 10 40 10 40
+    :header-rows: 1
+    * - Key Name
+      - Allowed Types
+      - Number
+      - Default
+
+    * - command
+      - [`geometry_msgs.msg.Twist`](http://docs.ros.org/en/noetic/api/geometry_msgs/html/msg/Twist.html)
+      - 1
+      - ```Topic(name="/control", msg_type="Twist")```
+    * - multi_command
+      - [`kompass_interfaces.msg.TwistArray`](https://github.com/automatika-robotics/kompass/tree/main/kompass_interfaces/msg)
+      - 1
+      - ```Topic(name="/control_list", msg_type="TwistArray")```
+    * - interpolation
+      - [`nav_msgs.msg.Path`](http://docs.ros.org/en/noetic/api/nav_msgs/html/msg/Path.html)
+      - 1
+      - ```Topic(name="/interpolated_path", msg_type="Path")```
+    * - local_plan
+      - [`nav_msgs.msg.Path`](http://docs.ros.org/en/noetic/api/nav_msgs/html/msg/Path.html)
+      - 1
+      - ```Topic(name="/local_path", msg_type="Path")```
+    * - tracked_point
+      - [`nav_msgs.msg.Odometry`](https://docs.ros.org/en/noetic/api/nav_msgs/html/msg/Odometry.html), [`geometry_msgs.msg.PoseStamped`](http://docs.ros.org/en/jade/api/geometry_msgs/html/msg/PoseStamped.html), [`geometry_msgs.msg.Pose`](http://docs.ros.org/en/jade/api/geometry_msgs/html/msg/Pose.html)[`automatika_embodied_agents.msg.Detection2D`](https://github.com/automatika-robotics/ros-agents/tree/main/agents_interfaces/msg)
+      - 1
+      - ```Topic(name="/tracked_point", msg_type="PoseStamped")```
+    ```
 
     ## Available Run Types:
     Set from ControllerConfig class or directly from Controller 'run_type' property.
@@ -173,21 +229,24 @@ class Controller(Component):
     - *ACTIONSERVER*: Offers a ControlPath ROS action and continuously computes a new control once an action request is received until goal point is reached
 
     ## Usage Example:
-    ```
-        # Setup custom configuration
-        my_config = ControllerConfig(loop_rate=10.0, control_horizon_number_of_steps=7)
+    ```python
+    from kompass.components import ControllerConfig, Controller
+    from kompass.topic import Topic
 
-        # Init a controller object
-        my_controller = Controller(component_name="controller", config=my_config)
+    # Setup custom configuration
+    my_config = ControllerConfig(loop_rate=10.0)
 
-        # Change an input
-        my_controller.inputs(plan=Topic(name='/global_path', msg_type='Path'))
+    # Init a controller object
+    my_controller = Controller(component_name="controller", config=my_config)
 
-        # Change run type (default "Timed")
-        my_controller.run_type = "ActionServer"
+    # Change an input
+    my_controller.inputs(plan=Topic(name='/global_path', msg_type='Path'))
 
-        # Change algorithm
-        my_controller.algorithm = LocalPlannersID.DWA_PLANNER
+    # Change run type (default "Timed")
+    my_controller.run_type = "ActionServer"
+
+    # Change plugin
+    my_controller.plugin = 'DWA'
     ```
     """
 
@@ -906,7 +965,7 @@ class Controller(Component):
         wait_time = 0.0
         while not self.vision_trackings and wait_time <= max_wait_time:
             self.get_logger().info(
-                f"waiting for tracking, timeout in {round(max_wait_time, 2)}s...",
+                f"Waiting for vision target information, timeout in {round(max_wait_time, 2)}s...",
                 once=True,
             )
             self._update_state(vision_track_id=tracked_id)
@@ -914,6 +973,13 @@ class Controller(Component):
             time.sleep(1 / self.config.loop_rate)
 
     def _vision_tracking_callback(self, goal_handle) -> TrackVisionTarget.Result:
+        """Vision target tracking action callback
+
+        :param goal_handle: Vision target tracking action goal message
+        :type goal_handle: TrackVisionTarget.Goal
+        :return: Vision target tracking action result
+        :rtype: TrackVisionTarget.Result
+        """
         self.get_logger().info(
             f"Started vision tracking control action... {self.config.control_time_step}"
         )

@@ -415,8 +415,8 @@ class TrackingsCallback(GenericCallback):
                 data: np.ndarray = read_compressed_image(track.compressed_image)
                 img_meta = ImageMetaData(
                     frame_id=track.compressed_image.header.frame_id,
-                    width=data.shape[0],
-                    height=data.shape[1],
+                    width=data.shape[1],
+                    height=data.shape[0],
                     encoding=track.compressed_image.format,
                 )
             else:
@@ -503,8 +503,8 @@ class DetectionsCallback(GenericCallback):
                 data: np.ndarray = read_compressed_image(det.compressed_image)
                 img_meta = ImageMetaData(
                     frame_id=det.compressed_image.header.frame_id,
-                    width=data.shape[0],
-                    height=data.shape[1],
+                    width=data.shape[1],
+                    height=data.shape[0],
                     encoding=det.compressed_image.format,
                 )
             else:

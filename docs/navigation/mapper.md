@@ -22,42 +22,39 @@ Set from ControllerConfig class or directly from Controller 'run_type' property.
 ## Inputs
 
 ```{list-table}
-:widths: 10 30 15 20 20
+::widths: 10 40 10 40
 :header-rows: 1
-* - Key
-  - Description
-  - Accepted Types
-  - Number of Topics
-  - Default Value
+* - Key Name
+  - Allowed Types
+  - Number
+  - Default
 
-* - **location**
-  - Robot current location
-  - `Odometry, PoseWithCovariance, Pose`
+* - sensor_data
+  - [`sensor_msgs.msg.LaserScan`](https://docs.ros.org/en/noetic/api/sensor_msgs/html/msg/LaserScan.html)
   - 1
-  - `Topic(name="/odom", msg_type="Odometry")`
+  - ```Topic(name="/scan", msg_type="LaserScan")```
 
-* - **sensor_data**
-  - Direct sensor input
-  - `LaserScan`
+* - location
+  - [`nav_msgs.msg.Odometry`](https://docs.ros.org/en/noetic/api/nav_msgs/html/msg/Odometry.html), [`geometry_msgs.msg.PoseStamped`](http://docs.ros.org/en/jade/api/geometry_msgs/html/msg/PoseStamped.html), [`geometry_msgs.msg.Pose`](http://docs.ros.org/en/jade/api/geometry_msgs/html/msg/Pose.html)
   - 1
-  - `Topic(name="/scan", msg_type="LaserScan")`
+  - ```Topic(name="/odom", msg_type="Odometry")```
 
 ```
 
 ## Outputs
 
 ```{list-table}
-:widths: 10 30 15 20
+::widths: 10 40 10 40
 :header-rows: 1
-* - Key
-  - Description
-  - Accepted Types
-  - Default Value
+* - Key Name
+  - Allowed Types
+  - Number
+  - Default
 
-* - **local_map**
-  - Local occupancy map
-  - `OccupancyGrid`
-  - `Topic(name="/scan", msg_type="LaserScan")`
+* - local_map
+  - `nav_msgs.msg.OccupancyGrid`
+  - 1
+  - ```Topic(name="/local_map/occupancy_layer", msg_type="OccupancyGrid")```
 ```
 
 

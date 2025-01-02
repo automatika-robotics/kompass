@@ -33,32 +33,25 @@ Planner can be used with all four available RunTypes:
 Planner requires configuring three inputs:
 
 ```{list-table}
-:widths: 10 30 15 20 20
+:widths: 10 40 10 40
 :header-rows: 1
-* - Key
-  - Description
-  - Accepted Types
-  - Number of Topics
-  - Default Value
+* - Key Name
+  - Allowed Types
+  - Number
+  - Default
 
-* - **map_layer**
-  - Global map used for planning
-  - `OccupancyGrid`
+* - map
+  - [`nav_msgs.msg.OccupancyGrid`](http://docs.ros.org/en/noetic/api/nav_msgs/html/msg/OccupancyGrid.html)
   - 1
-  - `defualt_qos=QoSConfig(durability=qos.DurabilityPolicy.TRANSIENT_LOCAL)
-  Topic(name="/map", msg_type="OccupancyGrid" qos_profile=defualt_qos)`
-
-* - **location**
-  - Robot current location
-  - `Odometry, PoseWithCovariance, Pose`
-  - 1
-  - `Topic(name="/odom", msg_type="Odometry")`
-
-* - **goal_point**
-  - Navigation goal point on the map
-  - `Odometry, PoseStamped, PointStamped`
+  - `Topic(name="/map", msg_type="OccupancyGrid", qos_profile=QoSConfig(durability=TRANSIENT_LOCAL))`
+* - goal_point
+  - [`nav_msgs.msg.Odometry`](https://docs.ros.org/en/noetic/api/nav_msgs/html/msg/Odometry.html), [`geometry_msgs.msg.PoseStamped`](http://docs.ros.org/en/jade/api/geometry_msgs/html/msg/PoseStamped.html), [`geometry_msgs.msg.PointStamped`](http://docs.ros.org/en/jade/api/geometry_msgs/html/msg/PointStamped.html)
   - 1
   - `Topic(name="/goal", msg_type="PointStamped")`
+* - location
+  - [`nav_msgs.msg.Odometry`](https://docs.ros.org/en/noetic/api/nav_msgs/html/msg/Odometry.html), [`geometry_msgs.msg.PoseStamped`](http://docs.ros.org/en/jade/api/geometry_msgs/html/msg/PoseStamped.html), [`geometry_msgs.msg.Pose`](http://docs.ros.org/en/jade/api/geometry_msgs/html/msg/Pose.html)
+  - 1
+  - `Topic(name="/odom", msg_type="Odometry")`
 ```
 
 :::{note} 'goal_point' input is only used if the Planner is running as TIMED or EVENT Component. In the other two types, the goal point is provided in the service request or the action goal.
@@ -69,21 +62,22 @@ Planner requires configuring three inputs:
 Planner offers two outputs:
 
 ```{list-table}
-:widths: 10 30 15 20
+:widths: 10 40 10 40
 :header-rows: 1
-* - Key
-  - Description
-  - Accepted Types
-  - Default Value
 
-* - **plan**
-  - Path to reach the goal point from start location
-  - `Path`
+* - Key Name
+  - Allowed Types
+  - Number
+  - Default
+
+
+* - plan
+  - [`nav_msgs.msg.Path`](http://docs.ros.org/en/noetic/api/nav_msgs/html/msg/Path.html)
+  - 1
   - `Topic(name="/plan", msg_type="Path")`
-
-* - **reached_end**
-  - Flag indicating that the current planning target is reached
-  - `Bool`
+* - reached_end
+  - `std_msgs.msg.Bool`
+  - 1
   - `Topic(name="/reached_end", msg_type="Bool")`
 ```
 

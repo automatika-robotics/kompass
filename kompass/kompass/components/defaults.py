@@ -1,3 +1,7 @@
+"""
+Kompass stack default inputs/outputs values and allowed topic types for each component
+"""
+
 from typing import Dict
 from ros_sugar.supported_types import add_additional_datatypes
 from .. import data_types
@@ -12,6 +16,70 @@ add_additional_datatypes(get_all_msg_types(data_types))
 
 
 class TopicsKeys(StrEnum):
+    """Unique stack keys associated with inputs/outputs
+
+    ```{list-table}
+    :widths: 20 20 60
+    :header-rows: 1
+
+    * - Key
+      - Name
+      - Description
+    * - GOAL_POINT
+      - goal_point
+      - Target destination point on the map for the robot point navigation
+    * - GLOBAL_PLAN
+      - plan
+      - Global navigation plan (path) from start to goal
+    * - GLOBAL_MAP
+      - map
+      - Global (reference) map used for navigation
+    * - ROBOT_LOCATION
+      - location
+      - Current position and orientation of the robot
+    * - SPATIAL_SENSOR
+      - sensor_data
+      - Raw data from robot's spatial sensors (e.g., LIDAR, depth sensors)
+    * - VISION_TRACKINGS
+      - vision_tracking
+      - Visual tracking data from robot's cameras or vision systems
+    * - LOCAL_PLAN
+      - local_plan
+      - Short-term path plan considering immediate surroundings
+    * - INTERMEDIATE_CMD
+      - command
+      - Robot velocity command produced by the control system
+    * - INTERMEDIATE_CMD_LIST
+      - multi_command
+      - List of intermediate velocity commands
+    * - LOCAL_MAP
+      - local_map
+      - Map of the immediate surroundings for local navigation (control)
+    * - LOCAL_MAP_OCC
+      - local_map
+      - Occupancy grid representation of the local environment
+    * - INTERPOLATED_PATH
+      - interpolation
+      - Interpolated global path
+    * - TRACKED_POINT
+      - tracked_point
+      - Specific point being tracked by the robot's systems on the reference path of reference vision target
+    * - FINAL_COMMAND
+      - robot_command
+      - Final control command sent to robot's driver
+    * - EMERGENCY
+      - emergency_stop
+      - Emergency stop signal for immediate robot halt
+    * - REACHED_END
+      - reached_end
+      - Flag indicating whether the goal point has been reached
+    * - RUN_TESTS
+      - run_tests
+      - Flag to initiate system test procedures
+    ```
+
+    """
+
     # INPUT
     GOAL_POINT = "goal_point"
     # Global
@@ -38,7 +106,7 @@ class TopicsKeys(StrEnum):
 
 controller_allowed_inputs: Dict[str, AllowedTopics] = {
     TopicsKeys.GLOBAL_PLAN: AllowedTopics(types=["Path"]),
-    TopicsKeys.ROBOT_LOCATION: AllowedTopics(types=["Odometry"]),
+    TopicsKeys.ROBOT_LOCATION: AllowedTopics(types=["Odometry", "PoseStamped", "Pose"]),
     TopicsKeys.SPATIAL_SENSOR: AllowedTopics(types=["LaserScan", "PointCloud2"]),
     TopicsKeys.LOCAL_MAP: AllowedTopics(types=["OccupancyGrid"]),
     TopicsKeys.VISION_TRACKINGS: AllowedTopics(types=["Trackings", "Detections"]),
@@ -85,9 +153,7 @@ driver_allowed_inputs: Dict[str, AllowedTopics] = {
         number_required=1,
         number_optional=10,
     ),
-    TopicsKeys.ROBOT_LOCATION: AllowedTopics(
-        types=["Odometry", "PoseStamped", "PointStamped"]
-    ),
+    TopicsKeys.ROBOT_LOCATION: AllowedTopics(types=["Odometry", "PoseStamped", "Pose"]),
 }
 
 driver_allowed_outputs: Dict[str, AllowedTopics] = {
@@ -113,7 +179,7 @@ driver_default_outputs: Dict[str, Topic] = {
 # LOCAL MAPPER
 mapper_allowed_inputs: Dict[str, AllowedTopics] = {
     TopicsKeys.SPATIAL_SENSOR: AllowedTopics(types=["LaserScan"]),
-    TopicsKeys.ROBOT_LOCATION: AllowedTopics(types=["Odometry"]),
+    TopicsKeys.ROBOT_LOCATION: AllowedTopics(types=["Odometry", "PoseStamped", "Pose"]),
 }
 
 mapper_allowed_outputs: Dict[str, AllowedTopics] = {

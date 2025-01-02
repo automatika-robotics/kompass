@@ -62,57 +62,53 @@ Check an example on configuring the robot unblocking functionality with an exter
 ## Inputs
 
 ```{list-table}
-:widths: 10 30 15 20 20
+:widths: 10 40 10 40
 :header-rows: 1
-* - Key
-  - Description
-  - Accepted Types
-  - Number of Topics
-  - Default Value
 
-* - **command**
-  - One control command to pass to the robot
-  - `Twist`
+* - Key Name
+  - Allowed Types
+  - Number
+  - Default
+
+* - command
+  - [`geometry_msgs.msg.Twist`](http://docs.ros.org/en/noetic/api/geometry_msgs/html/msg/Twist.html)
   - 1
   - `Topic(name="/control", msg_type="Twist")`
 
-* - **multi_command**
-  - A set of control commands to pass to the robot
-  - `TwistArray`
+* - multi_command
+  - [`kompass_interfaces.msg.TwistArray`](https://github.com/automatika-robotics/kompass/tree/main/kompass_interfaces/msg)
   - 1
   - `Topic(name="/control_list", msg_type="TwistArray")`
 
-* - **sensor_data**
-  - Direct sensor input
-  - `LaserScan, Float64, Float32`
+* - sensor_data
+  - [`sensor_msgs.msg.LaserScan`](https://docs.ros.org/en/noetic/api/sensor_msgs/html/msg/LaserScan.html), `std_msgs.msg.Float64`, `std_msgs.msg.Float32`
   - 1 + (10 optional)
   - `Topic(name="/scan", msg_type="LaserScan")`
 
-* - **location**
-  - Robot current location
-  - `Odometry, PoseWithCovariance, Pose`
+* - location
+  - [`nav_msgs.msg.Odometry`](https://docs.ros.org/en/noetic/api/nav_msgs/html/msg/Odometry.html), [`geometry_msgs.msg.PoseStamped`](http://docs.ros.org/en/jade/api/geometry_msgs/html/msg/PoseStamped.html), [`geometry_msgs.msg.Pose`](http://docs.ros.org/en/jade/api/geometry_msgs/html/msg/Pose.html)
   - 1
   - `Topic(name="/odom", msg_type="Odometry")`
 ```
 
+
 ## Outputs
 
 ```{list-table}
-:widths: 10 30 15 20
+:widths: 10 40 10 40
 :header-rows: 1
-* - Key
-  - Description
-  - Accepted Types
-  - Default Value
+* - Key Name
+  - Allowed Types
+  - Number
+  - Default
 
-* - **robot_command**
-  - Robot control command
-  - `Twist`
+* - robot_command
+  - `geometry_msgs.msg.Twist`
+  - 1
   - `Topic(name="/cmd_vel", msg_type="Twist")`
-
-* - **emergency_stop**
-  - Emergency stop declaration flag
-  - `Bool`
+* - emergency_stop
+  - `std_msgs.msg.Bool`
+  - 1
   - `Topic(name="/emergency_stop", msg_type="Bool")`
 ```
 

@@ -87,12 +87,12 @@ Below is a list of supported messages and the types accepted by their publishers
 
 * - **[LaserScan](../apidocs/kompass/kompass.data_types.md/#classes)**
   - sensor_msgs
-  - `kompass_core.datatypes.LaserScanData`
+  - [`kompass_core.datatypes.LaserScanData`]((https://github.com/automatika-robotics/kompass-core/blob/main/src/kompass_core/datatypes/laserscan.py))
   - `kompass_core.datatypes.LaserScanData`
 
 * - **[PointCloud2](../apidocs/kompass/kompass.data_types.md/#classes)**
   - sensor_msgs
-  - `kompass_core.datatypes.PointCloudData`
+  - [`kompass_core.datatypes.PointCloudData`](https://github.com/automatika-robotics/kompass-core/blob/main/src/kompass_core/datatypes/pointcloud.py)
   - `sensor_msgs.msg.PointCloud2`
 
 * - **[Path](https://automatika-robotics.github.io/ros-sugar/apidocs/ros_sugar/ros_sugar.io.supported_types.md/#classes)**
@@ -106,8 +106,18 @@ Below is a list of supported messages and the types accepted by their publishers
   - `numpy.ndarray`
 
 * - **[ComponentStatus](https://automatika-robotics.github.io/ros-sugar/apidocs/ros_sugar/ros_sugar.io.supported_types.md/#classes)**
-  - ros_sugar_interfaces
-  - `ros_sugar_interfaces.msg.ComponentStatus`
-  - `ros_sugar_interfaces.msg.ComponentStatus`
+  - automatika_ros_sugar
+  - `automatika_ros_sugar.msg.ComponentStatus`
+  - `automatika_ros_sugar.msg.ComponentStatus`
+
+* - **Detections**
+  - automatika_agents_interfaces
+  - [`Optional[kompass_core.datatypes.TrackingData]`]((https://github.com/automatika-robotics/kompass-core/blob/main/src/kompass_core/datatypes/vision.py))
+  - `automatika_agents_interfaces.msg.Detections`
+
+* - **Trackings**
+  - automatika_agents_interfaces
+  - [`Optional[kompass_core.datatypes.TrackingData]`]((https://github.com/automatika-robotics/kompass-core/blob/main/src/kompass_core/datatypes/vision.py))
+  - `automatika_agents_interfaces.msg.Trackings`
 
 ```

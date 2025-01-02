@@ -40,48 +40,52 @@ The Motion Recording action can also be configured to start based on an external
 ## Inputs:
 
 ```{list-table}
-:widths: 10 30 15 20 20
+:widths: 10 40 10 40
 :header-rows: 1
-* - Key
-  - Description
-  - Accepted Types
-  - Number of Topics
-  - Default Value
 
-* - **run**
-  - Start running tests
-  - `Bool`
+* - Key Name
+  - Allowed Types
+  - Number
+  - Default
+
+* - run_tests
+  - `std_msgs.msg.Bool`
   - 1
   - `Topic(name="/run_tests", msg_type="Bool")`
 
-* - **robot_command**
-  - One control command
-  - `Twist`
+* - command
+  - `geometry_msgs.msg.Twist`
   - 1
   - `Topic(name="/cmd_vel", msg_type="Twist")`
+
+* - location
+  - [`nav_msgs.msg.Odometry`](https://docs.ros.org/en/noetic/api/nav_msgs/html/msg/Odometry.html), [`geometry_msgs.msg.PoseStamped`](http://docs.ros.org/en/jade/api/geometry_msgs/html/msg/PoseStamped.html), [`geometry_msgs.msg.Pose`](http://docs.ros.org/en/jade/api/geometry_msgs/html/msg/Pose.html)
+  - 1
+  - `Topic(name="/odom", msg_type="Odometry")`
 
 ```
 
 ## Outputs:
 
 ```{list-table}
-:widths: 10 30 15 20
+:widths: 10 40 10 40
 :header-rows: 1
-* - Key
-  - Description
-  - Accepted Types
-  - Default Value
 
-* - **command**
-  - One control command
-  - `Twist`
-  - `Topic(name="/control", msg_type="Twist")`
+* - Key Name
+  - Allowed Types
+  - Number
+  - Default
+
+* - robot_command
+  - `geometry_msgs.msg.Twist`
+  - 1
+  - `Topic(name="/cmd_vel", msg_type="Twist")`
 
 ```
 
 ```{note}
 Topic for _Control Command_ is both in MotionServer inputs and outputs:
 - The output is used when running automated testing (i.e. sending the commands directly from the MotionServer).
-- The input is used to purly record motion and control from external sources (example: recording output from Controller).
+- The input is used to purely record motion and control from external sources (example: recording output from Controller).
 - Different command topics can be configured for the input and the output. For example: to test the DriveManager, the control command from MotionServer output can be sent to the DriveManager, then the DriveManager output can be configured as the MotionServer input for recording.
 ```
