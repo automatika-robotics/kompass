@@ -342,9 +342,14 @@ class Component(BaseComponent):
             names: List[str] = []
             for idx, k in enumerate(self._inputs_keys):
                 if k == key:
-                    names.append(self.in_topics[idx].name)
+                    if self.in_topics[idx]:
+                        names.append(self.in_topics[idx].name)
             return names
-        return self.in_topics[self._inputs_keys.index(key)].name
+        return (
+            self.in_topics[self._inputs_keys.index(key)].name
+            if self.in_topics[self._inputs_keys.index(key)]
+            else None
+        )
 
     def out_topic_name(self, key: str) -> Union[str, List[str], None]:
         """Get the topic(s) name(s) corresponding to an output key name
@@ -360,9 +365,14 @@ class Component(BaseComponent):
             names: List[str] = []
             for idx, k in enumerate(self._outputs_keys):
                 if k == key:
-                    names.append(self.out_topics[idx].name)
+                    if self.out_topics[idx]:
+                        names.append(self.out_topics[idx].name)
             return names
-        return self.out_topics[self._outputs_keys.index(key)].name
+        return (
+            self.out_topics[self._outputs_keys.index(key)].name
+            if self.out_topics[self._outputs_keys.index(key)]
+            else None
+        )
 
     def get_in_topic(self, key: str) -> Union[Topic, List[Topic], None]:
         """Get the topic(s) corresponding to an input key name
@@ -418,7 +428,7 @@ class Component(BaseComponent):
             return self.callbacks[topic_names]
         except Exception as e:
             raise KeyError(
-                f"Unknown key '{key}' for component '{self.node_name}' Inputs"
+                f"Unknown input '{key}' for component '{self.node_name}'"
             ) from e
 
     def get_publisher(self, key: str, idx: int = 0) -> Publisher:
@@ -439,7 +449,7 @@ class Component(BaseComponent):
             return self.publishers_dict[self.out_topic_name(key)]
         except Exception as e:
             raise KeyError(
-                f"Unknown key '{key}' for component '{self.node_name}' Outputs: {self.publishers_dict}"
+                f"Unknown output '{key}' for component '{self.node_name}'"
             ) from e
 
     def callbacks_inputs_check(

@@ -2,7 +2,7 @@
 Kompass stack default inputs/outputs values and allowed topic types for each component
 """
 
-from typing import Dict
+from typing import Dict, Optional
 from ros_sugar.supported_types import add_additional_datatypes
 from .. import data_types
 from ros_sugar.io import AllowedTopics, get_all_msg_types
@@ -117,20 +117,18 @@ controller_allowed_outputs: Dict[str, AllowedTopics] = {
     TopicsKeys.INTERMEDIATE_CMD_LIST: AllowedTopics(types=["TwistArray"]),
     TopicsKeys.INTERPOLATED_PATH: AllowedTopics(types=["Path"]),
     TopicsKeys.LOCAL_PLAN: AllowedTopics(types=["Path"]),
-    TopicsKeys.TRACKED_POINT: AllowedTopics(
-        types=["Odometry", "PoseStamped", "Pose", "Detection"]
-    ),
+    TopicsKeys.TRACKED_POINT: AllowedTopics(types=["Odometry", "PoseStamped", "Pose"]),
 }
 
 # Create default inputs - Used if no inputs config is provided to the controller
-controller_default_inputs: Dict[str, Topic] = {
+controller_default_inputs: Dict[str, Optional[Topic]] = {
     TopicsKeys.GLOBAL_PLAN: Topic(name="/plan", msg_type="Path"),
     TopicsKeys.SPATIAL_SENSOR: Topic(name="/scan", msg_type="LaserScan"),
     TopicsKeys.LOCAL_MAP: Topic(
         name="/local_map/occupancy_layer", msg_type="OccupancyGrid"
     ),
     TopicsKeys.ROBOT_LOCATION: Topic(name="/odom", msg_type="Odometry"),
-    TopicsKeys.VISION_TRACKINGS: Topic(name="/trackings", msg_type="Trackings"),
+    TopicsKeys.VISION_TRACKINGS: None,  # Should be provided by the user to use the vision tracking action
 }
 
 # Create default outputs - Used if no outputs config is provided to the controller
