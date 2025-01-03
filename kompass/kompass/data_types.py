@@ -25,11 +25,7 @@ from sensor_msgs.msg import LaserScan as ROSLaserScan
 from sensor_msgs.msg import PointCloud2 as ROSPointCloud2
 
 from kompass_interfaces.msg import TwistArray as ROSTwistArray
-from agents.ros import (
-    Trackings as BaseTrackings,
-    Detections as BaseDetections,
-    Detection,
-)
+from importlib.util import find_spec
 
 from .callbacks import (
     GenericCallback,
@@ -59,21 +55,40 @@ __all__ = [
     "Float32",
     "Float64",
     "Trackings",
-    "Detection",
     "Detections",
 ]
 
 
-class Detections(BaseDetections):
-    """Adds callback for automatika_agents_interfaces/msg/Detections message"""
+class Detections(SupportedType):
+    """Adds callback for automatika_embodied_agents/msg/Detections2D message"""
 
     callback = DetectionsCallback
 
+    @classmethod
+    def get_ros_type(cls) -> type:
+        if find_spec("automatika_embodied_agents") is None:
+            raise ModuleNotFoundError(
+                "'automatika_embodied_agents' module is required to use 'Detections' msg type but it is not installed"
+            )
+        from automatika_embodied_agents.msg import Detections2D
 
-class Trackings(BaseTrackings):
-    """Adds callback for automatika_agents_interfaces/msg/Trackings message"""
+        return Detections2D
+
+
+class Trackings(SupportedType):
+    """Adds callback for automatika_embodied_agents/msg/Trackings message"""
 
     callback = TrackingsCallback
+
+    @classmethod
+    def get_ros_type(cls) -> type:
+        if find_spec("automatika_embodied_agents") is None:
+            raise ModuleNotFoundError(
+                "'automatika_embodied_agents' module is required to use 'Trackings' msg type but it is not installed"
+            )
+        from automatika_embodied_agents.msg import Trackings as ROSTrackings
+
+        return ROSTrackings
 
 
 class LaserScan(BaseLaserScan):
