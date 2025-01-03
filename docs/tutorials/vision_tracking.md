@@ -309,5 +309,3 @@ vision_follower_config = VisionFollowerConfig(
 ```shell
 ros2 action send_goal /my_controller/track_vision_target kompass_interfaces/action/TrackVisionTarget "{label: 'person', search_radius: 1.0, search_timeout: 30}"
 ```
-
-

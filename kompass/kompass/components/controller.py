@@ -40,7 +40,6 @@ from .ros import (
 )
 from ..utils import component_action
 from ..callbacks import PointCloudCallback
-from ..data_types import Detection
 
 # KOMPASS MSGS/SRVS/ACTIONS
 from .component import Component, TFListener
@@ -294,19 +293,25 @@ class Controller(Component):
         Action servers creation
         """
         super().create_all_action_servers()
-        # callback group to avoid parallel execution of action loops
-        action_callback_group = MutuallyExclusiveCallbackGroup()
-        self.action_server = ActionServer(
-            node=self,
-            action_type=TrackVisionTarget,
-            action_name=f"{self.node_name}/track_vision_target",
-            execute_callback=self._vision_tracking_callback,
-            goal_callback=self._main_action_goal_callback,
-            handle_accepted_callback=self._main_action_handle_accepted_callback,
-            cancel_callback=self._main_action_cancel_callback,
-            callback_group=action_callback_group,
-        )
-        self.deactivate_vision_mode()
+        # If vision tracking is provided
+        if self.get_in_topic(TopicsKeys.VISION_TRACKINGS):
+            # callback group to avoid parallel execution of action loops
+            action_callback_group = MutuallyExclusiveCallbackGroup()
+            self.action_server = ActionServer(
+                node=self,
+                action_type=TrackVisionTarget,
+                action_name=f"{self.node_name}/track_vision_target",
+                execute_callback=self._vision_tracking_callback,
+                goal_callback=self._main_action_goal_callback,
+                handle_accepted_callback=self._main_action_handle_accepted_callback,
+                cancel_callback=self._main_action_cancel_callback,
+                callback_group=action_callback_group,
+            )
+            self.deactivate_vision_mode()
+        else:
+            self.get_logger().warn(
+                f"Creating node '{self.node_name}' without VisionFollower action server: provide a 'vision_trackings' topic to create the server"
+            )
 
     def create_all_timers(self):
         """Overrides create_all_timers from BaseComponent to add timers for commands execution and tracking publishing"""
@@ -396,18 +401,6 @@ class Controller(Component):
                 frame_id=self.config.frames.world,
                 time_stamp=self.get_ros_time(),
             )
-        # TODO Fix publishing
-        # if (
-        #     self.vision_trackings
-        #     and self.config._mode == ControllerMode.VISION_FOLLOWER
-        # ):
-        #     self.get_publisher(TopicsKeys.TRACKED_POINT).publish(
-        #         self.vision_trackings,
-        #         frame_id=self.get_callback(
-        #             TopicsKeys.VISION_TRACKINGS
-        #         ).frame_id,
-        #         time_stamp=self.get_ros_time(),
-        #     )
         # Publish local plan
         if self.local_plan:
             self.get_publisher(TopicsKeys.LOCAL_PLAN).publish(
@@ -576,31 +569,17 @@ class Controller(Component):
         callback = self.get_callback(TopicsKeys.VISION_TRACKINGS)
         callback.set_subscriber(self._add_ros_subscriber(callback))
 
-        publisher = self.get_publisher(TopicsKeys.TRACKED_POINT)
-        if publisher.output_topic.msg_type != Detection:
-            self.get_logger().error("Replacing tracked point topic")
-            # Change tracked point publisher to publish tracked detection
-            error_msg = self._replace_output_topic(
-                publisher.output_topic.name, "/tracked_detection", "Detection"
-            )
-            if error_msg:
-                self.get_logger().error(f"{error_msg}")
-
     def deactivate_vision_mode(self):
         """Deactivate object following mode using vision detections"""
-        # Delete vision subscriber
-        callback = self.get_callback(TopicsKeys.VISION_TRACKINGS)
-        if callback._subscriber:
-            self.destroy_subscription(callback._subscriber)
-            callback._subscriber = None
-
-        publisher = self.get_publisher(TopicsKeys.TRACKED_POINT)
-        if publisher.output_topic.msg_type == Detection:
-            # Change tracked point publisher to publish tracked detection
-            self._replace_output_topic(
-                publisher.output_topic.name,
-                controller_default_outputs[TopicsKeys.TRACKED_POINT].name,
-                controller_default_outputs[TopicsKeys.TRACKED_POINT].msg_type,
+        try:
+            # Delete vision subscriber if exists
+            callback = self.get_callback(TopicsKeys.VISION_TRACKINGS)
+            if callback._subscriber:
+                self.destroy_subscription(callback._subscriber)
+                callback._subscriber = None
+        except Exception:
+            self.get_logger().debug(
+                "Vision trackings subscriber does not exists -> continue"
             )
         self.config._mode = ControllerMode.PATH_FOLLOWER
 
@@ -1254,9 +1233,7 @@ class Controller(Component):
         # Get inputs from callbacks
         self._update_state()
 
-        got_all: bool = self.got_all_inputs(
-            inputs_to_exclude=[self.in_topic_name(TopicsKeys.VISION_TRACKINGS)]
-        )
+        got_all: bool = self.got_all_inputs()
 
         # Check if all inputs are available
         if got_all and not self.__reached_end:

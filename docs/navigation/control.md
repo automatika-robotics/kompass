@@ -48,7 +48,11 @@ Set from ControllerConfig class or directly from Controller 'run_type' property.
 * - vision_tracking
   - [`automatika_embodied_agents.msg.Trackings`](https://github.com/automatika-robotics/ros-agents/tree/main/agents_interfaces/msg), [`automatika_embodied_agents.msg.Detections2D`](https://github.com/automatika-robotics/ros-agents/tree/main/agents_interfaces/msg)
   - 1
-  - `Topic(name="/trackings", msg_type="Trackings")`
+  - None, Should be provided to use the vision target tracking
+```
+
+```{tip}
+Provide a 'vision_tracking' input topic to the controller to activate the creation of the a vision-based target following action server. See [this example](../tutorials/vision_tracking.md) for more details.
 ```
 
 ## Outputs:
