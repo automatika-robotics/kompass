@@ -26,7 +26,7 @@ from kompass.components import (
 )
 from kompass.actions import ComponentActions, LogInfo
 from kompass.launcher import Launcher
-from kompass.topic import Topic
+from kompass.ros import Topic
 
 from ament_index_python.packages import (
     get_package_share_directory,
