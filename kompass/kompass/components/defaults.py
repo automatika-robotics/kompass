@@ -128,7 +128,7 @@ controller_default_inputs: Dict[str, Optional[Topic]] = {
         name="/local_map/occupancy_layer", msg_type="OccupancyGrid"
     ),
     TopicsKeys.ROBOT_LOCATION: Topic(name="/odom", msg_type="Odometry"),
-    TopicsKeys.VISION_TRACKINGS: None,  # Should be provided by the user to use the vision tracking action
+    TopicsKeys.VISION_TRACKINGS: None,  # No default topic is assigned. Should be provided by the user to use the vision tracking action
 }
 
 # Create default outputs - Used if no outputs config is provided to the controller

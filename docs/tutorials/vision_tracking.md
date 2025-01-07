@@ -55,7 +55,8 @@ object_detection = VisionModel(
     setup_trackers=True,
     deploy_tensorrt=True
 )
-roboml_detection = RESPModelClient(object_detection, host='192.168.1.1', logging_level="warn")  # 192.168.1.1 should be replaced by the IP of the machine running roboml
+roboml_detection = RESPModelClient(object_detection, host='192.168.1.1', logging_level="warn")
+  # 192.168.1.1 should be replaced by the IP of the machine running roboml
 ```
 The model is configured with a name and a checkpoint (any checkpoint from mmdet framework, see [available checkpoints](https://github.com/open-mmlab/mmdetection?tab=readme-ov-file#overview-of-benchmark-and-model-zoo)). We also set the options `setup_trackers` and `deploy_tensorrt` to `True` to enable publishing tracking information and deploying the vision model using NVIDIA TensorRT.
 
@@ -125,6 +126,7 @@ from kompass.robot import (
     RobotType,
     RobotConfig,
 )
+import numpy as np
 
 # Setup your robot configuration
 my_robot = RobotConfig(
@@ -208,6 +210,7 @@ Et voila! our code for the full vision-based target follower is ready and here i
 :caption: vision_follower
 :linenos:
 
+import numpy as np
 from agents.components import Vision
 from agents.models import VisionModel
 from agents.clients.roboml import RESPModelClient
@@ -222,7 +225,7 @@ from kompass.robot import (
     RobotType,
     RobotConfig,
 )
-from kompass.control import DWAConfig, VisionFollowerConfig
+from kompass.control import VisionFollowerConfig
 from kompass.launcher import Launcher
 
 # RGB camera input topic is set to the compressed image topic
@@ -232,10 +235,19 @@ image0 = Topic(name="/image_raw/compressed", msg_type="CompressedImage")
 detections_topic = Topic(name="detections", msg_type="Detections")
 trackings_topic = Topic(name="trackings", msg_type="Trackings")
 
-# Select the vision component configuration
-detection_config = VisionConfig(
-    threshold=0.5, enable_visualization=True
+object_detection = VisionModel(
+    name="object_detection",
+    checkpoint="rtmdet_tiny_8xb32-300e_coco",
+    setup_trackers=True,
+    deploy_tensorrt=True,
 )
+
+roboml_detection = RESPModelClient(
+    object_detection, host="192.168.1.1", logging_level="warn"
+)
+
+# Select the vision component configuration
+detection_config = VisionConfig(threshold=0.5, enable_visualization=True)
 
 # Create the component
 vision = Vision(
@@ -258,12 +270,12 @@ my_robot = RobotConfig(
     ),
 )
 # Set the controller component configuration
-config = ControllerConfig(loop_rate=10.0, ctrl_publish_type="Sequence", control_time_step=0.3)
+config = ControllerConfig(
+    loop_rate=10.0, ctrl_publish_type="Sequence", control_time_step=0.3
+)
 
 # Init the controller
-controller = Controller(
-    component_name="my_controller", config=config
-)
+controller = Controller(component_name="my_controller", config=config)
 # Set the vision tracking input to either the detections or trackings topic
 controller.inputs(vision_tracking=detections_topic)
 
@@ -271,7 +283,7 @@ controller.inputs(vision_tracking=detections_topic)
 vision_follower_config = VisionFollowerConfig(
     control_horizon=3, enable_search=False, target_search_pause=6, tolerance=0.2
 )
-controller.algorithms_config = vision_follower_config       # We can also configure other algorithms (DWA, DV etc.) and pass a list to the algorithms_config property
+controller.algorithms_config = vision_follower_config  # We can also configure other algorithms (DWA, DV etc.) and pass a list to the algorithms_config property
 
 # Init the drive manager with the default parameters
 driver = DriveManager(component_name="my_driver")
@@ -287,6 +299,7 @@ launcher.kompass(
 # # Set the robot config for all components
 launcher.robot = my_robot
 launcher.bringup()
+
 
 ```
 
