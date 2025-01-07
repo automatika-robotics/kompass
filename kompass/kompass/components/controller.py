@@ -711,7 +711,7 @@ class Controller(Component):
         self._cmds_queue: Queue = Queue()
 
         if self.direct_sensor:
-            sensor_topic = self.in_topics[
+            sensor_topic = self._inputs_list[
                 self._inputs_keys.index(TopicsKeys.SPATIAL_SENSOR)
             ]
             # Setup transform listener
