@@ -7,7 +7,6 @@ from ..utils import StrEnum
 
 from rclpy.logging import get_logger
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
-from rclpy.action.server import ActionServer
 
 # ROS MSGS
 from nav_msgs.msg import Path
@@ -21,7 +20,7 @@ from kompass_core.utils.geometry import from_euler_to_quaternion
 from kompass_core.control import (
     ControlClasses,
     ControlConfigClasses,
-    LocalPlannersID,
+    ControllersID,
     ControllerType,
 )
 from kompass_core.control.vision_follower import VisionFollower, VisionFollowerConfig
@@ -100,7 +99,7 @@ class ControllerConfig(ComponentConfig):
       - Description
 
     * - **algorithm**
-      - `LocalPlannersID| str`, `DWA`
+      - `ControllersID| str`, `DWA`
       - Algorithm used to compute the control command
 
     * - **control_time_step**
@@ -121,9 +120,9 @@ class ControllerConfig(ComponentConfig):
     ```
     """
 
-    algorithm: Union[LocalPlannersID, str] = field(
-        default=LocalPlannersID.DWA,
-        converter=lambda value: LocalPlannersID(value)
+    algorithm: Union[ControllersID, str] = field(
+        default=ControllersID.DWA,
+        converter=lambda value: ControllersID(value)
         if isinstance(value, str)
         else value,
     )
@@ -141,7 +140,6 @@ class ControllerConfig(ComponentConfig):
         else value,
     )
     _mode: Union[str, ControllerMode] = field(
-        init=False,
         default=ControllerMode.PATH_FOLLOWER,
         converter=lambda value: ControllerMode(value)
         if isinstance(value, str)
@@ -255,8 +253,8 @@ class Controller(Component):
         component_name: str,
         config_file: Optional[str] = None,
         config: Optional[ControllerConfig] = None,
-        inputs: Optional[Dict[str, Topic]] = None,
-        outputs: Optional[Dict[str, Topic]] = None,
+        inputs: Optional[Dict[TopicsKeys, Topic]] = None,
+        outputs: Optional[Dict[TopicsKeys, Topic]] = None,
         **kwargs,
     ) -> None:
         self.config: ControllerConfig = config or ControllerConfig()
@@ -292,26 +290,25 @@ class Controller(Component):
         """
         Action servers creation
         """
-        super().create_all_action_servers()
-        # If vision tracking is provided
-        if self.get_in_topic(TopicsKeys.VISION_TRACKINGS):
-            # callback group to avoid parallel execution of action loops
-            action_callback_group = MutuallyExclusiveCallbackGroup()
-            self.action_server = ActionServer(
-                node=self,
-                action_type=TrackVisionTarget,
-                action_name=f"{self.node_name}/track_vision_target",
-                execute_callback=self._vision_tracking_callback,
-                goal_callback=self._main_action_goal_callback,
-                handle_accepted_callback=self._main_action_handle_accepted_callback,
-                cancel_callback=self._main_action_cancel_callback,
-                callback_group=action_callback_group,
+        if (
+            self.config._mode == ControllerMode.VISION_FOLLOWER
+            and not self.get_in_topic(TopicsKeys.VISION_TRACKINGS)
+        ):
+            # Vision mode is set but the trackings topic is not provided
+            raise AttributeError(
+                f"Cannot use Vision Follower in {self.node_name} component without setting the 'TopicsKeys.VISION_TRACKINGS' input"
             )
-            self.deactivate_vision_mode()
+
+        elif self.config._mode == ControllerMode.VISION_FOLLOWER:
+            self.action_type = TrackVisionTarget
+            self._deactivate_follower_mode()
+            self._activate_vision_mode()
         else:
-            self.get_logger().warn(
-                f"Creating node '{self.node_name}' without VisionFollower action server: provide a 'vision_trackings' topic to create the server"
-            )
+            self.action_type = ControlPath
+            self._deactivate_vision_mode()
+            self._activate_follower_mode()
+
+        super().create_all_action_servers()
 
     def create_all_timers(self):
         """Overrides create_all_timers from BaseComponent to add timers for commands execution and tracking publishing"""
@@ -357,18 +354,20 @@ class Controller(Component):
         """
         Creates all node services
         """
-        self.__vision_tracking_srv = self.create_service(
-            StopVisionTracking,
-            f"{self.node_name}/end_vision_tracking",
-            self._end_vision_tracking_srv_callback,
-        )
+        if self.config._mode == ControllerMode.VISION_FOLLOWER:
+            self.__vision_tracking_srv = self.create_service(
+                StopVisionTracking,
+                f"{self.node_name}/end_vision_tracking",
+                self._end_vision_tracking_srv_callback,
+            )
         super().create_all_services()
 
     def destroy_all_services(self):
         """
         Destroys all node services
         """
-        self.destroy_service(self.__vision_tracking_srv)
+        if self.config._mode == ControllerMode.VISION_FOLLOWER:
+            self.destroy_service(self.__vision_tracking_srv)
         super().destroy_all_services()
 
     def _execution_callback(self):
@@ -425,6 +424,9 @@ class Controller(Component):
         :return: _description_
         :rtype: StrEnum
         """
+        if not self.__path_controller:
+            return None
+
         tracked_state: Optional[RobotState] = self.__path_controller.tracked_state
 
         if not tracked_state:
@@ -446,7 +448,7 @@ class Controller(Component):
         :rtype: StrEnum
         """
         # NOTE: For now only DWA provides a local plan
-        if self.algorithm != LocalPlannersID.DWA:
+        if self.algorithm != ControllersID.DWA or not self.__path_controller:
             return None
 
         kompass_cpp_path = self.__path_controller.optimal_path()
@@ -471,6 +473,8 @@ class Controller(Component):
         :return: Path Interpolation
         :rtype: Optional[Path]
         """
+        if not self.__path_controller:
+            return None
         kompass_cpp_path = self.__path_controller.interpolated_path()
         if not kompass_cpp_path:
             return None
@@ -502,7 +506,7 @@ class Controller(Component):
         :type value: bool
         """
         # Note: Only DWA takes local map
-        if self.algorithm != LocalPlannersID.DWA and not value:
+        if self.algorithm != ControllersID.DWA and not value:
             get_logger(self.node_name).warning(
                 f"Cannot use Local Map with {self.algorithm} - Setting 'direct_sensor' to True"
             )
@@ -511,7 +515,7 @@ class Controller(Component):
         self.config.use_direct_sensor = value
 
     @property
-    def algorithm(self) -> LocalPlannersID:
+    def algorithm(self) -> ControllersID:
         """
         Getter of controller algorithm
 
@@ -521,30 +525,33 @@ class Controller(Component):
         return self.config.algorithm
 
     @algorithm.setter
-    def algorithm(self, value: Union[str, LocalPlannersID]) -> None:
+    def algorithm(self, value: Union[str, ControllersID]) -> None:
         """
-        Setter of algorithm with int value or enum value from LocalPlannersID/FollowersID
+        Setter of algorithm with int value or enum value from ControllersID
 
         :param value: algorithm value
-        :type value: Union[str, FollowersID, LocalPlannersID]
+        :type value: Union[str, ControllersID]
 
-        :raises ValueError: If given int value is not one of the values in LocalPlannersID or FollowersID
+        :raises ValueError: If given int value is not one of the values in ControllersID
         """
         self.config.algorithm = value
+        # Select mode based on the algorithm
+        if value in [ControllersID.VISION, ControllersID.VISION.value]:
+            self.config._mode = ControllerMode.VISION_FOLLOWER
+            self.run_type = ComponentRunType.ACTION_SERVER
+        else:
+            self.config._mode = ControllerMode.PATH_FOLLOWER
 
     @component_action
     def set_algorithm(
         self,
-        algorithm_value: Union[str, LocalPlannersID],
-        keep_alive: bool = True,
+        algorithm_value: Union[str, ControllersID],
     ) -> bool:
         """
         Component action - Set controller algorithm action
 
         :param algorithm_value: algorithm value
-        :type algorithm_value: Union[str, FollowersID, LocalPlannersID]
-        :param keep_alive: Keep the controller running while changing, defaults to True
-        :type keep_alive: bool, optional
+        :type algorithm_value: Union[str, ControllersID]
 
         :raises Exception: Exception while updating algorithm value
 
@@ -552,79 +559,123 @@ class Controller(Component):
         :rtype: bool
         """
         try:
-            if keep_alive:
-                self.algorithm = algorithm_value
-            else:
-                self.stop()
-                self.algorithm = algorithm_value
-                self.start()
+            self.stop()
+            self.algorithm = algorithm_value
+            self.start()
         except Exception:
             raise
         return True
 
-    def activate_vision_mode(self):
+    def _activate_vision_mode(self):
         """Activate object following mode using vision detections"""
-        self.config._mode = ControllerMode.VISION_FOLLOWER
         # Activate vision subscriber
-        callback = self.get_callback(TopicsKeys.VISION_TRACKINGS)
-        callback.set_subscriber(self._add_ros_subscriber(callback))
+        if not self.in_topic_name(TopicsKeys.VISION_TRACKINGS):
+            raise ValueError(
+                f"Error activating vision tracking mode. No input topic is provided for '{TopicsKeys.VISION_TRACKINGS}'"
+            )
 
-    def deactivate_vision_mode(self):
+        callback = self.get_callback(TopicsKeys.VISION_TRACKINGS)
+        if callback:
+            callback.set_subscriber(self._add_ros_subscriber(callback))
+
+    def _deactivate_vision_mode(self):
         """Deactivate object following mode using vision detections"""
+        # Delete vision subscriber if exists
         try:
-            # Delete vision subscriber if exists
+            import logging
+
+            logging.info("deactivating vision")
             callback = self.get_callback(TopicsKeys.VISION_TRACKINGS)
-            if callback._subscriber:
+            logging.info(f"got callback {callback}")
+            if callback and callback._subscriber:
                 self.destroy_subscription(callback._subscriber)
                 callback._subscriber = None
         except Exception:
-            self.get_logger().debug(
-                "Vision trackings subscriber does not exists -> continue"
-            )
-        self.config._mode = ControllerMode.PATH_FOLLOWER
+            # Vision mode is not active
+            return
+
+    def _activate_follower_mode(self):
+        """Activate path following mode by creating all missing subscriptions"""
+        # Create all path following subscriptons if not available
+        for callback in self.callbacks.values():
+            if (
+                callback.input_topic.name
+                != self.in_topic_name(TopicsKeys.VISION_TRACKINGS)
+                and not callback._subscriber
+            ):
+                callback.set_subscriber(self._add_ros_subscriber(callback))
+
+    def _deactivate_follower_mode(self):
+        """Deactivate path following mode by removing all missing subscriptions"""
+        # Remove all path subscriptons if exists
+        for callback in self.callbacks.values():
+            if (
+                callback.input_topic.name
+                != self.in_topic_name(TopicsKeys.VISION_TRACKINGS)
+                and callback._subscriber
+            ):
+                self.destroy_subscription(callback._subscriber)
+                callback._subscriber = None
 
     def _update_state(self, vision_track_id: Optional[int] = None) -> None:
         """
         Updates node inputs from associated callbacks
         """
-        self.plan: Optional[Path] = self.get_callback(
-            TopicsKeys.GLOBAL_PLAN
-        ).get_output()
+        if self.config._mode == ControllerMode.VISION_FOLLOWER and self.__tracked_label:
+            # If vision mode is ON and a label is getting tracked
+            vision_callback = self.get_callback(TopicsKeys.VISION_TRACKINGS)
+            self.vision_trackings = (
+                vision_callback.get_output(
+                    label=self.__tracked_label, id=vision_track_id, clear_last=True
+                )
+                if vision_callback
+                else None
+            )
+            return
 
-        self.robot_state: Optional[RobotState] = self.get_callback(
-            TopicsKeys.ROBOT_LOCATION
-        ).get_output(
-            transformation=self.odom_tf_listener.transform
-            if self.odom_tf_listener
+        plan_callback = self.get_callback(TopicsKeys.GLOBAL_PLAN)
+        self.plan: Optional[Path] = (
+            plan_callback.get_output() if plan_callback else None
+        )
+
+        state_callback = self.get_callback(TopicsKeys.ROBOT_LOCATION)
+        self.robot_state: Optional[RobotState] = (
+            state_callback.get_output(
+                transformation=self.odom_tf_listener.transform
+                if self.odom_tf_listener
+                else None
+            )
+            if state_callback
             else None
         )
 
         if self.direct_sensor:
-            self.sensor_data = self.get_callback(TopicsKeys.SPATIAL_SENSOR).get_output(
-                transformation=self.__sensor_tf_listener.transform
-                if self.__sensor_tf_listener
+            sensor_callback = self.get_callback(TopicsKeys.SPATIAL_SENSOR)
+            self.sensor_data = (
+                sensor_callback.get_output(
+                    transformation=self.__sensor_tf_listener.transform
+                    if self.__sensor_tf_listener
+                    else None
+                )
+                if sensor_callback
                 else None
             )
         else:
-            self.local_map: Optional[np.ndarray] = self.get_callback(
-                TopicsKeys.LOCAL_MAP
-            ).get_output()
-
-        if self.config._mode == ControllerMode.VISION_FOLLOWER and self.__tracked_label:
-            self.vision_trackings = self.get_callback(
-                TopicsKeys.VISION_TRACKINGS
-            ).get_output(
-                label=self.__tracked_label, id=vision_track_id, clear_last=True
+            map_callback = self.get_callback(TopicsKeys.LOCAL_MAP)
+            self.local_map: Optional[np.ndarray] = (
+                map_callback.get_output() if map_callback else None
             )
 
     def _attach_callbacks(self) -> None:
         """
         Attaches method to set received plan to the controller
         """
+        if self.config._mode == ControllerMode.VISION_FOLLOWER:
+            return
         # Adds callback to set the path in the controller when a new plan is received
-        self.get_callback(TopicsKeys.GLOBAL_PLAN).on_callback_execute(
-            self._set_path_to_controller
-        )
+        plan_callback = self.get_callback(TopicsKeys.GLOBAL_PLAN)
+        if plan_callback:
+            plan_callback.on_callback_execute(self._set_path_to_controller)
 
         if self.direct_sensor:
             # Remove callback for the local map and destroy subscriber
@@ -636,8 +687,7 @@ class Controller(Component):
             sensor_callback = self.get_callback(TopicsKeys.SPATIAL_SENSOR)
             if isinstance(sensor_callback, PointCloudCallback):
                 sensor_callback.max_range = (
-                    self.config.control_horizon_number_of_steps
-                    * self.robot.ctrl_vx_limits.max_vel
+                    self.config.prediction_horizon * self.robot.ctrl_vx_limits.max_vel
                 )
                 self.get_logger().info(
                     f"Setting PointCloud max range to robot max forward horizon '{sensor_callback.max_range}' to limit computations"
@@ -655,7 +705,8 @@ class Controller(Component):
         Set a new plan to the controller/follower
         """
         self.__reached_end = False
-        self.__path_controller.set_path(global_path=msg)
+        if self.__path_controller:
+            self.__path_controller.set_path(global_path=msg)
         self.__goal_point = RobotState(
             x=msg.poses[-1].pose.position.x, y=msg.poses[-1].pose.position.y
         )
@@ -677,7 +728,7 @@ class Controller(Component):
             robot_type=self.config.robot.model_type,
             geometry_type=self.config.robot.geometry_type,
             geometry_params=self.config.robot.geometry_params,
-            state=self.robot_state,
+            state=self.robot_state or RobotState(),
         )
 
         # SET robot control limits
@@ -687,20 +738,23 @@ class Controller(Component):
             omega_limits=self.config.robot.ctrl_omega_limits,
         )
 
-        # Get default controller configuration and update it from user defined config
-        _controller_config = self._configure_algorithm(
-            ControlConfigClasses[self.algorithm]()
-        )
+        self.__path_controller: Optional[ControllerType] = None
 
-        self.__path_controller: ControllerType = ControlClasses[self.algorithm](
-            robot=self.__robot,
-            config=_controller_config,
-            ctrl_limits=self.__robot_ctr_limits,
-            config_file=self._config_file,
-            config_yaml_root_name=f"{self.node_name}.{self.config.algorithm}",
-            control_time_step=self.config.control_time_step,
-            prediction_horizon=self.config.prediction_horizon,
-        )
+        if self.config._mode == ControllerMode.PATH_FOLLOWER:
+            # Get default controller configuration and update it from user defined config
+            _controller_config = self._configure_algorithm(
+                ControlConfigClasses[self.algorithm]()
+            )
+
+            self.__path_controller = ControlClasses[self.algorithm](
+                robot=self.__robot,
+                config=_controller_config,
+                ctrl_limits=self.__robot_ctr_limits,
+                config_file=self._config_file,
+                config_yaml_root_name=f"{self.node_name}.{self.config.algorithm}",
+                control_time_step=self.config.control_time_step,
+                prediction_horizon=self.config.prediction_horizon,
+            )
 
         self.__reached_end = False
         self.__lat_dist_error: float = 0.0
@@ -828,6 +882,10 @@ class Controller(Component):
         :return: If robot reached end of reference plan
         :rtype: bool
         """
+        if not self.__path_controller:
+            self.get_logger().warning("Path controller is not defined")
+            return False
+
         if not self.__path_controller.path:
             self.get_logger().warning("Global plan is not available to controller")
             return False
@@ -916,9 +974,8 @@ class Controller(Component):
             return response
 
         self.get_logger().warn(
-            f"Deactivating Vision Tracking Action for tracked label '{self.__tracked_label}'"
+            f"Ending Vision Tracking Action for tracked label '{self.__tracked_label}'"
         )
-        self.deactivate_vision_mode()
 
         # Wait for the action server to unset the tracked label
         _counter: int = 0
@@ -963,8 +1020,6 @@ class Controller(Component):
             f"Started vision tracking control action... {self.config.control_time_step}"
         )
 
-        self.activate_vision_mode()
-
         # SETUP ACTION REQUEST/FEEDBACK/RESULT
         request_msg = goal_handle.request
 
@@ -979,9 +1034,8 @@ class Controller(Component):
 
         if not self.vision_trackings:
             self.get_logger().error(
-                f"Tracking information is not available for requested label '{self.__tracked_label}' -> Searching"
+                f"Tracking information is not available for requested label '{self.__tracked_label}' -> Aborting"
             )
-            self.deactivate_vision_mode()
             goal_handle.abort()
             return result
 
@@ -1023,7 +1077,6 @@ class Controller(Component):
                 self.get_logger().info(
                     "Unable to find tracked target -> Aborting action"
                 )
-                self.deactivate_vision_mode()
                 goal_handle.abort()
                 return result
 
@@ -1059,8 +1112,6 @@ class Controller(Component):
 
         end_time = time.time()
 
-        self.deactivate_vision_mode()
-
         if self.vision_trackings:
             # WHEN PATH TRACKER SERVICE RETURNS RESULT
             self.get_logger().warning("Ending tracking action")
@@ -1084,7 +1135,7 @@ class Controller(Component):
 
         return result
 
-    def main_action_callback(self, goal_handle) -> ControlPath.Result:
+    def _path_tracking_callback(self, goal_handle) -> ControlPath.Result:
         """
         Executes the control action
         Controller keeps computing robot commands until the end of path is reached
@@ -1199,6 +1250,23 @@ class Controller(Component):
 
         return result
 
+    def main_action_callback(
+        self, goal_handle
+    ) -> Union[ControlPath.Result, TrackVisionTarget.Result]:
+        """
+        Executes the selected control action
+
+        :param goal_handle: Action request
+        :type goal_handle: ControlPath | TrackVisionTarget
+
+        :return: Action result
+        :rtype: Union[ControlPath.Result, TrackVisionTarget.Result]
+        """
+        if self.config._mode == ControllerMode.VISION_FOLLOWER:
+            return self._vision_tracking_callback(goal_handle)
+        else:
+            return self._path_tracking_callback(goal_handle)
+
     def reached_point(self, goal_point: RobotState) -> bool:
         """
         Checks if the current robot state is close to a given goal point
@@ -1211,7 +1279,7 @@ class Controller(Component):
         :return: If the distance to the goal is less than the given tolerance
         :rtype: bool
         """
-        if not self.robot_state:
+        if not self.robot_state or not self.__path_controller:
             return False
         dist: float = self.robot_state.distance(goal_point)
         return dist <= self.__path_controller._config.goal_dist_tolerance
