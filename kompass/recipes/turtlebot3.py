@@ -7,7 +7,7 @@ from kompass.robot import (
     RobotType,
     RobotConfig,
 )
-from kompass.control import LocalPlannersID
+from kompass.control import ControllersID
 
 from automatika_ros_sugar.msg import ComponentStatus
 from kompass_interfaces.action import PlanPath
@@ -56,7 +56,7 @@ def kompass_bringup():
     mapper = LocalMapper(component_name="mapper")
 
     # Configure Controller options
-    controller.algorithm = LocalPlannersID.DWA
+    controller.algorithm = ControllersID.DWA
     controller.direct_sensor = False
 
     planner.run_type = "ActionServer"
