@@ -1,4 +1,4 @@
-from typing import Optional, Dict
+from typing import Optional, Dict, Union, List
 
 from ros_sugar.io import AllowedTopics
 from ros_sugar.io import Topic
@@ -88,7 +88,9 @@ def _get_allowed_number(
     return None
 
 
-def update_topics(topics_dict: Dict[TopicsKeys, Topic], **kwargs) -> Dict[str, Topic]:
+def update_topics(
+    topics_dict: Dict[TopicsKeys, Union[Topic, List[Topic], None]], **kwargs
+) -> Dict[TopicsKeys, Union[Topic, List[Topic], None]]:
     """Update a dictionary of topics given keyword arguments
 
     :param topics_dict: Topic dictionary {topic_key_name: Topic}

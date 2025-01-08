@@ -12,14 +12,15 @@ from ..config import ComponentConfig, RobotConfig, ComponentRunType
 from .ros import Topic, update_topics
 from .. import data_types
 from itertools import groupby
+from .defaults import TopicsKeys
 
 # Get Kompass types to pass to the base component as additional supported types
 add_additional_datatypes(get_all_msg_types(data_types))
 
 
 def _parse_from_topics_dict(
-    topics_dict: Dict[str, Union[Topic, List[Topic]]],
-) -> Tuple[List[str], List[Optional[Topic]]]:
+    topics_dict: Dict[TopicsKeys, Union[Topic, List[Topic], None]],
+) -> Tuple[List[TopicsKeys], List[Optional[Topic]]]:
     """Parse the topics dictionary into a list of topics for compatibility with ros_sugar
 
     :param topics_dict: Dictionary of key names and Topics
@@ -41,8 +42,8 @@ def _parse_from_topics_dict(
 
 
 def _parse_to_topics_dict(
-    keys: List[str], values: List[Optional[Topic]]
-) -> Dict[str, Union[Topic, List[Optional[Topic]]]]:
+    keys: List[TopicsKeys], values: List[Optional[Topic]]
+) -> Dict[TopicsKeys, Union[Topic, None, List[Topic]]]:
     """Parse the topics key names and values into a dictionary
 
     :param keys: Topics key names (can have duplicate keys if the same key accepts a set of topics)
@@ -52,14 +53,14 @@ def _parse_to_topics_dict(
     :return: Parsed dictionary
     :rtype: Dict[str, Union[Topic, List[Topic]]]
     """
-    grouped_dict: Dict[str, Union[Topic, List[Topic]]] = {}
+    grouped_dict: Dict[TopicsKeys, Union[Topic, None, List[Topic]]] = {}
     for key, group in groupby(zip(keys, values)):
         values = [v for _, v in group]
         # If multiple values, store as a list
         if len(values) == 1:
-            grouped_dict[key[0]] = values[0]
+            grouped_dict[TopicsKeys(key[0])] = values[0]
         else:
-            grouped_dict[key[0]] = values
+            grouped_dict[TopicsKeys(key[0])] = [val for val in values if val]
     return grouped_dict
 
 
@@ -100,8 +101,8 @@ class Component(BaseComponent):
         component_name: str,
         config: Optional[ComponentConfig] = None,
         config_file: Optional[str] = None,
-        inputs: Optional[Dict[str, Union[Topic, List[Topic]]]] = None,
-        outputs: Optional[Dict[str, Union[Topic, List[Topic]]]] = None,
+        inputs: Optional[Dict[TopicsKeys, Union[Topic, List[Topic], None]]] = None,
+        outputs: Optional[Dict[TopicsKeys, Union[Topic, List[Topic], None]]] = None,
         fallbacks: Optional[ComponentFallbacks] = None,
         allowed_inputs: Optional[Dict[str, AllowedTopics]] = None,
         allowed_outputs: Optional[Dict[str, AllowedTopics]] = None,
@@ -142,13 +143,20 @@ class Component(BaseComponent):
         self.__allowed_outputs: Optional[Dict[str, AllowedTopics]] = allowed_outputs
 
         # Allowed run types (defaults to all types)
-        self.__allowed_run_types = allowed_run_types or ComponentRunType.values()
-
-        self.config = config or ComponentConfig()
+        if allowed_run_types:
+            self.__allowed_run_types = allowed_run_types + [
+                runtype.value for runtype in allowed_run_types
+            ]
+        else:
+            self.__allowed_run_types = ComponentRunType.values() + list(
+                ComponentRunType
+            )
 
         # Remove None values from topics before sending to ros sugar
         inputs_list: List[Topic] = [topic for topic in self._inputs_list if topic]
         outputs_list: List[Topic] = [topic for topic in self._outputs_list if topic]
+
+        self.config: ComponentConfig = config or ComponentConfig()
 
         super().__init__(
             component_name=component_name,
@@ -200,12 +208,26 @@ class Component(BaseComponent):
         :type value: Union[ComponentRunType, str]
         :raises ValueError: If run_type is unsupported
         """
-        if value in self.__allowed_run_types:
+        if value not in self.__allowed_run_types:
             raise ValueError(
                 f"Component {self.node_name} cannot have run_type '{value}', can only run as one of the following: {self.__allowed_run_types}"
             )
 
         self.config.run_type = value
+
+    @property
+    def inputs_keys(self) -> List[TopicsKeys]:
+        """
+        Getter of component inputs key names that should be used in the inputs dictionary
+        """
+        return self._inputs_keys
+
+    @property
+    def outputs_keys(self) -> List[TopicsKeys]:
+        """
+        Getter of component outputs key names that should be used in the inputs dictionary
+        """
+        return self._outputs_keys
 
     # INPUTS/OUTPUTS AND CONFIGURATION
     def inputs(self, **kwargs):
@@ -253,20 +275,23 @@ class Component(BaseComponent):
         inputs_config = OmegaConf.select(raw_config, f"{self.node_name}.inputs")
         for idx, key in enumerate(self._inputs_keys):
             if hasattr(inputs_config, str(key)):
+                # If a topic key is found in the yaml file
+                topic_name = self.in_topic_name(key)
                 # If the key does not correspond to a None value -> replace callback
-                if self._inputs_list[idx]:
-                    self.callbacks.pop(self.in_topic_name(key))
+                if isinstance(topic_name, str):
+                    self.callbacks.pop(topic_name)
                     self.in_topics[idx].from_yaml(
                         config_file, f"{self.node_name}.inputs.{key}"
                     )
+                # TODO handle List case
                 else:
+                    # Create a dummy topic to parse the value from yaml
                     dummy_topic = Topic(name="dummy", msg_type="String")
+                    dummy_topic.from_yaml(config_file, f"{self.node_name}.inputs.{key}")
                     # If the key correspond to a None value -> create callback
                     self.in_topics.insert(
                         idx,
-                        dummy_topic.from_yaml(
-                            config_file, f"{self.node_name}.inputs.{key}"
-                        ),
+                        dummy_topic,
                     )
                 self.callbacks[self.in_topics[idx].name] = self.in_topics[
                     idx
@@ -275,19 +300,21 @@ class Component(BaseComponent):
         outputs_config = OmegaConf.select(raw_config, f"{self.node_name}.outputs")
         for idx, key in enumerate(self._outputs_keys):
             if hasattr(outputs_config, str(key)):
-                # If the key does not correspond to a None value -> replace publisher
-                if self._outputs_list[idx]:
-                    self.publishers_dict.pop(self.out_topic_name(key))
+                # If a topic key is found in the yaml file
+                topic_name = self.out_topic_name(key)
+                if isinstance(topic_name, str):
+                    self.publishers_dict.pop(topic_name)
                     self.out_topics[idx].from_yaml(
                         config_file, f"{self.node_name}.outputs.{key}"
                     )
                 else:
                     dummy_topic = Topic(name="dummy", msg_type="String")
+                    dummy_topic.from_yaml(
+                        config_file, f"{self.node_name}.outputs.{key}"
+                    )
                     self.out_topics.insert(
                         idx,
-                        dummy_topic.from_yaml(
-                            config_file, f"{self.node_name}.outputs.{key}"
-                        ),
+                        dummy_topic,
                     )
                 self.publishers_dict[self.out_topics[idx].name] = Publisher(
                     self.out_topics[idx], node_name=self.node_name
@@ -357,7 +384,7 @@ class Component(BaseComponent):
         tf_listener: TFListener = self.create_tf_listener(tf_config)
         return tf_listener
 
-    def in_topic_name(self, key: str) -> Union[str, List[str], None]:
+    def in_topic_name(self, key: Union[str, TopicsKeys]) -> Union[str, List[str], None]:
         """Get the topic(s) name(s) corresponding to an input key name
 
         :param key: Input key name
@@ -365,6 +392,7 @@ class Component(BaseComponent):
         :return: Topic(s) name(s)
         :rtype: Union[str, List[str], None]
         """
+        key = key if isinstance(key, TopicsKeys) else TopicsKeys(key)
         if self._inputs_keys.count(key) > 1:
             names: List[str] = []
             for idx, k in enumerate(self._inputs_keys):
@@ -378,7 +406,9 @@ class Component(BaseComponent):
             else None
         )
 
-    def out_topic_name(self, key: str) -> Union[str, List[str], None]:
+    def out_topic_name(
+        self, key: Union[str, TopicsKeys]
+    ) -> Union[str, List[str], None]:
         """Get the topic(s) name(s) corresponding to an output key name
 
         :param key: Output key name
@@ -386,6 +416,7 @@ class Component(BaseComponent):
         :return: Topic(s) name(s)
         :rtype: Union[str, List[str], None]
         """
+        key = key if isinstance(key, TopicsKeys) else TopicsKeys(key)
         if self._outputs_keys.count(key) > 1:
             names: List[str] = []
             for idx, k in enumerate(self._outputs_keys):
@@ -399,7 +430,9 @@ class Component(BaseComponent):
             else None
         )
 
-    def get_in_topic(self, key: str) -> Union[Topic, List[Topic], None]:
+    def get_in_topic(
+        self, key: Union[str, TopicsKeys]
+    ) -> Union[Topic, List[Topic], None]:
         """Get the topic(s) corresponding to an input key name
 
         :param key: Input key name
@@ -407,15 +440,18 @@ class Component(BaseComponent):
         :return: Topic(s)
         :rtype: Union[Topic, List[Topic], None]
         """
+        key = key if isinstance(key, TopicsKeys) else TopicsKeys(key)
         if self._inputs_keys.count(key) > 1:
             topics: List[Topic] = []
             for idx, k in enumerate(self._inputs_keys):
-                if k == key:
+                if k == key and self._inputs_list[idx]:
                     topics.append(self._inputs_list[idx])
             return topics
         return self._inputs_list[self._inputs_keys.index(key)]
 
-    def get_out_topic(self, key: str) -> Union[Topic, List[Topic], None]:
+    def get_out_topic(
+        self, key: Union[str, TopicsKeys]
+    ) -> Union[Topic, List[Topic], None]:
         """Get the topic(s) corresponding to an output key name
 
         :param key: Output key name
@@ -423,15 +459,18 @@ class Component(BaseComponent):
         :return: Topic(s)
         :rtype: Union[Topic, List[Topic], None]
         """
+        key = key if isinstance(key, TopicsKeys) else TopicsKeys(key)
         if self._outputs_keys.count(key) > 1:
             topics: List[Topic] = []
             for idx, k in enumerate(self._outputs_keys):
-                if k == key:
+                if k == key and self._outputs_list[idx]:
                     topics.append(self._outputs_list[idx])
             return topics
         return self._outputs_list[self._outputs_keys.index(key)]
 
-    def get_callback(self, key: str, idx: int = 0) -> Optional[GenericCallback]:
+    def get_callback(
+        self, key: Union[str, TopicsKeys], idx: int = 0
+    ) -> Optional[GenericCallback]:
         """Get callback with given input key name
 
         :param key: Input key name
@@ -452,7 +491,7 @@ class Component(BaseComponent):
                 f"Unknown input '{key}' for component '{self.node_name}'"
             ) from e
 
-    def get_publisher(self, key: str, idx: int = 0) -> Optional[Publisher]:
+    def get_publisher(self, key: Union[str, TopicsKeys], idx: int = 0) -> Publisher:
         """Get publisher with given output key name
 
         :param key: Output topic key name
@@ -467,7 +506,7 @@ class Component(BaseComponent):
             topic_names: Union[str, List[str], None] = self.out_topic_name(key)
             if isinstance(topic_names, List):
                 return self.publishers_dict[topic_names[idx]]
-            return self.publishers_dict[topic_names] if topic_names else None
+            return self.publishers_dict[topic_names]
         except Exception as e:
             raise KeyError(
                 f"Unknown output '{key}' for component '{self.node_name}'"

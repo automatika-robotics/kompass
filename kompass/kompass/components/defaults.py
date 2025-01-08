@@ -104,7 +104,7 @@ class TopicsKeys(StrEnum):
     RUN_TESTS = "run_tests"
 
 
-controller_allowed_inputs: Dict[str, AllowedTopics] = {
+controller_allowed_inputs: Dict[TopicsKeys, AllowedTopics] = {
     TopicsKeys.GLOBAL_PLAN: AllowedTopics(types=["Path"]),
     TopicsKeys.ROBOT_LOCATION: AllowedTopics(types=["Odometry", "PoseStamped", "Pose"]),
     TopicsKeys.SPATIAL_SENSOR: AllowedTopics(types=["LaserScan", "PointCloud2"]),
@@ -112,7 +112,7 @@ controller_allowed_inputs: Dict[str, AllowedTopics] = {
     TopicsKeys.VISION_TRACKINGS: AllowedTopics(types=["Trackings", "Detections"]),
 }
 
-controller_allowed_outputs: Dict[str, AllowedTopics] = {
+controller_allowed_outputs: Dict[TopicsKeys, AllowedTopics] = {
     TopicsKeys.INTERMEDIATE_CMD: AllowedTopics(types=["Twist"]),
     TopicsKeys.INTERMEDIATE_CMD_LIST: AllowedTopics(types=["TwistArray"]),
     TopicsKeys.INTERPOLATED_PATH: AllowedTopics(types=["Path"]),
@@ -121,7 +121,7 @@ controller_allowed_outputs: Dict[str, AllowedTopics] = {
 }
 
 # Create default inputs - Used if no inputs config is provided to the controller
-controller_default_inputs: Dict[str, Optional[Topic]] = {
+controller_default_inputs: Dict[TopicsKeys, Optional[Topic]] = {
     TopicsKeys.GLOBAL_PLAN: Topic(name="/plan", msg_type="Path"),
     TopicsKeys.SPATIAL_SENSOR: Topic(name="/scan", msg_type="LaserScan"),
     TopicsKeys.LOCAL_MAP: Topic(
@@ -132,7 +132,7 @@ controller_default_inputs: Dict[str, Optional[Topic]] = {
 }
 
 # Create default outputs - Used if no outputs config is provided to the controller
-controller_default_outputs: Dict[str, Topic] = {
+controller_default_outputs: Dict[TopicsKeys, Topic] = {
     TopicsKeys.INTERMEDIATE_CMD: Topic(name="/control", msg_type="Twist"),
     TopicsKeys.INTERMEDIATE_CMD_LIST: Topic(
         name="/control_list", msg_type="TwistArray"
@@ -143,7 +143,7 @@ controller_default_outputs: Dict[str, Topic] = {
 }
 
 # DRIVE MANAGER
-driver_allowed_inputs: Dict[str, AllowedTopics] = {
+driver_allowed_inputs: Dict[TopicsKeys, AllowedTopics] = {
     TopicsKeys.INTERMEDIATE_CMD: AllowedTopics(types=["Twist"]),
     TopicsKeys.INTERMEDIATE_CMD_LIST: AllowedTopics(types=["TwistArray"]),
     TopicsKeys.SPATIAL_SENSOR: AllowedTopics(
@@ -154,13 +154,13 @@ driver_allowed_inputs: Dict[str, AllowedTopics] = {
     TopicsKeys.ROBOT_LOCATION: AllowedTopics(types=["Odometry", "PoseStamped", "Pose"]),
 }
 
-driver_allowed_outputs: Dict[str, AllowedTopics] = {
+driver_allowed_outputs: Dict[TopicsKeys, AllowedTopics] = {
     TopicsKeys.FINAL_COMMAND: AllowedTopics(types=["Twist"]),
     TopicsKeys.EMERGENCY: AllowedTopics(types=["Bool"]),
 }
 
 
-driver_default_inputs: Dict[str, Topic] = {
+driver_default_inputs: Dict[TopicsKeys, Topic] = {
     TopicsKeys.INTERMEDIATE_CMD: Topic(name="/control", msg_type="Twist"),
     TopicsKeys.INTERMEDIATE_CMD_LIST: Topic(
         name="/control_list", msg_type="TwistArray"
@@ -169,58 +169,58 @@ driver_default_inputs: Dict[str, Topic] = {
     TopicsKeys.ROBOT_LOCATION: Topic(name="/odom", msg_type="Odometry"),
 }
 
-driver_default_outputs: Dict[str, Topic] = {
+driver_default_outputs: Dict[TopicsKeys, Topic] = {
     TopicsKeys.FINAL_COMMAND: Topic(name="/cmd_vel", msg_type="Twist"),
     TopicsKeys.EMERGENCY: Topic(name="/emergency_stop", msg_type="Bool"),
 }
 
 # LOCAL MAPPER
-mapper_allowed_inputs: Dict[str, AllowedTopics] = {
+mapper_allowed_inputs: Dict[TopicsKeys, AllowedTopics] = {
     TopicsKeys.SPATIAL_SENSOR: AllowedTopics(types=["LaserScan"]),
     TopicsKeys.ROBOT_LOCATION: AllowedTopics(types=["Odometry", "PoseStamped", "Pose"]),
 }
 
-mapper_allowed_outputs: Dict[str, AllowedTopics] = {
+mapper_allowed_outputs: Dict[TopicsKeys, AllowedTopics] = {
     TopicsKeys.LOCAL_MAP_OCC: AllowedTopics(types=["OccupancyGrid"]),
 }
 
 
 # Create default inputs - Used if no inputs config is provided to the controller
-mapper_default_inputs: Dict[str, Topic] = {
+mapper_default_inputs: Dict[TopicsKeys, Topic] = {
     TopicsKeys.SPATIAL_SENSOR: Topic(name="/scan", msg_type="LaserScan"),
     TopicsKeys.ROBOT_LOCATION: Topic(name="/odom", msg_type="Odometry"),
 }
 
 # Create default outputs - Used if no outputs config is provided to the controller
-mapper_default_outputs: Dict[str, Topic] = {
+mapper_default_outputs: Dict[TopicsKeys, Topic] = {
     TopicsKeys.LOCAL_MAP_OCC: Topic(
         name="/local_map/occupancy_layer", msg_type="OccupancyGrid"
     ),
 }
 
 # MOTION SERVER
-motion_server_allowed_inputs: Dict[str, AllowedTopics] = {
+motion_server_allowed_inputs: Dict[TopicsKeys, AllowedTopics] = {
     TopicsKeys.RUN_TESTS: AllowedTopics(types=["Bool"]),
     TopicsKeys.INTERMEDIATE_CMD: AllowedTopics(types=["Twist"]),
     TopicsKeys.ROBOT_LOCATION: AllowedTopics(types=["Odometry"]),
 }
 
-motion_server_allowed_outputs: Dict[str, AllowedTopics] = {
+motion_server_allowed_outputs: Dict[TopicsKeys, AllowedTopics] = {
     TopicsKeys.FINAL_COMMAND: AllowedTopics(types=["Twist"]),
 }
 
-motion_server_default_outputs: Dict[str, Topic] = {
+motion_server_default_outputs: Dict[TopicsKeys, Topic] = {
     TopicsKeys.FINAL_COMMAND: Topic(name="/control", msg_type="Twist"),
 }
 
-motion_server_default_inputs: Dict[str, Topic] = {
+motion_server_default_inputs: Dict[TopicsKeys, Topic] = {
     TopicsKeys.RUN_TESTS: Topic(name="/run_tests", msg_type="Bool"),
     TopicsKeys.INTERMEDIATE_CMD: Topic(name="/cmd_vel", msg_type="Twist"),
     TopicsKeys.ROBOT_LOCATION: Topic(name="/odom", msg_type="Odometry"),
 }
 
 # PLANNER
-planner_allowed_inputs: Dict[str, AllowedTopics] = {
+planner_allowed_inputs: Dict[TopicsKeys, AllowedTopics] = {
     TopicsKeys.GLOBAL_MAP: AllowedTopics(types=["OccupancyGrid"]),
     TopicsKeys.GOAL_POINT: AllowedTopics(
         types=["Odometry", "PoseStamped", "PointStamped"]
@@ -228,14 +228,14 @@ planner_allowed_inputs: Dict[str, AllowedTopics] = {
     TopicsKeys.ROBOT_LOCATION: AllowedTopics(types=["Odometry"]),
 }
 
-planner_allowed_outputs: Dict[str, AllowedTopics] = {
+planner_allowed_outputs: Dict[TopicsKeys, AllowedTopics] = {
     TopicsKeys.GLOBAL_PLAN: AllowedTopics(types=["Path"]),
     TopicsKeys.REACHED_END: AllowedTopics(types=["Bool"]),
 }
 
 
 # Default values for inputs / outputs
-planner_default_inputs: Dict[str, Topic] = {
+planner_default_inputs: Dict[TopicsKeys, Topic] = {
     TopicsKeys.GLOBAL_MAP: Topic(
         name="/map",
         msg_type="OccupancyGrid",
@@ -245,7 +245,7 @@ planner_default_inputs: Dict[str, Topic] = {
     TopicsKeys.ROBOT_LOCATION: Topic(name="/odom", msg_type="Odometry"),
 }
 
-planner_default_outputs: Dict[str, Topic] = {
+planner_default_outputs: Dict[TopicsKeys, Topic] = {
     TopicsKeys.GLOBAL_PLAN: Topic(name="/plan", msg_type="Path"),
     TopicsKeys.REACHED_END: Topic(name="/reached_end", msg_type="Bool"),
 }

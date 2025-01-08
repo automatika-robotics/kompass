@@ -30,6 +30,7 @@ from .drive_manager import DriveManager, DriveManagerConfig
 from .motion_server import MotionServer, MotionServerConfig
 from .planner import Planner, PlannerConfig
 from .mapper import LocalMapper, LocalMapperConfig
+from .defaults import TopicsKeys
 
 __all__ = [
     "Planner",
@@ -42,4 +43,5 @@ __all__ = [
     "MotionServerConfig",
     "LocalMapper",
     "LocalMapperConfig",
+    "TopicsKeys",
 ]

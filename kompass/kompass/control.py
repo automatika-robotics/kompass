@@ -1,5 +1,5 @@
 from kompass_core.control import (
-    LocalPlannersID,
+    ControllersID,
     VisionFollowerConfig,
     StanleyConfig,
     DWAConfig,
@@ -7,7 +7,7 @@ from kompass_core.control import (
 )
 
 __all__ = [
-    "LocalPlannersID",
+    "ControllersID",
     "VisionFollowerConfig",
     "StanleyConfig",
     "DWAConfig",
