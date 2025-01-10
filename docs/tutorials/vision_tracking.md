@@ -9,7 +9,7 @@ In this tutorial we will create a vision-based target following navigation syste
 Based on the type of the camera used on your robot, you need to install and launch its respective ROS2 node provided by the manufacturer.
 
 To run and test this example on your development machine, you can use your webcam along with the `usb_cam` package:
-```{shell}
+```shell
 sudo apt install ros-<ros2-distro>-usb-cam
 ros2 run usb_cam usb_cam_node_exe
 ```
@@ -29,7 +29,7 @@ ROS Agents is another [ROS Sugar](https://automatika-robotics.github.io/ros-suga
 
 After installing both packages, you can start `roboml` to serve the model later either on the robot (or your same development machine), or on another machine in the local network or in the cloud. To start a RESP server run:
 
-```{shell}
+```shell
 roboml-resp
 ```
 ```{tip}

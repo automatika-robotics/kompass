@@ -22,7 +22,7 @@ Set from ControllerConfig class or directly from Controller 'run_type' property.
 ## Inputs
 
 ```{list-table}
-::widths: 10 40 10 40
+:widths: 10 40 10 40
 :header-rows: 1
 * - Key Name
   - Allowed Types
@@ -44,7 +44,7 @@ Set from ControllerConfig class or directly from Controller 'run_type' property.
 ## Outputs
 
 ```{list-table}
-::widths: 10 40 10 40
+:widths: 10 40 10 40
 :header-rows: 1
 * - Key Name
   - Allowed Types
