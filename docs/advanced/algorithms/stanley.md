@@ -79,7 +79,7 @@ from kompass.robot import (
     RobotType,
     RobotConfig
 )
-from kompass.control import LocalPlannersID
+from kompass.control import ControllersID
 
 # Setup your robot configuration
 my_robot = RobotConfig(
@@ -92,7 +92,7 @@ my_robot = RobotConfig(
 )
 
 # Set Stanley algorithm using the config class
-controller_config = ControllerConfig(algorithm="Stanley")  # or LocalPlannersID.STANLEY
+controller_config = ControllerConfig(algorithm="Stanley")  # or ControllersID.STANLEY
 
 # Set YAML config file
 config_file = "my_config.yaml"
@@ -102,7 +102,7 @@ controller = Controller(component_name="my_controller",
                         config_file=config_file)
 
 # algorithm can also be set using a property
-controller.algorithm = LocalPlannersID.STANLEY      # or "Stanley"
+controller.algorithm = ControllersID.STANLEY      # or "Stanley"
 
 ```
 

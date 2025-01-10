@@ -122,7 +122,7 @@ controller = Controller(component_name="my_controller",
                         config_file=config_file)
 
 # algorithm can also be set using a property
-controller.algorithm = LocalPlannersID.DVZ      # or "DVZ"
+controller.algorithm = ControllersID.DVZ      # or "DVZ"
 
 ```
 
