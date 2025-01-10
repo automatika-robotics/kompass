@@ -21,7 +21,7 @@ sudo apt install ros-${ROS_DISTRO}-nav2-map-server ros-${ROS_DISTRO}-robot-local
 - Launch the simulation:
 
 ```shell
-ros2 launch kompass webots_turtlebot3_launch.py
+ros2 launch kompass webots_turtlebot3.launch.py
 ```
 
 This will start webots simulator, Rviz and the robot localization and map server:

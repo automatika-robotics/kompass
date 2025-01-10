@@ -73,12 +73,15 @@ def generate_launch_description():
     # ROS control spawners
     controller_manager_timeout = ["--controller-manager-timeout", "500"]
     controller_manager_prefix = "python.exe" if os.name == "nt" else ""
+    ros2_control_params = os.path.join(package_dir, "resource", "ros2_control.yml")
     diffdrive_controller_spawner = Node(
         package="controller_manager",
         executable="spawner",
         output="screen",
         prefix=controller_manager_prefix,
-        arguments=["diffdrive_controller"] + controller_manager_timeout,
+        # arguments=["diffdrive_controller"] + controller_manager_timeout,
+        arguments=["diffdrive_controller", "--param-file", ros2_control_params]
+        + controller_manager_timeout,
     )
     joint_state_broadcaster_spawner = Node(
         package="controller_manager",
