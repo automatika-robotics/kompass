@@ -13,7 +13,13 @@ from kompass.components import (
     LocalMapper,
 )
 
-_kompass_components = [Planner, Controller, DriveManager, MotionServer, LocalMapper]
+_kompass_components = [
+    Planner,
+    Controller,
+    DriveManager,
+    MotionServer,
+    LocalMapper,
+]
 
 _kompass_configs = [
     PlannerConfig,

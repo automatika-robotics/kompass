@@ -30,16 +30,14 @@ navigation/motion_server
 navigation/mapping_localization
 ```
 
-<!-- # Design -->
-
-<!-- ```{toctree}
+```{toctree}
 :maxdepth: 1
-:caption: Design Concepts
+:caption: Tutorials
 
-design
-``` -->
-
-<!-- # Integrations and Plugins -->
+tutorials/point_navigation
+tutorials/vision_tracking
+tutorials/events_actions
+```
 
 ```{toctree}
 :maxdepth: 1
@@ -56,7 +54,6 @@ integrations/fcl
 :caption: Advanced
 
 advanced/index
-tutorials/events_actions
 ```
 
 <!-- # References -->

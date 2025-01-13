@@ -1,5 +1,5 @@
 import os
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional
 
 import numpy as np
 from attrs import define, field
@@ -11,14 +11,15 @@ from rclpy.callback_groups import CallbackGroup
 from kompass_interfaces.action import MotionRecording
 
 from ..config import BaseValidators, ComponentConfig, ComponentRunType
-from ..topic import (
-    AllowedTopic,
-    RestrictedTopicsConfig,
-    Topic,
-    create_topics_config,
-    update_topics_config,
-)
+from .ros import Topic, update_topics
 from .component import Component
+from .defaults import (
+    TopicsKeys,
+    motion_server_allowed_inputs,
+    motion_server_allowed_outputs,
+    motion_server_default_inputs,
+    motion_server_default_outputs,
+)
 
 
 @define(kw_only=True)
@@ -36,33 +37,6 @@ class MotionServerConfig(ComponentConfig):
     run_circle_test: bool = field(default=True)
 
 
-class MotionServerOutputs(RestrictedTopicsConfig):
-    # Restricted Topics Config for MotionServer component authorized input topics
-
-    CMD = AllowedTopic(key="command", types=["Twist"])
-
-
-class MotionServerInputs(RestrictedTopicsConfig):
-    # Restricted Topics Config for MotionServer component authorized input topics
-
-    RUN = AllowedTopic(key="run", types=["Bool"])
-    CMD = AllowedTopic(key="robot_command", types=["Twist"])
-    LOCATION = AllowedTopic(key="location", types=["Odometry"])
-
-
-_default_outputs = create_topics_config(
-    "MotionServerOutputs",
-    command=Topic(name="/control", msg_type="Twist"),
-)
-
-_default_inputs = create_topics_config(
-    "MotionServerInputs",
-    run=Topic(name="/run_tests", msg_type="Bool"),
-    robot_command=Topic(name="/cmd_vel", msg_type="Twist"),
-    location=Topic(name="/odom", msg_type="Odometry"),
-)
-
-
 class MotionServer(Component):
     """
     MotionServer component used for automatic testing by sending reference commands and recording resulting motion.
@@ -76,15 +50,15 @@ class MotionServer(Component):
 
     :::{note} Topic for 'Control Command' is both in MotionServer inputs and outputs:
       - The output is used when running automated testing (i.e. sending the commands directly from the MotionServer).
-      - The input is used to purly record motion and control from external sources (example: recording output from Controller).
+      - The input is used to purely record motion and control from external sources (example: recording output from Controller).
       - Different command topics can be configured for the input and the output. For example: to test the DriveManager, the control command from MotionServer output can be sent to the DriveManager, then the DriveManager output can be configured as the MotionServer input for recording.
     :::
 
     ## Available Run Types:
-    Set from MotionServerConfig class or directly from MotionServer 'run_type' properety.
+    Set from MotionServerConfig class or directly from MotionServer 'run_type' property.
 
     - *TIMED*: Launches an automated test periodically after start.
-    - *EVENT*: Launches automated testing when a trigger ir recieved on RUN input.
+    - *EVENT*: Launches automated testing when a trigger ir received on RUN input.
     - *ACTIONSERVER*: Offers a MotionRecording ROS action to record motion for location and control commands topics for given recording period.
 
     ## Usage Example:
@@ -123,15 +97,15 @@ class MotionServer(Component):
             config = MotionServerConfig()
 
         # Get default component outputs
-        out_topics = _default_outputs()
-        in_topics = _default_inputs()
+        out_topics = motion_server_default_outputs
+        in_topics = motion_server_default_inputs
 
         if robot_cmd_topic:
-            out_topics = update_topics_config(out_topics, command=robot_cmd_topic)
-            in_topics = update_topics_config(in_topics, robot_command=robot_cmd_topic)
+            out_topics = update_topics(out_topics, robot_command=robot_cmd_topic)
+            in_topics = update_topics(in_topics, command=robot_cmd_topic)
 
         if robot_odom_topic:
-            in_topics = update_topics_config(in_topics, location=robot_odom_topic)
+            in_topics = update_topics(in_topics, location=robot_odom_topic)
 
         super().__init__(
             config=config,
@@ -140,62 +114,29 @@ class MotionServer(Component):
             callback_group=callback_group,
             outputs=out_topics,
             inputs=in_topics,
-            allowed_inputs=MotionServerInputs,
-            allowed_outputs=MotionServerOutputs,
+            allowed_inputs=motion_server_allowed_inputs,
+            allowed_outputs=motion_server_allowed_outputs,
+            allowed_run_types=[
+                ComponentRunType.EVENT,
+                ComponentRunType.ACTION_SERVER,
+                ComponentRunType.TIMED,
+            ],
             **kwargs,
         )
         self.config: MotionServerConfig
-
-    @property
-    def run_type(self) -> ComponentRunType:
-        """
-        Component run type: Timed, ActionServer or Event
-
-        :return: Timed, ActionServer or Server
-        :rtype: str
-        """
-        return self.config.run_type
-
-    @run_type.setter
-    def run_type(self, value: Union[ComponentRunType, str]) -> None:
-        """Overrides property setter to restrict to implemented motion server run types
-
-        :param value: Run type
-        :type value: Union[ComponentRunType, str]
-        :raises ValueError: If run_type is unsupported
-        """
-        if value in [ComponentRunType.SERVER, ComponentRunType.SERVER.value]:
-            raise ValueError("MotionServer component cannot run as a server")
-
-        self.config.run_type = value
-
-    def _block_types(self) -> None:
-        """
-        Main service and action types of the planner component
-        """
         self.action_type = MotionRecording
-
-    def attach_callbacks(self) -> None:
-        """
-        Attaches method to set received plan to the controller
-        """
-        if self.run_type == ComponentRunType.EVENT:
-            # Run tests on True
-            self.callbacks[MotionServerInputs.RUN.key].on_callback_execute(
-                self.run_motion_response_tests
-            )
 
     def _update_state(self) -> None:
         """
         Updates all inputs
         """
-        self.robot_cmd: Optional[Twist] = self.callbacks[
-            MotionServerInputs.CMD.key
-        ].get_output()
+        self.robot_cmd: Optional[Twist] = self.get_callback(
+            TopicsKeys.INTERMEDIATE_CMD
+        ).get_output()
 
-        self.robot_state: Optional[RobotState] = self.callbacks[
-            MotionServerInputs.LOCATION.key
-        ].get_output(
+        self.robot_state: Optional[RobotState] = self.get_callback(
+            TopicsKeys.ROBOT_LOCATION
+        ).get_output(
             transformation=self.odom_tf_listener.transform
             if self.odom_tf_listener
             else None
@@ -203,6 +144,12 @@ class MotionServer(Component):
 
     def _execute_once(self) -> None:
         """Init recording for timed component"""
+        if self.run_type == ComponentRunType.EVENT:
+            # Run tests on True
+            self.attach_custom_callback(
+                self.in_topic_name(TopicsKeys.RUN_TESTS), self.run_motion_response_tests
+            )
+
         # check if topic being published
         while not self.got_all_inputs():
             self.get_logger().warn(
@@ -310,7 +257,7 @@ class MotionServer(Component):
                 goal_handle.publish_feedback(action_feedback_msg)
                 server_rate.sleep()
 
-            # Save recorded moton to file
+            # Save recorded motion to file
             file_saved: bool = self._end_motion_recording(
                 motion_file_location, motion_file_name
             )
@@ -435,7 +382,7 @@ class MotionServer(Component):
 
         # Publish zero to stop the robot
         cmd_vel = Twist()
-        self.publishers_dict[MotionServerOutputs.CMD.key].publish(cmd_vel)
+        self.get_publisher("robot_command").publish(cmd_vel)
 
     def generate_basic_ctr_tests(self, number_of_steps: int) -> List[Dict]:
         """
@@ -563,7 +510,7 @@ class MotionServer(Component):
                 cmd_vel.linear.x = test[cmd_idx, 0]
                 cmd_vel.angular.z = test[cmd_idx, 1]
                 # send to robot
-                self.publishers_dict[MotionServerOutputs.CMD.key].publish(cmd_vel)
+                self.get_publisher(TopicsKeys.FINAL_COMMAND).publish(cmd_vel)
 
                 self._update_state()
 

@@ -1,12 +1,11 @@
-from typing import Optional
+from typing import Optional, Dict
 from attrs import define, field, Factory
 import numpy as np
 
 # ROS MSGS
-from std_msgs.msg import Header
 from geometry_msgs.msg import Pose
 
-# KOMPASS
+# KOMPASS CORE
 from kompass_core.mapping import MapConfig
 from kompass_core.mapping import LocalMapper as LocalMapperHandler
 from kompass_core.mapping.laserscan_model import LaserScanModelConfig
@@ -16,40 +15,14 @@ from kompass_core.datatypes.laserscan import LaserScanData
 
 # KOMPASS ROS
 from ..config import ComponentConfig
-from ..topic import (
-    AllowedTopic,
-    RestrictedTopicsConfig,
-    Topic,
-    create_topics_config,
-    update_topics_config,
-)
+from .ros import Topic, update_topics
 from .component import Component
-
-
-class LocalMapperInputs(RestrictedTopicsConfig):
-    # Restricted Topics Config for LocalMapper component authorized input topics
-
-    SENSOR_DATA: AllowedTopic = AllowedTopic(key="sensor_data", types=["LaserScan"])
-    LOCATION: AllowedTopic = AllowedTopic(key="location", types=["Odometry"])
-
-
-class LocalMapperOutputs(RestrictedTopicsConfig):
-    # Restricted Topics Config for LocalMapper component authorized output topics
-
-    MAP_OCC = AllowedTopic(key="occupancy_layer", types=["OccupancyGrid"])
-
-
-# Create default inputs - Used if no inputs config is provided to the controller
-_mapper_default_inputs = create_topics_config(
-    "LocalMapperInputs",
-    sensor_data=Topic(name="/scan", msg_type="LaserScan"),
-    location=Topic(name="/odom", msg_type="Odometry"),
-)
-
-# Create default outputs - Used if no outputs config is provided to the controller
-_mapper_default_outputs = create_topics_config(
-    "LocalMapperOutputs",
-    occupancy_layer=Topic(name="/local_map/occupancy_layer", msg_type="OccupancyGrid"),
+from .defaults import (
+    TopicsKeys,
+    mapper_allowed_inputs,
+    mapper_allowed_outputs,
+    mapper_default_inputs,
+    mapper_default_outputs,
 )
 
 
@@ -146,40 +119,33 @@ class LocalMapper(Component):
         component_name: str,
         config_file: Optional[str] = None,
         config: Optional[LocalMapperConfig] = None,
-        inputs=None,
-        outputs=None,
+        inputs: Optional[Dict[str, Topic]] = None,
+        outputs: Optional[Dict[str, Topic]] = None,
         **kwargs,
     ) -> None:
         self.config: LocalMapperConfig = config or LocalMapperConfig()
 
-        # Get default component inputs/outputs
-        in_topics = _mapper_default_inputs()
-        out_topics = _mapper_default_outputs()
-
-        if inputs:
-            in_topics = update_topics_config(in_topics, **inputs)
-
-        if outputs:
-            out_topics = update_topics_config(out_topics, **outputs)
+        # Update defaults from custom topics if provided
+        in_topics = (
+            update_topics(mapper_default_inputs, **inputs)
+            if inputs
+            else mapper_default_inputs
+        )
+        out_topics = (
+            update_topics(mapper_default_outputs, **outputs)
+            if outputs
+            else mapper_default_outputs
+        )
 
         super().__init__(
             config=self.config,
             config_file=config_file,
             inputs=in_topics,
             outputs=out_topics,
-            allowed_inputs=LocalMapperInputs,
-            allowed_outputs=LocalMapperOutputs,
+            allowed_inputs=mapper_allowed_inputs,
+            allowed_outputs=mapper_allowed_outputs,
             component_name=component_name,
             **kwargs,
-        )
-
-    def attach_callbacks(self) -> None:
-        """
-        Attaches method to update local map from scan
-        """
-        # Adds callback to set the path in the controller when a new plan is received
-        self.callbacks[LocalMapperInputs.SENSOR_DATA.key].on_callback_execute(
-            self._update_map_from_scan
         )
 
     def init_variables(self):
@@ -196,22 +162,26 @@ class LocalMapper(Component):
             config=self.config.map_params, scan_model_config=self.config.laserscan_model
         )
 
+        self.get_callback(TopicsKeys.SPATIAL_SENSOR).on_callback_execute(
+            self._update_map_from_scan
+        )
+
     def _update_state(self) -> None:
         """
         Updates node inputs from associated callbacks
         """
 
-        self.robot_state: Optional[RobotState] = self.callbacks[
-            LocalMapperInputs.LOCATION.key
-        ].get_output(
+        self.robot_state: Optional[RobotState] = self.get_callback(
+            TopicsKeys.ROBOT_LOCATION
+        ).get_output(
             transformation=self.odom_tf_listener.transform
             if self.odom_tf_listener
             else None
         )
 
-        self.sensor_data: Optional[LaserScanData] = self.callbacks[
-            LocalMapperInputs.SENSOR_DATA.key
-        ].get_output(
+        self.sensor_data: Optional[LaserScanData] = self.get_callback(
+            TopicsKeys.SPATIAL_SENSOR
+        ).get_output(
             transformation=self.scan_tf_listener.transform
             if self.scan_tf_listener
             else None
@@ -221,9 +191,6 @@ class LocalMapper(Component):
         """
         Publish layers and obstacles mapped from LocalMapper
         """
-        if not self._local_map_builder.processed:
-            return
-
         # Get map origin
         origin_pose_msg = Pose()
         origin_pose_msg.position.x = self._local_map_builder.lower_right_corner_pose.x
@@ -242,21 +209,18 @@ class LocalMapper(Component):
             self._local_map_builder.lower_right_corner_pose.qw
         )
 
-        msg_header = Header()
-        msg_header.stamp = self.get_ros_time()
-        msg_header.frame_id = self.config.frames.world
-
         # Publish occupancy grid data to ROS
-        self.publishers_dict[LocalMapperOutputs.MAP_OCC.key].publish(
+        self.get_publisher(TopicsKeys.LOCAL_MAP_OCC).publish(
             self._local_map_builder.occupancy,
-            msg_header=msg_header,
+            frame_id=self.config.frames.world,
+            time_stamp=self.get_ros_time(),
             origin=origin_pose_msg,
             width=self._local_map_builder.grid_width,
             height=self._local_map_builder.grid_height,
             resolution=self.config.map_params.resolution,
         )
 
-    def _update_map_from_scan(self, **_):
+    def _update_map_from_scan(self, *_, **__):
         """Update local map from scan"""
         if not self.sensor_data or not self.robot_state:
             return
@@ -275,7 +239,6 @@ class LocalMapper(Component):
         """
         LocalMapper main execution step
         """
-        super()._execution_step()
         # Get inputs from callbacks
         self._update_state()
 

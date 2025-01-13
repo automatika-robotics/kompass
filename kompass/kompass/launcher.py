@@ -9,6 +9,7 @@ from ros_sugar import Launcher as BaseLauncher
 from ros_sugar import logger
 
 from .components.component import Component
+from .components.defaults import TopicsKeys
 from .config import RobotConfig, RobotFrames
 
 
@@ -70,39 +71,6 @@ class Launcher(BaseLauncher):
             executable_entry_point="executable",
             events_actions=events_actions,
             multiprocessing=multiprocessing,
-            activate_all_components_on_start=activate_all_components_on_start,
-            components_to_activate_on_start=components_to_activate_on_start,
-        )
-
-    def agents(
-        self,
-        components: List[Component],
-        events_actions: Dict[
-            Event, Union[Action, ROSLaunchAction, List[Union[Action, ROSLaunchAction]]]
-        ]
-        | None = None,
-        activate_all_components_on_start: bool = True,
-        components_to_activate_on_start: Optional[List[Component]] = None,
-    ):
-        """Adds [ROS Agents](https://github.com/automatika-robotics/ros-agents) components to the launcher
-
-        :param components: ROS Agents components
-        :type components: List[Component]
-        :param events_actions: Events/actions dictionary, defaults to None
-        :type events_actions: Dict[ Event, Union[Action, ROSLaunchAction, List[Union[Action, ROSLaunchAction]]] ] | None, optional
-        :param multi_processing: Run components in multiple processes, defaults to True
-        :type multi_processing: bool, optional
-        :param activate_all_components_on_start: Activate all components on start, defaults to True
-        :type activate_all_components_on_start: bool, optional
-        :param components_to_activate_on_start: List of component to activate on start, defaults to None
-        :type components_to_activate_on_start: Optional[List[Component]], optional
-        """
-        self.add_pkg(
-            components=components,
-            package_name="ros_agents",
-            executable_entry_point="executable",
-            events_actions=events_actions,
-            multi_processing=False,
             activate_all_components_on_start=activate_all_components_on_start,
             components_to_activate_on_start=components_to_activate_on_start,
         )
@@ -171,8 +139,8 @@ class Launcher(BaseLauncher):
                 pkg_name, _ = self._pkg_executable[idx]
                 if (
                     pkg_name == "kompass"
-                    and component._input_topics
-                    and key in component._input_topics.asdict().keys()
+                    and hasattr(component, "in_topics")
+                    and TopicsKeys(key) in component._inputs_keys
                 ):
                     # Update input value
                     component.inputs(**{key: value})
@@ -194,8 +162,8 @@ class Launcher(BaseLauncher):
                 pkg_name, _ = self._pkg_executable[idx]
                 if (
                     pkg_name == "kompass"
-                    and component._output_topics
-                    and key in component._output_topics.asdict().keys()
+                    and hasattr(component, "out_topics")
+                    and key in component._outputs_keys
                 ):
                     # Update input value
                     component.outputs(**{key: value})

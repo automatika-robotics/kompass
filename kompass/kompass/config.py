@@ -17,7 +17,6 @@ from ros_sugar.config import (
     BaseComponentConfig,
     BaseConfig,
     ComponentRunType,
-    QoSConfig,
 )
 
 __all__ = [
@@ -28,7 +27,6 @@ __all__ = [
     "RobotFrames",
     "RobotConfig",
     "BaseComponentConfig",
-    "QoSConfig",
 ]
 
 

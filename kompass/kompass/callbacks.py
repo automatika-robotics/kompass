@@ -1,23 +1,27 @@
 """Callback classes used to process input topics data for supported types in Kompass"""
 
-from typing import Optional
-
+from typing import Optional, Union, Any
 import numpy as np
+
 from ros_sugar.io import GenericCallback, OccupancyGridCallback
 from ros_sugar.io import OdomCallback as BaseOdomCallback
 from ros_sugar.io import PointCallback as BasePointCallback
 from ros_sugar.io import PoseCallback as BasePoseCallback
-from geometry_msgs.msg import Point, Pose
-from kompass_core.datatypes.laserscan import LaserScanData
-from kompass_core.datatypes.pointcloud import PointCloudData
+from ros_sugar.io.utils import read_compressed_image
+from kompass_core.datatypes import (
+    LaserScanData,
+    PointCloudData,
+    TrackingData,
+    ImageMetaData,
+)
 from .utils import read_pc_points, read_pc_points_with_tf
 from kompass_core.utils import geometry as GeometryUtils
-from nav_msgs.msg import Odometry
 from kompass_core.models import RobotState
+
+from nav_msgs.msg import Odometry
 from sensor_msgs.msg import LaserScan, PointCloud2
-
 from tf2_ros import TransformStamped
-
+from geometry_msgs.msg import Point, Pose
 
 __all__ = [
     "OdomCallback",
@@ -27,6 +31,8 @@ __all__ = [
     "PoseStampedCallback",
     "LaserScanCallback",
     "OccupancyGridCallback",
+    "TrackingsCallback",
+    "DetectionsCallback",
 ]
 
 
@@ -338,6 +344,187 @@ class PoseStampedCallback(PoseCallback):
             robot_state = center_state.front_state_from_center_state(self._robot_radius)
             return robot_state
         return center_state
+
+
+class TrackingsCallback(GenericCallback):
+    """ROS2 Trackings Callback Handler to process and transform automatika_agents_interfaces/Trackings data"""
+
+    def __init__(
+        self,
+        input_topic,
+        node_name: Optional[str] = None,
+    ) -> None:
+        """__init__.
+
+        :param input_topic:
+        :param node_name:
+        :type node_name: Optional[str]
+        :param transformation:
+        :type transformation: Optional[TransformStamped]
+        :rtype: None
+        """
+        super().__init__(input_topic, node_name)
+
+    def _get_output(
+        self,
+        id: Optional[int] = None,
+        label: Optional[str] = None,
+        **_,
+    ) -> Union[Any, TrackingData, None]:
+        """
+        Gets the trackings data
+        :returns:   Topic content
+        :rtype:     Union[ROSTrackings, np.ndarray, None]
+        """
+        if not self.msg:
+            # If no op
+            return None
+
+        raw_trackings = self.msg.trackings
+
+        # If no option is provided return raw trackings
+        if not label and not id:
+            return raw_trackings
+
+        # Get requested item from trackings using id or label
+        tracking_index = None
+        id_index = None
+        for idx, tracking in enumerate(raw_trackings):
+            if id and id in tracking.ids:
+                tracking_index = idx
+                id_index = tracking.ids.index(id)
+                break
+            elif label and label in tracking.labels:
+                tracking_index = idx
+                id_index = tracking.labels.index(label)
+                break
+
+        if tracking_index is not None and id_index is not None:
+            track = raw_trackings[tracking_index]
+            bbox_2d = track.boxes[id_index]
+
+            # Update the source image data if available
+            if track.image.data:
+                img_meta = ImageMetaData(
+                    frame_id=track.image.header.frame_id,
+                    width=track.image.width,
+                    height=track.image.height,
+                    encoding=track.image.encoding,
+                )
+            elif track.compressed_image.data:
+                data: np.ndarray = read_compressed_image(track.compressed_image)
+                img_meta = ImageMetaData(
+                    frame_id=track.compressed_image.header.frame_id,
+                    width=data.shape[1],
+                    height=data.shape[0],
+                    encoding=track.compressed_image.format,
+                )
+            else:
+                img_meta = None
+            return TrackingData(
+                label=track.labels[id_index],
+                id=track.ids[id_index],
+                center_xy=[track.centroids[id_index].x, track.centroids[id_index].y],
+                size_xy=[
+                    abs(bbox_2d.bottom_right_x - bbox_2d.top_left_x),
+                    abs(bbox_2d.bottom_right_y - bbox_2d.top_left_y),
+                ],
+                velocity_xy=[
+                    track.estimated_velocities[id_index].x,
+                    track.estimated_velocities[id_index].y,
+                ],
+                img_meta=img_meta,
+            )
+        # If requested Id/Label not found
+        return None
+
+
+class DetectionsCallback(GenericCallback):
+    """ROS2 Detections Callback Handler to process and transform automatika_agents_interfaces/Detections data"""
+
+    def __init__(
+        self,
+        input_topic,
+        node_name: Optional[str] = None,
+    ) -> None:
+        """__init__.
+
+        :param input_topic:
+        :param node_name:
+        :type node_name: Optional[str]
+        :param transformation:
+        :type transformation: Optional[TransformStamped]
+        :rtype: None
+        """
+        super().__init__(input_topic, node_name)
+
+    def _get_output(
+        self,
+        label: Optional[str] = None,
+        id: Optional[int] = 0,
+        **_,
+    ) -> Union[Any, TrackingData, None]:
+        """
+        Gets the trackings data
+        :returns:   Topic content
+        :rtype:     Union[ROSTrackings, np.ndarray, None]
+        """
+        if not self.msg:
+            # If no op
+            return None
+
+        raw_detections = self.msg.detections
+
+        # If no option is provided return raw trackings
+        if not label:
+            return raw_detections
+
+        # Get requested item from trackings using id or label
+        detection_index = None
+        label_index = None
+        for idx, detection in enumerate(raw_detections):
+            if label in detection.labels:
+                detection_index = idx
+                label_index = detection.labels.index(label)
+                break
+        if detection_index is not None and label_index is not None:
+            det = raw_detections[detection_index]
+            bbox_2d = det.boxes[label_index]
+
+            # Update the source image data if available
+            if det.image.data:
+                img_meta = ImageMetaData(
+                    frame_id=det.image.header.frame_id,
+                    width=det.image.width,
+                    height=det.image.height,
+                    encoding=det.image.encoding,
+                )
+            elif det.compressed_image.data:
+                data: np.ndarray = read_compressed_image(det.compressed_image)
+                img_meta = ImageMetaData(
+                    frame_id=det.compressed_image.header.frame_id,
+                    width=data.shape[1],
+                    height=data.shape[0],
+                    encoding=det.compressed_image.format,
+                )
+            else:
+                img_meta = None
+
+            return TrackingData(
+                label=label,
+                id=id,
+                center_xy=[
+                    (bbox_2d.bottom_right_x + bbox_2d.top_left_x) / 2,
+                    (bbox_2d.top_left_y + bbox_2d.bottom_right_y) / 2,
+                ],
+                size_xy=[
+                    abs(bbox_2d.bottom_right_x - bbox_2d.top_left_x),
+                    abs(bbox_2d.bottom_right_y - bbox_2d.top_left_y),
+                ],
+                img_meta=img_meta,
+            )
+        # If requested Id/Label not found
+        return None
 
 
 class LaserScanCallback(GenericCallback):

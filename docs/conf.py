@@ -69,5 +69,11 @@ html_theme_options = {
     "logo": {
         "image_light": "_static/Kompass_dark.png",
         "image_dark": "_static/Kompass.png",
-    }
+    },
+    "path_to_docs": "docs",
+    "repository_url": "https://github.com/automatika-robotics/kompass",
+    "repository_branch": "main",
+    "use_source_button": True,
+    "use_issues_button": True,
+    "use_edit_page_button": True,
 }

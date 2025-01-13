@@ -102,7 +102,7 @@ from kompass.robot import (
     RobotType,
     RobotConfig
 )
-from kompass.control import LocalPlannersID
+from kompass.control import ControllersID
 
 # Setup your robot configuration
 my_robot = RobotConfig(
@@ -125,7 +125,7 @@ controller = Controller(component_name="my_controller",
                         config_file=config_file)
 
 # algorithm can also be set using a property
-controller.algorithm = LocalPlannersID.DWA      # or "DWA"
+controller.algorithm = ControllersID.DWA      # or "DWA"
 
 ```
 

@@ -16,7 +16,6 @@ from tf2_ros import TransformStamped
 import PyKDL
 import struct
 
-
 __all__ = [
     "IncompatibleSetup",
     "IntEnum",

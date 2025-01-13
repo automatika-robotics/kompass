@@ -1,4 +1,0 @@
-string path_topic
-string robot_odom_topic
----
-int16 number_of_samples

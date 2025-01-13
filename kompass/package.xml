@@ -5,20 +5,10 @@
   <version>0.2.0</version>
   <description>Kompass: Event-driven navigation system</description>
   <maintainer email="contact@automatikarobotics.com">Automatika Robotics</maintainer>
-  <license>MIT License Copyright (c) 2024 Automatika Robotics</license>
-
-  <build_depend>rosidl_default_generators</build_depend>
-  <exec_depend>rosidl_default_runtime</exec_depend>
-  <member_of_group>rosidl_interface_packages</member_of_group>
+  <license>MIT</license>
 
   <depend>python3-pykdl</depend>
-  <depend>python3-setproctitle</depend>
   <depend>kompass_interfaces</depend>
-
-  <test_depend>ament_copyright</test_depend>
-  <test_depend>ament_flake8</test_depend>
-  <test_depend>ament_pep257</test_depend>
-  <test_depend>python3-pytest</test_depend>
 
   <export>
     <build_type>ament_python</build_type>

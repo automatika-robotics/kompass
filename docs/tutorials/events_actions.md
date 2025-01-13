@@ -184,7 +184,7 @@ from kompass_core.models import (
     RobotGeometry,
     RobotType,
 )
-from kompass_core.control import LocalPlannersID
+from kompass_core.control import ControllersID
 
 from sugar.msg import ComponentStatus
 from kompass_interfaces.action import PlanPath
@@ -230,7 +230,7 @@ driver = DriveManager(component_name="drive_manager")
 mapper = LocalMapper(component_name="mapper")
 
 # Configure Controller options
-controller.algorithm = LocalPlannersID.STANLEY
+controller.algorithm = ControllersID.STANLEY
 controller.direct_sensor = False
 
 planner.run_type = "ActionServer"

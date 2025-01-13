@@ -1,4 +1,4 @@
-from typing import Optional, Union
+from typing import Optional, Dict
 import numpy as np
 import time
 from attrs import define, field
@@ -10,55 +10,16 @@ from kompass_interfaces.msg import TwistArray
 
 # KOMPASS ROS
 from ..config import BaseValidators, ComponentConfig, ComponentRunType
-from ..topic import (
-    AllowedTopic,
-    RestrictedTopicsConfig,
-    Topic,
-    create_topics_config,
-    update_topics_config,
-)
+from .ros import Topic, update_topics
 from .component import Component
 from .utils import twist_array_to_ros_twist
 from ..callbacks import LaserScanCallback
-
-
-class DriverInputs(RestrictedTopicsConfig):
-    # Restricted Topics Config for DriveManager component authorized input topics
-
-    CMD = AllowedTopic(key="command", types=["Twist"])
-    MULTI_CMD = AllowedTopic(key="multi_command", types=["TwistArray"])
-    SENSOR_DATA = AllowedTopic(
-        key="sensor_data",
-        types=["LaserScan", "Float64", "Float32"],
-        number_required=1,
-        number_optional=10,
-    )
-    LOCATION = AllowedTopic(
-        key="location", types=["Odometry", "PoseStamped", "PointStamped"]
-    )
-
-
-class DriverOutputs(RestrictedTopicsConfig):
-    # Restricted Topics Config for DriveManager component authorized input topics
-
-    CMD = AllowedTopic(key="robot_command", types=["Twist"])
-    STOP = AllowedTopic(key="emergency_stop", types=["Bool"])
-
-
-_driver_default_inputs = create_topics_config(
-    "DriverInputs",
-    command=Topic(name="/control", msg_type="Twist"),
-    multi_command=Topic(name="/control_list", msg_type="TwistArray"),
-    sensor_data=Topic(name="/scan", msg_type="LaserScan"),
-    location=Topic(name="/odom", msg_type="Odometry"),
-    allowed_config=DriverInputs,
-)
-
-_driver_default_outputs = create_topics_config(
-    "DriverOutputs",
-    robot_command=Topic(name="/cmd_vel", msg_type="Twist"),
-    emergency_stop=Topic(name="/emergency_stop", msg_type="Bool"),
-    allowed_config=DriverOutputs,
+from .defaults import (
+    TopicsKeys,
+    driver_allowed_inputs,
+    driver_allowed_outputs,
+    driver_default_inputs,
+    driver_default_outputs,
 )
 
 
@@ -128,6 +89,7 @@ class DriveManagerConfig(ComponentConfig):
     critical_zone_distance: float = field(
         default=0.05, validator=BaseValidators.in_range(min_value=1e-9, max_value=1e9)
     )  # Distance for the critical zone (meters)
+    disable_safety_stop: bool = field(default=False)
 
 
 class DriveManager(Component):
@@ -138,8 +100,8 @@ class DriveManager(Component):
         component_name: str,
         config_file: Optional[str] = None,
         config: Optional[DriveManagerConfig] = None,
-        inputs=None,
-        outputs=None,
+        inputs: Optional[Dict[str, Topic]] = None,
+        outputs: Optional[Dict[str, Topic]] = None,
         **kwargs,
     ) -> None:
         """__init__.
@@ -159,68 +121,37 @@ class DriveManager(Component):
         if not config:
             config = DriveManagerConfig()
 
-        # Get default component inputs/outputs
-        in_topics = _driver_default_inputs()
-        out_topics = _driver_default_outputs()
-
-        if inputs:
-            in_topics = update_topics_config(in_topics, **inputs)
-
-        if outputs:
-            out_topics = update_topics_config(out_topics, **outputs)
+        # Update defaults from custom topics if provided
+        in_topics = (
+            update_topics(driver_default_inputs, **inputs)
+            if inputs
+            else driver_default_inputs
+        )
+        out_topics = (
+            update_topics(driver_default_outputs, **outputs)
+            if outputs
+            else driver_default_outputs
+        )
 
         super().__init__(
             config=config,
             config_file=config_file,
             inputs=in_topics,
             outputs=out_topics,
-            allowed_inputs=DriverInputs,
-            allowed_outputs=DriverOutputs,
+            allowed_inputs=driver_allowed_inputs,
+            allowed_outputs=driver_allowed_outputs,
             component_name=component_name,
+            allowed_run_types=[ComponentRunType.TIMED, ComponentRunType.EVENT],
             **kwargs,
         )
         self.config: DriveManagerConfig = config
-
-        if self.config.run_type not in [
-            ComponentRunType.TIMED,
-            ComponentRunType.TIMED.value,
-        ]:
-            raise ValueError("DriveManager works only as a Timed component")
-
-    @property
-    def run_type(self) -> ComponentRunType:
-        """
-        Component run type: Timed, ActionServer or Event
-
-        :return: Timed, ActionServer or Server
-        :rtype: str
-        """
-        return self.config.run_type
-
-    @run_type.setter
-    def run_type(self, value: Union[ComponentRunType, str]):
-        """Overrides property setter to restrict to implemented motion server run types
-
-        :param value: Run type
-        :type value: Union[ComponentRunType, str]
-        :raises ValueError: If run_type is unsupported
-        """
-        if value not in [ComponentRunType.TIMED, ComponentRunType.TIMED.value]:
-            raise ValueError("DriveManager works only as a Timed component")
-
-        self.config.run_type = value
-
-    def init_flags(self):
-        """
-        Setup node flags to track operations flow
-        """
-        self.emergency_stop: bool = False
-        self._unblocking_on: bool = False
 
     def init_variables(self):
         """
         Overwrites the init variables method called at Node init
         """
+        self.emergency_stop: bool = False
+        self._unblocking_on: bool = False
 
         # robot output command
         self.command: Optional[Twist] = None
@@ -248,13 +179,17 @@ class DriveManager(Component):
 
         self.emergency_stop_dict = {}
 
-    def attach_callbacks(self):
+        self._attach_callbacks_and_processors()
+
+    def _attach_callbacks_and_processors(self):
         """
         Attaches emergency_stop_check to sensor_data callback
         anf filtering commands to commands callbacks
         """
         # Attach emergency check to all sensor data callbacks
-        for callback in self.callbacks[DriverInputs.SENSOR_DATA.key].values():
+        num_sensors = self._inputs_keys.count(TopicsKeys.SPATIAL_SENSOR)
+        for idx in range(num_sensors):
+            callback = self.get_callback(TopicsKeys.SPATIAL_SENSOR, idx)
             if isinstance(callback, LaserScanCallback):
                 callback.on_callback_execute(self._check_emergency_stop_lidar)
             else:
@@ -264,23 +199,23 @@ class DriveManager(Component):
 
         if self.config.smooth_commands:
             # Attach filtering to commands callback
-            self.callbacks[DriverInputs.CMD.key].add_post_processors([
-                self._filter_commands
-            ])
-
-            self.callbacks[DriverInputs.MULTI_CMD.key].add_post_processors([
-                self._filter_multi_commands
-            ])
+            self.attach_custom_callback(
+                self.get_in_topic(TopicsKeys.INTERMEDIATE_CMD), self._filter_commands
+            )
+            self.attach_custom_callback(
+                self.get_in_topic(TopicsKeys.INTERMEDIATE_CMD_LIST),
+                self._filter_multi_commands,
+            )
 
         # Limit commands before publishing
-        self.publishers_dict[DriverOutputs.CMD.key].add_pre_processors([
+        self.get_publisher(TopicsKeys.FINAL_COMMAND).add_pre_processors([
             self._limit_command_vel
         ])
 
     def __update_robot_state(self):
-        self.robot_state: RobotState = self.callbacks[
-            DriverInputs.LOCATION.key
-        ].get_output(
+        self.robot_state: RobotState = self.get_callback(
+            TopicsKeys.ROBOT_LOCATION
+        ).get_output(
             transformation=self.odom_tf_listener.transform
             if self.odom_tf_listener
             else None
@@ -293,17 +228,19 @@ class DriveManager(Component):
         if hasattr(self, "command"):
             self._previous_command = self.command
 
-        self.command: Optional[Twist] = self.callbacks[DriverInputs.CMD.key].get_output(
-            clear_last=True
-        )
+        self.command: Optional[Twist] = self.get_callback(
+            TopicsKeys.INTERMEDIATE_CMD
+        ).get_output(clear_last=True)
 
-        self.multi_command: Optional[TwistArray] = self.callbacks[
-            DriverInputs.MULTI_CMD.key
-        ].get_output(clear_last=True)
+        self.multi_command: Optional[TwistArray] = self.get_callback(
+            TopicsKeys.INTERMEDIATE_CMD_LIST
+        ).get_output(clear_last=True)
 
         self.__update_robot_state()
 
-        for callback in self.callbacks[DriverInputs.SENSOR_DATA.key].values():
+        num_sensors = self._inputs_keys.count(TopicsKeys.SPATIAL_SENSOR)
+        for idx in range(num_sensors):
+            callback = self.get_callback(TopicsKeys.SPATIAL_SENSOR, idx)
             if isinstance(callback, LaserScanCallback):
                 callback.transformation = (
                     self.scan_tf_listener.transform if self.scan_tf_listener else None
@@ -322,7 +259,7 @@ class DriveManager(Component):
         _timer_count = 0.0
         while _timer_count < max_time:
             _timer_count += _step
-            self.publishers_dict[DriverOutputs.CMD.key].publish(cmd)
+            self.get_publisher(TopicsKeys.FINAL_COMMAND).publish(cmd)
             time.sleep(_step)
 
     def execute_cmd_closed_loop(self, cmd: Twist, max_time: float):
@@ -361,7 +298,7 @@ class DriveManager(Component):
             _timer_count += _step
             _cmd = self.__make_twist(vx_out, vy_out, omega_out)
 
-            self.publishers_dict[DriverOutputs.CMD.key].publish(_cmd)
+            self.get_publisher(TopicsKeys.FINAL_COMMAND).publish(_cmd)
             time.sleep(_step)
             self.__update_robot_state()
 
@@ -394,7 +331,7 @@ class DriveManager(Component):
                 _cmd = self.__make_twist(
                     vx=self.robot.ctrl_vx_limits.max_vel / 2, vy=0.0, omega=0.0
                 )
-                self.publishers_dict[DriverOutputs.CMD.key].publish(_cmd)
+                self.get_publisher(TopicsKeys.FINAL_COMMAND).publish(_cmd)
                 traveled_distance += step_distance
                 cmd_rate.sleep()
 
@@ -429,7 +366,7 @@ class DriveManager(Component):
                 _cmd = self.__make_twist(
                     vx=-self.robot.ctrl_vx_limits.max_vel / 2, vy=0.0, omega=0.0
                 )
-                self.publishers_dict[DriverOutputs.CMD.key].publish(_cmd)
+                self.get_publisher(TopicsKeys.FINAL_COMMAND).publish(_cmd)
                 traveled_distance += step_distance
                 cmd_rate.sleep()
 
@@ -469,7 +406,7 @@ class DriveManager(Component):
                 _cmd = self.__make_twist(
                     vx=0.0, vy=0.0, omega=self.robot.ctrl_omega_limits.max_vel / 2
                 )
-                self.publishers_dict[DriverOutputs.CMD.key].publish(_cmd)
+                self.get_publisher(TopicsKeys.FINAL_COMMAND).publish(_cmd)
                 traveled_radius += self.robot.ctrl_omega_limits.max_vel / (
                     2 * self.config.cmd_rate
                 )
@@ -775,12 +712,11 @@ class DriveManager(Component):
         """
         Main execution of the component, executed at ech timer tick with rate self.config.loop_rate
         """
-        super()._execution_step()
         self._update_state()
 
         self.emergency_stop = any(self.emergency_stop_dict.values())
 
-        self.publishers_dict[DriverOutputs.STOP.key].publish(bool(self.emergency_stop))
+        self.get_publisher(TopicsKeys.EMERGENCY).publish(bool(self.emergency_stop))
 
         if self._unblocking_on:
             # If unblocking is ongoing do not publish any other command
@@ -790,8 +726,22 @@ class DriveManager(Component):
 
         if self.emergency_stop:
             # STOP ROBOT
-            self.publishers_dict[DriverOutputs.CMD.key].publish(Twist())
+            self.get_publisher(TopicsKeys.FINAL_COMMAND).publish(Twist())
             return
+
+        if self.command or self.multi_command:
+            if not self.config.disable_safety_stop and not self.laser_scan:
+                self.get_logger().warn(
+                    "LaserScan data is not available -> disabling command publish to robot. To use the DriveManager without safety stop set 'disable_safety_stop' to 'True'",
+                    once=True,
+                )
+                return
+            if not self.robot_state and self.config.closed_loop:
+                self.get_logger().warn(
+                    "Robot state is not available and command publish is set to closed loop -> disabling command publish to robot. To use the DriveManager without robot state set 'closed_loop' to 'False'",
+                    once=True,
+                )
+                return
 
         if self.command:
             if self.config.closed_loop:
@@ -800,7 +750,7 @@ class DriveManager(Component):
                     max_time=self.config.closed_loop_span / self.config.cmd_rate,
                 )
             else:
-                self.publishers_dict[DriverOutputs.CMD.key].publish(self.command)
+                self.get_publisher(TopicsKeys.FINAL_COMMAND).publish(self.command)
             # Clear published command
             self.command = None
             return

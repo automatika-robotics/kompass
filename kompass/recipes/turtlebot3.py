@@ -7,9 +7,9 @@ from kompass.robot import (
     RobotType,
     RobotConfig,
 )
-from kompass.control import LocalPlannersID
+from kompass.control import ControllersID
 
-from sugar.msg import ComponentStatus
+from automatika_ros_sugar.msg import ComponentStatus
 from kompass_interfaces.action import PlanPath
 from kompass_interfaces.msg import PathTrackingError
 from geometry_msgs.msg import Pose, PointStamped
@@ -26,7 +26,7 @@ from kompass.components import (
 )
 from kompass.actions import ComponentActions, LogInfo
 from kompass.launcher import Launcher
-from kompass.topic import Topic
+from kompass.ros import Topic
 
 from ament_index_python.packages import (
     get_package_share_directory,
@@ -56,11 +56,10 @@ def kompass_bringup():
     mapper = LocalMapper(component_name="mapper")
 
     # Configure Controller options
-    controller.algorithm = LocalPlannersID.DWA
+    controller.algorithm = ControllersID.DWA
     controller.direct_sensor = False
 
-    planner.run_type = "Timed"
-    # planner.inputs(goal_point=Topic(name="/clicked_point", msg_type="PointStamped"))
+    planner.run_type = "ActionServer"
 
     driver.on_fail(action=Action(driver.restart))
 

@@ -1,7 +1,7 @@
 """Supported data types for inputs/outputs"""
 
 import json
-from typing import Optional, Union
+from typing import Union
 
 import numpy as np
 from ros_sugar.supported_types import Bool, ComponentStatus, Float32, Float64
@@ -16,8 +16,8 @@ from ros_sugar.supported_types import PoseStamped as BasePoseStamped
 from ros_sugar.supported_types import SupportedType, Twist
 
 # ROS MESSAGES
-from geometry_msgs.msg import PoseStamped as ROSPoseStamped
-from kompass_core.datatypes.laserscan import LaserScanData
+from geometry_msgs.msg import PoseStamped as ROSPoseStamped, TwistStamped as ROSTwistStamped, Twist as ROSTwist
+from kompass_core.datatypes import LaserScanData
 from nav_msgs.msg import Odometry as ROSOdometry
 from nav_msgs.msg import Path as ROSPath
 from kompass_core.models import RobotState
@@ -25,6 +25,7 @@ from sensor_msgs.msg import LaserScan as ROSLaserScan
 from sensor_msgs.msg import PointCloud2 as ROSPointCloud2
 
 from kompass_interfaces.msg import TwistArray as ROSTwistArray
+from importlib.util import find_spec
 
 from .callbacks import (
     GenericCallback,
@@ -35,6 +36,8 @@ from .callbacks import (
     PoseCallback,
     PoseStampedCallback,
     PointCloudCallback,
+    TrackingsCallback,
+    DetectionsCallback,
 )
 
 __all__ = [
@@ -51,7 +54,41 @@ __all__ = [
     "Bool",
     "Float32",
     "Float64",
+    "Trackings",
+    "Detections",
 ]
+
+
+class Detections(SupportedType):
+    """Adds callback for automatika_embodied_agents/msg/Detections2D message"""
+
+    callback = DetectionsCallback
+
+    @classmethod
+    def get_ros_type(cls) -> type:
+        if find_spec("automatika_embodied_agents") is None:
+            raise ModuleNotFoundError(
+                "'automatika_embodied_agents' module is required to use 'Detections' msg type but it is not installed"
+            )
+        from automatika_embodied_agents.msg import Detections2D
+
+        return Detections2D
+
+
+class Trackings(SupportedType):
+    """Adds callback for automatika_embodied_agents/msg/Trackings message"""
+
+    callback = TrackingsCallback
+
+    @classmethod
+    def get_ros_type(cls) -> type:
+        if find_spec("automatika_embodied_agents") is None:
+            raise ModuleNotFoundError(
+                "'automatika_embodied_agents' module is required to use 'Trackings' msg type but it is not installed"
+            )
+        from automatika_embodied_agents.msg import Trackings as ROSTrackings
+
+        return ROSTrackings
 
 
 class LaserScan(BaseLaserScan):
@@ -63,9 +100,6 @@ class LaserScan(BaseLaserScan):
     def convert(
         cls,
         output: LaserScanData,
-        frame_id: Optional[str] = "map",
-        time_sec: Optional[int] = 0,
-        time_nanosec: Optional[int] = 0,
         **_,
     ) -> ROSLaserScan:
         """
@@ -73,9 +107,6 @@ class LaserScan(BaseLaserScan):
         :return: LaserScan
         """
         msg = ROSLaserScan()
-        msg.header.frame_id = frame_id
-        msg.header.stamp.sec = time_sec
-        msg.header.stamp.nanosec = time_nanosec
         msg.angle_min = output.angle_min
         msg.angle_max = output.angle_max
         msg.angle_increment = output.angle_increment
@@ -129,9 +160,6 @@ class Odometry(BaseOdometry):
     def convert(
         cls,
         output: RobotState,
-        frame_id: Optional[str] = "map",
-        time_sec: Optional[int] = 0,
-        time_nanosec: Optional[int] = 0,
         **_,
     ) -> ROSOdometry:
         """
@@ -139,9 +167,6 @@ class Odometry(BaseOdometry):
         :return: Odometry
         """
         msg = ROSOdometry()
-        msg.header.frame_id = frame_id
-        msg.header.stamp.sec = time_sec
-        msg.header.stamp.nanosec = time_nanosec
         msg.pose.pose.position.x = output.x
         msg.pose.pose.position.y = output.y
         msg.pose.pose.orientation.w = np.cos(output.yaw / 2)
@@ -149,6 +174,29 @@ class Odometry(BaseOdometry):
         msg.twist.twist.linear.x = output.vx
         msg.twist.twist.linear.y = output.vy
         msg.twist.twist.angular.z = output.omega
+        return msg
+
+
+class TwistStamped(SupportedType):
+    """Class to support ROS2 geometry_msgs/msg/TwistStamped message"""
+    _ros_type = ROSTwistStamped
+    callback = GenericCallback
+
+    @classmethod
+    def convert(
+        cls,
+        output: ROSTwist,
+        **_,
+    ) -> ROSTwistStamped:
+        """Converter to publish Twist data to TwistStamped
+
+        :param output: Twist message
+        :type output: ROSTwist
+        :return: Twist stamped message
+        :rtype: ROSTwistStamped
+        """
+        msg = ROSTwistStamped()
+        msg.twist = output
         return msg
 
 
