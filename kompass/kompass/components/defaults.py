@@ -155,7 +155,7 @@ driver_allowed_inputs: Dict[TopicsKeys, AllowedTopics] = {
 }
 
 driver_allowed_outputs: Dict[TopicsKeys, AllowedTopics] = {
-    TopicsKeys.FINAL_COMMAND: AllowedTopics(types=["Twist"]),
+    TopicsKeys.FINAL_COMMAND: AllowedTopics(types=["Twist", "TwistStamped"]),
     TopicsKeys.EMERGENCY: AllowedTopics(types=["Bool"]),
 }
 

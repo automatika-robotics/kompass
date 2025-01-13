@@ -147,9 +147,6 @@ class LocalMapper(Component):
             component_name=component_name,
             **kwargs,
         )
-        self.get_callback(TopicsKeys.SPATIAL_SENSOR).on_callback_execute(
-            self._update_map_from_scan
-        )
 
     def init_variables(self):
         """
@@ -163,6 +160,10 @@ class LocalMapper(Component):
 
         self._local_map_builder = LocalMapperHandler(
             config=self.config.map_params, scan_model_config=self.config.laserscan_model
+        )
+
+        self.get_callback(TopicsKeys.SPATIAL_SENSOR).on_callback_execute(
+            self._update_map_from_scan
         )
 
     def _update_state(self) -> None:
