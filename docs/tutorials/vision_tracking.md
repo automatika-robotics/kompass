@@ -1,8 +1,10 @@
 # Following a moving target using vision
 
-In this tutorial we will create a vision-based target following navigation system to follow  using an RGB camera input.
+In this tutorial we will create a vision-based target following navigation system to follow a moving target using an RGB camera input.
 
 ## Before you start
+
+Lets take care of some preliminary setup.
 
 ### Get and start your camera ROS2 node
 
@@ -14,20 +16,20 @@ sudo apt install ros-<ros2-distro>-usb-cam
 ros2 run usb_cam usb_cam_node_exe
 ```
 
-### Set vision detection/tracking using an ML model
+### Start vision detection/tracking using an ML model
 
-To implement and run this example we will need a detection model processing the RGB camera images to provide the Detection or Tracking information. For this we will use a [Vision Component](https://automatika-robotics.github.io/ros-agents/apidocs/agents/agents.components.vision.html) from from [ROS Agents](https://automatika-robotics.github.io/ros-agents/intro.html) package, and will use [RoboML] to deploy and serve the model locally.
+To implement and run this example we will need a detection model processing the RGB camera images to provide the Detection or Tracking information. The most convenient way to obtain this is to use [ROS Agents](https://automatika-robotics.github.io/ros-agents/intro.html) package and [RoboML] to deploy and serve the model locally. ROS Agents provides a [Vision Component](https://automatika-robotics.github.io/ros-agents/apidocs/agents/agents.components.vision.html), which will allow us to easily deploy a ROS node in our system that interacts with vision models.
 
 Therefore, before starting with this tutorial you need to install both packages:
 
 - Install ROS Agents: check the instructions [here](https://automatika-robotics.github.io/ros-agents/installation.html)
 - Install RoboML: `pip install roboml`
 
-```{note}
+```{seealso}
 ROS Agents is another [ROS Sugar](https://automatika-robotics.github.io/ros-sugar/) based package used for creating interactive embodied agents that can understand, remember, and act upon contextual information from their environment.
 ```
 
-After installing both packages, you can start `roboml` to serve the model later either on the robot (or your same development machine), or on another machine in the local network or in the cloud. To start a RESP server run:
+After installing both packages, you can start `roboml` to serve the model later either on the robot (or your development machine), or on another machine in the local network or any server the cloud. To start a roboml RESP server, simply run:
 
 ```shell
 roboml-resp
@@ -37,30 +39,29 @@ Save the IP of the machine running `roboml` as we will use it later in our model
 ```
 
 
-## Setting up the vision model and model client
+## Setting up the vision component and model client in ROS Agents
 
-First, we need to import the `VisionModel` class that defines the model used later in the component, and a [model client](https://automatika-robotics.github.io/ros-agents/basics.html#model-db-client) to communicate with the model which can be running on the same hardware or in the cloud. Here we will use a `RESPModelClient` from [RoboML](https://github.com/automatika-robotics/roboml/)
+First, we need to import the `VisionModel` class that defines the model used later in the component, and a [model client](https://automatika-robotics.github.io/ros-agents/basics.html#model-db-client) to communicate with the model which can be running on the same hardware or in the cloud. Here we will use a `RESPModelClient` from [RoboML](https://github.com/automatika-robotics/roboml/) as we activated the RESP based model server in roboml.
 
 ```python
 from agents.models import VisionModel
 from agents.clients.roboml import RESPModelClient
 ```
 
-Now let's configure the model and the model client:
+Now let's configure the model we want to use for detections/tracking and the model client:
 
 ```python
 object_detection = VisionModel(
     name="object_detection",
     checkpoint="rtmdet_tiny_8xb32-300e_coco",
     setup_trackers=True,
-    deploy_tensorrt=True
 )
-roboml_detection = RESPModelClient(object_detection, host='192.168.1.1', logging_level="warn")
-  # 192.168.1.1 should be replaced by the IP of the machine running roboml
+roboml_detection = RESPModelClient(object_detection, host='127.0.0.1', logging_level="warn")
+  # 127.0.0.1 should be replaced by the IP of the machine running roboml. In this case we assume that roboml is running on our robot.
 ```
-The model is configured with a name and a checkpoint (any checkpoint from mmdet framework, see [available checkpoints](https://github.com/open-mmlab/mmdetection?tab=readme-ov-file#overview-of-benchmark-and-model-zoo)). We also set the options `setup_trackers` and `deploy_tensorrt` to `True` to enable publishing tracking information and deploying the vision model using NVIDIA TensorRT.
+The model is configured with a name and a checkpoint (any checkpoint from mmdetection framework can be used, see [available checkpoints](https://github.com/open-mmlab/mmdetection?tab=readme-ov-file#overview-of-benchmark-and-model-zoo)). In this example, we have chosen a model checkpoint trained on the MS COCO dataset which has over 80 [classes](https://github.com/amikelive/coco-labels/blob/master/coco-labels-2014_2017.txt) of commonly found objects. We also set the option `setup_trackers` to `True` to enable publishing tracking information.
 
-The `RESPModelClient` is provided with the `VisionModel` we just configured and with the host IP. This IP is set to the IP of the machine running RoboML.
+We load the `VisionModel` into the `RESPModelClient` and configure the host to the IP of the machine running RoboML. In this code above, it is assumed that we are running RoboML on localhost.
 
 ```{seealso}
 See all available VisionModel options [here](https://automatika-robotics.github.io/ros-agents/apidocs/agents/agents.models.html), and all available model clients in agents [here](https://automatika-robotics.github.io/ros-agents/apidocs/agents/agents.clients.html)
@@ -102,9 +103,9 @@ vision = Vision(
     component_name="detection_component",
 )
 ```
-The component inputs/outputs are defined to get the images from the camera topic and provide both detections and trackings. The component is provided theses inputs and outputs along with the previous RoboMl model RESP client. The `trigger` of the component is set to the image input topic so the component would work in an Event-Based runtype and provide a new detection/tracking on each new image.
+The component inputs/outputs are defined to get the images from the camera topic and provide both detections and trackings. The component is provided theses inputs and outputs along with the model client that we configured in the previous step. The `trigger` of the component is set to the image input topic so the component would work in an Event-Based runtype and provide a new detection/tracking on each new image.
 
-In the component configuration, the parameter `enable_visualization` is set to `True` to get a visualization of the output on an additional pop-up window for debugging purposes. and `threshold` (confidence threshold for object detection) is set to `0.5`.
+In the component configuration, the parameter `enable_visualization` is set to `True` to get a visualization of the output on an additional pop-up window for debugging purposes. The `threshold` parameter (confidence threshold for object detection) is set to `0.5`.
 
 ```{seealso}
 Discover the different configuration options of the Vision component in the [docs](https://automatika-robotics.github.io/ros-agents/apidocs/agents/agents.models.html#agents.models.VisionModel)
@@ -192,15 +193,21 @@ All that is left is to add all the three previous components to the launcher and
 from kompass.launcher import Launcher
 
 launcher = Launcher()
+
+# setup agents as a package in the launcher and add the vision component
 launcher.add_pkg(
     components=[vision],
     ros_log_level="warn",
 )
+
+# setup the components for Kompass in the launcher
 launcher.kompass(
     components=[controller, driver],
 )
 # Set the robot config for all components
 launcher.robot = my_robot
+
+# Start all the components
 launcher.bringup()
 ```
 
@@ -311,7 +318,7 @@ After running your complete system you can send a goal to the controller's actio
 ros2 action send_goal /my_controller/track_vision_target kompass_interfaces/action/TrackVisionTarget "{label: 'person'}"
 ```
 
-You can also re-run the previous script and activate the target search:
+You can also re-run the previous script and activate the target search by adding the following config or sending the config along with the action send_goal:
 
 ```python
 vision_follower_config = VisionFollowerConfig(
