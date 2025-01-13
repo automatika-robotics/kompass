@@ -75,39 +75,6 @@ class Launcher(BaseLauncher):
             components_to_activate_on_start=components_to_activate_on_start,
         )
 
-    def agents(
-        self,
-        components: List[Component],
-        events_actions: Dict[
-            Event, Union[Action, ROSLaunchAction, List[Union[Action, ROSLaunchAction]]]
-        ]
-        | None = None,
-        activate_all_components_on_start: bool = True,
-        components_to_activate_on_start: Optional[List[Component]] = None,
-    ):
-        """Adds [ROS Agents](https://github.com/automatika-robotics/ros-agents) components to the launcher
-
-        :param components: ROS Agents components
-        :type components: List[Component]
-        :param events_actions: Events/actions dictionary, defaults to None
-        :type events_actions: Dict[ Event, Union[Action, ROSLaunchAction, List[Union[Action, ROSLaunchAction]]] ] | None, optional
-        :param multi_processing: Run components in multiple processes, defaults to True
-        :type multi_processing: bool, optional
-        :param activate_all_components_on_start: Activate all components on start, defaults to True
-        :type activate_all_components_on_start: bool, optional
-        :param components_to_activate_on_start: List of component to activate on start, defaults to None
-        :type components_to_activate_on_start: Optional[List[Component]], optional
-        """
-        self.add_pkg(
-            components=components,
-            package_name="ros_agents",
-            executable_entry_point="executable",
-            events_actions=events_actions,
-            multi_processing=False,
-            activate_all_components_on_start=activate_all_components_on_start,
-            components_to_activate_on_start=components_to_activate_on_start,
-        )
-
     @property
     def robot(self) -> Dict[str, RobotConfig]:
         """
