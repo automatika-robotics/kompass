@@ -7,8 +7,8 @@ Kompass is a framework for building robust and comprehensive event-driven naviga
 - Find out more about our [**motivation**](why.md) to create Kompass ✨
 - [**Install**](install.md) Kompass on your robot 🛠️
 - To get started with Kompass, check the [**quick start**](quick_start.md) tutorial 🚀
-- Do a deep dive into Kompass [**components**](navigation/index.md) 🤖
-- Learn more about the [**design concepts**](design/index.md) of Kompass 📚
+- Do a deep dive with one of the [**tutorials**](tutorials/point_navigation.md) 🤖
+- Learn more about the [**design concepts**](advanced/design.md) of Kompass 📚
 
 
 Kompass is divided into several interacting components each responsible for one of the navigation subtasks:
