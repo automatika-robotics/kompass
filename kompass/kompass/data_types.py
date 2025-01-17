@@ -16,7 +16,11 @@ from ros_sugar.supported_types import PoseStamped as BasePoseStamped
 from ros_sugar.supported_types import SupportedType, Twist
 
 # ROS MESSAGES
-from geometry_msgs.msg import PoseStamped as ROSPoseStamped, TwistStamped as ROSTwistStamped, Twist as ROSTwist
+from geometry_msgs.msg import (
+    PoseStamped as ROSPoseStamped,
+    TwistStamped as ROSTwistStamped,
+    Twist as ROSTwist,
+)
 from kompass_core.datatypes import LaserScanData
 from nav_msgs.msg import Odometry as ROSOdometry
 from nav_msgs.msg import Path as ROSPath
@@ -179,6 +183,7 @@ class Odometry(BaseOdometry):
 
 class TwistStamped(SupportedType):
     """Class to support ROS2 geometry_msgs/msg/TwistStamped message"""
+
     _ros_type = ROSTwistStamped
     callback = GenericCallback
 
