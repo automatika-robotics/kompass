@@ -4,18 +4,13 @@ from typing import Dict, List, Optional, Union, Tuple
 from omegaconf import OmegaConf
 from ros_sugar.core import ComponentFallbacks, BaseComponent
 from ros_sugar.tf import TFListener, TFListenerConfig
-from ros_sugar.supported_types import add_additional_datatypes
 from ros_sugar.io import Publisher, get_all_msg_types, AllowedTopics
 
 from ..callbacks import GenericCallback
 from ..config import ComponentConfig, RobotConfig, ComponentRunType
 from .ros import Topic, update_topics
-from .. import data_types
 from itertools import groupby
 from .defaults import TopicsKeys
-
-# Get Kompass types to pass to the base component as additional supported types
-add_additional_datatypes(get_all_msg_types(data_types))
 
 
 def _parse_from_topics_dict(
@@ -242,8 +237,9 @@ class Component(BaseComponent):
             else {}
         )
         topics_dict = update_topics(old_dict, **kwargs)
-        (self._inputs_keys, self._inputs_list) = _parse_from_topics_dict(topics_dict)
+        (self._inputs_keys, _inputs) = _parse_from_topics_dict(topics_dict)
         # Update the list containing all the Topics (without None values)
+        self._inputs_list = self._reparse_inputs_callbacks(_inputs)
         self.in_topics = [topic for topic in self._inputs_list if topic]
 
     def outputs(self, **kwargs):
@@ -258,7 +254,8 @@ class Component(BaseComponent):
             else {}
         )
         topics_dict = update_topics(old_dict, **kwargs)
-        (self._outputs_keys, self._outputs_list) = _parse_from_topics_dict(topics_dict)
+        (self._outputs_keys, _outputs) = _parse_from_topics_dict(topics_dict)
+        self._outputs_list = self._reparse_outputs_converts(_outputs)
         self.out_topics = [topic for topic in self._outputs_list if topic]
 
     def config_from_yaml(self, config_file: str):
