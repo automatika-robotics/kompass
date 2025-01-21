@@ -300,10 +300,8 @@ class Controller(Component):
             )
 
         elif self.config._mode == ControllerMode.VISION_FOLLOWER:
-            self.action_type = TrackVisionTarget
             self._activate_vision_mode()
         else:
-            self.action_type = ControlPath
             self._activate_follower_mode()
 
         super().create_all_action_servers()
@@ -562,6 +560,48 @@ class Controller(Component):
             raise
         return True
 
+    def create_all_subscribers(self):
+        """
+        Overrides BaseComponent create_all_subscribers to implement controller mode change
+        """
+        self.get_logger().info("STARTING ALL SUBSCRIBERS")
+        self.callbacks = {
+            input.name: input.msg_type.callback(input, node_name=self.node_name)
+            for input in self.in_topics
+        }
+        # Create subscribers
+        for callback in self.callbacks.values():
+            if (
+                self.config._mode == ControllerMode.PATH_FOLLOWER
+                and callback.input_topic.name
+                == self.in_topic_name(TopicsKeys.VISION_TRACKINGS)
+            ):
+                # skip
+                continue
+            elif (
+                self.config._mode == ControllerMode.VISION_FOLLOWER
+                and callback.input_topic.name
+                != self.in_topic_name(TopicsKeys.VISION_TRACKINGS)
+            ):
+                # skip all except vision trackings for vision follower mode
+                continue
+            if (
+                self.config.use_direct_sensor
+                and callback.input_topic.name
+                == self.in_topic_name(TopicsKeys.LOCAL_MAP)
+            ):
+                # skip local map for direct sensor
+                continue
+            if (
+                not self.config.use_direct_sensor
+                and callback.input_topic.name
+                == self.in_topic_name(TopicsKeys.SPATIAL_SENSOR)
+            ):
+                # skip direct sensor
+                continue
+            callback.set_node_name(self.node_name)
+            callback.set_subscriber(self._add_ros_subscriber(callback))
+
     def _activate_vision_mode(self):
         """Activate object following mode using vision detections"""
         # Activate vision subscriber
@@ -569,36 +609,27 @@ class Controller(Component):
             raise ValueError(
                 f"Error activating vision tracking mode. No input topic is provided for '{TopicsKeys.VISION_TRACKINGS}'"
             )
+
+        self.action_type = TrackVisionTarget
+
         self.config._mode = ControllerMode.VISION_FOLLOWER
+
         if self.run_type != ComponentRunType.ACTION_SERVER:
             self._old_run_type = self.run_type
             self.run_type = ComponentRunType.ACTION_SERVER
 
-        self.callbacks = {
-            input.name: input.msg_type.callback(input, node_name=self.node_name)
-            for input in self.in_topics
-        }
         if not self.is_node_initialized():
             return
 
-        for callback in self.callbacks.values():
-            if (
-                callback.input_topic.name
-                != self.in_topic_name(TopicsKeys.VISION_TRACKINGS)
-                and callback._subscriber
-            ):
-                self.destroy_subscription(callback._subscriber)
-                callback._subscriber = None
-            else:
-                callback.set_subscriber(self._add_ros_subscriber(callback))
+        # Reinitialize subscribers based on the new mode
+        self.destroy_all_subscribers()
+        self.create_all_subscribers()
 
     def _activate_follower_mode(self):
         """Activate path following mode by creating all missing subscriptions"""
-        # Recreate callbacks
-        self.callbacks = {
-            input.name: input.msg_type.callback(input, node_name=self.node_name)
-            for input in self.in_topics
-        }
+        # Set the main action type to path control
+        self.action_type = ControlPath
+
         self.config._mode = ControllerMode.PATH_FOLLOWER
         if hasattr(self, "_old_run_type"):
             self.run_type = self._old_run_type
@@ -606,17 +637,9 @@ class Controller(Component):
         if not self.is_node_initialized():
             return
 
-        # Create all path following subscriptions if not available
-        for callback in self.callbacks.values():
-            if (
-                callback.input_topic.name
-                != self.in_topic_name(TopicsKeys.VISION_TRACKINGS)
-                and not callback._subscriber
-            ):
-                callback.set_subscriber(self._add_ros_subscriber(callback))
-            else:
-                self.destroy_subscription(callback._subscriber)
-                callback._subscriber = None
+        # Reinitialize subscribers based on the new mode
+        self.destroy_all_subscribers()
+        self.create_all_subscribers()
 
     def _update_state(self, vision_track_id: Optional[int] = None) -> None:
         """
