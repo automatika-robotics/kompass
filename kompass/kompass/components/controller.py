@@ -286,9 +286,9 @@ class Controller(Component):
         # Set action type
         self.action_type = ControlPath
 
-    def create_all_action_servers(self):
+    def activate(self):
         """
-        Action servers creation
+        Overrides base Component activation method to add activation based on the control mode
         """
         if (
             self.config._mode == ControllerMode.VISION_FOLLOWER
@@ -304,7 +304,64 @@ class Controller(Component):
         else:
             self._activate_follower_mode()
 
-        super().create_all_action_servers()
+        self.create_all_publishers()
+
+        # Setup node services: servers and clients
+        self.create_all_services()
+
+        self.create_all_service_clients()
+
+        # Setup node actions: servers and clients
+        self.create_all_action_servers()
+
+        self.create_all_action_clients()
+
+        # Setup node timers
+        self.create_all_timers()
+
+    def create_all_subscribers(self):
+        """
+        Overrides BaseComponent create_all_subscribers to implement controller mode change
+        """
+        self.get_logger().info("STARTING ALL SUBSCRIBERS")
+        self.callbacks = {
+            input.name: input.msg_type.callback(input, node_name=self.node_name)
+            for input in self.in_topics
+        }
+        # Create subscribers
+        for callback in self.callbacks.values():
+            if (
+                self.config._mode == ControllerMode.PATH_FOLLOWER
+                and callback.input_topic.name
+                == self.in_topic_name(TopicsKeys.VISION_TRACKINGS)
+            ):
+                # skip
+                continue
+            elif (
+                self.config._mode == ControllerMode.VISION_FOLLOWER
+                and callback.input_topic.name
+                != self.in_topic_name(TopicsKeys.VISION_TRACKINGS)
+            ):
+                # skip all except vision trackings for vision follower mode
+                continue
+            if (
+                self.config.use_direct_sensor
+                and callback.input_topic.name
+                == self.in_topic_name(TopicsKeys.LOCAL_MAP)
+            ):
+                # skip local map for direct sensor
+                continue
+            if (
+                not self.config.use_direct_sensor
+                and callback.input_topic.name
+                == self.in_topic_name(TopicsKeys.SPATIAL_SENSOR)
+            ):
+                # skip direct sensor
+                continue
+            callback.set_node_name(self.node_name)
+            callback.set_subscriber(self._add_ros_subscriber(callback))
+        # attach on_callback methods
+        self._attach_callbacks()
 
     def create_all_timers(self):
         """Overrides create_all_timers from BaseComponent to add timers for commands execution and tracking publishing"""
@@ -560,48 +617,6 @@ class Controller(Component):
             raise
         return True
 
-    def create_all_subscribers(self):
-        """
-        Overrides BaseComponent create_all_subscribers to implement controller mode change
-        """
-        self.get_logger().info("STARTING ALL SUBSCRIBERS")
-        self.callbacks = {
-            input.name: input.msg_type.callback(input, node_name=self.node_name)
-            for input in self.in_topics
-        }
-        # Create subscribers
-        for callback in self.callbacks.values():
-            if (
-                self.config._mode == ControllerMode.PATH_FOLLOWER
-                and callback.input_topic.name
-                == self.in_topic_name(TopicsKeys.VISION_TRACKINGS)
-            ):
-                # skip
-                continue
-            elif (
-                self.config._mode == ControllerMode.VISION_FOLLOWER
-                and callback.input_topic.name
-                != self.in_topic_name(TopicsKeys.VISION_TRACKINGS)
-            ):
-                # skip all except vision trackings for vision follower mode
-                continue
-            if (
-                self.config.use_direct_sensor
-                and callback.input_topic.name
-                == self.in_topic_name(TopicsKeys.LOCAL_MAP)
-            ):
-                # skip local map for direct sensor
-                continue
-            if (
-                not self.config.use_direct_sensor
-                and callback.input_topic.name
-                == self.in_topic_name(TopicsKeys.SPATIAL_SENSOR)
-            ):
-                # skip direct sensor
-                continue
-            callback.set_node_name(self.node_name)
-            callback.set_subscriber(self._add_ros_subscriber(callback))
-
     def _activate_vision_mode(self):
         """Activate object following mode using vision detections"""
         # Activate vision subscriber
@@ -702,11 +717,6 @@ class Controller(Component):
             plan_callback.on_callback_execute(self._set_path_to_controller)
 
         if self.direct_sensor:
-            # Remove callback for the local map and destroy subscriber
-            _callback = self.callbacks.pop(self.in_topic_name(TopicsKeys.LOCAL_MAP))
-            if _callback._subscriber:
-                self.destroy_subscription(_callback._subscriber)
-
             # If direct sensor information is used set maximum range for PointCloud data
             sensor_callback = self.get_callback(TopicsKeys.SPATIAL_SENSOR)
             if isinstance(sensor_callback, PointCloudCallback):
@@ -716,13 +726,6 @@ class Controller(Component):
                 self.get_logger().info(
                     f"Setting PointCloud max range to robot max forward horizon '{sensor_callback.max_range}' to limit computations"
                 )
-        else:
-            # Remove callback for the sensor data and destroy subscriber
-            _callback = self.callbacks.pop(
-                self.in_topic_name(TopicsKeys.SPATIAL_SENSOR)
-            )
-            if _callback._subscriber:
-                self.destroy_subscription(_callback._subscriber)
 
     def _set_path_to_controller(self, msg, **_) -> None:
         """
@@ -802,8 +805,6 @@ class Controller(Component):
             self.sensor_data: Optional[Union[LaserScanData, PointCloudData]] = None
 
         self.vision_trackings: Optional[TrackingData] = None
-
-        self._attach_callbacks()
 
     def _stop_robot(self):
         """
