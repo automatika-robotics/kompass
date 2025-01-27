@@ -286,9 +286,9 @@ class Controller(Component):
         # Set action type
         self.action_type = ControlPath
 
-    def activate(self):
+    def custom_on_activate(self):
         """
-        Overrides base Component activation method to add activation based on the control mode
+        Component custom activation method to add activation based on the control mode
         """
         if (
             self.config._mode == ControllerMode.VISION_FOLLOWER
@@ -303,21 +303,6 @@ class Controller(Component):
             self._activate_vision_mode()
         else:
             self._activate_follower_mode()
-
-        self.create_all_publishers()
-
-        # Setup node services: servers and clients
-        self.create_all_services()
-
-        self.create_all_service_clients()
-
-        # Setup node actions: servers and clients
-        self.create_all_action_servers()
-
-        self.create_all_action_clients()
-
-        # Setup node timers
-        self.create_all_timers()
 
     def create_all_subscribers(self):
         """
