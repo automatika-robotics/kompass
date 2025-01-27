@@ -84,7 +84,7 @@ class Launcher(BaseLauncher):
         :rtype: RobotConfig
         """
         robot_config_dict = {}
-        for component in self.components:
+        for component in self._components:
             if hasattr(component.config, "robot"):
                 robot_config_dict[component.node_name] = component.config.robot
         return robot_config_dict
@@ -97,7 +97,7 @@ class Launcher(BaseLauncher):
         :param config: Robot configuration
         :type config: RobotConfig
         """
-        for component in self.components:
+        for component in self._components:
             if hasattr(component.config, "robot"):
                 component.config.robot = config
 
@@ -110,7 +110,7 @@ class Launcher(BaseLauncher):
         :rtype: RobotFrames
         """
         robot_config_dict = {}
-        for component in self.components:
+        for component in self._components:
             if hasattr(component.config, "frames"):
                 robot_config_dict[component.node_name] = component.config.frames
         return robot_config_dict
@@ -123,7 +123,7 @@ class Launcher(BaseLauncher):
         :param frames_config: Robot frames configuration
         :type frames_config: RobotConfig
         """
-        for component in self.components:
+        for component in self._components:
             if hasattr(component.config, "frames"):
                 component.config.frames = frames_config
 
@@ -135,7 +135,7 @@ class Launcher(BaseLauncher):
         for key, value in kwargs.items():
             components_updated_for_key = []
             # Check if any component has this key in their inputs keys
-            for idx, component in enumerate(self.components):
+            for idx, component in enumerate(self._components):
                 pkg_name, _ = self._pkg_executable[idx]
                 if (
                     pkg_name == "kompass"
@@ -158,7 +158,7 @@ class Launcher(BaseLauncher):
         for key, value in kwargs.items():
             components_updated_for_key = []
             # Check if any component has this key in their output keys
-            for idx, component in enumerate(self.components):
+            for idx, component in enumerate(self._components):
                 pkg_name, _ = self._pkg_executable[idx]
                 if (
                     pkg_name == "kompass"

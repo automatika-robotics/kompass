@@ -435,8 +435,17 @@ class Planner(Component):
                 self.map,
             )
 
-            # Solve the planning problem
-            path = self.ompl_planner.solve()
+            try:
+                # Solve the planning problem
+                path = self.ompl_planner.solve()
+            except Exception as e:
+                self.get_logger().error(
+                    f"OMPL failed to find a solution. Got exception: {e}"
+                )
+                self.health_status.set_fail_algorithm(
+                    algorithm_names=[self.ompl_planner.planner_id]
+                )
+                return False
 
             if path:
                 # Add cost as last cost if it does not exist
