@@ -2,8 +2,8 @@
 Changelog for package kompass_interfaces
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+0.2.1 (2025-01-28)
+------------------
 * (fix) Adds action_msgs dependency for kompass_interfaces
 * (feature) Adds support for 'None' default values of inputs/outputs
 * (feature) Updates control classes and supported types

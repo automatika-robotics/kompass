@@ -2,8 +2,8 @@
 Changelog for package kompass
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+0.2.1 (2025-01-28)
+------------------
 * (fix) Adds controller custom on activate method
 * (fix) Updates controller activation method
 * (fix) Adds ompl exception catch and log
