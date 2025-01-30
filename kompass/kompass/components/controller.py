@@ -38,7 +38,7 @@ from .ros import (
     update_topics,
 )
 from ..utils import component_action
-from ..callbacks import PointCloudCallback
+from ..callbacks import PointCloudCallback, DetectionsCallback
 
 # KOMPASS MSGS/SRVS/ACTIONS
 from .component import Component, TFListener
@@ -624,6 +624,8 @@ class Controller(Component):
         # Reinitialize subscribers based on the new mode
         self.destroy_all_subscribers()
         self.create_all_subscribers()
+        self.destroy_all_action_servers()
+        self.create_all_action_servers()
 
     def _activate_follower_mode(self):
         """Activate path following mode by creating all missing subscriptions"""
@@ -640,6 +642,8 @@ class Controller(Component):
         # Reinitialize subscribers based on the new mode
         self.destroy_all_subscribers()
         self.create_all_subscribers()
+        self.destroy_all_action_servers()
+        self.create_all_action_servers()
 
     def _update_state(self, vision_track_id: Optional[int] = None) -> None:
         """
@@ -1058,9 +1062,17 @@ class Controller(Component):
             target_search_timeout=int(
                 request_msg.search_timeout / self.config.control_time_step
             ),
-            target_search_radius=request_msg.search_radius,
+            target_search_radius=max(1e-4, request_msg.search_radius),
         )
         config = self._configure_algorithm(config)
+
+        callback = self.get_callback(TopicsKeys.VISION_TRACKINGS)
+        if isinstance(callback, DetectionsCallback):
+            # set the buffer size to the max number of detections in a target pause
+            callback.buffer_size = (
+                int(config.control_time_step * self.config.loop_rate)
+                * config.target_search_pause
+            )
 
         _controller = VisionFollower(
             robot=self.__robot,
