@@ -336,7 +336,7 @@ class Controller(Component):
             ):
                 # skip local map for direct sensor
                 continue
-            if (
+            elif (
                 not self.config.use_direct_sensor
                 and callback.input_topic.name
                 == self.in_topic_name(TopicsKeys.SPATIAL_SENSOR)
@@ -690,9 +690,14 @@ class Controller(Component):
             )
         else:
             map_callback = self.get_callback(TopicsKeys.LOCAL_MAP)
-            self.local_map: Optional[np.ndarray] = (
-                map_callback.get_output() if map_callback else None
-            )
+            if map_callback:
+                self.local_map: Optional[np.ndarray] = map_callback.get_output()
+                _metadata = map_callback.get_output(get_metadata=True)
+                self.local_map_resolution = _metadata["resolution"] if _metadata else None
+            else:
+                self.local_map = None
+                self.local_map_resolution = None
+
 
     def _attach_callbacks(self) -> None:
         """
@@ -928,15 +933,17 @@ class Controller(Component):
             self.__reached_end = False
             return True
 
+        self.get_logger().info("Getting new control command")
         cmd_found: bool = self.__path_controller.loop_step(
             current_state=self.robot_state,  # type: ignore
             laser_scan=laser_scan,
             point_cloud=point_cloud,
             local_map=local_map,
+            local_map_resolution=self.local_map_resolution if hasattr(self, "local_map_resolution") else None
         )
 
         # LOG CONTROLLER INFO
-        self.get_logger().debug(f"{cmd_found}: {self.__path_controller.logging_info()}")
+        self.get_logger().info(f"{cmd_found}: {self.__path_controller.logging_info()}")
 
         # PUBLISH CONTROL TO ROBOT CMD TOPIC
         if not cmd_found:
@@ -1324,7 +1331,6 @@ class Controller(Component):
         self._update_state()
 
         got_all: bool = self.got_all_inputs()
-
         # Check if all inputs are available
         if got_all and not self.__reached_end:
             self._path_control()
