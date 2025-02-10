@@ -36,7 +36,6 @@ __all__ = [
     "DetectionsCallback",
 ]
 
-
 class OdomCallback(BaseOdomCallback):
     """
     ROS2 Odometry Callback Handler to get the robot state in 2D
@@ -458,27 +457,18 @@ class DetectionsCallback(GenericCallback):
         ]
         self._buffer_items = min(self._buffer_items + 1, self._max_buffer_size)
 
-    @property
-    def buffer_size(self) -> int:
-        """Get detections buffer size
-
-        :return: Buffer size (number of detections)
-        :rtype: int
-        """
-        return self.__max_buffer_size
-
-    @buffer_size.setter
-    def buffer_size(self, value: int) -> None:
+    def set_buffer_size(self, value: int, clear_old: bool = False) -> None:
         """Resizes detections buffer (while maintaining old buffer items in the resized buffer)
 
         :param value: New buffer size
         :type value: int
         """
         new_buffer = np.ones((value, self._feature_items))
-        if value >= self._max_buffer_size:
-            new_buffer[-self._max_buffer_size :] = self._detections_buffer
-        else:
-            new_buffer = self._detections_buffer[-self._max_buffer_size :]
+        if not clear_old:
+            if value >= self._max_buffer_size:
+                new_buffer[-self._max_buffer_size :] = self._detections_buffer
+            else:
+                new_buffer = self._detections_buffer[-self._max_buffer_size :]
         self._max_buffer_size = value
         self._detections_buffer = new_buffer
 

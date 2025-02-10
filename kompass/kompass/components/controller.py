@@ -1075,10 +1075,10 @@ class Controller(Component):
 
         callback = self.get_callback(TopicsKeys.VISION_TRACKINGS)
         if isinstance(callback, DetectionsCallback):
+            buffer_size = config.control_time_step * self.config.loop_rate * config.target_search_pause
             # set the buffer size to the max number of detections in a target pause
-            callback.buffer_size = (
-                int(config.control_time_step * self.config.loop_rate)
-                * config.target_search_pause
+            callback.set_buffer_size(
+                int(buffer_size), clear_old=True
             )
 
         _controller = VisionFollower(
