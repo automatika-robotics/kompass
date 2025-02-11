@@ -383,7 +383,7 @@ class DetectionsCallback(GenericCallback):
         # Remove a buffer item
         self._detections_buffer = np.roll(self._detections_buffer, -1, axis=0)
 
-        if not self._label or not self.msg.detections:
+        if not self._label or not self.msg or (self.msg and not self.msg.detections):
             # No detection -> reduce buffer items
             self._buffer_items = max(self._buffer_items - 1, 0)
             return
@@ -464,7 +464,9 @@ class DetectionsCallback(GenericCallback):
         :type value: int
         """
         new_buffer = np.ones((value, self._feature_items))
-        if not clear_old:
+        if clear_old:
+            self._buffer_items = 0
+        else:
             if value >= self._max_buffer_size:
                 new_buffer[-self._max_buffer_size :] = self._detections_buffer
             else:

@@ -290,6 +290,7 @@ class Controller(Component):
         """
         Component custom activation method to add activation based on the control mode
         """
+        self._custom_actiovation_on = True
         if (
             self.config._mode == ControllerMode.VISION_FOLLOWER
             and not self.get_in_topic(TopicsKeys.VISION_TRACKINGS)
@@ -303,11 +304,22 @@ class Controller(Component):
             self._activate_vision_mode()
         else:
             self._activate_follower_mode()
+        self._custom_actiovation_on = False
+
+    def create_all_action_servers(self):
+        if not hasattr(self, "_custom_actiovation_on") or not self._custom_actiovation_on:
+            # Disable this method of running on activate -> only runs on custom activate after setting the controler mode
+            return
+        super().create_all_action_servers()
 
     def create_all_subscribers(self):
         """
         Overrides BaseComponent create_all_subscribers to implement controller mode change
         """
+        if not hasattr(self, "_custom_actiovation_on") or not self._custom_actiovation_on:
+            # Disable this method of running on activate -> only runs on custom activate after setting the controler mode
+            return
+
         self.get_logger().info("STARTING ALL SUBSCRIBERS")
         self.callbacks = {
             input.name: input.msg_type.callback(input, node_name=self.node_name)
@@ -1075,10 +1087,9 @@ class Controller(Component):
 
         callback = self.get_callback(TopicsKeys.VISION_TRACKINGS)
         if isinstance(callback, DetectionsCallback):
-            buffer_size = config.control_time_step * self.config.loop_rate * config.target_search_pause
             # set the buffer size to the max number of detections in a target pause
             callback.set_buffer_size(
-                int(buffer_size), clear_old=True
+                config.buffer_size, clear_old=True
             )
 
         _controller = VisionFollower(
