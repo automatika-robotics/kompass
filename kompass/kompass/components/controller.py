@@ -1063,24 +1063,21 @@ class Controller(Component):
         result = TrackVisionTarget.Result()
 
         # Wait to get the first tracking
-        self.__wait_for_trackings()
+        # self.__wait_for_trackings()
 
-        if not self.vision_trackings:
-            self.get_logger().error(
-                f"Tracking information is not available for requested label '{self.__tracked_label}' -> Aborting"
-            )
-            goal_handle.abort()
-            return result
+        # if not self.vision_trackings:
+        #     self.get_logger().error(
+        #         f"Tracking information is not available for requested label '{self.__tracked_label}' -> Aborting"
+        #     )
+        #     goal_handle.abort()
+        #     return result
 
         # Get ID of the label from the current detection and set as the tracked ID
-        _tracked_id = self.vision_trackings.id
+        _tracked_id = None
 
         config = VisionFollowerConfig(
             control_time_step=self.config.control_time_step,
-            target_distance=self.vision_trackings.depth,
-            target_search_timeout=int(
-                request_msg.search_timeout / self.config.control_time_step
-            ),
+            target_search_timeout=request_msg.search_timeout,
             target_search_radius=max(1e-4, request_msg.search_radius),
         )
         config = self._configure_algorithm(config)
@@ -1102,6 +1099,8 @@ class Controller(Component):
 
         # time the tracking period
         start_time = time.time()
+        end_time = start_time
+        _first_tracking = False
 
         # While the vision tracking mode is not unset by a service call or an event action
         while self.config._mode == ControllerMode.VISION_FOLLOWER:
@@ -1118,6 +1117,8 @@ class Controller(Component):
                     "Unable to find tracked target -> Aborting action"
                 )
                 goal_handle.abort()
+                result.success = False
+                result.tracked_duration = end_time - start_time
                 return result
 
             # Publish feedback
@@ -1141,7 +1142,8 @@ class Controller(Component):
                     f"Following tracked target: {_controller.linear_x_control}, {_controller.angular_control}"
                 )
                 self.get_logger().info(f"tracked target: {self.vision_trackings}")
-            else:
+                _tracked_id = self.vision_trackings.id
+            if not self.vision_trackings:
                 self.get_logger().info(
                     f"Searching for tracked target with control: {_controller.linear_x_control}, {_controller.angular_control}"
                 )
