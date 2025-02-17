@@ -44,9 +44,12 @@ class Launcher(BaseLauncher):
     def kompass(
         self,
         components: List[Component],
-        events_actions: Optional[Dict[
-            Event, Union[Action, ROSLaunchAction, List[Union[Action, ROSLaunchAction]]]
-        ]] = None,
+        events_actions: Optional[
+            Dict[
+                Event,
+                Union[Action, ROSLaunchAction, List[Union[Action, ROSLaunchAction]]],
+            ]
+        ] = None,
         multiprocessing: bool = True,
         activate_all_components_on_start: bool = True,
         components_to_activate_on_start: Optional[List[Component]] = None,

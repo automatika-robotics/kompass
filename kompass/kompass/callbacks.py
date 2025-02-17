@@ -36,6 +36,7 @@ __all__ = [
     "DetectionsCallback",
 ]
 
+
 class OdomCallback(BaseOdomCallback):
     """
     ROS2 Odometry Callback Handler to get the robot state in 2D

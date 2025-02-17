@@ -307,7 +307,10 @@ class Controller(Component):
         self._custom_actiovation_on = False
 
     def create_all_action_servers(self):
-        if not hasattr(self, "_custom_actiovation_on") or not self._custom_actiovation_on:
+        if (
+            not hasattr(self, "_custom_actiovation_on")
+            or not self._custom_actiovation_on
+        ):
             # Disable this method of running on activate -> only runs on custom activate after setting the controler mode
             return
         super().create_all_action_servers()
@@ -316,7 +319,10 @@ class Controller(Component):
         """
         Overrides BaseComponent create_all_subscribers to implement controller mode change
         """
-        if not hasattr(self, "_custom_actiovation_on") or not self._custom_actiovation_on:
+        if (
+            not hasattr(self, "_custom_actiovation_on")
+            or not self._custom_actiovation_on
+        ):
             # Disable this method of running on activate -> only runs on custom activate after setting the controler mode
             return
 
@@ -705,11 +711,12 @@ class Controller(Component):
             if map_callback:
                 self.local_map: Optional[np.ndarray] = map_callback.get_output()
                 _metadata = map_callback.get_output(get_metadata=True)
-                self.local_map_resolution = _metadata["resolution"] if _metadata else None
+                self.local_map_resolution = (
+                    _metadata["resolution"] if _metadata else None
+                )
             else:
                 self.local_map = None
                 self.local_map_resolution = None
-
 
     def _attach_callbacks(self) -> None:
         """
@@ -951,7 +958,9 @@ class Controller(Component):
             laser_scan=laser_scan,
             point_cloud=point_cloud,
             local_map=local_map,
-            local_map_resolution=self.local_map_resolution if hasattr(self, "local_map_resolution") else None
+            local_map_resolution=self.local_map_resolution
+            if hasattr(self, "local_map_resolution")
+            else None,
         )
 
         # LOG CONTROLLER INFO
@@ -1085,9 +1094,7 @@ class Controller(Component):
         callback = self.get_callback(TopicsKeys.VISION_TRACKINGS)
         if isinstance(callback, DetectionsCallback):
             # set the buffer size to the max number of detections in a target pause
-            callback.set_buffer_size(
-                config.buffer_size, clear_old=True
-            )
+            callback.set_buffer_size(config.buffer_size, clear_old=True)
 
         _controller = VisionFollower(
             robot=self.__robot,
