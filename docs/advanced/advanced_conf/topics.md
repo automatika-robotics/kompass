@@ -6,7 +6,7 @@ Configuring an input/output of a Component is very straightforward and can be do
 
 ```python
     from kompass.components import DriveManager
-    from kompass.topic import Topic
+    from kompass.ros import Topic
 
     driver = DriveManager(component_name="driver")
 
@@ -19,57 +19,91 @@ Configuring an input/output of a Component is very straightforward and can be do
 
 ```
 
+```{seealso}
+See the input/output configuration class `Topic` in detail [here](../../apidocs/kompass/kompass.components.ros.md)
+```
+
 ## Configure inputs/outputs for your custom component
 
-Internally in the component, Inputs/Outputs are [attrs](https://www.attrs.org/en/stable/) classes with the attribute name representing a unique input/output key name and the value equal to the [Topic](topics.md). Each component is created with default inputs and default outputs and restricted with AllowedInputs and AllowedOutputs classes. Custom inputs/outputs classes can be created using `create_topics_config` method which returns an `attrs` class where each keyword argument corresponds to a class attribute of type `Topic`, as shown in the example below:
+Inputs/Outputs in a Component are dictionaries with each key representing a unique input/output key name and the value equal to the [Topic](topics.md). Each component in Kompass stack is created with default inputs/outputs which can be modified, along with restrictions on the allowed message types for each input/output key and the number of obligatory/optional streams.
+
+```{seealso}
+All of Kompass stack inputs/outputs keys, default values and allowed values can be seen in detail in the [source code](https://github.com/automatika-robotics/kompass/blob/main/kompass/kompass/components/defaults.py).
+```
+
+Let's say you wish to extend the stack and create your own component that filters velocity commands from an autonomous controller, and at least one remote controller with up-to n connected remote controllers, you can design the component inputs/outputs and allowed values in a similar way as follows:
+
 
 
 ```python
-    from kompass.topic import Topic, create_topics_config
+    from typing import Union, List
+    from kompass.ros import Topic, AllowedTopic
+
+    # Import the parent component
     from kompass.components.component import Component
+    # Import a helper method to safely update input/output values in a component
+    from kompass.components.ros import update_topics
 
-    # Create the Topics class
-    NewTopicsClass = create_topics_config(
-                        "MyInputsClass",
-                        input_1=Topic(name="/plan", msg_type="Path"),
-                        input_2=Topic(name="/location", msg_type="Odometry"),
-                    )
-    # Get an instance
-    inputs = NewTopicsClass()
+    # Default inputs: one autonomous command and 2 remote commands, all of type Twist
+    default_inputs = Dict[str, Union[Topic, List[Topic]]] = {
+    "autonomous_cmd": Topic(name="/cmd_autonom", msg_type="Twist"),
+    "remote_cmd": [Topic(name="/cmd_remote_0", msg_type="Twist"), Topic(name="/cmd_remote_1", msg_type="Twist")],
+    }
 
-    # Set as the component inputs
-    my_component = Component(component_name='my_component', inputs=inputs)
+    # Default outputs: one final Twist command
+    default_outputs = Dict[str, Topic] = {
+    "robot_cmd": Topic(name="/cmd_vel", msg_type="Twist")
+    }
+
+    allowed_inputs: Dict[str, AllowedTopics] = {
+    "autonomous_cmd": AllowedTopics(types=["Twist"]),
+    "remote_cmd": AllowedTopics(
+        types=["Twist"],
+        number_required=1,  # One required remote command topic
+        number_optional=10,     # Up to 10 optional topics for remote commands
+    ),
+    }
+
+    allowed_outputs: Dict[str, AllowedTopics] = {
+    "robot_cmd": AllowedTopics(types=["Twist"]),
+    }
+
+    # Write your custom component
+
+    class MyComponent(Component):
+        def __init__(
+            self,
+            component_name: str,
+            config_file: Optional[str] = None,
+            inputs: Optional[Dict[str, Topic]] = None,
+            outputs: Optional[Dict[str, Topic]] = None,
+            **kwargs,
+        ) -> None:
+            # Update defaults from custom topics if provided
+            in_topics = (
+                update_topics(driver_default_inputs, **inputs)
+                if inputs
+                else default_inputs
+            )
+            out_topics = (
+                update_topics(driver_default_outputs, **outputs)
+                if outputs
+                else default_outputs
+            )
+
+            super().__init__(
+                config_file=config_file,
+                inputs=in_topics,
+                outputs=out_topics,
+                allowed_inputs=allowed_inputs,  # Pass allowed inputs to the component
+                allowed_outputs=allowed_outputs,
+                component_name=component_name,
+                **kwargs,
+            )
+
+            # Write the rest of your functionalities ...
 ```
-
-To restrict your custom component to accept only specific types of inputs/outputs, you can create your your allowed inputs and/or allowed outputs using `RestrictedTopicsConfig` [enum](https://docs.python.org/3/library/enum.html) class. Add an enum value of type `AllowedTopic` for each category of topics and set the key name, allowed  ROS2 message types and optionally the number of required and additional optional streams.
 
 ```{tip}
 If the number of required and optional streams is not specified for an `AllowedTopic`, then the only one stream is required with no additional optional streams (default: `number_required=1, number_optional=0`)
-```
-
-
-```python
-    from kompass.topic import AllowedTopic, RestrictedTopicsConfig
-    from kompass.components.component import Component
-
-    # Set the allowed inputs
-    class AllowedInputs(RestrictedTopicsConfig):
-        PLAN = AllowedTopic(key="input_1", types=["Path"])
-        LOCATION = AllowedTopic(key="input_2", types=["Odometry", "PoseStamped", "Pose"], number_required=1,
-        number_optional=3)
-
-    # Create the Topics class
-    NewTopicsClass = create_topics_config(
-                        "MyInputsClass",
-                        input_1=Topic(name="/plan", msg_type="Path"),
-                        input_2=Topic(name="/location", msg_type="Odometry"),
-                    )
-
-    # Get an instance for the default inputs
-    inputs = NewTopicsClass()
-
-    # Can change input_2 since it takes other allowed types and upto 3 optional inputs
-    inputs.input_2 = [Topic(name="/odom", msg_type="Odometry"), Topic(name="/pose_stamped", msg_type="PoseStamped")]
-
-    my_component = Component(component_name='my_node', inputs=inputs, allowed_inputs=AllowedInputs)
 ```
