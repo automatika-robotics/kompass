@@ -190,7 +190,7 @@ Here we selected a loop rate for the controller of `10Hz` and a control step for
 
 All that is left is to add all the three previous components to the launcher and bringup the system!
 ```python
-from kompass.launcher import Launcher
+from kompass.ros import Launcher
 
 launcher = Launcher()
 
@@ -233,7 +233,7 @@ from kompass.robot import (
     RobotConfig,
 )
 from kompass.control import VisionFollowerConfig
-from kompass.launcher import Launcher
+from kompass.ros import Launcher
 
 # RGB camera input topic is set to the compressed image topic
 image0 = Topic(name="/image_raw/compressed", msg_type="CompressedImage")

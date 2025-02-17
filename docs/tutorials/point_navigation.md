@@ -60,7 +60,7 @@ from kompass.components import (
     PlannerConfig,
     Driver
 )
-from kompass.topic import Topic
+from kompass.ros import Topic
 
 # Setup components with default config, inputs and outputs
 planner_config = PlannerConfig(loop_rate=1.0)       # 1 Hz
@@ -90,7 +90,7 @@ After initializing the Launcher with the required components, we also pass the r
 
 
 ```python
-from kompass.launcher import Launcher
+from kompass.ros import Launcher
 
 
 # Init a launcher
@@ -148,8 +148,7 @@ from kompass.components import (
     Planner,
     PlannerConfig,
 )
-from kompass.launcher import Launcher
-from kompass.topic import Topic
+from kompass.ros import Topic, Launcher
 
 # Setup your robot configuration
 my_robot = RobotConfig(

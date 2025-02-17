@@ -64,7 +64,7 @@ First, we define an event that is triggered on any clicked point on RVIZ:
 
 ```python
 from kompass import event
-from kompass.topic import Topic
+from kompass.ros import Topic
 
 # On any clicked point
 event_clicked_point = event.OnGreater(
@@ -203,8 +203,7 @@ from kompass.components import (
 )
 from kompass.actions import ComponentActions, LogInfo
 from kompass.config import RobotConfig
-from kompass.launcher import Launcher
-from kompass.topic import Topic
+from kompass.ros import Topic, Launcher
 
 from ament_index_python.packages import get_package_share_directory
 

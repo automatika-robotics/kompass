@@ -53,6 +53,7 @@ __all__ = [
     "Path",
     "ComponentStatus",
     "Twist",
+    "TwistStamped",
     "SupportedType",
     "TwistArray",
     "Bool",

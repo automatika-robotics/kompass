@@ -186,16 +186,17 @@ class DriveManager(Component):
         Attaches emergency_stop_check to sensor_data callback
         anf filtering commands to commands callbacks
         """
-        # Attach emergency check to all sensor data callbacks
-        num_sensors = self._inputs_keys.count(TopicsKeys.SPATIAL_SENSOR)
-        for idx in range(num_sensors):
-            callback = self.get_callback(TopicsKeys.SPATIAL_SENSOR, idx)
-            if isinstance(callback, LaserScanCallback):
-                callback.on_callback_execute(self._check_emergency_stop_lidar)
-            else:
-                callback.on_callback_execute(
-                    self._check_emergency_stop_proximity_sensor
-                )
+        if not self.config.disable_safety_stop:
+            # Attach emergency check to all sensor data callbacks
+            num_sensors = self._inputs_keys.count(TopicsKeys.SPATIAL_SENSOR)
+            for idx in range(num_sensors):
+                callback = self.get_callback(TopicsKeys.SPATIAL_SENSOR, idx)
+                if isinstance(callback, LaserScanCallback):
+                    callback.on_callback_execute(self._check_emergency_stop_lidar)
+                else:
+                    callback.on_callback_execute(
+                        self._check_emergency_stop_proximity_sensor
+                    )
 
         if self.config.smooth_commands:
             # Attach filtering to commands callback
