@@ -38,7 +38,7 @@ from .ros import (
     update_topics,
 )
 from ..utils import component_action
-from ..callbacks import PointCloudCallback
+from ..callbacks import PointCloudCallback, DetectionsCallback
 
 # KOMPASS MSGS/SRVS/ACTIONS
 from .component import Component, TFListener
@@ -290,6 +290,7 @@ class Controller(Component):
         """
         Component custom activation method to add activation based on the control mode
         """
+        self._custom_actiovation_on = True
         if (
             self.config._mode == ControllerMode.VISION_FOLLOWER
             and not self.get_in_topic(TopicsKeys.VISION_TRACKINGS)
@@ -303,11 +304,28 @@ class Controller(Component):
             self._activate_vision_mode()
         else:
             self._activate_follower_mode()
+        self._custom_actiovation_on = False
+
+    def create_all_action_servers(self):
+        if (
+            not hasattr(self, "_custom_actiovation_on")
+            or not self._custom_actiovation_on
+        ):
+            # Disable this method of running on activate -> only runs on custom activate after setting the controler mode
+            return
+        super().create_all_action_servers()
 
     def create_all_subscribers(self):
         """
         Overrides BaseComponent create_all_subscribers to implement controller mode change
         """
+        if (
+            not hasattr(self, "_custom_actiovation_on")
+            or not self._custom_actiovation_on
+        ):
+            # Disable this method of running on activate -> only runs on custom activate after setting the controler mode
+            return
+
         self.get_logger().info("STARTING ALL SUBSCRIBERS")
         self.callbacks = {
             input.name: input.msg_type.callback(input, node_name=self.node_name)
@@ -336,7 +354,7 @@ class Controller(Component):
             ):
                 # skip local map for direct sensor
                 continue
-            if (
+            elif (
                 not self.config.use_direct_sensor
                 and callback.input_topic.name
                 == self.in_topic_name(TopicsKeys.SPATIAL_SENSOR)
@@ -624,6 +642,8 @@ class Controller(Component):
         # Reinitialize subscribers based on the new mode
         self.destroy_all_subscribers()
         self.create_all_subscribers()
+        self.destroy_all_action_servers()
+        self.create_all_action_servers()
 
     def _activate_follower_mode(self):
         """Activate path following mode by creating all missing subscriptions"""
@@ -640,6 +660,8 @@ class Controller(Component):
         # Reinitialize subscribers based on the new mode
         self.destroy_all_subscribers()
         self.create_all_subscribers()
+        self.destroy_all_action_servers()
+        self.create_all_action_servers()
 
     def _update_state(self, vision_track_id: Optional[int] = None) -> None:
         """
@@ -686,9 +708,15 @@ class Controller(Component):
             )
         else:
             map_callback = self.get_callback(TopicsKeys.LOCAL_MAP)
-            self.local_map: Optional[np.ndarray] = (
-                map_callback.get_output() if map_callback else None
-            )
+            if map_callback:
+                self.local_map: Optional[np.ndarray] = map_callback.get_output()
+                _metadata = map_callback.get_output(get_metadata=True)
+                self.local_map_resolution = (
+                    _metadata["resolution"] if _metadata else None
+                )
+            else:
+                self.local_map = None
+                self.local_map_resolution = None
 
     def _attach_callbacks(self) -> None:
         """
@@ -924,15 +952,19 @@ class Controller(Component):
             self.__reached_end = False
             return True
 
+        self.get_logger().info("Getting new control command")
         cmd_found: bool = self.__path_controller.loop_step(
             current_state=self.robot_state,  # type: ignore
             laser_scan=laser_scan,
             point_cloud=point_cloud,
             local_map=local_map,
+            local_map_resolution=self.local_map_resolution
+            if hasattr(self, "local_map_resolution")
+            else None,
         )
 
         # LOG CONTROLLER INFO
-        self.get_logger().debug(f"{cmd_found}: {self.__path_controller.logging_info()}")
+        self.get_logger().info(f"{cmd_found}: {self.__path_controller.logging_info()}")
 
         # PUBLISH CONTROL TO ROBOT CMD TOPIC
         if not cmd_found:
@@ -1039,28 +1071,20 @@ class Controller(Component):
 
         result = TrackVisionTarget.Result()
 
-        # Wait to get the first tracking
-        self.__wait_for_trackings()
-
-        if not self.vision_trackings:
-            self.get_logger().error(
-                f"Tracking information is not available for requested label '{self.__tracked_label}' -> Aborting"
-            )
-            goal_handle.abort()
-            return result
-
         # Get ID of the label from the current detection and set as the tracked ID
-        _tracked_id = self.vision_trackings.id
+        _tracked_id = None
 
         config = VisionFollowerConfig(
             control_time_step=self.config.control_time_step,
-            target_distance=self.vision_trackings.depth,
-            target_search_timeout=int(
-                request_msg.search_timeout / self.config.control_time_step
-            ),
-            target_search_radius=request_msg.search_radius,
+            target_search_timeout=request_msg.search_timeout,
+            target_search_radius=max(1e-4, request_msg.search_radius),
         )
         config = self._configure_algorithm(config)
+
+        callback = self.get_callback(TopicsKeys.VISION_TRACKINGS)
+        if isinstance(callback, DetectionsCallback):
+            # set the buffer size to the max number of detections in a target pause
+            callback.set_buffer_size(config.buffer_size, clear_old=True)
 
         _controller = VisionFollower(
             robot=self.__robot,
@@ -1072,6 +1096,8 @@ class Controller(Component):
 
         # time the tracking period
         start_time = time.time()
+        end_time = start_time
+        _first_tracking = False
 
         # While the vision tracking mode is not unset by a service call or an event action
         while self.config._mode == ControllerMode.VISION_FOLLOWER:
@@ -1088,6 +1114,8 @@ class Controller(Component):
                     "Unable to find tracked target -> Aborting action"
                 )
                 goal_handle.abort()
+                result.success = False
+                result.tracked_duration = end_time - start_time
                 return result
 
             # Publish feedback
@@ -1111,7 +1139,8 @@ class Controller(Component):
                     f"Following tracked target: {_controller.linear_x_control}, {_controller.angular_control}"
                 )
                 self.get_logger().info(f"tracked target: {self.vision_trackings}")
-            else:
+                _tracked_id = self.vision_trackings.id
+            if not self.vision_trackings:
                 self.get_logger().info(
                     f"Searching for tracked target with control: {_controller.linear_x_control}, {_controller.angular_control}"
                 )
@@ -1249,7 +1278,6 @@ class Controller(Component):
             # Update the result msg
             result.destination_error.orientation_error = self.__lat_dist_error
             result.destination_error.lateral_distance_error = self.__ori_error
-
             goal_handle.succeed()
 
         else:
@@ -1312,7 +1340,6 @@ class Controller(Component):
         self._update_state()
 
         got_all: bool = self.got_all_inputs()
-
         # Check if all inputs are available
         if got_all and not self.__reached_end:
             self._path_control()
