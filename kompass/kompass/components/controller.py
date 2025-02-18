@@ -1071,16 +1071,6 @@ class Controller(Component):
 
         result = TrackVisionTarget.Result()
 
-        # Wait to get the first tracking
-        # self.__wait_for_trackings()
-
-        # if not self.vision_trackings:
-        #     self.get_logger().error(
-        #         f"Tracking information is not available for requested label '{self.__tracked_label}' -> Aborting"
-        #     )
-        #     goal_handle.abort()
-        #     return result
-
         # Get ID of the label from the current detection and set as the tracked ID
         _tracked_id = None
 
@@ -1288,7 +1278,6 @@ class Controller(Component):
             # Update the result msg
             result.destination_error.orientation_error = self.__lat_dist_error
             result.destination_error.lateral_distance_error = self.__ori_error
-
             goal_handle.succeed()
 
         else:
