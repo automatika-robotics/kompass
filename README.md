@@ -4,7 +4,7 @@
   <img alt="Kompass Logo." src="docs/_static/Kompass_dark.png"  width="50%">
 </picture>
 
-Kompass is an event-driven navigation system designed with an easy-to-use and intuitive Python API. Kompass is built to be customizable, extendable and hardware-agnostic. It aims to implement the most cutting edge algorithms for all parts of the navigation stack. And most importantly, it allows users to create very sophisticated navigation capabilities for autonomous mobile robots, within a single python script.
+Welcome to Kompass! The fastest and most intuitive navigation stack known to man! Kompass is an event-driven navigation stack designed with an easy-to-use Python API. Kompass is built to be customizable, extendable and hardware-agnostic. It implements highly optimized, GPU powered, versions of the most cutting edge algorithms for all parts of the navigation stack. And most importantly, it allows users to create very sophisticated navigation capabilities for autonomous mobile robots, with simple idomatic python.
 
 - Find out more about our [**motivation**](https://automatika-robotics.github.io/kompass/why.html) to create Kompass ✨
 - [**Install**](https://automatika-robotics.github.io/kompass/install.html) Kompass on your robot 🛠️
@@ -12,9 +12,7 @@ Kompass is an event-driven navigation system designed with an easy-to-use and in
 - Do a deep dive with one of the [**tutorials**](https://automatika-robotics.github.io/kompass/tutorials/point_navigation.html) 🤖
 - Learn more about the [**design concepts**](https://automatika-robotics.github.io/kompass/advanced/design.html) of Kompass 📚
 
-
 Kompass is divided into several interacting components each responsible for one of the navigation subtasks:
-
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/_static/images/diagrams/system_components_dark.png">

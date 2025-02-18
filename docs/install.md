@@ -4,24 +4,45 @@
 
 Kompass is built to be used with ROS2. All ROS2 distributions starting from _Foxy_ upto _Rolling_ are supported. Install ROS2 version of your choice by following the instructions on the [official site](https://docs.ros.org/).
 
-## Instal Kompass (Ubuntu)
+## Install kompass-core
 
-**Binary packages for Ubuntu will be released soon. Check this space.**
+kompass-core is a python package that provides highly optimized implementations of planning and control algorithms for Kompass. You can install it in the following ways:
 
-## Build Kompass from source
+### With GPU support (Recommended):
 
-- Kompass Core provides optimized implementation of planning and control algorithms for Kompass. To install it:
-```shell
-sudo apt install libompl-dev libfcl-dev libpcl-dev
-pip install kompass-core
-```
+On any Ubuntu (including Jetpack) based machine, you can simply run the following:
 
-- Build ROS Sugar and Kompass from source as shown below:
+`curl https://raw.githubusercontent.com/automatika-robotics/kompass-core/refs/heads/main/build_dependencies/install_gpu.sh | bash`
+
+This script will install all relevant dependencies, including [AdaptiveCPP](https://github.com/AdaptiveCpp/AdaptiveCpp) and install the latest version of kompass-core from source. It is good practice to read the [script](https://github.com/automatika-robotics/kompass-core/blob/main/build_dependencies/install_gpu.sh) first.
+
+### Installing with pip
+
+On Ubuntu versions >= 22.04, install dependencies by running the following:
+
+`sudo apt-get install libompl-dev libfcl-dev libpcl-dev`
+
+Then install kompass-core as follows:
+
+`pip install kompass-core`
+
+## Install Kompass
+
+Install pre-build Kompass binary as follows:
+
+`sudo apt install ros-$ROS_DISTRO-kompass`
+
+### Build Kompass from source
+
+You can build Kompass from source as follows:
 
 ```shell
 mkdir -p kompass_ws/src
-cd kompass_ws
+cd kompass_ws/src
 git clone https://github.com/automatika-robotics/ros-sugar
 git clone https://github.com/automatika-robotics/kompass
+rosdep update
+rosdep install -y --from-paths . --ignore-src
+cd ..
 colcon build
 ```
