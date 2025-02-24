@@ -5,6 +5,7 @@ from attrs import define, field
 from geometry_msgs.msg import Twist
 from kompass_core.datatypes import LaserScanData
 from kompass_core.models import RobotGeometry, RobotState, RobotType
+from kompass_core.utils.emergency_stop import EmergencyChecker
 from scipy import signal
 from kompass_interfaces.msg import TwistArray
 
@@ -160,6 +161,12 @@ class DriveManager(Component):
 
         self.robot_radius = RobotGeometry.get_radius(
             self.config.robot.geometry_type, self.config.robot.geometry_params
+        )
+
+        self._emergency_checker = EmergencyChecker(
+            robot=self.config.robot,
+            emergency_angle=self.config.critical_zone_angle,
+            emergency_distance=self.config.critical_zone_distance,
         )
 
         if not self.robot_radius:
@@ -654,25 +661,13 @@ class DriveManager(Component):
         If emergency stop is required from direct sensor -> sets command to zero
         """
         # Update emergency stop check
-        if output:
-            forward: bool = True if not self.command else self.command.linear.x >= 0
+        if not output:
+            return
+        forward: bool = True if not self.command else self.command.linear.x >= 0
 
-            if forward:
-                # Check in front
-                ranges_to_check = output.get_ranges(
-                    right_angle=self.critical_zone["right_angle"],
-                    left_angle=self.critical_zone["left_angle"],
-                )
-            else:
-                # Moving backwards -> Check behind
-                ranges_to_check = output.get_ranges(
-                    right_angle=self.critical_zone["right_angle"] + np.pi,
-                    left_angle=self.critical_zone["left_angle"] + np.pi,
-                )
-
-            emergency_stop = np.any(ranges_to_check <= self.critical_zone["distance"])
-
-            self.emergency_stop_dict[topic.name] = bool(emergency_stop)
+        self.emergency_stop_dict[topic.name] = self._emergency_checker.run(
+            robot_state=self.robot_state, scan=output, forward=forward
+        )
 
     def _limit_command_vel(self, output: Twist) -> Twist:
         """Check and limit the control commands
