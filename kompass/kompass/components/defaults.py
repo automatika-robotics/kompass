@@ -7,8 +7,8 @@ from ros_sugar.supported_types import add_additional_datatypes
 from .. import data_types
 from ros_sugar.io import AllowedTopics, get_all_msg_types
 from ros_sugar.config import QoSConfig
+from ros_sugar.io import Topic
 from rclpy import qos
-from ..ros import Topic
 from ..utils import StrEnum
 
 # Get Kompass types to pass to the base component as additional supported types
