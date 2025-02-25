@@ -375,6 +375,10 @@ class Planner(Component):
 
         try:
             while not self.reached_point(goal_state, end_goal_tolerance):
+                if not goal_handle.is_active or goal_handle.is_cancel_requested:
+                    self.get_logger().info('Goal Canceled')
+                    return action_result
+
                 # update state from input
                 self._update_state()
 
@@ -387,14 +391,15 @@ class Planner(Component):
                 else:
                     action_feedback_msg.plan = None
                 goal_handle.publish_feedback(action_feedback_msg)
-                self.get_logger().info(f"Action Feedback: {action_feedback_msg}")
+                self.get_logger().debug(f"Action Feedback: {action_feedback_msg}")
                 # NOTE: using Python time directly, as ros rate sleep (from self.create_rate) was not functioning as expected
                 time.sleep(1 / self.config.loop_rate)
 
         except Exception as e:
             self.get_logger().error(f"Action execution error - {e}")
-            goal_handle.abort()
-            goal_handle.reset()
+            with self._main_goal_lock:
+                goal_handle.abort()
+                goal_handle.reset()
 
         # Get the displacement at the end of the path
         end_state_error: RobotState = self.robot_state - goal_state
@@ -405,7 +410,14 @@ class Planner(Component):
         self.get_logger().error(
             f"End Goal Reached with result {action_result} -> Ending Action"
         )
-        goal_handle.succeed()
+        # Publish empty path
+        self.ros_path = Path()
+        self.ros_path.header.frame_id = self.config.frames.world
+        self.ros_path.header.stamp = self.get_ros_time()
+        self.get_publisher(TopicsKeys.GLOBAL_PLAN).publish(self.ros_path)
+
+        with self._main_goal_lock:
+            goal_handle.succeed()
 
         return action_result
 
