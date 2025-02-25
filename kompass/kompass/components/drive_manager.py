@@ -158,6 +158,7 @@ class DriveManager(Component):
         self.command: Optional[Twist] = None
         self.multi_command: Optional[TwistArray] = None
         self._previous_command: Optional[Twist] = None
+        self._last_direction_forward : Optional[bool] = None
 
         self.robot_radius = RobotGeometry.get_radius(
             self.config.robot.geometry_type, self.config.robot.geometry_params
@@ -663,11 +664,13 @@ class DriveManager(Component):
         # Update emergency stop check
         if not output:
             return
-        forward: bool = True if not self.command else self.command.linear.x >= 0
+        if not self.command or self.command.linear.x == 0.0:
+            forward: bool = self._last_direction_forward if self._last_direction_forward is not None else True
+        else:
+            forward = self.command.linear.x > 0
 
-        self.emergency_stop_dict[topic.name] = self._emergency_checker.run(
-            robot_state=self.robot_state, scan=output, forward=forward
-        )
+        self.emergency_stop_dict[topic.name] = self._emergency_checker.run(scan=output, forward=forward)
+        self._last_direction_forward = forward
 
     def _limit_command_vel(self, output: Twist) -> Twist:
         """Check and limit the control commands
@@ -722,6 +725,7 @@ class DriveManager(Component):
 
         if self.emergency_stop:
             # STOP ROBOT
+            self.get_logger().warn("EMERGENCY STOP ON")
             self.get_publisher(TopicsKeys.FINAL_COMMAND).publish(Twist())
             return
 
@@ -765,5 +769,3 @@ class DriveManager(Component):
                     )
             self.multi_command = None
             return
-
-        self.get_logger().debug("Nothing to process, waiting for commands")
