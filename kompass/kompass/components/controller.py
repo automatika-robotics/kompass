@@ -747,9 +747,12 @@ class Controller(Component):
         self.__reached_end = False
         if self.__path_controller:
             self.__path_controller.set_path(global_path=msg)
-        self.__goal_point = RobotState(
-            x=msg.poses[-1].pose.position.x, y=msg.poses[-1].pose.position.y
-        )
+        if len(msg.poses) > 1:
+            self.__goal_point = RobotState(
+                x=msg.poses[-1].pose.position.x, y=msg.poses[-1].pose.position.y
+            )
+        else:
+            self.__goal_point = None
 
     def init_variables(self):
         """
@@ -925,8 +928,9 @@ class Controller(Component):
             return False
 
         if not self.__path_controller.path:
-            self.get_logger().warning("Global plan is not available to controller")
-            return False
+            # No global path -> End is reached or task is cancelled
+            self.__reached_end = True
+            return True
 
         laser_scan = None
         point_cloud = None
@@ -952,7 +956,6 @@ class Controller(Component):
             self.__reached_end = False
             return True
 
-        self.get_logger().info("Getting new control command")
         cmd_found: bool = self.__path_controller.loop_step(
             current_state=self.robot_state,  # type: ignore
             laser_scan=laser_scan,
@@ -964,7 +967,7 @@ class Controller(Component):
         )
 
         # LOG CONTROLLER INFO
-        self.get_logger().info(f"{cmd_found}: {self.__path_controller.logging_info()}")
+        self.get_logger().info(f"{self.__path_controller.logging_info()}")
 
         # PUBLISH CONTROL TO ROBOT CMD TOPIC
         if not cmd_found:
@@ -1305,12 +1308,12 @@ class Controller(Component):
         else:
             return self._path_tracking_callback(goal_handle)
 
-    def reached_point(self, goal_point: RobotState) -> bool:
+    def reached_point(self, goal_point: Optional[RobotState]) -> bool:
         """
         Checks if the current robot state is close to a given goal point
 
         :param goal_point: Goal point
-        :type goal_point: RobotState
+        :type goal_point: RobotState | None
         :param tolerance: Tolerance to goal
         :type tolerance: PathTrackingError
 
@@ -1319,6 +1322,8 @@ class Controller(Component):
         """
         if not self.robot_state or not self.__path_controller:
             return False
+        if not goal_point:
+            return True
         dist: float = self.robot_state.distance(goal_point)
         return dist <= self.__path_controller._config.goal_dist_tolerance
 
