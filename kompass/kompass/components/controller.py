@@ -290,7 +290,6 @@ class Controller(Component):
         """
         Component custom activation method to add activation based on the control mode
         """
-        self._custom_actiovation_on = True
         if (
             self.config._mode == ControllerMode.VISION_FOLLOWER
             and not self.get_in_topic(TopicsKeys.VISION_TRACKINGS)
@@ -304,28 +303,20 @@ class Controller(Component):
             self._activate_vision_mode()
         else:
             self._activate_follower_mode()
-        self._custom_actiovation_on = False
 
     def create_all_action_servers(self):
-        if (
-            not hasattr(self, "_custom_actiovation_on")
-            or not self._custom_actiovation_on
-        ):
-            # Disable this method of running on activate -> only runs on custom activate after setting the controler mode
-            return
+        pass
+
+    def custom_create_all_action_servers(self):
         super().create_all_action_servers()
 
     def create_all_subscribers(self):
+        pass
+
+    def custom_create_all_subscribers(self):
         """
         Overrides BaseComponent create_all_subscribers to implement controller mode change
         """
-        if (
-            not hasattr(self, "_custom_actiovation_on")
-            or not self._custom_actiovation_on
-        ):
-            # Disable this method of running on activate -> only runs on custom activate after setting the controler mode
-            return
-
         self.get_logger().info("STARTING ALL SUBSCRIBERS")
         self.callbacks = {
             input.name: input.msg_type.callback(input, node_name=self.node_name)
@@ -639,11 +630,8 @@ class Controller(Component):
         if not self.is_node_initialized():
             return
 
-        # Reinitialize subscribers based on the new mode
-        self.destroy_all_subscribers()
-        self.create_all_subscribers()
-        self.destroy_all_action_servers()
-        self.create_all_action_servers()
+        self.custom_create_all_subscribers()
+        self.custom_create_all_action_servers()
 
     def _activate_follower_mode(self):
         """Activate path following mode by creating all missing subscriptions"""
@@ -657,22 +645,19 @@ class Controller(Component):
         if not self.is_node_initialized():
             return
 
-        # Reinitialize subscribers based on the new mode
-        self.destroy_all_subscribers()
-        self.create_all_subscribers()
-        self.destroy_all_action_servers()
-        self.create_all_action_servers()
+        self.custom_create_all_subscribers()
+        self.custom_create_all_action_servers()
 
     def _update_state(self, vision_track_id: Optional[int] = None) -> None:
         """
         Updates node inputs from associated callbacks
         """
-        if self.config._mode == ControllerMode.VISION_FOLLOWER and self.__tracked_label:
+        if self.config._mode == ControllerMode.VISION_FOLLOWER and self._tracked_label:
             # If vision mode is ON and a label is getting tracked
             vision_callback = self.get_callback(TopicsKeys.VISION_TRACKINGS)
             self.vision_trackings = (
                 vision_callback.get_output(
-                    label=self.__tracked_label, id=vision_track_id, clear_last=True
+                    label=self._tracked_label, id=vision_track_id, clear_last=True
                 )
                 if vision_callback
                 else None
@@ -802,7 +787,7 @@ class Controller(Component):
         self.__reached_end = False
         self.__lat_dist_error: float = 0.0
         self.__ori_error: float = 0.0
-        self.__tracked_label: Optional[str] = None
+        self._tracked_label: Optional[str] = None
 
         # Command queue to send controller command list to the robot
         self._cmds_queue: Queue = Queue()
@@ -1008,25 +993,30 @@ class Controller(Component):
         # Vision tracking mode is already not active
         if (
             self.config._mode == ControllerMode.PATH_FOLLOWER
-            or not self.__tracked_label
+            or not self._tracked_label
         ):
+            self.get_logger().warn(
+                "No ongoing vision tracking"
+            )
             response.success = True
             return response
 
         # There is a label in the request and it is not being tracked
-        if request.label != "" and self.__tracked_label != request.label:
+        if request.label != "" and self._tracked_label != request.label:
             response.success = True
             return response
 
         self.get_logger().warn(
-            f"Ending Vision Tracking Action for tracked label '{self.__tracked_label}'"
+            f"Ending Vision Tracking Action for tracked label '{self._tracked_label}'"
         )
+
+        self._tracked_label = None
 
         # Wait for the action server to unset the tracked label
         _counter: int = 0
-        while self.__tracked_label and _counter < 10:
+        while _counter < 10:
             time.sleep(1 / self.config.loop_rate)
-            if not self.__tracked_label:
+            if not self.vision_trackings:
                 response.success = True
                 return response
 
@@ -1068,7 +1058,9 @@ class Controller(Component):
         # SETUP ACTION REQUEST/FEEDBACK/RESULT
         request_msg = goal_handle.request
 
-        self.__tracked_label: Optional[str] = request_msg.label
+        self._tracked_label: Optional[str] = request_msg.label
+
+        self.get_logger().info(f'Got request to follow {self._tracked_label}')
 
         feedback_msg = TrackVisionTarget.Feedback()
 
@@ -1082,7 +1074,7 @@ class Controller(Component):
             target_search_timeout=request_msg.search_timeout,
             target_search_radius=max(1e-4, request_msg.search_radius),
         )
-        config = self._configure_algorithm(config)
+        _controller_config = self._configure_algorithm(config)
 
         callback = self.get_callback(TopicsKeys.VISION_TRACKINGS)
         if isinstance(callback, DetectionsCallback):
@@ -1092,10 +1084,12 @@ class Controller(Component):
         _controller = VisionFollower(
             robot=self.__robot,
             ctrl_limits=self.__robot_ctr_limits,
-            config=config,
+            config=_controller_config,
             config_file=self._config_file,
             config_yaml_root_name=f"{self.node_name}.VisionFollower",
         )
+
+        self.get_logger().info(f"Follower config: {_controller._config}")
 
         # time the tracking period
         start_time = time.time()
@@ -1103,7 +1097,10 @@ class Controller(Component):
         _first_tracking = False
 
         # While the vision tracking mode is not unset by a service call or an event action
-        while self.config._mode == ControllerMode.VISION_FOLLOWER:
+        while self.config._mode == ControllerMode.VISION_FOLLOWER and self._tracked_label is not None:
+            if not goal_handle.is_active or goal_handle.is_cancel_requested:
+                self.get_logger().info('Vision Following Action Canceled!')
+                return result
             # Wait to get tracking
             self.__wait_for_trackings(
                 _tracked_id,
@@ -1116,10 +1113,11 @@ class Controller(Component):
                 self.get_logger().info(
                     "Unable to find tracked target -> Aborting action"
                 )
-                goal_handle.abort()
-                result.success = False
-                result.tracked_duration = end_time - start_time
-                return result
+                with self._main_goal_lock:
+                    goal_handle.abort()
+                    result.success = False
+                    result.tracked_duration = end_time - start_time
+                    return result
 
             # Publish feedback
             feedback_msg.center_xy = (
@@ -1139,14 +1137,15 @@ class Controller(Component):
             )
             if self.vision_trackings:
                 self.get_logger().info(
-                    f"Following tracked target: {_controller.linear_x_control}, {_controller.angular_control}"
+                    f"Following tracked target with control: {_controller.linear_x_control}, {_controller.angular_control}"
                 )
-                self.get_logger().info(f"tracked target: {self.vision_trackings}")
                 _tracked_id = self.vision_trackings.id
-            if not self.vision_trackings:
+            elif _controller_config.enable_search:
                 self.get_logger().info(
                     f"Searching for tracked target with control: {_controller.linear_x_control}, {_controller.angular_control}"
                 )
+            else:
+                self.get_logger().info("Target lost! Waiting for target")
 
             goal_handle.publish_feedback(feedback_msg)
 
@@ -1160,7 +1159,8 @@ class Controller(Component):
             # Update the result msg
             result.success = True
             result.tracked_duration = end_time - start_time
-            goal_handle.succeed()
+            with self._main_goal_lock:
+                goal_handle.succeed()
 
         else:
             self.get_logger().warning(
@@ -1168,10 +1168,12 @@ class Controller(Component):
             )
             result.success = False
             result.tracked_duration = end_time - start_time
-            goal_handle.abort()
+            with self._main_goal_lock:
+                goal_handle.abort()
 
         # Unset the tracked label
-        self.__tracked_label = None
+        self._tracked_label = None
+        self.vision_trackings = None
 
         self._stop_robot()
 
