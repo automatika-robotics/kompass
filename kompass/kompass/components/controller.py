@@ -504,10 +504,10 @@ class Controller(Component):
 
         ros_path = Path()
         parsed_points = []
-        for point in kompass_cpp_path.points:
+        for point_x, point_y in zip(kompass_cpp_path.x, kompass_cpp_path.y):
             ros_point = PoseStamped()
-            ros_point.pose.position.x = point.x
-            ros_point.pose.position.y = point.y
+            ros_point.pose.position.x = point_x
+            ros_point.pose.position.y = point_y
             parsed_points.append(ros_point)
 
         ros_path.poses = parsed_points
