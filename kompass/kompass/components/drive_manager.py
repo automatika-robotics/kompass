@@ -334,18 +334,12 @@ class DriveManager(Component):
 
         unblocking = True
         step_distance = self.robot.ctrl_vx_limits.max_vel / (2 * self.config.cmd_rate)
-        cmd_rate = self.create_rate(self.config.cmd_rate)
         traveled_distance = 0.0
-
-        ranges_in_front = self.laser_scan.get_ranges(
-            right_angle=self.critical_zone["right_angle"],
-            left_angle=self.critical_zone["left_angle"],
-        )
 
         # FRONT MOVEMENT
         while unblocking and traveled_distance < max_distance:
             # Check if max_distance forward is clear
-            if np.min(ranges_in_front) < (max_distance + self.robot_radius):
+            if self._emergency_checker.run(scan=self.laser_scan, forward=True):
                 unblocking = False
             else:
                 _cmd = self.__make_twist(
@@ -353,7 +347,7 @@ class DriveManager(Component):
                 )
                 self.get_publisher(TopicsKeys.FINAL_COMMAND).publish(_cmd)
                 traveled_distance += step_distance
-                cmd_rate.sleep()
+                time.sleep(1 / self.config.cmd_rate)
 
         # Return true if unblocking forward is done
         return traveled_distance >= max_distance
@@ -367,28 +361,22 @@ class DriveManager(Component):
         :return: If the movement action is performed
         :rtype: bool
         """
-        ranges_in_back = self.laser_scan.get_ranges(
-            right_angle=self.critical_zone["right_angle"] + np.pi,
-            left_angle=self.critical_zone["left_angle"] + np.pi,
-        )
-
         unblocking = True
         step_distance = self.robot.ctrl_vx_limits.max_vel / (2 * self.config.cmd_rate)
-        cmd_rate = self.create_rate(self.config.cmd_rate)
         traveled_distance = 0.0
 
         # FRONT MOVEMENT
         while unblocking and traveled_distance < max_distance:
             # Check if max_distance behind the robot is clear
-            if np.min(ranges_in_back) < (max_distance + self.robot_radius):
+            if self._emergency_checker.run(scan=self.laser_scan, forward=False):
                 unblocking = False
             else:
                 _cmd = self.__make_twist(
-                    vx=-self.robot.ctrl_vx_limits.max_vel / 2, vy=0.0, omega=0.0
+                    vx=-self.robot.ctrl_vx_limits.max_vel / 4, vy=0.0, omega=0.0
                 )
                 self.get_publisher(TopicsKeys.FINAL_COMMAND).publish(_cmd)
                 traveled_distance += step_distance
-                cmd_rate.sleep()
+                time.sleep(1 / self.config.cmd_rate)
 
         # Return true if unblocking forward is done
         return traveled_distance >= max_distance
@@ -724,7 +712,11 @@ class DriveManager(Component):
         """
         self._update_state()
 
-        self.emergency_stop = any(self.emergency_stop_dict.values())
+        self.emergency_stop = (
+            any(self.emergency_stop_dict.values())
+            if self.emergency_stop_dict
+            else False
+        )
 
         self.get_publisher(TopicsKeys.EMERGENCY).publish(bool(self.emergency_stop))
 
