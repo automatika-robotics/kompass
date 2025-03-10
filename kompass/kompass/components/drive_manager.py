@@ -164,10 +164,23 @@ class DriveManager(Component):
             self.config.robot.geometry_type, self.config.robot.geometry_params
         )
 
+        # Get transformation from sensor to robot body
+        if self.scan_tf_listener:
+            laserscan_transform = self.scan_tf_listener.transform
+            trans = laserscan_transform.transform.translation
+            quat = laserscan_transform.transform.rotation
+            sensor_position_robot = [trans.x, trans.y, trans.z]
+            sensor_rotation_robot = [quat.x, quat.y, quat.z, quat.w]
+        else:
+            sensor_position_robot = None
+            sensor_rotation_robot = None
+
         self._emergency_checker = EmergencyChecker(
             robot=self.config.robot,
             emergency_angle=self.config.critical_zone_angle,
             emergency_distance=self.config.critical_zone_distance,
+            sensor_position_robot=sensor_position_robot,
+            sensor_rotation_robot=sensor_rotation_robot
         )
 
         if not self.robot_radius:
@@ -251,10 +264,8 @@ class DriveManager(Component):
         for idx in range(num_sensors):
             callback = self.get_callback(TopicsKeys.SPATIAL_SENSOR, idx)
             if isinstance(callback, LaserScanCallback):
-                callback.transformation = (
-                    self.scan_tf_listener.transform if self.scan_tf_listener else None
-                )
                 self.laser_scan: Optional[LaserScanData] = callback.get_output()
+                break
 
     def execute_cmd_open_loop(self, cmd: Twist, max_time: float):
         """Execute a control command in open loop
