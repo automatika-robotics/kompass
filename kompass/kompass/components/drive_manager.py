@@ -164,25 +164,6 @@ class DriveManager(Component):
             self.config.robot.geometry_type, self.config.robot.geometry_params
         )
 
-        # Get transformation from sensor to robot body
-        if self.scan_tf_listener:
-            laserscan_transform = self.scan_tf_listener.transform
-            trans = laserscan_transform.transform.translation
-            quat = laserscan_transform.transform.rotation
-            sensor_position_robot = [trans.x, trans.y, trans.z]
-            sensor_rotation_robot = [quat.x, quat.y, quat.z, quat.w]
-        else:
-            sensor_position_robot = None
-            sensor_rotation_robot = None
-
-        self._emergency_checker = EmergencyChecker(
-            robot=self.config.robot,
-            emergency_angle=self.config.critical_zone_angle,
-            emergency_distance=self.config.critical_zone_distance,
-            sensor_position_robot=sensor_position_robot,
-            sensor_rotation_robot=sensor_rotation_robot
-        )
-
         if not self.robot_radius:
             raise ValueError(
                 "Unknown robot radius. Cannot start drive manager with unknown robot size."
@@ -199,6 +180,9 @@ class DriveManager(Component):
         self.laser_scan: Optional[LaserScanData] = None
 
         self.emergency_stop_dict = {}
+
+        # Emergency checker gets initalized on activation to get the sensor transformation
+        self._emergency_checker = None
 
         self._attach_callbacks_and_processors()
 
@@ -661,14 +645,15 @@ class DriveManager(Component):
         If emergency stop is required from direct sensor -> sets command to zero
         """
         # Update emergency stop check
-        if not output:
+        if not output or not self._emergency_checker:
             return
         if not self.command or self.command.linear.x == 0.0:
             forward: bool = self._last_direction_forward if self._last_direction_forward is not None else True
         else:
-            forward = self.command.linear.x > 0
+            forward = self.command.linear.x >= 0
 
         self.emergency_stop_dict[topic.name] = self._emergency_checker.run(scan=output, forward=forward)
+        self.get_logger().info(f"Returned: {self.emergency_stop_dict[topic.name]}")
         self._last_direction_forward = forward
 
     def _limit_command_vel(self, output: Twist) -> Twist:
@@ -728,8 +713,8 @@ class DriveManager(Component):
 
         if self.emergency_stop:
             # STOP ROBOT
-            self.get_logger().warn("EMERGENCY STOP ON")
             self.get_publisher(TopicsKeys.FINAL_COMMAND).publish(Twist())
+            self.get_logger().warn("EMERGENCY STOP ON")
             return
 
         if self.command or self.multi_command:
@@ -772,3 +757,25 @@ class DriveManager(Component):
                     )
             self.multi_command = None
             return
+
+    def _execute_once(self):
+        super()._execute_once()
+        # Get transformation from sensor to robot body
+        while not self.scan_tf_listener or not self.scan_tf_listener.transform:
+            self.get_logger().info(f"Waiting to get laserscan tf, got {self.scan_tf_listener} and {self.scan_tf_listener.transform}")
+            time.sleep(1.0)
+        laserscan_transform = self.scan_tf_listener.transform
+        trans = laserscan_transform.transform.translation
+        quat = laserscan_transform.transform.rotation
+        sensor_position_robot = [trans.x, trans.y, trans.z]
+        sensor_rotation_robot = [quat.x, quat.y, quat.z, quat.w]
+
+        self._emergency_checker = EmergencyChecker(
+            robot=self.config.robot,
+            emergency_angle=self.config.critical_zone_angle,
+            emergency_distance=self.config.critical_zone_distance,
+            sensor_position_robot=sensor_position_robot,
+            sensor_rotation_robot=sensor_rotation_robot,
+            use_gpu=True
+        )
+
