@@ -5,7 +5,6 @@ from attrs import define, field
 from geometry_msgs.msg import Twist
 from kompass_core.datatypes import LaserScanData
 from kompass_core.models import RobotGeometry, RobotState, RobotType
-from kompass_core.utils.emergency_stop import EmergencyChecker
 from scipy import signal
 from kompass_interfaces.msg import TwistArray
 
@@ -91,6 +90,7 @@ class DriveManagerConfig(ComponentConfig):
         default=0.05, validator=BaseValidators.in_range(min_value=1e-9, max_value=1e9)
     )  # Distance for the critical zone (meters)
     disable_safety_stop: bool = field(default=False)
+    use_gpu: bool = field(default=False)
 
 
 class DriveManager(Component):
@@ -158,7 +158,7 @@ class DriveManager(Component):
         self.command: Optional[Twist] = None
         self.multi_command: Optional[TwistArray] = None
         self._previous_command: Optional[Twist] = None
-        self._last_direction_forward : Optional[bool] = None
+        self._last_direction_forward: Optional[bool] = None
 
         self.robot_radius = RobotGeometry.get_radius(
             self.config.robot.geometry_type, self.config.robot.geometry_params
@@ -181,7 +181,7 @@ class DriveManager(Component):
 
         self.emergency_stop_dict = {}
 
-        # Emergency checker gets initalized on activation to get the sensor transformation
+        # Emergency checker gets initialized on activation to get the sensor transformation
         self._emergency_checker = None
 
         self._attach_callbacks_and_processors()
@@ -323,7 +323,11 @@ class DriveManager(Component):
         # FRONT MOVEMENT
         while unblocking and traveled_distance < max_distance:
             # Check if max_distance forward is clear
-            if self._emergency_checker.run(scan=self.laser_scan, forward=True):
+            if self._emergency_checker.check(
+                angles=self.laser_scan.angles,
+                ranges=self.laser_scan.ranges,
+                forward=True,
+            ):
                 unblocking = False
             else:
                 _cmd = self.__make_twist(
@@ -352,7 +356,11 @@ class DriveManager(Component):
         # FRONT MOVEMENT
         while unblocking and traveled_distance < max_distance:
             # Check if max_distance behind the robot is clear
-            if self._emergency_checker.run(scan=self.laser_scan, forward=False):
+            if self._emergency_checker.check(
+                angles=self.laser_scan.angles,
+                ranges=self.laser_scan.ranges,
+                forward=False,
+            ):
                 unblocking = False
             else:
                 _cmd = self.__make_twist(
@@ -648,11 +656,17 @@ class DriveManager(Component):
         if not output or not self._emergency_checker:
             return
         if not self.command or self.command.linear.x == 0.0:
-            forward: bool = self._last_direction_forward if self._last_direction_forward is not None else True
+            forward: bool = (
+                self._last_direction_forward
+                if self._last_direction_forward is not None
+                else True
+            )
         else:
             forward = self.command.linear.x >= 0
 
-        self.emergency_stop_dict[topic.name] = self._emergency_checker.run(scan=output, forward=forward)
+        self.emergency_stop_dict[topic.name] = self._emergency_checker.check(
+            angles=output.angles, ranges=output.ranges, forward=forward
+        )
         self.get_logger().info(f"Returned: {self.emergency_stop_dict[topic.name]}")
         self._last_direction_forward = forward
 
@@ -762,20 +776,57 @@ class DriveManager(Component):
         super()._execute_once()
         # Get transformation from sensor to robot body
         while not self.scan_tf_listener or not self.scan_tf_listener.transform:
-            self.get_logger().info(f"Waiting to get laserscan tf, got {self.scan_tf_listener} and {self.scan_tf_listener.transform}")
-            time.sleep(1.0)
+            self.get_logger().info("Waiting to get laserscan TF...", once=True)
+            time.sleep(self.config.loop_rate)
+
         laserscan_transform = self.scan_tf_listener.transform
         trans = laserscan_transform.transform.translation
         quat = laserscan_transform.transform.rotation
         sensor_position_robot = [trans.x, trans.y, trans.z]
         sensor_rotation_robot = [quat.x, quat.y, quat.z, quat.w]
 
-        self._emergency_checker = EmergencyChecker(
-            robot=self.config.robot,
-            emergency_angle=self.config.critical_zone_angle,
-            emergency_distance=self.config.critical_zone_distance,
-            sensor_position_robot=sensor_position_robot,
-            sensor_rotation_robot=sensor_rotation_robot,
-            use_gpu=True
+        robot_shape = RobotGeometry.Type.to_kompass_cpp_lib(
+            self.config.robot.geometry_type
         )
+        robot_dimensions = self.config.robot.geometry_params
 
+        if self.config.use_gpu:
+            try:
+                from kompass_cpp.utils import CriticalZoneCheckerGPU
+
+                # Get laserscan data to initialize the GPU based checker
+                while not self.laser_scan:
+                    self.get_logger().info(
+                        "Waiting to get laserscan data to initialize CriticalZoneCheckerGPU...",
+                        once=True,
+                    )
+                    self._update_state()
+                    time.sleep(self.config.loop_rate)
+
+                self._emergency_checker = CriticalZoneCheckerGPU(
+                    robot_shape=robot_shape,
+                    robot_dimensions=robot_dimensions,
+                    sensor_position_body=sensor_position_robot,
+                    sensor_rotation_body=sensor_rotation_robot,
+                    critical_angle=self.config.critical_zone_angle,
+                    critical_distance=self.config.critical_zone_distance,
+                    scan_size=len(self.laser_scan.angles),
+                )
+                self.get_logger().info("CriticalZoneCheckerGPU is READY!")
+                return
+            except ImportError:
+                self.get_logger().warn(
+                    "GPU use is enabled but CriticalZoneCheckerGPU implementation is not found -> Using CPU implementation instead"
+                )
+
+        from kompass_cpp.utils import CriticalZoneChecker
+
+        self._emergency_checker = CriticalZoneChecker(
+            robot_shape=robot_shape,
+            robot_dimensions=robot_dimensions,
+            sensor_position_body=sensor_position_robot,
+            sensor_rotation_body=sensor_rotation_robot,
+            critical_angle=self.config.critical_zone_angle,
+            critical_distance=self.config.critical_zone_distance,
+        )
+        self.get_logger().info("CriticalZoneChecker is READY!")
