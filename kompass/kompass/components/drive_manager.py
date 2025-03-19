@@ -777,7 +777,7 @@ class DriveManager(Component):
         # Get transformation from sensor to robot body
         while not self.scan_tf_listener or not self.scan_tf_listener.transform:
             self.get_logger().info("Waiting to get laserscan TF...", once=True)
-            time.sleep(self.config.loop_rate)
+            time.sleep(1 / self.config.loop_rate)
 
         laserscan_transform = self.scan_tf_listener.transform
         trans = laserscan_transform.transform.translation
@@ -801,7 +801,7 @@ class DriveManager(Component):
                         once=True,
                     )
                     self._update_state()
-                    time.sleep(self.config.loop_rate)
+                    time.sleep(1 / self.config.loop_rate)
 
                 self._emergency_checker = CriticalZoneCheckerGPU(
                     robot_shape=robot_shape,
