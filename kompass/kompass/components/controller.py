@@ -514,6 +514,35 @@ class Controller(Component):
         return ros_path
 
     @property
+    def local_plan_debug(self) -> Optional[Path]:
+        """
+        Getter of controller local plan debug (collected samples)
+
+        :return: _description_
+        :rtype: StrEnum
+        """
+        # NOTE: For now only DWA provides a local plan
+        if self.algorithm != ControllersID.DWA or not self.__path_controller:
+            return None
+
+        kompass_cpp_samples = self.__path_controller.planner.get_debugging_samples()
+
+        if not kompass_cpp_samples:
+            return None
+
+        ros_path = Path()
+        parsed_points = []
+        for path in kompass_cpp_samples:
+            for point_x, point_y in zip(path.x, path.y):
+                ros_point = PoseStamped()
+                ros_point.pose.position.x = point_x
+                ros_point.pose.position.y = point_y
+                parsed_points.append(ros_point)
+
+        ros_path.poses = parsed_points
+        return ros_path
+
+    @property
     def interpolated_path(self) -> Optional[Path]:
         """Getter of interpolated global path
 
@@ -956,7 +985,15 @@ class Controller(Component):
 
         # PUBLISH CONTROL TO ROBOT CMD TOPIC
         if not cmd_found:
-            self.get_logger().warn("Control command not found")
+            self.get_logger().warn("Control command not found -> Getting samples debug")
+            debug_paths = self.local_plan_debug
+            if debug_paths:
+                self.get_publisher(TopicsKeys.LOCAL_PLAN).publish(
+                    debug_paths,
+                    frame_id=self.config.frames.world,
+                    time_stamp=self.get_ros_time(),
+                )
+
             self.health_status.set_fail_algorithm(
                 algorithm_names=[str(ControlClasses[self.algorithm])]
             )
@@ -991,13 +1028,8 @@ class Controller(Component):
         :rtype: StopVisionTracking.Response
         """
         # Vision tracking mode is already not active
-        if (
-            self.config._mode == ControllerMode.PATH_FOLLOWER
-            or not self._tracked_label
-        ):
-            self.get_logger().warn(
-                "No ongoing vision tracking"
-            )
+        if self.config._mode == ControllerMode.PATH_FOLLOWER or not self._tracked_label:
+            self.get_logger().warn("No ongoing vision tracking")
             response.success = True
             return response
 
@@ -1060,7 +1092,7 @@ class Controller(Component):
 
         self._tracked_label: Optional[str] = request_msg.label
 
-        self.get_logger().info(f'Got request to follow {self._tracked_label}')
+        self.get_logger().info(f"Got request to follow {self._tracked_label}")
 
         feedback_msg = TrackVisionTarget.Feedback()
 
@@ -1097,9 +1129,12 @@ class Controller(Component):
         _first_tracking = False
 
         # While the vision tracking mode is not unset by a service call or an event action
-        while self.config._mode == ControllerMode.VISION_FOLLOWER and self._tracked_label is not None:
+        while (
+            self.config._mode == ControllerMode.VISION_FOLLOWER
+            and self._tracked_label is not None
+        ):
             if not goal_handle.is_active or goal_handle.is_cancel_requested:
-                self.get_logger().info('Vision Following Action Canceled!')
+                self.get_logger().info("Vision Following Action Canceled!")
                 return result
             # Wait to get tracking
             self.__wait_for_trackings(
