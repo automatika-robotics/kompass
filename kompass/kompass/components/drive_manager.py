@@ -810,7 +810,7 @@ class DriveManager(Component):
                     sensor_rotation_body=sensor_rotation_robot,
                     critical_angle=self.config.critical_zone_angle,
                     critical_distance=self.config.critical_zone_distance,
-                    scan_size=len(self.laser_scan.angles),
+                    scan_angles=self.laser_scan.angles,
                 )
                 self.get_logger().info("CriticalZoneCheckerGPU is READY!")
                 return
