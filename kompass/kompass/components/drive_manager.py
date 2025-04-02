@@ -667,7 +667,6 @@ class DriveManager(Component):
         self.emergency_stop_dict[topic.name] = self._emergency_checker.check(
             angles=output.angles, ranges=output.ranges, forward=forward
         )
-        self.get_logger().info(f"Returned: {self.emergency_stop_dict[topic.name]}")
         self._last_direction_forward = forward
 
     def _limit_command_vel(self, output: Twist) -> Twist:
@@ -682,7 +681,7 @@ class DriveManager(Component):
 
         if abs(output.linear.x) > self.config.robot.ctrl_vx_limits.max_vel:
             self.get_logger().warn(
-                f"Limiting linear velocity by allowed maximum {self.config.robot.ctrl_vx_limits.max_vel}"
+                f"Limiting linear velocity by allowed maximum {self.config.robot}"
             )
             output.linear.x = (
                 np.sign(output.linear.x) * self.config.robot.ctrl_vx_limits.max_vel
@@ -690,7 +689,7 @@ class DriveManager(Component):
 
         if abs(output.linear.y) > self.config.robot.ctrl_vy_limits.max_vel:
             self.get_logger().warn(
-                f"Limiting linear velocity by allowed maximum {self.config.robot.ctrl_vy_limits.max_vel}"
+                f"Limiting linear Vy velocity by allowed maximum {self.config.robot.ctrl_vy_limits.max_vel}"
             )
             output.linear.y = (
                 np.sign(output.linear.y) * self.config.robot.ctrl_vy_limits.max_vel

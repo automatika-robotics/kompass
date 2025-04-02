@@ -91,6 +91,7 @@ class TopicsKeys(StrEnum):
     VISION_TRACKINGS = "vision_tracking"
     # Calculated
     LOCAL_PLAN = "local_plan"
+    PATH_SAMPLES = "path_samples"
     INTERMEDIATE_CMD = "command"
     INTERMEDIATE_CMD_LIST = "multi_command"
     LOCAL_MAP = "local_map"
@@ -117,6 +118,7 @@ controller_allowed_outputs: Dict[TopicsKeys, AllowedTopics] = {
     TopicsKeys.INTERMEDIATE_CMD_LIST: AllowedTopics(types=["TwistArray"]),
     TopicsKeys.INTERPOLATED_PATH: AllowedTopics(types=["Path"]),
     TopicsKeys.LOCAL_PLAN: AllowedTopics(types=["Path"]),
+    TopicsKeys.PATH_SAMPLES: AllowedTopics(types=["Path"]),
     TopicsKeys.TRACKED_POINT: AllowedTopics(types=["Odometry", "PoseStamped", "Pose"]),
 }
 
@@ -140,6 +142,7 @@ controller_default_outputs: Dict[TopicsKeys, Topic] = {
     TopicsKeys.INTERPOLATED_PATH: Topic(name="/interpolated_path", msg_type="Path"),
     TopicsKeys.TRACKED_POINT: Topic(name="/tracked_point", msg_type="PoseStamped"),
     TopicsKeys.LOCAL_PLAN: Topic(name="/local_path", msg_type="Path"),
+    TopicsKeys.PATH_SAMPLES: Topic(name="/debug_samples", msg_type="Path"),
 }
 
 # DRIVE MANAGER

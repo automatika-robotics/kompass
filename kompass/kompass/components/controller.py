@@ -106,9 +106,9 @@ class ControllerConfig(ComponentConfig):
       - `float`, `0.1`
       - Time step in MPC-like controllers (s)
 
-    * - **prediction_horizon**
-      - `float`, `1.0`
-      - Prediction horizon in MPC-like controllers (s)
+    * - **debug**
+      - `bool`, `False`
+      - Turn on debug mode to published additional data for visualization
 
     * - **use_direct_sensor**
       - `bool`, `False`
@@ -129,9 +129,7 @@ class ControllerConfig(ComponentConfig):
     control_time_step: float = field(
         default=0.1, validator=BaseValidators.in_range(min_value=1e-9, max_value=1e9)
     )  # Time step between two control commands
-    prediction_horizon: float = field(
-        default=1.0, validator=BaseValidators.in_range(min_value=1, max_value=1e9)
-    )  # future time horizon to compute at each loop step
+    debug: bool = field(default=False)  # Turn on debug mode -> published additional data visualization
     use_direct_sensor: bool = field(default=False)
     ctrl_publish_type: Union[str, CmdPublishType] = field(
         default=CmdPublishType.TWIST_ARRAY,
@@ -455,6 +453,10 @@ class Controller(Component):
                 time_stamp=self.get_ros_time(),
             )
 
+        if not self.config.debug:
+            return
+
+        # PUBLISH DEBUG DATA
         # Publish interpolated path
         if self.interpolated_path:
             self.get_publisher(TopicsKeys.INTERPOLATED_PATH).publish(
@@ -462,6 +464,17 @@ class Controller(Component):
                 frame_id=self.config.frames.world,
                 time_stamp=self.get_ros_time(),
             )
+
+        debug_paths = self.local_plan_debug
+        if debug_paths:
+            self.get_publisher(TopicsKeys.PATH_SAMPLES).publish(
+                debug_paths,
+                frame_id=self.config.frames.world,
+                time_stamp=self.get_ros_time(),
+            )
+            self.get_logger().warn("Sleeping for 10seconds to plot in debug mode")
+            time.sleep(10.0)
+
 
     @property
     def tracked_point(self) -> Optional[np.ndarray]:
@@ -504,10 +517,11 @@ class Controller(Component):
 
         ros_path = Path()
         parsed_points = []
+
         for point_x, point_y in zip(kompass_cpp_path.x, kompass_cpp_path.y):
             ros_point = PoseStamped()
-            ros_point.pose.position.x = point_x
-            ros_point.pose.position.y = point_y
+            ros_point.pose.position.x = np.float64(point_x)
+            ros_point.pose.position.y = np.float64(point_y)
             parsed_points.append(ros_point)
 
         ros_path.poses = parsed_points
@@ -525,21 +539,32 @@ class Controller(Component):
         if self.algorithm != ControllersID.DWA or not self.__path_controller:
             return None
 
-        kompass_cpp_samples = self.__path_controller.planner.get_debugging_samples()
+        # If result is not processed -> no debug is available yet
+        if not self.__path_controller.has_result():
+            return
 
-        if not kompass_cpp_samples:
+        (paths_x, paths_y) = self.__path_controller.planner.get_debugging_samples()
+
+        if paths_x is None:
             return None
 
         ros_path = Path()
-        parsed_points = []
-        for path in kompass_cpp_samples:
-            for point_x, point_y in zip(path.x, path.y):
-                ros_point = PoseStamped()
-                ros_point.pose.position.x = point_x
-                ros_point.pose.position.y = point_y
-                parsed_points.append(ros_point)
+        ros_points = []
 
-        ros_path.poses = parsed_points
+        for idx in range(paths_x.shape[0]):
+            # Extract the x and y coordinates for the current path
+            path_x_i = paths_x[idx, :]
+            path_y_i = paths_y[idx, :]
+
+            # Create an array of PoseStamped messages using vectorized operations
+            points_xy = np.column_stack((path_x_i, path_y_i))
+            for x, y in points_xy:
+                ros_point = PoseStamped()
+                ros_point.pose.position.x = np.float64(x)
+                ros_point.pose.position.y = np.float64(y)
+                ros_points.append(ros_point)
+
+        ros_path.poses = ros_points
         return ros_path
 
     @property
@@ -558,8 +583,8 @@ class Controller(Component):
         parsed_points = []
         for point in kompass_cpp_path.points:
             ros_point = PoseStamped()
-            ros_point.pose.position.x = point.x
-            ros_point.pose.position.y = point.y
+            ros_point.pose.position.x = np.float64(point[0])
+            ros_point.pose.position.y = np.float64(point[1])
             parsed_points.append(ros_point)
 
         ros_path.poses = parsed_points
@@ -810,7 +835,6 @@ class Controller(Component):
                 config_file=self._config_file,
                 config_yaml_root_name=f"{self.node_name}.{self.config.algorithm}",
                 control_time_step=self.config.control_time_step,
-                prediction_horizon=self.config.prediction_horizon,
             )
 
         self.__reached_end = False
@@ -937,8 +961,8 @@ class Controller(Component):
         :return: If robot reached end of reference plan
         :rtype: bool
         """
-        if not self.__path_controller:
-            self.get_logger().warning("Path controller is not defined")
+        if self.__path_controller is None:
+            self.get_logger().warning(f"Path controller is not initialized! {self.__path_controller}")
             return False
 
         if not self.__path_controller.path:
@@ -978,6 +1002,7 @@ class Controller(Component):
             local_map_resolution=self.local_map_resolution
             if hasattr(self, "local_map_resolution")
             else None,
+            debug=self.config.debug,
         )
 
         # LOG CONTROLLER INFO
@@ -985,15 +1010,6 @@ class Controller(Component):
 
         # PUBLISH CONTROL TO ROBOT CMD TOPIC
         if not cmd_found:
-            self.get_logger().warn("Control command not found -> Getting samples debug")
-            debug_paths = self.local_plan_debug
-            if debug_paths:
-                self.get_publisher(TopicsKeys.LOCAL_PLAN).publish(
-                    debug_paths,
-                    frame_id=self.config.frames.world,
-                    time_stamp=self.get_ros_time(),
-                )
-
             self.health_status.set_fail_algorithm(
                 algorithm_names=[str(ControlClasses[self.algorithm])]
             )
