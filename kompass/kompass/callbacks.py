@@ -634,11 +634,7 @@ class ImageCallback(GenericCallback):
         if not self.msg:
             return None
 
-        return np.asarray(self.msg.data, dtype=np.ushort).reshape((
-            self.msg.height,
-            self.msg.width,
-            1,
-        ))
+        return np.frombuffer(self.msg.data, dtype=np.uint16).reshape((self.msg.height, self.msg.width))
 
 
 class CameraInfoCallback(GenericCallback):

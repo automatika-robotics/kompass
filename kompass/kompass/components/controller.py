@@ -332,10 +332,10 @@ class Controller(Component):
                 # skip
                 continue
 
-            # In vision follower mode skip all non-vision inputs
+            # In vision follower mode skip the plan
             elif (
                 self.config._mode == ControllerMode.VISION_FOLLOWER
-                and callback.input_topic.name not in self.__vision_mode_inputs()
+                and callback.input_topic.name == self.in_topic_name(TopicsKeys.GLOBAL_PLAN)
             ):
                 # skip
                 continue
@@ -712,7 +712,7 @@ class Controller(Component):
         """
         Updates node inputs from associated callbacks
         """
-        if self.config._mode == ControllerMode.VISION_FOLLOWER and self._tracked_center:
+        if self.config._mode == ControllerMode.VISION_FOLLOWER:
             # If vision mode is ON and a label is getting tracked
             vision_callback = self.get_callback(TopicsKeys.VISION_DETECTIONS)
             self.vision_detections = (
@@ -731,12 +731,11 @@ class Controller(Component):
                 if depth_img_info_callback
                 else None
             )
-            return
-
-        plan_callback = self.get_callback(TopicsKeys.GLOBAL_PLAN)
-        self.plan: Optional[Path] = (
-            plan_callback.get_output() if plan_callback else None
-        )
+        else:
+            plan_callback = self.get_callback(TopicsKeys.GLOBAL_PLAN)
+            self.plan: Optional[Path] = (
+                plan_callback.get_output() if plan_callback else None
+            )
 
         state_callback = self.get_callback(TopicsKeys.ROBOT_LOCATION)
         self.robot_state: Optional[RobotState] = (
@@ -1077,7 +1076,7 @@ class Controller(Component):
         # Vision tracking mode is already not active
         if (
             self.config._mode == ControllerMode.PATH_FOLLOWER
-            or not self._tracked_center
+            or self._tracked_center is None
         ):
             self.get_logger().warn("No ongoing vision tracking")
             response.success = True
@@ -1124,21 +1123,11 @@ class Controller(Component):
         :rtype: VisionDWA
         """
         # Get the depth image transform if the input is provided
-        depth_trans = np.array([0.0, 0.0, 0.0])
-        depth_quat = np.array([0.0, 0.0, 0.0, 1.0])
-        if (
-            self.in_topic_name(TopicsKeys.DEPTH_IMG)
-            and self.__depth_tf_listener.transform
-        ):
-            depth_trans = np.array(
-                self.__depth_tf_listener.transform.transform.translation
-            )
-            depth_quat = np.array(self.__depth_tf_listener.transform.transform.rotation)
 
         config = VisionDWAConfig(
             control_time_step=self.config.control_time_step,
-            camera_position_to_robot=depth_trans,
-            camera_rotation_to_robot=depth_quat,
+            camera_position_to_robot=self._depth_tf_listener.translation,
+            camera_rotation_to_robot=self._depth_tf_listener.rotation,
         )
 
         _controller_config = self._configure_algorithm(config)
@@ -1183,6 +1172,14 @@ class Controller(Component):
 
         self.get_logger().info(f"Got VisionDWA config: {_controller._config}")
 
+        self._update_state()
+        self.get_logger().error("Checking state")
+        if not self.robot_state:
+            self.get_logger().error(f"Unknown robot state -> Aborting Action")
+            with self._main_goal_lock:
+                goal_handle.abort()
+            return result
+        self.get_logger().error(f"Got depth Image: {self.depth_image}")
         found_target = _controller.set_initial_tracking_depth(
             self.robot_state,
             request_msg.pose_x,
