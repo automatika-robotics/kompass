@@ -885,9 +885,7 @@ class Controller(Component):
         """
         # send zero command to stop the robot
         if self.config.ctrl_publish_type == CmdPublishType.TWIST_ARRAY:
-            _cmd_vel_array = init_twist_array_msg(
-                int(self.config.prediction_horizon / self.config.control_time_step)
-            )
+            _cmd_vel_array = _cmd_vel_array = init_twist_array_msg(1)
             self.get_publisher(TopicsKeys.INTERMEDIATE_CMD_LIST).publish(_cmd_vel_array)
         else:
             self.get_publisher(TopicsKeys.INTERMEDIATE_CMD).publish(Twist())
