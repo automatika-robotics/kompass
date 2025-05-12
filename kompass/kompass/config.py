@@ -75,6 +75,7 @@ class RobotFrames(BaseAttrs):
     scan: str = field(default="base_link")
     rgb: str = field(default="camera_link")
     depth: str = field(default="camera_depth_link")
+    point_cloud: str = field(default="point_cloud_link")
 
 
 @define(kw_only=True)

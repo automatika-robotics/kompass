@@ -1,8 +1,7 @@
 """Callback classes used to process input topics data for supported types in Kompass"""
 
-from typing import Optional, Union, Any
+from typing import Optional, Union, Any, List
 import numpy as np
-from collections import deque
 
 from ros_sugar.io import GenericCallback, OccupancyGridCallback
 from ros_sugar.io import OdomCallback as BaseOdomCallback
@@ -18,6 +17,7 @@ from kompass_core.datatypes import (
 from .utils import read_pc_points, read_pc_points_with_tf
 from kompass_core.utils import geometry as GeometryUtils
 from kompass_core.models import RobotState
+from kompass_core.datatypes import Bbox2D
 
 from nav_msgs.msg import Odometry
 from sensor_msgs.msg import LaserScan, PointCloud2
@@ -354,6 +354,70 @@ class DetectionsCallback(GenericCallback):
         self,
         input_topic,
         node_name: Optional[str] = None,
+    ) -> None:
+        """__init__.
+
+        :param input_topic:
+        :param node_name:
+        :type node_name: Optional[str]
+        :param buffer_size:
+        :type buffer_size: Optional[Int], default 10
+        :rtype: None
+        """
+        super().__init__(input_topic, node_name)
+        self._detected_boxes: List[Bbox2D] = []
+
+    def _process_raw_data(self) -> None:
+        """Process new raw detections data and add it to buffer if available"""
+        if not self.msg:
+            return
+        raw_detections = self.msg.detections
+        # Gets first source, TODO: turn into parameter based on the image frame
+        detections_set = raw_detections[0]
+        # Clear old detections
+        self._detected_boxes = []
+        for box in detections_set.boxes:
+            self._detected_boxes.append(
+                Bbox2D(
+                    top_left_corner=np.array([box.top_left_x, box.top_left_y]),
+                    size=np.array([
+                        abs(box.bottom_right_x - box.top_left_x),
+                        abs(box.bottom_right_y - box.top_left_y),
+                    ]),
+                )
+            )
+
+    def callback(self, msg) -> None:
+        """
+        Topic subscriber callback
+
+        :param msg: Received ros msg
+        :type msg: Any
+        """
+        super().callback(msg)
+        self._process_raw_data()
+
+    def _get_output(
+        self,
+        **_,
+    ) -> Union[None, List[Bbox2D]]:
+        """
+        Gets the trackings data
+        :returns:   Topic content
+        :rtype:     Union[ROSTrackings, np.ndarray, None]
+        """
+        if not self.msg:
+            return None
+        return self._detected_boxes
+
+
+class TrackingsCallback(GenericCallback):
+    """ROS2 Trackings Callback Handler to process and transform automatika_agents_interfaces/Trackings data"""
+
+    def __init__(
+        self,
+        input_topic,
+        node_name: Optional[str] = None,
         buffer_size: Optional[int] = 10,
     ) -> None:
         """__init__.
@@ -378,113 +442,6 @@ class DetectionsCallback(GenericCallback):
         self._img_metadata: Optional[ImageMetaData] = None
         self._label: Optional[str] = None
         self._id: Optional[int] = None
-
-    def _process_raw_data(self) -> None:
-        """Process new raw detections data and add it to buffer if available"""
-        # Remove a buffer item
-        self._detections_buffer = np.roll(self._detections_buffer, -1, axis=0)
-
-        if not self._label or not self.msg or (self.msg and not self.msg.detections):
-            # No detection -> reduce buffer items
-            self._buffer_items = max(self._buffer_items - 1, 0)
-            return
-
-        raw_detections = self.msg.detections
-
-        # Get requested item from trackings using id or label
-        detection_index = None
-        label_index = None
-        for idx, detection in enumerate(raw_detections):
-            if self._label in detection.labels:
-                detection_index = idx
-                label_index = detection.labels.index(self._label)
-                break
-
-        # If requested label/id not in detections -> return None
-        if detection_index is None or label_index is None:
-            # No detection -> reduce buffer items
-            self._buffer_items = max(self._buffer_items - 1, 0)
-            return
-
-        det = raw_detections[detection_index]
-        bbox_2d = det.boxes[label_index]
-
-        # Update the source image data if available
-        if det.image.data:
-            if (
-                not self._img_metadata
-                or det.image.header.frame_id != self._img_metadata.frame_id
-            ):
-                # Update img_metadata if None or a new frame_id is provided (new camera)
-                self._img_metadata = ImageMetaData(
-                    frame_id=det.image.header.frame_id,
-                    width=det.image.width,
-                    height=det.image.height,
-                    encoding=det.image.encoding,
-                )
-                # If a new image meta data is detected -> clear the buffer (the detection is coming from a new camera -> clear old camera data)
-                self._detections_buffer = np.ones((
-                    self._max_buffer_size,
-                    self._feature_items,
-                ))
-                self._buffer_items = 0
-
-        elif det.compressed_image.data:
-            if (
-                not self._img_metadata
-                or det.compressed_image.header.frame_id != self._img_metadata.frame_id
-            ):
-                data: np.ndarray = read_compressed_image(det.compressed_image)
-                self._img_metadata = ImageMetaData(
-                    frame_id=det.compressed_image.header.frame_id,
-                    width=data.shape[1],
-                    height=data.shape[0],
-                    encoding=det.compressed_image.format,
-                )
-                self._detections_buffer = np.ones((
-                    self._max_buffer_size,
-                    self._feature_items,
-                ))
-                self._buffer_items = 0
-
-        # Add new detection to the buffer
-        self._detections_buffer[-1:] = [
-            (bbox_2d.bottom_right_x + bbox_2d.top_left_x) / 2,  # center_x
-            (bbox_2d.top_left_y + bbox_2d.bottom_right_y) / 2,  # center_y
-            abs(bbox_2d.bottom_right_x - bbox_2d.top_left_x),  # size_x
-            abs(bbox_2d.bottom_right_y - bbox_2d.top_left_y),  # size_y
-            0.0,  # no estimate for vel_x
-            0.0,  # no estimate for vel_y
-        ]
-        self._buffer_items = min(self._buffer_items + 1, self._max_buffer_size)
-
-    def set_buffer_size(self, value: int, clear_old: bool = False) -> None:
-        """Resizes detections buffer (while maintaining old buffer items in the resized buffer)
-
-        :param value: New buffer size
-        :type value: int
-        """
-        new_buffer = np.ones((value, self._feature_items))
-        if clear_old:
-            self._buffer_items = 0
-        else:
-            if value >= self._max_buffer_size:
-                new_buffer[-self._max_buffer_size :] = self._detections_buffer
-            else:
-                new_buffer = self._detections_buffer[-self._max_buffer_size :]
-        self._max_buffer_size = value
-        self._detections_buffer = new_buffer
-
-    def set_target(self, label: str, idx: Optional[int] = None):
-        """Sets tracked target label and id prior to calling get_output
-
-        :param label: Tracked target label
-        :type label: str
-        :param idx: Tracked target index, defaults to None
-        :type idx: Optional[int], optional
-        """
-        self._label = label
-        self._id = idx
 
     def callback(self, msg) -> None:
         """
@@ -535,26 +492,33 @@ class DetectionsCallback(GenericCallback):
             img_meta=self._img_metadata,
         )
 
+    def set_buffer_size(self, value: int, clear_old: bool = False) -> None:
+        """Resizes detections buffer (while maintaining old buffer items in the resized buffer)
 
-class TrackingsCallback(DetectionsCallback):
-    """ROS2 Trackings Callback Handler to process and transform automatika_agents_interfaces/Trackings data"""
-
-    def __init__(
-        self,
-        input_topic,
-        node_name: Optional[str] = None,
-        buffer_size: Optional[int] = 10,
-    ) -> None:
-        """__init__.
-
-        :param input_topic:
-        :param node_name:
-        :type node_name: Optional[str]
-        :param buffer_size:
-        :type buffer_size: Optional[Int], default 10
-        :rtype: None
+        :param value: New buffer size
+        :type value: int
         """
-        super().__init__(input_topic, node_name, buffer_size)
+        new_buffer = np.ones((value, self._feature_items))
+        if clear_old:
+            self._buffer_items = 0
+        else:
+            if value >= self._max_buffer_size:
+                new_buffer[-self._max_buffer_size :] = self._detections_buffer
+            else:
+                new_buffer = self._detections_buffer[-self._max_buffer_size :]
+        self._max_buffer_size = value
+        self._detections_buffer = new_buffer
+
+    def set_target(self, label: str, idx: Optional[int] = None):
+        """Sets tracked target label and id prior to calling get_output
+
+        :param label: Tracked target label
+        :type label: str
+        :param idx: Tracked target index, defaults to None
+        :type idx: Optional[int], optional
+        """
+        self._label = label
+        self._id = idx
 
     def _process_raw_data(self) -> None:
         """Process new raw trackings data and add it to buffer if available"""
@@ -638,6 +602,82 @@ class TrackingsCallback(DetectionsCallback):
             track.estimated_velocities[id_index].y,  # vel_y
         ]
         self._buffer_items = min(self._buffer_items + 1, self._max_buffer_size)
+
+
+class ImageCallback(GenericCallback):
+    """ROS2 Image Callback Handler to process sensor_msgs/Image data"""
+    def __init__(
+        self,
+        input_topic,
+        node_name: Optional[str] = None,
+    ) -> None:
+        """__init__.
+
+        :param input_topic:
+        :param node_name:
+        :type node_name: Optional[str]
+        :param transformation:
+        :type transformation: Optional[TransformStamped]
+        :rtype: None
+        """
+        super().__init__(input_topic, node_name)
+
+    def _get_output(
+        self,
+        **_,
+    ) -> Optional[np.ndarray]:
+        """
+        Gets the laserscan data by applying the transformation if given.
+        :returns:   Topic content
+        :rtype:     Optional[LaserScanData]
+        """
+        if not self.msg:
+            return None
+
+        return np.asarray(self.msg.data, dtype=np.ushort).reshape((
+            self.msg.height,
+            self.msg.width,
+            1,
+        ))
+
+
+class CameraInfoCallback(GenericCallback):
+    """ROS2 Image Callback Handler to process sensor_msgs/CameraInfo data"""
+
+    def __init__(
+        self,
+        input_topic,
+        node_name: Optional[str] = None,
+    ) -> None:
+        """__init__.
+
+        :param input_topic:
+        :param node_name:
+        :type node_name: Optional[str]
+        :param transformation:
+        :type transformation: Optional[TransformStamped]
+        :rtype: None
+        """
+        super().__init__(input_topic, node_name)
+
+    def _get_output(
+        self,
+        **_,
+    ) -> Optional[dict]:
+        """
+        Gets the laserscan data by applying the transformation if given.
+        :returns:   Topic content
+        :rtype:     Optional[LaserScanData]
+        """
+        if not self.msg:
+            return None
+
+        cam_intrinsics = self.msg.k
+
+        return {
+            "focal_length": np.array([cam_intrinsics[0], cam_intrinsics[4]]),
+            "principal_point": np.array([cam_intrinsics[2], cam_intrinsics[5]]),
+        }
 
 
 class LaserScanCallback(GenericCallback):

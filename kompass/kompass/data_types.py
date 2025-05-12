@@ -27,6 +27,8 @@ from nav_msgs.msg import Path as ROSPath
 from kompass_core.models import RobotState
 from sensor_msgs.msg import LaserScan as ROSLaserScan
 from sensor_msgs.msg import PointCloud2 as ROSPointCloud2
+from sensor_msgs.msg import Image as ROSImage
+from sensor_msgs.msg import CameraInfo as ROSCameraInfo
 
 from kompass_interfaces.msg import TwistArray as ROSTwistArray
 from importlib.util import find_spec
@@ -42,6 +44,8 @@ from .callbacks import (
     PointCloudCallback,
     TrackingsCallback,
     DetectionsCallback,
+    ImageCallback,
+    CameraInfoCallback,
 )
 
 __all__ = [
@@ -61,6 +65,7 @@ __all__ = [
     "Float64",
     "Trackings",
     "Detections",
+    "Image"
 ]
 
 
@@ -94,6 +99,19 @@ class Trackings(SupportedType):
         from automatika_embodied_agents.msg import Trackings as ROSTrackings
 
         return ROSTrackings
+
+
+class Image(SupportedType):
+    """Class to support ROS2 sensor_msgs/msg/Image message"""
+    _ros_type = ROSImage
+    callback = ImageCallback
+
+
+class CameraInfo(SupportedType):
+    """Class to support ROS2 sensor_msgs/msg/CameraInfo message"""
+
+    _ros_type = ROSCameraInfo
+    callback = CameraInfoCallback
 
 
 class LaserScan(BaseLaserScan):

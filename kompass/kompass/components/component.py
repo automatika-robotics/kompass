@@ -362,6 +362,20 @@ class Component(BaseComponent):
             )
         return self._depth_tf_listener
 
+    @property
+    def pc_tf_listener(self) -> TFListener:
+        """Gets a transform listener for LaserScan (from scan to robot base)
+
+        :return:
+        :rtype: TFListener
+        """
+        if not hasattr(self, "_pc_tf_listener"):
+            self._pc_tf_listener = self.get_transform_listener(
+                src_frame=self.config.frames.point_cloud,
+                goal_frame=self.config.frames.robot_base,
+            )
+        return self._pc_tf_listener
+
     def get_transform_listener(self, src_frame: str, goal_frame: str) -> TFListener:
         """Gets a transform listener
 

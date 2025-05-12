@@ -1,6 +1,8 @@
 string label
 float64 search_radius
 float64 search_timeout
+int32 pose_x
+int32 pose_y
 ---
 # Result
 bool success        # False if the target is lost at the end of the action

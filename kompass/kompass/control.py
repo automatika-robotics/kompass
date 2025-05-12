@@ -1,14 +1,14 @@
 from kompass_core.control import (
     ControllersID,
-    VisionFollowerConfig,
     StanleyConfig,
     DWAConfig,
     DVZConfig,
+    VisionDWAConfig
 )
 
 __all__ = [
     "ControllersID",
-    "VisionFollowerConfig",
+    "VisionDWAConfig",
     "StanleyConfig",
     "DWAConfig",
     "DVZConfig",

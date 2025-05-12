@@ -88,7 +88,9 @@ class TopicsKeys(StrEnum):
     # Sensory information
     ROBOT_LOCATION = "location"
     SPATIAL_SENSOR = "sensor_data"
-    VISION_TRACKINGS = "vision_tracking"
+    VISION_DETECTIONS = "vision_detections"
+    DEPTH_IMG = "depth_image"
+    DEPTH_CAM_INFO = "depth_camera_info"
     # Calculated
     LOCAL_PLAN = "local_plan"
     PATH_SAMPLES = "path_samples"
@@ -110,7 +112,9 @@ controller_allowed_inputs: Dict[TopicsKeys, AllowedTopics] = {
     TopicsKeys.ROBOT_LOCATION: AllowedTopics(types=["Odometry", "PoseStamped", "Pose"]),
     TopicsKeys.SPATIAL_SENSOR: AllowedTopics(types=["LaserScan", "PointCloud2"]),
     TopicsKeys.LOCAL_MAP: AllowedTopics(types=["OccupancyGrid"]),
-    TopicsKeys.VISION_TRACKINGS: AllowedTopics(types=["Trackings", "Detections"]),
+    TopicsKeys.VISION_DETECTIONS: AllowedTopics(types=["Detections"]),
+    TopicsKeys.DEPTH_IMG: AllowedTopics(types=["Image"]),
+    TopicsKeys.DEPTH_CAM_INFO: AllowedTopics(types=["CameraInfo"]),
 }
 
 controller_allowed_outputs: Dict[TopicsKeys, AllowedTopics] = {
@@ -130,7 +134,9 @@ controller_default_inputs: Dict[TopicsKeys, Optional[Topic]] = {
         name="/local_map/occupancy_layer", msg_type="OccupancyGrid"
     ),
     TopicsKeys.ROBOT_LOCATION: Topic(name="/odom", msg_type="Odometry"),
-    TopicsKeys.VISION_TRACKINGS: None,  # No default topic is assigned. Should be provided by the user to use the vision tracking action
+    TopicsKeys.VISION_DETECTIONS: None,  # No default topic is assigned. Should be provided by the user to use the vision tracking action
+    TopicsKeys.DEPTH_IMG: None,  # No default topic is assigned. Should be provided by the user to use the vision tracking action
+    TopicsKeys.DEPTH_CAM_INFO: None,  # No default topic is assigned. Should be provided by the user to use the vision tracking action
 }
 
 # Create default outputs - Used if no outputs config is provided to the controller
