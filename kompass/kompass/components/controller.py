@@ -51,6 +51,8 @@ from .defaults import (
     TopicsKeys,
 )
 
+from kompass_core import set_logging_level
+set_logging_level("DEBUG")
 
 class CmdPublishType(StrEnum):
     """
@@ -1124,6 +1126,11 @@ class Controller(Component):
         """
         # Get the depth image transform if the input is provided
 
+        if self.in_topic_name(TopicsKeys.DEPTH_IMG):
+            while not self._depth_tf_listener.got_transform:
+                self.get_logger().warn("Waiting to get Depth camera to body TF...", once=True)
+            self.get_logger().warn("Got Depth camera to body TF -> Setting up VisionDWA controller")
+
         config = VisionDWAConfig(
             control_time_step=self.config.control_time_step,
             camera_position_to_robot=self._depth_tf_listener.translation,
@@ -1136,12 +1143,8 @@ class Controller(Component):
             robot=self.__robot,
             ctrl_limits=self.__robot_ctr_limits,
             config=_controller_config,
-            camera_focal_length=self.depth_image_info["focal_length"]
-            if self.depth_image_info
-            else None,
-            camera_principal_point=self.depth_image_info["principal_point"]
-            if self.depth_image_info
-            else None,
+            camera_focal_length=self.depth_image_info["focal_length"],
+            camera_principal_point=self.depth_image_info["principal_point"],
             config_file=self._config_file,
             config_yaml_root_name=f"{self.node_name}.VisionDWA",
         )
@@ -1168,18 +1171,12 @@ class Controller(Component):
 
         result = TrackVisionTarget.Result()
 
+        while not self.got_all_inputs(inputs_to_exclude=[self.in_topic_name(TopicsKeys.GLOBAL_PLAN)]):
+            self._update_state()
+            self.get_logger().info("Waiting to collect all inputs...", once=True)
+
         _controller = self.__setup_vision_dwa_controller()
 
-        self.get_logger().info(f"Got VisionDWA config: {_controller._config}")
-
-        self._update_state()
-        self.get_logger().error("Checking state")
-        if not self.robot_state:
-            self.get_logger().error(f"Unknown robot state -> Aborting Action")
-            with self._main_goal_lock:
-                goal_handle.abort()
-            return result
-        self.get_logger().error(f"Got depth Image: {self.depth_image}")
         found_target = _controller.set_initial_tracking_depth(
             self.robot_state,
             request_msg.pose_x,
@@ -1237,7 +1234,7 @@ class Controller(Component):
                 laser_scan=laser_scan,
                 point_cloud=point_cloud,
                 local_map=local_map,
-                local_map_resolution=self.local_map_resolution,
+                local_map_resolution=self.local_map_resolution if hasattr(self, 'local_map_resolution') else None,
             )
 
             if not found_ctrl:
@@ -1260,12 +1257,9 @@ class Controller(Component):
                 _controller.linear_y_control,
                 _controller.angular_control,
             )
-            if self.vision_detections:
-                self.get_logger().info(
-                    f"Following tracked target with control: {_controller.linear_x_control}, {_controller.angular_control}"
-                )
-            else:
-                self.get_logger().info("Target lost! Waiting for target")
+            self.get_logger().info(
+                f"Following tracked target with control: {_controller.linear_x_control}, {_controller.angular_control}"
+            )
 
             goal_handle.publish_feedback(feedback_msg)
 

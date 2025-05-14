@@ -371,6 +371,7 @@ class DetectionsCallback(GenericCallback):
         """Process new raw detections data and add it to buffer if available"""
         if not self.msg:
             return
+
         raw_detections = self.msg.detections
         # Gets first source, TODO: turn into parameter based on the image frame
         detections_set = raw_detections[0]
@@ -379,11 +380,11 @@ class DetectionsCallback(GenericCallback):
         for box in detections_set.boxes:
             self._detected_boxes.append(
                 Bbox2D(
-                    top_left_corner=np.array([box.top_left_x, box.top_left_y]),
+                    top_left_corner=np.array([box.top_left_x, box.top_left_y], dtype=np.int32),
                     size=np.array([
                         abs(box.bottom_right_x - box.top_left_x),
                         abs(box.bottom_right_y - box.top_left_y),
-                    ]),
+                    ],  dtype=np.int32),
                 )
             )
 
