@@ -1,7 +1,9 @@
 from typing import Optional, Dict
 import numpy as np
 import time
+from queue import Queue, Empty
 from attrs import define, field
+from functools import partial
 from geometry_msgs.msg import Twist
 from kompass_core.datatypes import LaserScanData
 from kompass_core.models import RobotGeometry, RobotState, RobotType
@@ -12,7 +14,6 @@ from kompass_interfaces.msg import TwistArray
 from ..config import BaseValidators, ComponentConfig, ComponentRunType
 from .ros import Topic, update_topics
 from .component import Component
-from .utils import twist_array_to_ros_twist
 from ..callbacks import LaserScanCallback
 from .defaults import (
     TopicsKeys,
@@ -151,14 +152,15 @@ class DriveManager(Component):
         """
         Overwrites the init variables method called at Node init
         """
-        self.emergency_stop: bool = False
         self._unblocking_on: bool = False
 
         # robot output command
-        self.command: Optional[Twist] = None
-        self.multi_command: Optional[TwistArray] = None
         self._previous_command: Optional[Twist] = None
+        self._multi_command_step = 0.0
         self._last_direction_forward: Optional[bool] = None
+
+        # Command queue to send controller command list to the robot
+        self._cmds_queue: Queue = Queue()
 
         self.robot_radius = RobotGeometry.get_radius(
             self.config.robot.geometry_type, self.config.robot.geometry_params
@@ -179,7 +181,7 @@ class DriveManager(Component):
 
         self.laser_scan: Optional[LaserScanData] = None
 
-        self.emergency_stop_dict = {}
+        self.emergency_stop_dict: Dict = {}
 
         # Emergency checker gets initialized on activation to get the sensor transformation
         self._emergency_checker = None
@@ -203,15 +205,24 @@ class DriveManager(Component):
                         self._check_emergency_stop_proximity_sensor
                     )
 
-        if self.config.smooth_commands:
-            # Attach filtering to commands callback
-            self.attach_custom_callback(
-                self.get_in_topic(TopicsKeys.INTERMEDIATE_CMD), self._filter_commands
-            )
-            self.attach_custom_callback(
-                self.get_in_topic(TopicsKeys.INTERMEDIATE_CMD_LIST),
-                self._filter_multi_commands,
-            )
+        # Add command publishing on intermediate command input
+        self.attach_custom_callback(
+            self.get_in_topic(TopicsKeys.INTERMEDIATE_CMD),
+            partial(
+                self._single_cmd_callback,
+                closed_loop=self.config.closed_loop,
+                smooth_cmds=self.config.smooth_commands,
+            ),
+        )
+
+        # Add command publishing on multi intermediate command input
+        self.attach_custom_callback(
+            self.get_in_topic(TopicsKeys.INTERMEDIATE_CMD_LIST),
+            partial(
+                self._multi_cmds_callback,
+                smooth_cmds=self.config.smooth_commands,
+            ),
+        )
 
         # Limit commands before publishing
         self.get_publisher(TopicsKeys.FINAL_COMMAND).add_pre_processors([
@@ -219,6 +230,7 @@ class DriveManager(Component):
         ])
 
     def __update_robot_state(self):
+        """Update robot state"""
         self.robot_state: RobotState = self.get_callback(
             TopicsKeys.ROBOT_LOCATION
         ).get_output(
@@ -227,21 +239,77 @@ class DriveManager(Component):
             else None
         )
 
+    def _single_cmd_callback(
+        self, output: Twist, closed_loop: bool, smooth_cmds: bool, **_
+    ):
+        """Execute on the callback of incoming single intermediate command
+
+        :param output: Incoming command
+        :type output: Twist
+        :param closed_loop: Executing the command in closed loop
+        :type closed_loop: bool
+        :param smooth_cmds: Smooth (filter) the incoming commands
+        :type smooth_cmds: bool
+        """
+        if self._unblocking_on:
+            return
+        # Check emergency stop
+        self._update_state()
+        emergency_stop = any(self.emergency_stop_dict.values())
+        if emergency_stop:
+            # STOP ROBOT
+            self.get_publisher(TopicsKeys.EMERGENCY).publish(True)
+            self.get_publisher(TopicsKeys.FINAL_COMMAND).publish(Twist())
+            self.get_logger().warn("EMERGENCY STOP ON")
+            return
+
+        filtered_output: Twist = (
+            self._filter_commands(output=output) if smooth_cmds else output
+        )
+        if closed_loop:
+            self.execute_cmd_closed_loop(
+                filtered_output, self.config.closed_loop_span / self.config.cmd_rate
+            )
+        else:
+            # Publish once in open loop
+            self.execute_cmd_open_loop(
+                filtered_output,
+                max_time=self.config.closed_loop_span / self.config.cmd_rate,
+            )
+        self._previous_command = filtered_output
+
+    def _multi_cmds_callback(self, output: TwistArray, smooth_cmds: bool, **_):
+        """Execute on the callback of incoming single intermediate command
+
+        :param output: Incoming commands
+        :type output: TwistArray
+        :param smooth_cmds: Smooth (filter) the incoming commands
+        :type smooth_cmds: bool
+        """
+        filtered_output: TwistArray = (
+            self._filter_multi_commands(output=output) if smooth_cmds else output
+        )
+
+        self._multi_command_step = output.time_step
+
+        # Set filtered commands to queue
+        self._cmds_queue.queue.clear()
+
+        for idx in range(len(filtered_output.linear_velocities.x)):
+            # Put new control commands to the queue
+            [
+                self._cmds_queue.put(i)
+                for i in zip(
+                    filtered_output.linear_velocities.x[idx],
+                    filtered_output.linear_velocities.y[idx],
+                    filtered_output.angular_velocities.z[idx],
+                )
+            ]
+
     def _update_state(self):
         """
         Update all inputs
         """
-        if hasattr(self, "command"):
-            self._previous_command = self.command
-
-        self.command: Optional[Twist] = self.get_callback(
-            TopicsKeys.INTERMEDIATE_CMD
-        ).get_output(clear_last=True)
-
-        self.multi_command: Optional[TwistArray] = self.get_callback(
-            TopicsKeys.INTERMEDIATE_CMD_LIST
-        ).get_output(clear_last=True)
-
         self.__update_robot_state()
 
         num_sensors = self._inputs_keys.count(TopicsKeys.SPATIAL_SENSOR)
@@ -250,6 +318,15 @@ class DriveManager(Component):
             if isinstance(callback, LaserScanCallback):
                 self.laser_scan: Optional[LaserScanData] = callback.get_output()
                 break
+        # If laserscan is not available and safety_stop is enabled -> raise an emergency stop flog to block publishing
+        if not self.config.disable_safety_stop and not self.laser_scan:
+            self.get_logger().warn(
+                "LaserScan data is not available -> disabling command publish to robot. To use the DriveManager without safety stop set 'disable_safety_stop' to 'True'",
+                once=True,
+            )
+            self.emergency_stop_dict["unavailable_data"] = True
+        else:
+            self.emergency_stop_dict["unavailable_data"] = False
 
     def execute_cmd_open_loop(self, cmd: Twist, max_time: float):
         """Execute a control command in open loop
@@ -266,7 +343,7 @@ class DriveManager(Component):
             self.get_publisher(TopicsKeys.FINAL_COMMAND).publish(cmd)
             time.sleep(_step)
 
-    def execute_cmd_closed_loop(self, cmd: Twist, max_time: float):
+    def execute_cmd_closed_loop(self, output: Twist, max_time: float):
         """Execute a control command in closed loop
 
         :param cmd: Velocity Twist message
@@ -274,27 +351,35 @@ class DriveManager(Component):
         :param max_time: Maximum time for the closed loop execution (s)
         :type max_time: float
         """
+        if not self.robot_state:
+            self.get_logger().warn(
+                "Robot state is not available and command publish is set to closed loop -> disabling command publish to robot. To use the DriveManager without robot state set 'closed_loop' to 'False'"
+            )
+            return
+
         executing_closed_loop = True
         _step = 1 / self.config.cmd_rate
         _timer_count = 0.0
         while executing_closed_loop and _timer_count < max_time:
             vx_out = (
-                cmd.linear.x
-                if abs(self.robot_state.vx - cmd.linear.x) > self.config.cmd_tolerance
-                or abs(cmd.linear.x) < self.config.cmd_tolerance
+                output.linear.x
+                if abs(self.robot_state.vx - output.linear.x)
+                > self.config.cmd_tolerance
+                or abs(output.linear.x) < self.config.cmd_tolerance
                 else 0.0
             )
             vy_out = (
-                cmd.linear.y
-                if abs(self.robot_state.vy - cmd.linear.y) > self.config.cmd_tolerance
-                or abs(cmd.linear.y) < self.config.cmd_tolerance
+                output.linear.y
+                if abs(self.robot_state.vy - output.linear.y)
+                > self.config.cmd_tolerance
+                or abs(output.linear.y) < self.config.cmd_tolerance
                 else 0.0
             )
             omega_out = (
-                cmd.angular.z
-                if abs(self.robot_state.omega - cmd.angular.z)
+                output.angular.z
+                if abs(self.robot_state.omega - output.angular.z)
                 > self.config.cmd_tolerance
-                or abs(cmd.angular.z) < self.config.cmd_tolerance
+                or abs(output.angular.z) < self.config.cmd_tolerance
                 else 0.0
             )
             executing_closed_loop = vx_out or vy_out or omega_out
@@ -655,14 +740,14 @@ class DriveManager(Component):
         # Update emergency stop check
         if not output or not self._emergency_checker:
             return
-        if not self.command or self.command.linear.x == 0.0:
+        if not self._previous_command or self._previous_command.linear.x == 0.0:
             forward: bool = (
                 self._last_direction_forward
                 if self._last_direction_forward is not None
                 else True
             )
         else:
-            forward = self.command.linear.x >= 0
+            forward = self._previous_command.linear.x >= 0
 
         self.emergency_stop_dict[topic.name] = self._emergency_checker.check(
             angles=output.angles, ranges=output.ranges, forward=forward
@@ -708,68 +793,32 @@ class DriveManager(Component):
         """
         Main execution of the component, executed at ech timer tick with rate self.config.loop_rate
         """
-        self._update_state()
-
-        self.emergency_stop = (
-            any(self.emergency_stop_dict.values())
-            if self.emergency_stop_dict
-            else False
-        )
-
-        self.get_publisher(TopicsKeys.EMERGENCY).publish(bool(self.emergency_stop))
-
         if self._unblocking_on:
-            # If unblocking is ongoing do not publish any other command
-            self.command = None
-            self.multi_command = None
             return
-
-        if self.emergency_stop:
+        # Check emergency stop
+        self._update_state()
+        emergency_stop = any(self.emergency_stop_dict.values())
+        if emergency_stop:
             # STOP ROBOT
+            self.get_publisher(TopicsKeys.EMERGENCY).publish(True)
             self.get_publisher(TopicsKeys.FINAL_COMMAND).publish(Twist())
             self.get_logger().warn("EMERGENCY STOP ON")
             return
 
-        if self.command or self.multi_command:
-            if not self.config.disable_safety_stop and not self.laser_scan:
-                self.get_logger().warn(
-                    "LaserScan data is not available -> disabling command publish to robot. To use the DriveManager without safety stop set 'disable_safety_stop' to 'True'",
-                    once=True,
-                )
-                return
-            if not self.robot_state and self.config.closed_loop:
-                self.get_logger().warn(
-                    "Robot state is not available and command publish is set to closed loop -> disabling command publish to robot. To use the DriveManager without robot state set 'closed_loop' to 'False'",
-                    once=True,
-                )
-                return
-
-        if self.command:
-            if self.config.closed_loop:
-                self.execute_cmd_closed_loop(
-                    self.command,
-                    max_time=self.config.closed_loop_span / self.config.cmd_rate,
-                )
-            else:
-                self.get_publisher(TopicsKeys.FINAL_COMMAND).publish(self.command)
-            # Clear published command
-            self.command = None
+        # Publish commands in the queue
+        try:
+            cmd = self._cmds_queue.get_nowait()
+        except Empty:
+            self.get_logger().debug("No commands to execute")
             return
 
-        if self.multi_command:
-            # TODO: Stop publishing old multi command when a new multi command is received
-            for idx in range(len(self.multi_command.linear_velocities.x)):
-                _cmd = twist_array_to_ros_twist(self.multi_command, idx=idx)
-                if self.config.closed_loop:
-                    self.execute_cmd_closed_loop(
-                        _cmd, max_time=self.multi_command.time_step
-                    )
-                else:
-                    self.execute_cmd_open_loop(
-                        _cmd, max_time=self.multi_command.time_step
-                    )
-            self.multi_command = None
-            return
+        # create a publish one twist message
+        _cmd_vel = self.__make_twist(cmd[0], cmd[1], cmd[2])
+
+        if self.config.closed_loop:
+            self.execute_cmd_closed_loop(_cmd_vel, max_time=self._multi_command_step)
+        else:
+            self.execute_cmd_open_loop(_cmd_vel, max_time=self._multi_command_step)
 
     def _execute_once(self):
         super()._execute_once()
@@ -777,12 +826,6 @@ class DriveManager(Component):
         while not self.scan_tf_listener or not self.scan_tf_listener.transform:
             self.get_logger().info("Waiting to get laserscan TF...", once=True)
             time.sleep(1 / self.config.loop_rate)
-
-        laserscan_transform = self.scan_tf_listener.transform
-        trans = laserscan_transform.transform.translation
-        quat = laserscan_transform.transform.rotation
-        sensor_position_robot = [trans.x, trans.y, trans.z]
-        sensor_rotation_robot = [quat.x, quat.y, quat.z, quat.w]
 
         robot_shape = RobotGeometry.Type.to_kompass_cpp_lib(
             self.config.robot.geometry_type
@@ -805,8 +848,8 @@ class DriveManager(Component):
                 self._emergency_checker = CriticalZoneCheckerGPU(
                     robot_shape=robot_shape,
                     robot_dimensions=robot_dimensions,
-                    sensor_position_body=sensor_position_robot,
-                    sensor_rotation_body=sensor_rotation_robot,
+                    sensor_position_body=self.scan_tf_listener.translation,
+                    sensor_rotation_body=self.scan_tf_listener.rotation,
                     critical_angle=self.config.critical_zone_angle,
                     critical_distance=self.config.critical_zone_distance,
                     scan_angles=self.laser_scan.angles,
@@ -823,8 +866,8 @@ class DriveManager(Component):
         self._emergency_checker = CriticalZoneChecker(
             robot_shape=robot_shape,
             robot_dimensions=robot_dimensions,
-            sensor_position_body=sensor_position_robot,
-            sensor_rotation_body=sensor_rotation_robot,
+            sensor_position_body=self.scan_tf_listener.translation,
+            sensor_rotation_body=self.scan_tf_listener.rotation,
             critical_angle=self.config.critical_zone_angle,
             critical_distance=self.config.critical_zone_distance,
         )

@@ -52,7 +52,9 @@ from .defaults import (
 )
 
 from kompass_core import set_logging_level
+
 set_logging_level("DEBUG")
+
 
 class CmdPublishType(StrEnum):
     """
@@ -337,7 +339,8 @@ class Controller(Component):
             # In vision follower mode skip the plan
             elif (
                 self.config._mode == ControllerMode.VISION_FOLLOWER
-                and callback.input_topic.name == self.in_topic_name(TopicsKeys.GLOBAL_PLAN)
+                and callback.input_topic.name
+                == self.in_topic_name(TopicsKeys.GLOBAL_PLAN)
             ):
                 # skip
                 continue
@@ -375,21 +378,14 @@ class Controller(Component):
             )
             self.__cmd_execution_timer = self.create_timer(
                 self.config.control_time_step,
-                self._execution_callback,
+                self._cmds_publishing_callback,
                 callback_group=MutuallyExclusiveCallbackGroup(),
             )
-        elif self.config.ctrl_publish_type == CmdPublishType.TWIST_SEQUENCE:
-            self.get_logger().debug(
-                f"Creating execution rate with freq: {1 / self.config.control_time_step}"
-            )
-            # Create rate to publish in sequence during control
-            self.__cmd_execution_rate = self.create_rate(
-                1 / self.config.control_time_step
-            )
+
         # Create timer to publish additional control tracking info
         self.__info_publishing_timer = self.create_timer(
             1 / self.config.loop_rate,
-            self._publishing_callback,
+            self._info_publishing_callback,
             callback_group=MutuallyExclusiveCallbackGroup(),
         )
 
@@ -399,8 +395,6 @@ class Controller(Component):
         # Destroy execution timer/rate
         if self.config.ctrl_publish_type == CmdPublishType.TWIST_PARALLEL:
             self.destroy_timer(self.__cmd_execution_timer)
-        elif self.config.ctrl_publish_type == CmdPublishType.TWIST_SEQUENCE:
-            self.destroy_rate(self.__cmd_execution_rate)
 
         self.destroy_timer(self.__info_publishing_timer)
 
@@ -424,31 +418,31 @@ class Controller(Component):
             self.destroy_service(self.__vision_tracking_srv)
         super().destroy_all_services()
 
-    def _execution_callback(self):
+    def _cmds_publishing_callback(self):
         """Commands execution timer callback"""
+        # If end is reached do not publish new command
+        if self.__reached_end:
+            self.get_logger().debug("End of action reached -> Not executing commands")
+            self._cmds_queue.queue.clear()
+            return
+
         try:
             cmd = self._cmds_queue.get_nowait()
         except Empty:
             self.get_logger().debug("No command to execute")
             return
-        # If end is reached do not publish new command
-        if self.__reached_end:
-            self.get_logger().debug("No command to execute")
-            return
 
-        self._publish_one_control(
-            linear_ctr_x=cmd[0],
-            linear_ctr_y=cmd[1],
-            angular_ctr=cmd[2],
-        )
+        # create a publish one twist message
+        _cmd_vel = Twist()
+        _cmd_vel.linear.x = cmd[0]
+        _cmd_vel.linear.y = cmd[1]
+        _cmd_vel.angular.z = cmd[2]
+        self.get_publisher(TopicsKeys.INTERMEDIATE_CMD).publish(_cmd_vel)
 
-    def _publishing_callback(self):
+    def _info_publishing_callback(self):
         """Tracking publishing timer callback"""
         # Publish tracked point on the global path
-        if (
-            self.tracked_point is not None
-            and self.config._mode == ControllerMode.PATH_FOLLOWER
-        ):
+        if self.tracked_point is not None:
             self.get_publisher(TopicsKeys.TRACKED_POINT).publish(
                 self.tracked_point,
                 frame_id=self.config.frames.world,
@@ -875,7 +869,6 @@ class Controller(Component):
             self.sensor_data: Optional[Union[LaserScanData, PointCloudData]] = None
 
         # Vision Follower variables
-        self.__depth_tf_listener = self.depth_tf_listener
         self.vision_detections: Optional[TrackingData] = None
         self.depth_image: Optional[np.ndarray] = None
         self.depth_image_info: Optional[Dict] = None
@@ -884,6 +877,8 @@ class Controller(Component):
         """
         Publishes a zero velocity command to stop the robot
         """
+        # Clear all commands to stop the robot
+        self._cmds_queue.queue.clear()
         # send zero command to stop the robot
         if self.config.ctrl_publish_type == CmdPublishType.TWIST_ARRAY:
             _cmd_vel_array = _cmd_vel_array = init_twist_array_msg(1)
@@ -897,80 +892,46 @@ class Controller(Component):
         commands_vy: List[float],
         commands_omega: List[float],
     ):
-        if self.config.ctrl_publish_type == CmdPublishType.TWIST_ARRAY:
-            # publish a Twist Array
-            self._publish_multi_control(
-                linear_ctr_x=commands_vx,
-                linear_ctr_y=commands_vy,
-                angular_ctr=commands_omega,
-            )
+        # TWIST_PARALLEL : Set to queue to publish in parallel
+        if self.config.ctrl_publish_type == CmdPublishType.TWIST_PARALLEL:
+            # Empty the commands queue
+            self._cmds_queue.queue.clear()
+
+            # Put new control commands to the queue
+            [
+                self._cmds_queue.put(i)
+                for i in zip(
+                    commands_vx,
+                    commands_vy,
+                    commands_omega,
+                )
+            ]
             return
 
-        # Empty the commands queue
-        self._cmds_queue.queue.clear()
-
-        # Put new control commands to the queue
-        [
-            self._cmds_queue.put(i)
-            for i in zip(
-                commands_vx,
-                commands_vy,
-                commands_omega,
+        # TWIST_ARRAY: Publish all
+        if self.config.ctrl_publish_type == CmdPublishType.TWIST_ARRAY:
+            # publish a Twist Array
+            _cmd_vel_array = init_twist_array_msg(
+                number_of_cmds=len(commands_vx),
+                linear_x=commands_vx,
+                linear_y=commands_vy,
+                angular=commands_omega,
             )
-        ]
+            _cmd_vel_array.time_step = self.config.control_time_step
 
-        # If commands are to be published in sequence
+            self.get_publisher(TopicsKeys.INTERMEDIATE_CMD_LIST).publish(_cmd_vel_array)
+            return
+
+        # TWIST_SEQUENCE: Publish one-by-one in a blocking loop
         if self.config.ctrl_publish_type == CmdPublishType.TWIST_SEQUENCE:
-            # While queue is not empty
-            while self._cmds_queue.qsize() > 0:
-                self._execution_callback()
-                self.__cmd_execution_rate.sleep()
-
-    def _publish_one_control(
-        self, linear_ctr_x: float, linear_ctr_y: float, angular_ctr: float
-    ):
-        """
-        Publish a Twist command to ROS
-
-        :param linear_ctr_x: Linear control command (m/s)
-        :type linear_ctr_x: float
-        :param linear_ctr_y: Linear control command (m/s)
-        :type linear_ctr_y: float
-        :param angular_ctr: Angular control command (rad/s)
-        :type angular_ctr: float
-        """
-        _cmd_vel = Twist()
-        _cmd_vel.linear.x = linear_ctr_x
-        _cmd_vel.linear.y = linear_ctr_y
-        _cmd_vel.angular.z = angular_ctr
-
-        self.get_publisher(TopicsKeys.INTERMEDIATE_CMD).publish(_cmd_vel)
-
-    def _publish_multi_control(
-        self,
-        linear_ctr_x: List[float],
-        linear_ctr_y: List[float],
-        angular_ctr: List[float],
-    ):
-        """
-        Publish a set of command (TwistArray) to ROS
-
-        :param linear_ctr_x: Linear control commands (m/s)
-        :type linear_ctr_x: List[float]
-        :param linear_ctr_y: Linear control commands (m/s)
-        :type linear_ctr_y: List[float]
-        :param angular_ctr: Angular control commands (rad/s)
-        :type angular_ctr: List[float]
-        """
-        _cmd_vel_array = init_twist_array_msg(
-            number_of_cmds=len(linear_ctr_x),
-            linear_x=linear_ctr_x,
-            linear_y=linear_ctr_y,
-            angular=angular_ctr,
-        )
-        _cmd_vel_array.time_step = self.config.control_time_step
-
-        self.get_publisher(TopicsKeys.INTERMEDIATE_CMD_LIST).publish(_cmd_vel_array)
+            for vx, vy, omega in zip(commands_vx, commands_vy, commands_omega):
+                # create a publish one twist message
+                _cmd_vel = Twist()
+                _cmd_vel.linear.x = vx
+                _cmd_vel.linear.y = vy
+                _cmd_vel.angular.z = omega
+                self.get_publisher(TopicsKeys.INTERMEDIATE_CMD).publish(_cmd_vel)
+                time.sleep(self.config.control_time_step)
 
     def _path_control(self) -> bool:
         """
@@ -1128,8 +1089,12 @@ class Controller(Component):
 
         if self.in_topic_name(TopicsKeys.DEPTH_IMG):
             while not self._depth_tf_listener.got_transform:
-                self.get_logger().warn("Waiting to get Depth camera to body TF...", once=True)
-            self.get_logger().warn("Got Depth camera to body TF -> Setting up VisionDWA controller")
+                self.get_logger().warn(
+                    "Waiting to get Depth camera to body TF...", once=True
+                )
+            self.get_logger().warn(
+                "Got Depth camera to body TF -> Setting up VisionDWA controller"
+            )
 
         config = VisionDWAConfig(
             control_time_step=self.config.control_time_step,
@@ -1171,7 +1136,9 @@ class Controller(Component):
 
         result = TrackVisionTarget.Result()
 
-        while not self.got_all_inputs(inputs_to_exclude=[self.in_topic_name(TopicsKeys.GLOBAL_PLAN)]):
+        while not self.got_all_inputs(
+            inputs_to_exclude=[self.in_topic_name(TopicsKeys.GLOBAL_PLAN)]
+        ):
             self._update_state()
             self.get_logger().info("Waiting to collect all inputs...", once=True)
 
@@ -1234,7 +1201,9 @@ class Controller(Component):
                 laser_scan=laser_scan,
                 point_cloud=point_cloud,
                 local_map=local_map,
-                local_map_resolution=self.local_map_resolution if hasattr(self, 'local_map_resolution') else None,
+                local_map_resolution=self.local_map_resolution
+                if hasattr(self, "local_map_resolution")
+                else None,
             )
 
             if not found_ctrl:

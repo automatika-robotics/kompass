@@ -380,11 +380,16 @@ class DetectionsCallback(GenericCallback):
         for box in detections_set.boxes:
             self._detected_boxes.append(
                 Bbox2D(
-                    top_left_corner=np.array([box.top_left_x, box.top_left_y], dtype=np.int32),
-                    size=np.array([
-                        abs(box.bottom_right_x - box.top_left_x),
-                        abs(box.bottom_right_y - box.top_left_y),
-                    ],  dtype=np.int32),
+                    top_left_corner=np.array(
+                        [box.top_left_x, box.top_left_y], dtype=np.int32
+                    ),
+                    size=np.array(
+                        [
+                            abs(box.bottom_right_x - box.top_left_x),
+                            abs(box.bottom_right_y - box.top_left_y),
+                        ],
+                        dtype=np.int32,
+                    ),
                 )
             )
 
@@ -607,6 +612,7 @@ class TrackingsCallback(GenericCallback):
 
 class ImageCallback(GenericCallback):
     """ROS2 Image Callback Handler to process sensor_msgs/Image data"""
+
     def __init__(
         self,
         input_topic,
@@ -635,7 +641,10 @@ class ImageCallback(GenericCallback):
         if not self.msg:
             return None
 
-        return np.frombuffer(self.msg.data, dtype=np.uint16).reshape((self.msg.height, self.msg.width))
+        return np.frombuffer(self.msg.data, dtype=np.uint16).reshape((
+            self.msg.height,
+            self.msg.width,
+        ))
 
 
 class CameraInfoCallback(GenericCallback):
