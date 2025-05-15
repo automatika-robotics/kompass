@@ -81,7 +81,7 @@ class DriveManagerConfig(ComponentConfig):
     smooth_commands: bool = field(default=False)
 
     cmd_tolerance: float = field(
-        default=0.1
+        default=0.01
     )  # tolerance value when checking for reaching the command in closed loop
 
     critical_zone_angle: float = field(
@@ -286,6 +286,9 @@ class DriveManager(Component):
         :param smooth_cmds: Smooth (filter) the incoming commands
         :type smooth_cmds: bool
         """
+        if self._unblocking_on:
+            return
+
         filtered_output: TwistArray = (
             self._filter_multi_commands(output=output) if smooth_cmds else output
         )
@@ -295,16 +298,15 @@ class DriveManager(Component):
         # Set filtered commands to queue
         self._cmds_queue.queue.clear()
 
-        for idx in range(len(filtered_output.linear_velocities.x)):
-            # Put new control commands to the queue
-            [
-                self._cmds_queue.put(i)
-                for i in zip(
-                    filtered_output.linear_velocities.x[idx],
-                    filtered_output.linear_velocities.y[idx],
-                    filtered_output.angular_velocities.z[idx],
-                )
-            ]
+        # Put new control commands to the queue
+        [
+            self._cmds_queue.put([vx, vy, omega])
+            for (vx, vy, omega) in zip(
+                filtered_output.linear_velocities.x,
+                filtered_output.linear_velocities.y,
+                filtered_output.angular_velocities.z,
+            )
+        ]
 
     def _update_state(self):
         """
@@ -766,7 +768,7 @@ class DriveManager(Component):
 
         if abs(output.linear.x) > self.config.robot.ctrl_vx_limits.max_vel:
             self.get_logger().warn(
-                f"Limiting linear velocity by allowed maximum {self.config.robot}"
+                f"Limiting linear velocity by allowed maximum {self.config.robot.ctrl_vx_limits.max_vel}"
             )
             output.linear.x = (
                 np.sign(output.linear.x) * self.config.robot.ctrl_vx_limits.max_vel
@@ -802,7 +804,6 @@ class DriveManager(Component):
             # STOP ROBOT
             self.get_publisher(TopicsKeys.EMERGENCY).publish(True)
             self.get_publisher(TopicsKeys.FINAL_COMMAND).publish(Twist())
-            self.get_logger().warn("EMERGENCY STOP ON")
             return
 
         # Publish commands in the queue
