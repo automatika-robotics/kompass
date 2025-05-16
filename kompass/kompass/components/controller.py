@@ -712,7 +712,7 @@ class Controller(Component):
             # If vision mode is ON and a label is getting tracked
             vision_callback = self.get_callback(TopicsKeys.VISION_DETECTIONS)
             self.vision_detections = (
-                vision_callback.get_output() if vision_callback else None
+                vision_callback.get_output(clear_last=True) if vision_callback else None
             )
             # Update depth image and its info
             depth_img_callback = self.get_callback(TopicsKeys.DEPTH_IMG)
@@ -734,15 +734,16 @@ class Controller(Component):
             )
 
         state_callback = self.get_callback(TopicsKeys.ROBOT_LOCATION)
-        self.robot_state: Optional[RobotState] = (
-            state_callback.get_output(
-                transformation=self.odom_tf_listener.transform
-                if self.odom_tf_listener
-                else None
-            )
-            if state_callback
-            else None
-        )
+
+        if self.config.frames.odom == self.config.frames.world:
+            self.robot_state = state_callback.get_ouptut() if state_callback else None
+        else:
+            while not self.odom_tf_listener.transform:
+                # Blocking loop until transform is collected
+                self.get_logger().warn(f"Waiting to get TF from {self.config.frames.odom} frame to {self.config.frames.world} frame...", once=True)
+            self.robot_state = state_callback.get_output(
+                    transformation=self.odom_tf_listener.transform
+                ) if state_callback else None
 
         if self.direct_sensor:
             sensor_callback = self.get_callback(TopicsKeys.SPATIAL_SENSOR)
@@ -925,11 +926,10 @@ class Controller(Component):
         # TWIST_SEQUENCE: Publish one-by-one in a blocking loop
         if self.config.ctrl_publish_type == CmdPublishType.TWIST_SEQUENCE:
             for vx, vy, omega in zip(commands_vx, commands_vy, commands_omega):
-                # create a publish one twist message
                 _cmd_vel = Twist()
-                _cmd_vel.linear.x = vx
-                _cmd_vel.linear.y = vy
-                _cmd_vel.angular.z = omega
+                _cmd_vel.linear.x = float(vx)
+                _cmd_vel.linear.y = float(vy)
+                _cmd_vel.angular.z = float(omega)
                 self.get_publisher(TopicsKeys.INTERMEDIATE_CMD).publish(_cmd_vel)
                 time.sleep(self.config.control_time_step)
 
@@ -1070,6 +1070,7 @@ class Controller(Component):
         """
         max_wait_time = max_wait_time or self.config.topic_subscription_timeout
         wait_time = 0.0
+        self.vision_detections = None
         while not self.vision_detections and wait_time <= max_wait_time:
             self.get_logger().info(
                 f"Waiting for vision target information, timeout in {round(max_wait_time, 2)}s...",
@@ -1088,7 +1089,7 @@ class Controller(Component):
         # Get the depth image transform if the input is provided
 
         if self.in_topic_name(TopicsKeys.DEPTH_IMG):
-            while not self._depth_tf_listener.got_transform:
+            while not self.depth_tf_listener.got_transform:
                 self.get_logger().warn(
                     "Waiting to get Depth camera to body TF...", once=True
                 )
@@ -1098,8 +1099,8 @@ class Controller(Component):
 
         config = VisionDWAConfig(
             control_time_step=self.config.control_time_step,
-            camera_position_to_robot=self._depth_tf_listener.translation,
-            camera_rotation_to_robot=self._depth_tf_listener.rotation,
+            camera_position_to_robot=self.depth_tf_listener.translation,
+            camera_rotation_to_robot=self.depth_tf_listener.rotation,
         )
 
         _controller_config = self._configure_algorithm(config)
@@ -1141,6 +1142,7 @@ class Controller(Component):
         ):
             self._update_state()
             self.get_logger().info("Waiting to collect all inputs...", once=True)
+            self.get_logger().info(f"Missing inputs: {self.get_missing_inputs()}")
 
         _controller = self.__setup_vision_dwa_controller()
 
@@ -1171,6 +1173,7 @@ class Controller(Component):
             self.config._mode == ControllerMode.VISION_FOLLOWER
             and not self.__reached_end
         ):
+            self.get_logger().info(f"Robot at: {self.robot_state.x}, {self.robot_state.y}")
             if not goal_handle.is_active or goal_handle.is_cancel_requested:
                 self.get_logger().info("Vision Following Action Canceled!")
                 self.__reached_end = True
@@ -1196,7 +1199,7 @@ class Controller(Component):
 
             found_ctrl = _controller.loop_step(
                 current_state=self.robot_state,
-                detections_2d=self.vision_detections,
+                detections_2d=self.vision_detections or [],
                 depth_image=self.depth_image,
                 laser_scan=laser_scan,
                 point_cloud=point_cloud,

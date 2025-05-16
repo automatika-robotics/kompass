@@ -2,7 +2,7 @@
 
 from typing import Optional, Union, Any, List
 import numpy as np
-
+import logging
 from ros_sugar.io import GenericCallback, OccupancyGridCallback
 from ros_sugar.io import OdomCallback as BaseOdomCallback
 from ros_sugar.io import PointCallback as BasePointCallback
@@ -371,7 +371,6 @@ class DetectionsCallback(GenericCallback):
         """Process new raw detections data and add it to buffer if available"""
         if not self.msg:
             return
-
         raw_detections = self.msg.detections
         # Gets first source, TODO: turn into parameter based on the image frame
         detections_set = raw_detections[0]
@@ -403,7 +402,7 @@ class DetectionsCallback(GenericCallback):
         super().callback(msg)
         self._process_raw_data()
 
-    def _get_output(
+    def get_output(
         self,
         **_,
     ) -> Union[None, List[Bbox2D]]:
@@ -412,8 +411,7 @@ class DetectionsCallback(GenericCallback):
         :returns:   Topic content
         :rtype:     Union[ROSTrackings, np.ndarray, None]
         """
-        if not self.msg:
-            return None
+        super().get_output()
         return self._detected_boxes
 
 
