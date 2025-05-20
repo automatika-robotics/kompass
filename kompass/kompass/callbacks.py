@@ -389,6 +389,7 @@ class DetectionsCallback(GenericCallback):
                         ],
                         dtype=np.int32,
                     ),
+                    timestamp=self.msg.header.stamp.sec,
                 )
             )
 
