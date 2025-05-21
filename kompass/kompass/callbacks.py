@@ -387,7 +387,8 @@ class DetectionsCallback(GenericCallback):
                     ],
                     dtype=np.int32,
                 ),
-                timestamp=self.msg.header.stamp.sec,
+                timestamp=self.msg.header.stamp.sec
+                + 1e-9 * self.msg.header.stamp.nanosec,
             )
 
     def callback(self, msg) -> None:
@@ -413,7 +414,7 @@ class DetectionsCallback(GenericCallback):
         super().get_output()
         if not label:
             return list(self._detected_boxes.values())
-        try :
+        try:
             return [self._detected_boxes[label]]
         except KeyError:
             # No detection -> reduce buffer items
