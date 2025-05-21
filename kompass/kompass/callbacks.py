@@ -1,8 +1,7 @@
 """Callback classes used to process input topics data for supported types in Kompass"""
 
-from typing import Optional, Union, Any, List
+from typing import Optional, Union, Any, List, Dict
 import numpy as np
-import logging
 from ros_sugar.io import GenericCallback, OccupancyGridCallback
 from ros_sugar.io import OdomCallback as BaseOdomCallback
 from ros_sugar.io import PointCallback as BasePointCallback
@@ -365,7 +364,7 @@ class DetectionsCallback(GenericCallback):
         :rtype: None
         """
         super().__init__(input_topic, node_name)
-        self._detected_boxes: List[Bbox2D] = []
+        self._detected_boxes: Dict[List, Bbox2D] = {}
 
     def _process_raw_data(self) -> None:
         """Process new raw detections data and add it to buffer if available"""
@@ -375,22 +374,20 @@ class DetectionsCallback(GenericCallback):
         # Gets first source, TODO: turn into parameter based on the image frame
         detections_set = raw_detections[0]
         # Clear old detections
-        self._detected_boxes = []
-        for box in detections_set.boxes:
-            self._detected_boxes.append(
-                Bbox2D(
-                    top_left_corner=np.array(
-                        [box.top_left_x, box.top_left_y], dtype=np.int32
-                    ),
-                    size=np.array(
-                        [
-                            abs(box.bottom_right_x - box.top_left_x),
-                            abs(box.bottom_right_y - box.top_left_y),
-                        ],
-                        dtype=np.int32,
-                    ),
-                    timestamp=self.msg.header.stamp.sec,
-                )
+        self._detected_boxes = {}
+        for label, box in zip(detections_set.labels, detections_set.boxes):
+            self._detected_boxes[label] = Bbox2D(
+                top_left_corner=np.array(
+                    [box.top_left_x, box.top_left_y], dtype=np.int32
+                ),
+                size=np.array(
+                    [
+                        abs(box.bottom_right_x - box.top_left_x),
+                        abs(box.bottom_right_y - box.top_left_y),
+                    ],
+                    dtype=np.int32,
+                ),
+                timestamp=self.msg.header.stamp.sec,
             )
 
     def callback(self, msg) -> None:
@@ -405,6 +402,7 @@ class DetectionsCallback(GenericCallback):
 
     def get_output(
         self,
+        label: Optional[str] = None,
         **_,
     ) -> Union[None, List[Bbox2D]]:
         """
@@ -413,7 +411,13 @@ class DetectionsCallback(GenericCallback):
         :rtype:     Union[ROSTrackings, np.ndarray, None]
         """
         super().get_output()
-        return self._detected_boxes
+        if not label:
+            return list(self._detected_boxes.values())
+        try :
+            return [self._detected_boxes[label]]
+        except KeyError:
+            # No detection -> reduce buffer items
+            return None
 
 
 class TrackingsCallback(GenericCallback):

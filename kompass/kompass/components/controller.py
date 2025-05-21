@@ -1146,13 +1146,32 @@ class Controller(Component):
 
         _controller = self.__setup_vision_dwa_controller()
 
-        found_target = _controller.set_initial_tracking_depth(
-            self.robot_state,
-            request_msg.pose_x,
-            request_msg.pose_y,
-            self.vision_detections,
-            self.depth_image,
-        )
+        if request_msg.label != '':
+            target_2d = None
+            vision_callback = self.get_callback(TopicsKeys.VISION_DETECTIONS)
+            while not target_2d:
+                target_2d = (
+                    vision_callback.get_output(clear_last=True, label=request_msg.label)
+                    if vision_callback
+                    else None
+                )
+                self.get_logger().warn(f"Waiting to get target {request_msg.label} from vision detections...", once=True)
+            found_target = _controller.set_initial_tracking_2d_target(
+                self.robot_state,
+                request_msg.pose_x,
+                request_msg.pose_y,
+                self.vision_detections,
+                self.depth_image,
+            )
+        else:
+            # If no label is provided, use the provided pixel coordinates
+            found_target = _controller.set_initial_tracking_depth(
+                self.robot_state,
+                request_msg.pose_x,
+                request_msg.pose_y,
+                self.vision_detections,
+                self.depth_image,
+            )
 
         if not found_target:
             self.get_logger().error("No Target found on image -> Aborting Action")
