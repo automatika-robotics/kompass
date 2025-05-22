@@ -89,7 +89,10 @@ class DriveManagerConfig(ComponentConfig):
     )  # Angle range for the critical zone (deg)
     critical_zone_distance: float = field(
         default=0.05, validator=BaseValidators.in_range(min_value=1e-9, max_value=1e9)
-    )  # Distance for the critical zone (meters)
+    )  # Distance for the stop zone (meters)
+    slowdown_zone_distance: float = field(
+        default=0.2, validator=BaseValidators.in_range(min_value=1e-9, max_value=1e9)
+    )  # Distance for the slowdown zone (meters)
     disable_safety_stop: bool = field(default=False)
     use_gpu: bool = field(default=False)
 
@@ -181,7 +184,7 @@ class DriveManager(Component):
 
         self.laser_scan: Optional[LaserScanData] = None
 
-        self.emergency_stop_dict: Dict = {}
+        self.slow_down_factor: Dict[str, float] = {}
 
         # Emergency checker gets initialized on activation to get the sensor transformation
         self._emergency_checker = None
@@ -255,13 +258,17 @@ class DriveManager(Component):
             return
         # Check emergency stop
         self._update_state()
-        emergency_stop = any(self.emergency_stop_dict.values())
-        if emergency_stop:
+        slowdown_val : float = min(self.slow_down_factor.values())
+        if slowdown_val == 0.0:
             # STOP ROBOT
             self.get_publisher(TopicsKeys.EMERGENCY).publish(True)
-            self.get_publisher(TopicsKeys.FINAL_COMMAND).publish(Twist())
             self.get_logger().warn("EMERGENCY STOP ON")
             return
+
+        # Multiply by slowdown factor
+        output.linear.x *= slowdown_val
+        output.linear.y *= slowdown_val
+        output.angular.z *= slowdown_val
 
         filtered_output: Twist = (
             self._filter_commands(output=output) if smooth_cmds else output
@@ -326,9 +333,24 @@ class DriveManager(Component):
                 "LaserScan data is not available -> disabling command publish to robot. To use the DriveManager without safety stop set 'disable_safety_stop' to 'True'",
                 once=True,
             )
-            self.emergency_stop_dict["unavailable_data"] = True
+            self.slow_down_factor["unavailable_data"] = 0.0
         else:
-            self.emergency_stop_dict["unavailable_data"] = False
+            self.slow_down_factor["unavailable_data"] = 1.0
+
+    def _publish_cmd(self, cmd: Twist):
+        """Publish command to the robot
+
+        :param cmd: Velocity Twist message
+        :type cmd: Twist
+        """
+        # Check emergency stop
+        self._update_state()
+        slowdown_val: float = min(self.slow_down_factor.values())
+        cmd.linear.x *= slowdown_val
+        cmd.linear.y *= slowdown_val
+        cmd.angular.z *= slowdown_val
+        # Publish command
+        self.get_publisher(TopicsKeys.FINAL_COMMAND).publish(cmd)
 
     def execute_cmd_open_loop(self, cmd: Twist, max_time: float):
         """Execute a control command in open loop
@@ -342,7 +364,7 @@ class DriveManager(Component):
         _timer_count = 0.0
         while _timer_count < max_time:
             _timer_count += _step
-            self.get_publisher(TopicsKeys.FINAL_COMMAND).publish(cmd)
+            self._publish_cmd(cmd)
             time.sleep(_step)
 
     def execute_cmd_closed_loop(self, output: Twist, max_time: float):
@@ -387,11 +409,12 @@ class DriveManager(Component):
             executing_closed_loop = vx_out or vy_out or omega_out
 
             _timer_count += _step
-            _cmd = self.__make_twist(vx_out, vy_out, omega_out)
-
-            self.get_publisher(TopicsKeys.FINAL_COMMAND).publish(_cmd)
+            # Publish command
+            _cmd = self.__make_twist(
+                vx_out, vy_out, omega_out
+            )
+            self._publish_cmd(_cmd)
             time.sleep(_step)
-            self.__update_robot_state()
 
     def move_forward(self, max_distance: float) -> bool:
         """Moves the robot forward if the forward direction is clear of obstacles
@@ -420,7 +443,7 @@ class DriveManager(Component):
                 _cmd = self.__make_twist(
                     vx=self.robot.ctrl_vx_limits.max_vel / 2, vy=0.0, omega=0.0
                 )
-                self.get_publisher(TopicsKeys.FINAL_COMMAND).publish(_cmd)
+                self._publish_cmd(_cmd)
                 traveled_distance += step_distance
                 time.sleep(1 / self.config.cmd_rate)
 
@@ -453,7 +476,7 @@ class DriveManager(Component):
                 _cmd = self.__make_twist(
                     vx=-self.robot.ctrl_vx_limits.max_vel / 4, vy=0.0, omega=0.0
                 )
-                self.get_publisher(TopicsKeys.FINAL_COMMAND).publish(_cmd)
+                self._publish_cmd(_cmd)
                 traveled_distance += step_distance
                 time.sleep(1 / self.config.cmd_rate)
 
@@ -493,7 +516,7 @@ class DriveManager(Component):
                 _cmd = self.__make_twist(
                     vx=0.0, vy=0.0, omega=self.robot.ctrl_omega_limits.max_vel / 2
                 )
-                self.get_publisher(TopicsKeys.FINAL_COMMAND).publish(_cmd)
+                self._publish_cmd(_cmd)
                 traveled_radius += self.robot.ctrl_omega_limits.max_vel / (
                     2 * self.config.cmd_rate
                 )
@@ -729,9 +752,11 @@ class DriveManager(Component):
         self, output: Optional[float], topic: Topic, **_
     ):
         if output:
-            self.emergency_stop_dict[topic.name] = (
+            self.slow_down_factor[topic.name] = 0.0 if (
                 output < self.critical_zone["distance"] - self.robot_radius
-            )
+            ) else 1.0
+        else:
+            self.slow_down_factor[topic.name] = 1.0
 
     def _check_emergency_stop_lidar(
         self, output: Optional[LaserScanData], topic: Topic, **_
@@ -751,7 +776,7 @@ class DriveManager(Component):
         else:
             forward = self._previous_command.linear.x >= 0
 
-        self.emergency_stop_dict[topic.name] = self._emergency_checker.check(
+        self.slow_down_factor[topic.name] = self._emergency_checker.check(
             angles=output.angles, ranges=output.ranges, forward=forward
         )
         self._last_direction_forward = forward
@@ -799,11 +824,10 @@ class DriveManager(Component):
             return
         # Check emergency stop
         self._update_state()
-        emergency_stop = any(self.emergency_stop_dict.values())
-        if emergency_stop:
+        emergency_stop = min(self.slow_down_factor.values())
+        if emergency_stop == 0.0:
             # STOP ROBOT
             self.get_publisher(TopicsKeys.EMERGENCY).publish(True)
-            self.get_publisher(TopicsKeys.FINAL_COMMAND).publish(Twist())
             return
 
         # Publish commands in the queue
