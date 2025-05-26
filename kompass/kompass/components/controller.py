@@ -717,7 +717,7 @@ class Controller(Component):
             # Update depth image and its info
             depth_img_callback = self.get_callback(TopicsKeys.DEPTH_IMG)
             self.depth_image = (
-                depth_img_callback.get_output() if depth_img_callback else None
+                depth_img_callback.get_output(clear_last=True) if depth_img_callback else None
             )
             depth_img_info_callback = self.depth_image_info = self.get_callback(
                 TopicsKeys.DEPTH_CAM_INFO
@@ -1071,10 +1071,10 @@ class Controller(Component):
         max_wait_time = max_wait_time or self.config.topic_subscription_timeout
         wait_time = 0.0
         self.vision_detections = None
-        while not self.vision_detections and wait_time <= max_wait_time:
+        self.depth_image = None
+        while (self.depth_image is None) and wait_time <= max_wait_time:
             self.get_logger().info(
-                f"Waiting for vision target information, timeout in {round(max_wait_time, 2)}s...",
-                once=True,
+                f"Waiting for vision target information, timeout in {round(max_wait_time - wait_time, 2)}s...{self.depth_image is None}"
             )
             self._update_state()
             wait_time += 1 / self.config.loop_rate
@@ -1123,15 +1123,10 @@ class Controller(Component):
         :return: Vision target tracking action result
         :rtype: TrackVisionTarget.Result
         """
-        self.get_logger().info(
-            f"Started vision tracking control action... {self.config.control_time_step}"
-        )
-
         self.__reached_end = False
 
         # SETUP ACTION REQUEST/FEEDBACK/RESULT
         request_msg = goal_handle.request
-        self._tracked_center = np.array([request_msg.pose_x, request_msg.pose_y])
 
         feedback_msg = TrackVisionTarget.Feedback()
 
@@ -1151,21 +1146,19 @@ class Controller(Component):
             vision_callback = self.get_callback(TopicsKeys.VISION_DETECTIONS)
             while not target_2d:
                 target_2d = (
-                    vision_callback.get_output(clear_last=True, label=request_msg.label)
+                    vision_callback.get_output(label=request_msg.label)
                     if vision_callback
                     else None
                 )
                 self.get_logger().warn(f"Waiting to get target {request_msg.label} from vision detections...", once=True)
             found_target = _controller.set_initial_tracking_2d_target(
                 self.robot_state,
-                request_msg.pose_x,
-                request_msg.pose_y,
-                self.vision_detections,
+                target_2d[0],
                 self.depth_image,
             )
         else:
             # If no label is provided, use the provided pixel coordinates
-            found_target = _controller.set_initial_tracking_depth(
+            found_target = _controller.set_initial_tracking_image(
                 self.robot_state,
                 request_msg.pose_x,
                 request_msg.pose_y,
@@ -1173,14 +1166,16 @@ class Controller(Component):
                 self.depth_image,
             )
 
+
         if not found_target:
             self.get_logger().error("No Target found on image -> Aborting Action")
             with self._main_goal_lock:
                 goal_handle.abort()
             return result
         else:
+            self._tracked_center = np.array([request_msg.pose_x, request_msg.pose_y])
             self.get_logger().info(
-                f"Got request to follow target at {request_msg.pose_x}, {request_msg.pose_y} -> Starting ..."
+                f"Initial target is set -> Starting tracking action..."
             )
 
         # time the tracking period
@@ -1201,7 +1196,7 @@ class Controller(Component):
 
             # Wait to get tracking
             self.__wait_for_trackings(
-                max_wait_time=self.config.control_time_step / 2,
+                max_wait_time=self.config.topic_subscription_timeout,
             )
 
             laser_scan = None
