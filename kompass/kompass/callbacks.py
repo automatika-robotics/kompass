@@ -365,6 +365,8 @@ class DetectionsCallback(GenericCallback):
         """
         super().__init__(input_topic, node_name)
         self._detected_boxes: Dict[List, Bbox2D] = {}
+        # Initial time of the first detection is used to restet ROS time to zero on the first detection and avoid sending large timestamps to core
+        self._initial_time = 0
 
     def _process_raw_data(self) -> None:
         """Process new raw detections data and add it to buffer if available"""
@@ -375,6 +377,7 @@ class DetectionsCallback(GenericCallback):
         detections_set = raw_detections[0]
         # Clear old detections
         self._detected_boxes = {}
+        timestamp = self.msg.header.stamp.sec + 1e-9 * self.msg.header.stamp.nanosec
         for label, box in zip(detections_set.labels, detections_set.boxes):
             self._detected_boxes[label] = Bbox2D(
                 top_left_corner=np.array(
@@ -387,9 +390,11 @@ class DetectionsCallback(GenericCallback):
                     ],
                     dtype=np.int32,
                 ),
-                timestamp=self.msg.header.stamp.sec
-                + 1e-9 * self.msg.header.stamp.nanosec,
+                timestamp=timestamp - self._initial_time,
             )
+        if self._initial_time == 0:
+            # Get the initial time of the first detection
+            self._initial_time = timestamp
 
     def callback(self, msg) -> None:
         """
@@ -401,7 +406,7 @@ class DetectionsCallback(GenericCallback):
         super().callback(msg)
         self._process_raw_data()
 
-    def get_output(
+    def _get_output(
         self,
         label: Optional[str] = None,
         **_,
@@ -411,7 +416,6 @@ class DetectionsCallback(GenericCallback):
         :returns:   Topic content
         :rtype:     Union[ROSTrackings, np.ndarray, None]
         """
-        super().get_output()
         if not label:
             return list(self._detected_boxes.values())
         try:
@@ -638,9 +642,9 @@ class ImageCallback(GenericCallback):
         **_,
     ) -> Optional[np.ndarray]:
         """
-        Gets the laserscan data by applying the transformation if given.
+        Gets the Image data by applying the transformation if given.
         :returns:   Topic content
-        :rtype:     Optional[LaserScanData]
+        :rtype:     Optional[np.ndarray]
         """
         if not self.msg:
             return None
@@ -675,9 +679,9 @@ class CameraInfoCallback(GenericCallback):
         **_,
     ) -> Optional[dict]:
         """
-        Gets the laserscan data by applying the transformation if given.
+        Gets the CameraInfo data by applying the transformation if given.
         :returns:   Topic content
-        :rtype:     Optional[LaserScanData]
+        :rtype:     Optional[dict]
         """
         if not self.msg:
             return None
