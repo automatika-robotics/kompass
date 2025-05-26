@@ -337,15 +337,18 @@ class DriveManager(Component):
         else:
             self.slow_down_factor["unavailable_data"] = 1.0
 
-    def _publish_cmd(self, cmd: Twist):
+    def _publish_cmd(self, cmd: Twist, slowdown_factor: Optional[float] = None):
         """Publish command to the robot
 
         :param cmd: Velocity Twist message
         :type cmd: Twist
         """
         # Check emergency stop
-        self._update_state()
-        slowdown_val: float = min(self.slow_down_factor.values())
+        if not slowdown_factor:
+            self._update_state()
+            slowdown_val: float = min(self.slow_down_factor.values())
+        else:
+            slowdown_val = slowdown_factor
         cmd.linear.x *= slowdown_val
         cmd.linear.y *= slowdown_val
         cmd.angular.z *= slowdown_val
@@ -433,17 +436,18 @@ class DriveManager(Component):
         # FRONT MOVEMENT
         while unblocking and traveled_distance < max_distance:
             # Check if max_distance forward is clear
-            if self._emergency_checker.check(
+            slowdown_factor = self._emergency_checker.check(
                 angles=self.laser_scan.angles,
                 ranges=self.laser_scan.ranges,
                 forward=True,
-            ):
+            )
+            if slowdown_factor == 0.0:
                 unblocking = False
             else:
                 _cmd = self.__make_twist(
                     vx=self.robot.ctrl_vx_limits.max_vel / 2, vy=0.0, omega=0.0
                 )
-                self._publish_cmd(_cmd)
+                self._publish_cmd(_cmd, slowdown_factor=slowdown_factor)
                 traveled_distance += step_distance
                 time.sleep(1 / self.config.cmd_rate)
 
@@ -466,17 +470,18 @@ class DriveManager(Component):
         # FRONT MOVEMENT
         while unblocking and traveled_distance < max_distance:
             # Check if max_distance behind the robot is clear
-            if self._emergency_checker.check(
+            slowdown_factor = self._emergency_checker.check(
                 angles=self.laser_scan.angles,
                 ranges=self.laser_scan.ranges,
                 forward=False,
-            ):
+            )
+            if slowdown_factor == 0.0:
                 unblocking = False
             else:
                 _cmd = self.__make_twist(
                     vx=-self.robot.ctrl_vx_limits.max_vel / 4, vy=0.0, omega=0.0
                 )
-                self._publish_cmd(_cmd)
+                self._publish_cmd(_cmd, slowdown_factor=slowdown_factor)
                 traveled_distance += step_distance
                 time.sleep(1 / self.config.cmd_rate)
 
@@ -516,7 +521,7 @@ class DriveManager(Component):
                 _cmd = self.__make_twist(
                     vx=0.0, vy=0.0, omega=self.robot.ctrl_omega_limits.max_vel / 2
                 )
-                self._publish_cmd(_cmd)
+                self.get_publisher(TopicsKeys.FINAL_COMMAND).publish(_cmd)
                 traveled_radius += self.robot.ctrl_omega_limits.max_vel / (
                     2 * self.config.cmd_rate
                 )
@@ -529,7 +534,7 @@ class DriveManager(Component):
         self,
         max_distance_forward: Optional[float] = None,
         max_distance_backwards: Optional[float] = None,
-        max_rotation: float = np.pi / 4,
+        max_rotation: float = np.pi / 2,
         rotation_safety_margin: Optional[float] = None,
     ) -> bool:
         """Moves the robot forward/backward or rotate in place to get out of blocking spots
@@ -559,12 +564,23 @@ class DriveManager(Component):
             max_distance_backwards = 2 * self.robot_radius
 
         self._unblocking_on = True
-        # Try unblocking forward:
-        unblocked = self.move_backward(max_distance_backwards)
-        if not unblocked and self.robot.model_type != RobotType.ACKERMANN:
-            unblocked = self.rotate_in_place(max_rotation, rotation_safety_margin)
-        if not unblocked:
-            unblocked = self.move_forward(max_distance_forward)
+        unblocking_actions = [
+            (self.move_backward, [max_distance_backwards], "backward"),
+            (self.move_forward, [max_distance_forward], "forward"),
+        ]
+        if self.robot.model_type != RobotType.ACKERMANN:
+            unblocking_actions.append(
+                (self.rotate_in_place, [max_rotation, rotation_safety_margin], "rotate in place")
+            )
+        # Shuffle the actions to perform them in random order
+        import random
+        random.shuffle(unblocking_actions)
+
+        unblocked = False
+        for action, args, log_info in unblocking_actions:
+            unblocked = action(*args)
+            if unblocked:
+                break
 
         if not unblocked:
             self.get_logger().error("Robot unblocking Failed due to nearby obstacles")
@@ -798,6 +814,8 @@ class DriveManager(Component):
             output.linear.x = (
                 np.sign(output.linear.x) * self.config.robot.ctrl_vx_limits.max_vel
             )
+        elif abs(output.linear.x) < self.config.robot.ctrl_vx_limits.min_absolute_val:
+            output.linear.x = 0.0
 
         if abs(output.linear.y) > self.config.robot.ctrl_vy_limits.max_vel:
             self.get_logger().warn(
@@ -806,6 +824,8 @@ class DriveManager(Component):
             output.linear.y = (
                 np.sign(output.linear.y) * self.config.robot.ctrl_vy_limits.max_vel
             )
+        elif abs(output.linear.y) < self.config.robot.ctrl_vy_limits.min_absolute_val:
+            output.linear.y = 0.0
 
         if abs(output.angular.z) > self.config.robot.ctrl_omega_limits.max_vel:
             self.get_logger().warn(
@@ -814,6 +834,8 @@ class DriveManager(Component):
             output.angular.z = (
                 np.sign(output.angular.z) * self.config.robot.ctrl_omega_limits.max_vel
             )
+        elif abs(output.angular.z) < self.config.robot.ctrl_omega_limits.min_absolute_val:
+            output.angular.z = 0.0
         return output
 
     def _execution_step(self):
@@ -824,11 +846,13 @@ class DriveManager(Component):
             return
         # Check emergency stop
         self._update_state()
-        emergency_stop = min(self.slow_down_factor.values())
-        if emergency_stop == 0.0:
+        speed_factor = min(self.slow_down_factor.values())
+        if speed_factor < 0.1:
             # STOP ROBOT
             self.get_publisher(TopicsKeys.EMERGENCY).publish(True)
             return
+        else:
+            self.get_publisher(TopicsKeys.EMERGENCY).publish(False)
 
         # Publish commands in the queue
         try:
@@ -877,6 +901,7 @@ class DriveManager(Component):
                     sensor_rotation_body=self.scan_tf_listener.rotation,
                     critical_angle=self.config.critical_zone_angle,
                     critical_distance=self.config.critical_zone_distance,
+                    slowdown_distance=self.config.slowdown_zone_distance,
                     scan_angles=self.laser_scan.angles,
                 )
                 self.get_logger().info("CriticalZoneCheckerGPU is READY!")
@@ -887,7 +912,6 @@ class DriveManager(Component):
                 )
 
         from kompass_cpp.utils import CriticalZoneChecker
-
         self._emergency_checker = CriticalZoneChecker(
             robot_shape=robot_shape,
             robot_dimensions=robot_dimensions,
@@ -895,5 +919,6 @@ class DriveManager(Component):
             sensor_rotation_body=self.scan_tf_listener.rotation,
             critical_angle=self.config.critical_zone_angle,
             critical_distance=self.config.critical_zone_distance,
+            slowdown_distance=self.config.slowdown_zone_distance,
         )
         self.get_logger().info("CriticalZoneChecker is READY!")
