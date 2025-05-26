@@ -258,7 +258,7 @@ class DriveManager(Component):
             return
         # Check emergency stop
         self._update_state()
-        slowdown_val : float = min(self.slow_down_factor.values())
+        slowdown_val: float = min(self.slow_down_factor.values())
         if slowdown_val == 0.0:
             # STOP ROBOT
             self.get_publisher(TopicsKeys.EMERGENCY).publish(True)
@@ -413,9 +413,7 @@ class DriveManager(Component):
 
             _timer_count += _step
             # Publish command
-            _cmd = self.__make_twist(
-                vx_out, vy_out, omega_out
-            )
+            _cmd = self.__make_twist(vx_out, vy_out, omega_out)
             self._publish_cmd(_cmd)
             time.sleep(_step)
 
@@ -565,19 +563,23 @@ class DriveManager(Component):
 
         self._unblocking_on = True
         unblocking_actions = [
-            (self.move_backward, [max_distance_backwards], "backward"),
-            (self.move_forward, [max_distance_forward], "forward"),
+            (self.move_backward, [max_distance_backwards], "Move Backward"),
+            (self.move_forward, [max_distance_forward], "Move Forward"),
         ]
         if self.robot.model_type != RobotType.ACKERMANN:
-            unblocking_actions.append(
-                (self.rotate_in_place, [max_rotation, rotation_safety_margin], "rotate in place")
-            )
+            unblocking_actions.append((
+                self.rotate_in_place,
+                [max_rotation, rotation_safety_margin],
+                "Rotate In Place",
+            ))
         # Shuffle the actions to perform them in random order
         import random
+
         random.shuffle(unblocking_actions)
 
         unblocked = False
         for action, args, log_info in unblocking_actions:
+            self.get_logger().info(f"Performing unblocking action: {log_info}")
             unblocked = action(*args)
             if unblocked:
                 break
@@ -768,9 +770,11 @@ class DriveManager(Component):
         self, output: Optional[float], topic: Topic, **_
     ):
         if output:
-            self.slow_down_factor[topic.name] = 0.0 if (
-                output < self.critical_zone["distance"] - self.robot_radius
-            ) else 1.0
+            self.slow_down_factor[topic.name] = (
+                0.0
+                if (output < self.critical_zone["distance"] - self.robot_radius)
+                else 1.0
+            )
         else:
             self.slow_down_factor[topic.name] = 1.0
 
@@ -834,7 +838,9 @@ class DriveManager(Component):
             output.angular.z = (
                 np.sign(output.angular.z) * self.config.robot.ctrl_omega_limits.max_vel
             )
-        elif abs(output.angular.z) < self.config.robot.ctrl_omega_limits.min_absolute_val:
+        elif (
+            abs(output.angular.z) < self.config.robot.ctrl_omega_limits.min_absolute_val
+        ):
             output.angular.z = 0.0
         return output
 
@@ -912,6 +918,7 @@ class DriveManager(Component):
                 )
 
         from kompass_cpp.utils import CriticalZoneChecker
+
         self._emergency_checker = CriticalZoneChecker(
             robot_shape=robot_shape,
             robot_dimensions=robot_dimensions,

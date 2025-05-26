@@ -376,7 +376,7 @@ class Planner(Component):
         try:
             while not self.reached_point(goal_state, end_goal_tolerance):
                 if not goal_handle.is_active or goal_handle.is_cancel_requested:
-                    self.get_logger().info('Goal Canceled')
+                    self.get_logger().info("Goal Canceled")
                     return action_result
 
                 # update state from input
