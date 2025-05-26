@@ -714,11 +714,8 @@ class Controller(Component):
             self.vision_detections = (
                 vision_callback.get_output(clear_last=True) if vision_callback else None
             )
-            # Update depth image and its info
-            depth_img_callback = self.get_callback(TopicsKeys.DEPTH_IMG)
-            self.depth_image = (
-                depth_img_callback.get_output(clear_last=True) if depth_img_callback else None
-            )
+            self.depth_image = vision_callback.depth_image if vision_callback else None
+            # Depth image cam info
             depth_img_info_callback = self.depth_image_info = self.get_callback(
                 TopicsKeys.DEPTH_CAM_INFO
             )
@@ -740,10 +737,17 @@ class Controller(Component):
         else:
             while not self.odom_tf_listener.transform:
                 # Blocking loop until transform is collected
-                self.get_logger().warn(f"Waiting to get TF from {self.config.frames.odom} frame to {self.config.frames.world} frame...", once=True)
-            self.robot_state = state_callback.get_output(
+                self.get_logger().warn(
+                    f"Waiting to get TF from {self.config.frames.odom} frame to {self.config.frames.world} frame...",
+                    once=True,
+                )
+            self.robot_state = (
+                state_callback.get_output(
                     transformation=self.odom_tf_listener.transform
-                ) if state_callback else None
+                )
+                if state_callback
+                else None
+            )
 
         if self.direct_sensor:
             sensor_callback = self.get_callback(TopicsKeys.SPATIAL_SENSOR)
@@ -1062,7 +1066,7 @@ class Controller(Component):
         response.success = False
         return response
 
-    def __wait_for_trackings(self, max_wait_time: Optional[float] = None):
+    def __wait_for_trackings(self, max_wait_time: Optional[float] = None) -> bool:
         """Wait to receive vision_trackings or until timeout
 
         :param tracked_id: Check if id is available in trackings, defaults to None
@@ -1072,21 +1076,41 @@ class Controller(Component):
         wait_time = 0.0
         self.vision_detections = None
         self.depth_image = None
-        while (self.depth_image is None) and wait_time <= max_wait_time:
+        while (
+            not self.vision_detections or self.depth_image is None
+        ) and wait_time <= max_wait_time:
             self.get_logger().info(
-                f"Waiting for vision target information, timeout in {round(max_wait_time - wait_time, 2)}s...{self.depth_image is None}"
+                f"Waiting for vision target information, timeout in {round(max_wait_time - wait_time, 2)}s..."
             )
             self._update_state()
             wait_time += 1 / self.config.loop_rate
             time.sleep(1 / self.config.loop_rate)
+        return wait_time < max_wait_time
 
-    def __setup_vision_dwa_controller(self) -> VisionDWA:
+    def __setup_vision_dwa_controller(self) -> Optional[VisionDWA]:
         """Setup and configure a VisionDWA controller instance
 
         :return: Configured controller
         :rtype: VisionDWA
         """
+        timeout = 0.0
         # Get the depth image transform if the input is provided
+        while (
+            not self.got_all_inputs(
+                inputs_to_exclude=[self.in_topic_name(TopicsKeys.GLOBAL_PLAN)]
+            )
+            and timeout < self.config.topic_subscription_timeout
+        ):
+            self._update_state()
+            self.get_logger().info("Waiting to collect all inputs...", once=True)
+            self.get_logger().info(
+                f"Missing inputs: {self.get_missing_inputs()}", once=True
+            )
+            time.sleep(self.config.loop_rate)
+            timeout += 1 / self.config.loop_rate
+
+        if timeout >= self.config.topic_subscription_timeout:
+            return None
 
         if self.in_topic_name(TopicsKeys.DEPTH_IMG):
             while not self.depth_tf_listener.got_transform:
@@ -1115,6 +1139,38 @@ class Controller(Component):
             config_yaml_root_name=f"{self.node_name}.VisionDWA",
         )
 
+    def __setup_initial_tracking_target(
+        self, controller: VisionDWA, label: str, pose_x: int, pose_y: int
+    ) -> bool:
+        if label != "":
+            target_2d = None
+            vision_callback = self.get_callback(TopicsKeys.VISION_DETECTIONS)
+            while not target_2d:
+                target_2d = (
+                    vision_callback.get_output(label=label) if vision_callback else None
+                )
+                self.get_logger().warn(
+                    f"Waiting to get target {label} from vision detections...",
+                    once=True,
+                )
+            self._update_state()
+            found_target = controller.set_initial_tracking_2d_target(
+                self.robot_state,
+                target_2d[0],
+                self.depth_image,
+            )
+        else:
+            self._update_state()
+            # If no label is provided, use the provided pixel coordinates
+            found_target = controller.set_initial_tracking_image(
+                self.robot_state,
+                pose_x,
+                pose_y,
+                self.vision_detections,
+                self.depth_image,
+            )
+        return found_target
+
     def _vision_tracking_callback(self, goal_handle) -> TrackVisionTarget.Result:
         """Vision target tracking action callback
 
@@ -1132,62 +1188,44 @@ class Controller(Component):
 
         result = TrackVisionTarget.Result()
 
-        while not self.got_all_inputs(
-            inputs_to_exclude=[self.in_topic_name(TopicsKeys.GLOBAL_PLAN)]
-        ):
-            self._update_state()
-            self.get_logger().info("Waiting to collect all inputs...", once=True)
-            self.get_logger().info(f"Missing inputs: {self.get_missing_inputs()}")
-
         _controller = self.__setup_vision_dwa_controller()
 
-        if request_msg.label != '':
-            target_2d = None
-            vision_callback = self.get_callback(TopicsKeys.VISION_DETECTIONS)
-            while not target_2d:
-                target_2d = (
-                    vision_callback.get_output(label=request_msg.label)
-                    if vision_callback
-                    else None
-                )
-                self.get_logger().warn(f"Waiting to get target {request_msg.label} from vision detections...", once=True)
-            found_target = _controller.set_initial_tracking_2d_target(
-                self.robot_state,
-                target_2d[0],
-                self.depth_image,
+        if not _controller:
+            self.get_logger().error(
+                f"Missing Vision Tracking Inputs: {self.get_missing_inputs()} -> ABORTING ACTION"
             )
-        else:
-            # If no label is provided, use the provided pixel coordinates
-            found_target = _controller.set_initial_tracking_image(
-                self.robot_state,
-                request_msg.pose_x,
-                request_msg.pose_y,
-                self.vision_detections,
-                self.depth_image,
-            )
+            with self._main_goal_lock:
+                goal_handle.abort()
+            return result
 
+        found_target = self.__setup_initial_tracking_target(
+            _controller, request_msg.label, request_msg.pose_x, request_msg.pose_y
+        )
 
         if not found_target:
-            self.get_logger().error("No Target found on image -> Aborting Action")
+            self.get_logger().error("No Target found on image -> ABORTING ACTION")
             with self._main_goal_lock:
                 goal_handle.abort()
             return result
         else:
             self._tracked_center = np.array([request_msg.pose_x, request_msg.pose_y])
             self.get_logger().info(
-                f"Initial target is set -> Starting tracking action..."
+                "Initial target is set -> Starting tracking action..."
             )
 
         # time the tracking period
         start_time = time.time()
         end_time = start_time
+        found_ctrl = False
 
         # While the vision tracking mode is not unset by a service call or an event action
         while (
             self.config._mode == ControllerMode.VISION_FOLLOWER
             and not self.__reached_end
         ):
-            self.get_logger().info(f"Robot at: {self.robot_state.x}, {self.robot_state.y}")
+            self.get_logger().info(
+                f"Robot at: {self.robot_state.x}, {self.robot_state.y}"
+            )
             if not goal_handle.is_active or goal_handle.is_cancel_requested:
                 self.get_logger().info("Vision Following Action Canceled!")
                 self.__reached_end = True
@@ -1195,35 +1233,36 @@ class Controller(Component):
                 return result
 
             # Wait to get tracking
-            self.__wait_for_trackings(
+            got_data = self.__wait_for_trackings(
                 max_wait_time=self.config.topic_subscription_timeout,
             )
 
-            laser_scan = None
-            point_cloud = None
-            local_map = None
+            if got_data:
+                laser_scan = None
+                point_cloud = None
+                local_map = None
 
-            if self.direct_sensor:
-                if isinstance(self.sensor_data, LaserScanData):
-                    laser_scan = self.sensor_data
+                if self.direct_sensor:
+                    if isinstance(self.sensor_data, LaserScanData):
+                        laser_scan = self.sensor_data
+                    else:
+                        point_cloud = self.sensor_data
                 else:
-                    point_cloud = self.sensor_data
-            else:
-                local_map = self.local_map
+                    local_map = self.local_map
 
-            found_ctrl = _controller.loop_step(
-                current_state=self.robot_state,
-                detections_2d=self.vision_detections or [],
-                depth_image=self.depth_image,
-                laser_scan=laser_scan,
-                point_cloud=point_cloud,
-                local_map=local_map,
-                local_map_resolution=self.local_map_resolution
-                if hasattr(self, "local_map_resolution")
-                else None,
-            )
+                found_ctrl = _controller.loop_step(
+                    current_state=self.robot_state,
+                    detections_2d=self.vision_detections or [],
+                    depth_image=self.depth_image,
+                    laser_scan=laser_scan,
+                    point_cloud=point_cloud,
+                    local_map=local_map,
+                    local_map_resolution=self.local_map_resolution
+                    if hasattr(self, "local_map_resolution")
+                    else None,
+                )
 
-            if not found_ctrl:
+            if not found_ctrl or not got_data:
                 self.get_logger().info(
                     "Unable to find tracked target -> Aborting action"
                 )

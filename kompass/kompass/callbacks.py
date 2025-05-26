@@ -365,8 +365,9 @@ class DetectionsCallback(GenericCallback):
         """
         super().__init__(input_topic, node_name)
         self._detected_boxes: Dict[List, Bbox2D] = {}
-        # Initial time of the first detection is used to restet ROS time to zero on the first detection and avoid sending large timestamps to core
+        # Initial time of the first detection is used to reset ROS time to zero on the first detection and avoid sending large timestamps to core
         self._initial_time = 0
+        self._depth_image: Optional[np.ndarray] = None
 
     def _process_raw_data(self) -> None:
         """Process new raw detections data and add it to buffer if available"""
@@ -377,6 +378,14 @@ class DetectionsCallback(GenericCallback):
         detections_set = raw_detections[0]
         # Clear old detections
         self._detected_boxes = {}
+        self._depth_image = (
+            np.frombuffer(detections_set.depth.data, dtype=np.uint16).reshape((
+                detections_set.depth.height,
+                detections_set.depth.width,
+            ))
+            if detections_set.depth.data
+            else None
+        )
         timestamp = self.msg.header.stamp.sec + 1e-9 * self.msg.header.stamp.nanosec
         for label, box in zip(detections_set.labels, detections_set.boxes):
             self._detected_boxes[label] = Bbox2D(
@@ -405,6 +414,16 @@ class DetectionsCallback(GenericCallback):
         """
         super().callback(msg)
         self._process_raw_data()
+
+    @property
+    def depth_image(self) -> np.ndarray:
+        """
+        Sets the depth image to be used with the detections
+
+        :param depth_image: Depth image in numpy array format
+        :type depth_image: np.ndarray
+        """
+        return self._depth_image
 
     def _get_output(
         self,
@@ -616,43 +635,6 @@ class TrackingsCallback(GenericCallback):
             track.estimated_velocities[id_index].y,  # vel_y
         ]
         self._buffer_items = min(self._buffer_items + 1, self._max_buffer_size)
-
-
-class ImageCallback(GenericCallback):
-    """ROS2 Image Callback Handler to process sensor_msgs/Image data"""
-
-    def __init__(
-        self,
-        input_topic,
-        node_name: Optional[str] = None,
-    ) -> None:
-        """__init__.
-
-        :param input_topic:
-        :param node_name:
-        :type node_name: Optional[str]
-        :param transformation:
-        :type transformation: Optional[TransformStamped]
-        :rtype: None
-        """
-        super().__init__(input_topic, node_name)
-
-    def _get_output(
-        self,
-        **_,
-    ) -> Optional[np.ndarray]:
-        """
-        Gets the Image data by applying the transformation if given.
-        :returns:   Topic content
-        :rtype:     Optional[np.ndarray]
-        """
-        if not self.msg:
-            return None
-
-        return np.frombuffer(self.msg.data, dtype=np.uint16).reshape((
-            self.msg.height,
-            self.msg.width,
-        ))
 
 
 class CameraInfoCallback(GenericCallback):

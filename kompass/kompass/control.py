@@ -3,7 +3,7 @@ from kompass_core.control import (
     StanleyConfig,
     DWAConfig,
     DVZConfig,
-    VisionDWAConfig
+    VisionDWAConfig,
 )
 
 __all__ = [
