@@ -67,6 +67,7 @@ myst_html_meta = {
 
 html_theme = "sphinx_book_theme"  # install with `pip install sphinx-book-theme`
 html_static_path = ["_static"]
+html_favicon = "_static/favicon.png"
 
 html_theme_options = {
     "logo": {
