@@ -369,13 +369,12 @@ class DetectionsCallback(GenericCallback):
         self._initial_time = 0
         self._depth_image: Optional[np.ndarray] = None
 
-    def _process_raw_data(self) -> None:
+    def _process_raw_data(self, msg) -> None:
         """Process new raw detections data and add it to buffer if available"""
-        if not self.msg:
+        if not msg:
             return
-        raw_detections = self.msg.detections
         # Gets first source, TODO: turn into parameter based on the image frame
-        detections_set = raw_detections[0]
+        detections_set = msg.detections[0]
         # Clear old detections
         self._detected_boxes = {}
         self._depth_image = (
@@ -386,7 +385,7 @@ class DetectionsCallback(GenericCallback):
             if detections_set.depth.data
             else None
         )
-        timestamp = self.msg.header.stamp.sec + 1e-9 * self.msg.header.stamp.nanosec
+        timestamp = msg.header.stamp.sec + 1e-9 * msg.header.stamp.nanosec
         for label, box in zip(detections_set.labels, detections_set.boxes):
             self._detected_boxes[label] = Bbox2D(
                 top_left_corner=np.array(
@@ -400,6 +399,7 @@ class DetectionsCallback(GenericCallback):
                     dtype=np.int32,
                 ),
                 timestamp=timestamp - self._initial_time,
+                label=label,
             )
         if self._initial_time == 0:
             # Get the initial time of the first detection
@@ -413,7 +413,7 @@ class DetectionsCallback(GenericCallback):
         :type msg: Any
         """
         super().callback(msg)
-        self._process_raw_data()
+        self._process_raw_data(msg)
 
     @property
     def depth_image(self) -> np.ndarray:

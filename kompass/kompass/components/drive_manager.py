@@ -268,7 +268,7 @@ class DriveManager(Component):
         # Multiply by slowdown factor
         output.linear.x *= slowdown_val
         output.linear.y *= slowdown_val
-        output.angular.z *= slowdown_val
+        # output.angular.z *= slowdown_val
 
         filtered_output: Twist = (
             self._filter_commands(output=output) if smooth_cmds else output
@@ -351,7 +351,7 @@ class DriveManager(Component):
             slowdown_val = slowdown_factor
         cmd.linear.x *= slowdown_val
         cmd.linear.y *= slowdown_val
-        cmd.angular.z *= slowdown_val
+        # cmd.angular.z *= slowdown_val
         # Publish command
         self.get_publisher(TopicsKeys.FINAL_COMMAND).publish(cmd)
 
@@ -859,6 +859,12 @@ class DriveManager(Component):
             return
         else:
             self.get_publisher(TopicsKeys.EMERGENCY).publish(False)
+
+        if speed_factor == 0.0:
+            self.get_logger().warn(
+                "Emergency stop is ON, no commands will be executed"
+            )
+            return
 
         # Publish commands in the queue
         try:
