@@ -609,7 +609,10 @@ class Controller(Component):
         :type value: bool
         """
         # Note: Only DWA takes local map
-        if self.algorithm != ControllersID.DWA and not value:
+        if (
+            self.algorithm not in [ControllersID.DWA, ControllersID.VISION]
+            and not value
+        ):
             get_logger(self.node_name).warning(
                 f"Cannot use Local Map with {self.algorithm} - Setting 'direct_sensor' to True"
             )
@@ -704,26 +707,27 @@ class Controller(Component):
         self.custom_create_all_subscribers()
         self.custom_create_all_action_servers()
 
+    def _update_vision(self) -> None:
+        vision_callback = self.get_callback(TopicsKeys.VISION_DETECTIONS)
+        self.vision_detections = (
+            vision_callback.get_output(clear_last=True) if vision_callback else None
+        )
+        self.depth_image = vision_callback.depth_image if vision_callback else None
+        # Depth image cam info
+        depth_img_info_callback = self.depth_image_info = self.get_callback(
+            TopicsKeys.DEPTH_CAM_INFO
+        )
+        self.depth_image_info = (
+            depth_img_info_callback.get_output() if depth_img_info_callback else None
+        )
+
     def _update_state(self) -> None:
         """
         Updates node inputs from associated callbacks
         """
         if self.config._mode == ControllerMode.VISION_FOLLOWER:
             # If vision mode is ON and a label is getting tracked
-            vision_callback = self.get_callback(TopicsKeys.VISION_DETECTIONS)
-            self.vision_detections = (
-                vision_callback.get_output(clear_last=True) if vision_callback else None
-            )
-            self.depth_image = vision_callback.depth_image if vision_callback else None
-            # Depth image cam info
-            depth_img_info_callback = self.depth_image_info = self.get_callback(
-                TopicsKeys.DEPTH_CAM_INFO
-            )
-            self.depth_image_info = (
-                depth_img_info_callback.get_output()
-                if depth_img_info_callback
-                else None
-            )
+            self._update_vision()
         else:
             plan_callback = self.get_callback(TopicsKeys.GLOBAL_PLAN)
             self.plan: Optional[Path] = (
@@ -733,7 +737,11 @@ class Controller(Component):
         state_callback = self.get_callback(TopicsKeys.ROBOT_LOCATION)
 
         if self.config.frames.odom == self.config.frames.world:
-            self.robot_state = state_callback.get_ouptut() if state_callback else None
+            self.robot_state = (
+                state_callback.get_output(clear_last=True, get_front=True)
+                if state_callback
+                else None
+            )
         else:
             while not self.odom_tf_listener.transform:
                 # Blocking loop until transform is collected
@@ -743,7 +751,9 @@ class Controller(Component):
                 )
             self.robot_state = (
                 state_callback.get_output(
-                    transformation=self.odom_tf_listener.transform
+                    transformation=self.odom_tf_listener.transform,
+                    clear_last=True,
+                    get_front=True,
                 )
                 if state_callback
                 else None
@@ -955,6 +965,13 @@ class Controller(Component):
             self.__reached_end = True
             return True
 
+        self._update_state()
+
+        while not self.robot_state:
+            self.get_logger().warn("Waiting to get all new incoming data...", once=True)
+            self._update_state()
+            time.sleep(1 / self.config.loop_rate)
+
         laser_scan = None
         point_cloud = None
         local_map = None
@@ -1066,21 +1083,35 @@ class Controller(Component):
         response.success = False
         return response
 
-    def __wait_for_trackings(self, max_wait_time: Optional[float] = None) -> bool:
-        """Wait to receive vision_trackings or until timeout
+    def __wait_for_trackings(
+        self, input_wait_time: Optional[float] = None, detection_wait_time: float = 0.0
+    ) -> bool:
+        """Wait for incoming tracking data until timeout
 
-        :param tracked_id: Check if id is available in trackings, defaults to None
-        :type tracked_id: Optional[int], optional
+        :param input_wait_time: Max time to wait for getting all inputs from callbacks, defaults to None
+        :type input_wait_time: Optional[float], optional
+        :param detection_wait_time: Max time to wait for a valid detection, defaults to None
+        :type detection_wait_time: Optional[float], optional
+        :return: If vision detections and robot state are available
+        :rtype: bool
         """
-        max_wait_time = max_wait_time or self.config.topic_subscription_timeout
+        max_wait_time = input_wait_time or self.config.topic_subscription_timeout
         wait_time = 0.0
         self.vision_detections = None
         self.depth_image = None
-        while (
-            not self.vision_detections or self.depth_image is None
-        ) and wait_time <= max_wait_time:
+        condition_input_timeout = True
+        condition_detection_timeout = True
+        while condition_detection_timeout or condition_input_timeout:
+            # Update conditions
+            condition_input_timeout = (
+                self.vision_detections is None or self.robot_state is None
+            ) and wait_time <= max_wait_time
+            condition_detection_timeout = (
+                not self.vision_detections
+            ) and wait_time <= detection_wait_time
             self.get_logger().info(
-                f"Waiting for vision target information, timeout in {round(max_wait_time - wait_time, 2)}s..."
+                f"Waiting for vision target information, timeout in {round(max_wait_time - wait_time, 2)}s...",
+                once=True,
             )
             self._update_state()
             wait_time += 1 / self.config.loop_rate
@@ -1096,23 +1127,25 @@ class Controller(Component):
         timeout = 0.0
         # Get the depth image transform if the input is provided
         while (
-            not self.got_all_inputs(
-                inputs_to_exclude=[self.in_topic_name(TopicsKeys.GLOBAL_PLAN)]
-            )
+            not self.got_all_inputs()
             and timeout < self.config.topic_subscription_timeout
         ):
             self._update_state()
             self.get_logger().info("Waiting to collect all inputs...", once=True)
-            self.get_logger().info(
-                f"Missing inputs: {self.get_missing_inputs()}", once=True
-            )
-            time.sleep(self.config.loop_rate)
+            if self.get_missing_inputs():
+                # Log missing inputs only once
+                self.get_logger().warn(
+                    f"Waiting for inputs: {self.get_missing_inputs()}"
+                )
+            time.sleep(1 / self.config.loop_rate)
             timeout += 1 / self.config.loop_rate
 
         if timeout >= self.config.topic_subscription_timeout:
             return None
 
-        if self.in_topic_name(TopicsKeys.DEPTH_IMG):
+        self.get_logger().info("Got all inputs...")
+
+        if self.in_topic_name(TopicsKeys.DEPTH_CAM_INFO):
             while not self.depth_tf_listener.got_transform:
                 self.get_logger().warn(
                     "Waiting to get Depth camera to body TF...", once=True
@@ -1235,6 +1268,7 @@ class Controller(Component):
             # Wait to get tracking
             got_data = self.__wait_for_trackings(
                 max_wait_time=self.config.topic_subscription_timeout,
+                detection_wait_time=_controller._config.target_search_pause,
             )
 
             if got_data:
@@ -1389,8 +1423,6 @@ class Controller(Component):
         self.__reached_end: bool = False
 
         while not self.__reached_end:
-            self._update_state()
-
             cmd_found: bool = self._path_control()
 
             if not cmd_found:
@@ -1483,10 +1515,6 @@ class Controller(Component):
             # If vision mode is activated -> do nothing
             return
 
-        # Get inputs from callbacks
-        self._update_state()
-
-        got_all: bool = self.got_all_inputs()
         # Check if all inputs are available
-        if got_all and not self.__reached_end:
+        if not self.__reached_end:
             self._path_control()
