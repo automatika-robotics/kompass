@@ -51,9 +51,9 @@ from .defaults import (
     TopicsKeys,
 )
 
-from kompass_core import set_logging_level
+# from kompass_core import set_logging_level
 
-set_logging_level("DEBUG")
+# set_logging_level("DEBUG")
 
 
 class CmdPublishType(StrEnum):
@@ -738,7 +738,7 @@ class Controller(Component):
 
         if self.config.frames.odom == self.config.frames.world:
             self.robot_state = (
-                state_callback.get_output(clear_last=True, get_front=True)
+                state_callback.get_output(get_front=True, clear_last=True)
                 if state_callback
                 else None
             )
@@ -752,8 +752,8 @@ class Controller(Component):
             self.robot_state = (
                 state_callback.get_output(
                     transformation=self.odom_tf_listener.transform,
-                    clear_last=True,
                     get_front=True,
+                    clear_last=True,
                 )
                 if state_callback
                 else None
@@ -1104,7 +1104,7 @@ class Controller(Component):
         while condition_detection_timeout or condition_input_timeout:
             # Update conditions
             condition_input_timeout = (
-                self.vision_detections is None or self.robot_state is None
+                self.vision_detections is None
             ) and wait_time <= max_wait_time
             condition_detection_timeout = (
                 not self.vision_detections
@@ -1256,9 +1256,6 @@ class Controller(Component):
             self.config._mode == ControllerMode.VISION_FOLLOWER
             and not self.__reached_end
         ):
-            self.get_logger().info(
-                f"Robot at: {self.robot_state.x}, {self.robot_state.y}"
-            )
             if not goal_handle.is_active or goal_handle.is_cancel_requested:
                 self.get_logger().info("Vision Following Action Canceled!")
                 self.__reached_end = True
@@ -1267,7 +1264,7 @@ class Controller(Component):
 
             # Wait to get tracking
             got_data = self.__wait_for_trackings(
-                max_wait_time=self.config.topic_subscription_timeout,
+                input_wait_time=self.config.topic_subscription_timeout,
                 detection_wait_time=_controller._config.target_search_pause,
             )
 
@@ -1322,7 +1319,7 @@ class Controller(Component):
 
             goal_handle.publish_feedback(feedback_msg)
 
-            time.sleep(self.config.control_time_step)
+            time.sleep(1 / self.config.loop_rate)
 
         end_time = time.time()
 

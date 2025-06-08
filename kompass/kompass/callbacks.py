@@ -371,7 +371,7 @@ class DetectionsCallback(GenericCallback):
 
     def _process_raw_data(self, msg) -> None:
         """Process new raw detections data and add it to buffer if available"""
-        if not msg:
+        if not msg or not msg.detections:
             return
         # Gets first source, TODO: turn into parameter based on the image frame
         detections_set = msg.detections[0]
