@@ -15,7 +15,7 @@ from geometry_msgs.msg import Twist, PoseStamped
 
 # KOMPASS
 from kompass_core.models import Robot, RobotCtrlLimits, RobotState
-from kompass_core.datatypes import LaserScanData, PointCloudData, Bbox2d
+from kompass_core.datatypes import LaserScanData, PointCloudData, Bbox2D
 from kompass_core.utils.geometry import from_euler_to_quaternion
 from kompass_core.control import (
     ControlClasses,
@@ -884,7 +884,7 @@ class Controller(Component):
             self.sensor_data: Optional[Union[LaserScanData, PointCloudData]] = None
 
         # Vision Follower variables
-        self.vision_detections: Optional[Bbox2d] = None
+        self.vision_detections: Optional[Bbox2D] = None
         self.depth_image: Optional[np.ndarray] = None
         self.depth_image_info: Optional[Dict] = None
 

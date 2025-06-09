@@ -10,7 +10,6 @@ from ros_sugar.io.utils import read_compressed_image
 from kompass_core.datatypes import (
     LaserScanData,
     PointCloudData,
-    ImageMetaData,
 )
 from .utils import read_pc_points, read_pc_points_with_tf
 from kompass_core.utils import geometry as GeometryUtils
@@ -471,7 +470,6 @@ class TrackingsCallback(GenericCallback):
             buffer_size,
             self._feature_items,
         ))  # num_detections x num_features
-        self._img_metadata: Optional[ImageMetaData] = None
         self._label: Optional[str] = None
         self._id: Optional[int] = None
         self._initial_time = 0.0
@@ -609,13 +607,6 @@ class TrackingsCallback(GenericCallback):
                 not self._img_metadata
                 or track.image.header.frame_id != self._img_metadata.frame_id
             ):
-                # Update img_metadata if None or a new frame_id is provided (new camera)
-                self._img_metadata = ImageMetaData(
-                    frame_id=track.image.header.frame_id,
-                    width=track.image.width,
-                    height=track.image.height,
-                    encoding=track.image.encoding,
-                )
                 # If a new image meta data is detected -> clear the buffer (the detection is coming from a new camera -> clear old camera data)
                 self._detections_buffer = np.ones((
                     self._max_buffer_size,
@@ -629,12 +620,6 @@ class TrackingsCallback(GenericCallback):
                 or track.compressed_image.header.frame_id != self._img_metadata.frame_id
             ):
                 data: np.ndarray = read_compressed_image(track.compressed_image)
-                self._img_metadata = ImageMetaData(
-                    frame_id=track.compressed_image.header.frame_id,
-                    width=data.shape[1],
-                    height=data.shape[0],
-                    encoding=track.compressed_image.format,
-                )
                 self._detections_buffer = np.ones((
                     self._max_buffer_size,
                     self._feature_items,
