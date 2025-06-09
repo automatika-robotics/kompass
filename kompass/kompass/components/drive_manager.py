@@ -58,12 +58,24 @@ class DriveManagerConfig(ComponentConfig):
       - Tolerance value when checking for reaching the command in closed loop
 
     * - **critical_zone_angle**
-      - `float`, `0.1`
+      - `float`, `45deg`
       - Angle range for the emergency stop critical zone (deg)
 
     * - **critical_zone_distance**
       - `float`, `0.05`
       - Distance for the emergency stop critical zone (meters)
+
+    * - **slowdown_zone_distance**
+      - `float`, `0.2`
+      - Distance for the slowdown zone (meters)
+
+    * - **disable_safety_stop**
+      - `bool`, `False`
+      - Set to `True` to disable the safety stop functionality
+
+    * - **use_gpu**
+      - `bool`, `True`
+      - Use GPU implementation for the critical zone checking if available, otherwise use CPU implementation
 
     ```
     """
@@ -94,7 +106,7 @@ class DriveManagerConfig(ComponentConfig):
         default=0.2, validator=BaseValidators.in_range(min_value=1e-9, max_value=1e9)
     )  # Distance for the slowdown zone (meters)
     disable_safety_stop: bool = field(default=False)
-    use_gpu: bool = field(default=False)
+    use_gpu: bool = field(default=True)
 
 
 class DriveManager(Component):
