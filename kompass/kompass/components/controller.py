@@ -15,7 +15,7 @@ from geometry_msgs.msg import Twist, PoseStamped
 
 # KOMPASS
 from kompass_core.models import Robot, RobotCtrlLimits, RobotState
-from kompass_core.datatypes import LaserScanData, PointCloudData, TrackingData
+from kompass_core.datatypes import LaserScanData, PointCloudData, Bbox2d
 from kompass_core.utils.geometry import from_euler_to_quaternion
 from kompass_core.control import (
     ControlClasses,
@@ -38,7 +38,7 @@ from .ros import (
     update_topics,
 )
 from ..utils import component_action
-from ..callbacks import PointCloudCallback, DetectionsCallback
+from ..callbacks import PointCloudCallback
 
 # KOMPASS MSGS/SRVS/ACTIONS
 from .component import Component, TFListener
@@ -884,7 +884,7 @@ class Controller(Component):
             self.sensor_data: Optional[Union[LaserScanData, PointCloudData]] = None
 
         # Vision Follower variables
-        self.vision_detections: Optional[TrackingData] = None
+        self.vision_detections: Optional[Bbox2d] = None
         self.depth_image: Optional[np.ndarray] = None
         self.depth_image_info: Optional[Dict] = None
 
@@ -1045,7 +1045,7 @@ class Controller(Component):
         ]
 
     def _end_vision_tracking_srv_callback(
-        self, request: StopVisionTracking.Request, response: StopVisionTracking.Response
+        self, _: StopVisionTracking.Request, response: StopVisionTracking.Response
     ) -> StopVisionTracking.Response:
         """Service callback to end Vision target tracking action
 

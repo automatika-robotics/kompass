@@ -10,7 +10,6 @@ from ros_sugar.io.utils import read_compressed_image
 from kompass_core.datatypes import (
     LaserScanData,
     PointCloudData,
-    TrackingData,
     ImageMetaData,
 )
 from .utils import read_pc_points, read_pc_points_with_tf
@@ -475,6 +474,7 @@ class TrackingsCallback(GenericCallback):
         self._img_metadata: Optional[ImageMetaData] = None
         self._label: Optional[str] = None
         self._id: Optional[int] = None
+        self._initial_time = 0.0
 
     def callback(self, msg) -> None:
         """
@@ -491,7 +491,7 @@ class TrackingsCallback(GenericCallback):
         label: Optional[str] = None,
         idx: Optional[int] = 0,
         **_,
-    ) -> Union[Any, TrackingData, None]:
+    ) -> Union[Any, Bbox2D, None]:
         """
         Gets the trackings data
         :returns:   Topic content
@@ -510,20 +510,36 @@ class TrackingsCallback(GenericCallback):
 
         # Multiply each row by its weight then divide by the sum
         average_det = np.sum(last_detections * weights, axis=0) / np.sum(weights)
-        return TrackingData(
+
+        timestamp = self.msg.header.stamp.sec + 1e-9 * self.msg.header.stamp.nanosec
+        box = Bbox2D(
+            top_left_corner=np.array(
+                [
+                    average_det[0],
+                    average_det[1],
+                ],
+                dtype=np.int32,
+            ),
+            size=np.array(
+                [
+                    average_det[2],
+                    average_det[3],
+                ],
+                dtype=np.int32,
+            ),
+            timestamp=timestamp - self._initial_time,
             label=self._label,
-            id=self._id,
-            center_xy=[
-                average_det[0],
-                average_det[1],
-            ],
-            size_xy=[
-                average_det[2],
-                average_det[3],
-            ],
-            velocity_xy=[average_det[4], average_det[5]],
-            img_meta=self._img_metadata,
         )
+        box.set_vel(
+            np.array(
+                [average_det[4], average_det[5], 0.0],
+                dtype=np.float32,
+            )
+        )
+        if self._initial_time == 0:
+            # Get the initial time of the first detection
+            self._initial_time = timestamp
+        return box
 
     def set_buffer_size(self, value: int, clear_old: bool = False) -> None:
         """Resizes detections buffer (while maintaining old buffer items in the resized buffer)
