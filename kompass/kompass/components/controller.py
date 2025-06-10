@@ -1,4 +1,4 @@
-from typing import Optional, Union, List, Dict
+from typing import Optional, Union, List, Dict, Any
 import time
 from attrs import define, field
 from queue import Queue, Empty
@@ -23,7 +23,6 @@ from kompass_core.control import (
     ControllersID,
     ControllerType,
 )
-from kompass_core.control import VisionDWA, VisionDWAConfig
 
 # KOMPASS MSGS/SRVS/ACTIONS
 import kompass_interfaces.msg as kompass_msgs
@@ -689,6 +688,12 @@ class Controller(Component):
         if not self.is_node_initialized():
             return
 
+        if self.algorithm not in [ControllersID.VISION_IMG, ControllersID.VISION_DEPTH]:
+            self.get_logger().warn(
+                f"Vision Tracking algorithm is not set, setting to default '{ControllersID.VISION_DEPTH}'"
+            )
+            self.algorithm = ControllersID.VISION_DEPTH
+
         self.custom_create_all_subscribers()
         self.custom_create_all_action_servers()
 
@@ -703,6 +708,12 @@ class Controller(Component):
 
         if not self.is_node_initialized():
             return
+
+        if self.algorithm in [ControllersID.VISION_IMG, ControllersID.VISION_DEPTH]:
+            self.get_logger().warn(
+                f"Path control algorithm is not set, setting to default '{ControllersID.DWA}'"
+            )
+            self.algorithm = ControllersID.DWA
 
         self.custom_create_all_subscribers()
         self.custom_create_all_action_servers()
@@ -1118,7 +1129,7 @@ class Controller(Component):
             time.sleep(1 / self.config.loop_rate)
         return wait_time < max_wait_time
 
-    def __setup_vision_dwa_controller(self) -> Optional[VisionDWA]:
+    def __setup_vision_controller(self) -> Optional[Union[ControlClasses.VISION_IMG, ControlClasses.VISION_DEPTH]]:
         """Setup and configure a VisionDWA controller instance
 
         :return: Configured controller
@@ -1154,7 +1165,7 @@ class Controller(Component):
                 "Got Depth camera to body TF -> Setting up VisionDWA controller"
             )
 
-        config = VisionDWAConfig(
+        config = ControlConfigClasses[self.algorithm](
             control_time_step=self.config.control_time_step,
             camera_position_to_robot=self.depth_tf_listener.translation,
             camera_rotation_to_robot=self.depth_tf_listener.rotation,
@@ -1162,18 +1173,22 @@ class Controller(Component):
 
         _controller_config = self._configure_algorithm(config)
 
-        return VisionDWA(
+        return ControlClasses[self.algorithm](
             robot=self.__robot,
             ctrl_limits=self.__robot_ctr_limits,
             config=_controller_config,
-            camera_focal_length=self.depth_image_info["focal_length"],
-            camera_principal_point=self.depth_image_info["principal_point"],
+            camera_focal_length=self.depth_image_info["focal_length"]
+            if self.depth_image_info
+            else None,
+            camera_principal_point=self.depth_image_info["principal_point"]
+            if self.depth_image_info
+            else None,
             config_file=self._config_file,
             config_yaml_root_name=f"{self.node_name}.VisionDWA",
         )
 
     def __setup_initial_tracking_target(
-        self, controller: VisionDWA, label: str, pose_x: int, pose_y: int
+        self, controller: Any, label: str, pose_x: int, pose_y: int
     ) -> bool:
         if label != "":
             target_2d = None
@@ -1188,9 +1203,9 @@ class Controller(Component):
                 )
             self._update_state()
             found_target = controller.set_initial_tracking_2d_target(
-                self.robot_state,
-                target_2d[0],
-                self.depth_image,
+                target_box=target_2d[0],
+                current_state=self.robot_state,
+                aligned_depth_image=self.depth_image,
             )
         else:
             self._update_state()
@@ -1221,7 +1236,7 @@ class Controller(Component):
 
         result = TrackVisionTarget.Result()
 
-        _controller = self.__setup_vision_dwa_controller()
+        _controller = self.__setup_vision_controller()
 
         if not _controller:
             self.get_logger().error(
@@ -1282,8 +1297,8 @@ class Controller(Component):
                     local_map = self.local_map
 
                 found_ctrl = _controller.loop_step(
-                    current_state=self.robot_state,
                     detections_2d=self.vision_detections or [],
+                    current_state=self.robot_state,
                     depth_image=self.depth_image,
                     laser_scan=laser_scan,
                     point_cloud=point_cloud,
