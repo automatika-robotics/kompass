@@ -168,11 +168,13 @@ KOMPASS currently supports the following coordinate frames, the user is required
 - world: Reference world frame, usually 'map'
 - odom: Robot Odometry frame
 - robot_base: Frame attached to the robot body. The navigation considers this as the center of the robot geometry.
-
-Sensor frames:
 - scan: Lasescan frame
 - rgb: RGB camera frame
 - depth: Depth camera frame
+
+```{note}
+It is important to configure your coordinate frames names correctly and pass it Kompass. Components in Kompass will subscribe automatically to the relevant `\tf` and '\tf_static` topics in ROS2 to get the necessary transformations.
+```
 
 ```python
 from kompass.config import RobotFrames

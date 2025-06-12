@@ -1,22 +1,47 @@
 # Drive Manager
 
-[DriveManager](../apidocs/kompass/kompass.components.drive_manager.md) is responsible for direct control communication with the robot. It is used to perform last checks on any control command before passing it to the robot to ensure that the commands falls within the robot control limits, satisfies smoothness conditions and does not lead to a collision with a nearby obstacle.
+The [DriveManager](../apidocs/kompass/kompass.components.drive_manager.md) component is responsible for direct control communication with the robot. It is used to perform last checks on any control command before passing it to the robot to ensure that the commands falls within the robot control limits, satisfies smoothness conditions and does not lead to a collision with a nearby obstacle.
 
 The DriveManager component can perform one or multiple of the following functionalities based on the desired config:
 
 ```{list-table}
 :widths: 20 70
-* - **Control limiting**
-  - Checks that the incoming control is within the robot control limits. If a control command is outside the robot control limits, the DriveManager limits the value to the maximum/minimum allowed value before passing the command to the robot
+* - **Emergency Stopping**
+  - Checks the direct sensor information from the configured proximity sensors and performs an emergency stop if an obstacle is within the conical emergency zone configured with a minimum safety distance (m) and and angle (rad) in the direction of the robot movement.
 
-* - **Emergency stopping**
-  - Checks the direct sensor information from the configured proximity sensors and performs an emergency stop if an obstacle is closer than the allowed safety limit
+* - **Emergency Slowdown**
+  - Similar to the emergency zone, a slowdown zone can be configured to reduce the robot's velocity if an obstacle is closer than the slowdown distance.
+
+* - **Control Limiting**
+  - Checks that the incoming control is within the robot control limits. If a control command is outside the robot control limits, the DriveManager limits the value to the maximum/minimum allowed value before passing the command to the robot
 
 * - **Control Smoothing (Filtering)**
   - Performs smoothing filtering on the incoming control commands before sending the commands to the robot
 
 * - **Robot Unblocking**
   - Moves the robot forward, backwards or rotates in place if the space is free to move the robot away from a blocking point. This action can be configured to be triggered with an external event
+```
+
+```{figure} ../_static/images/diagrams/drive_manager_dark.png
+:class: only-dark
+:alt: Emergency Zone & Slowdown Zone
+:align: center
+:width: 70%
+
+Emergency Zone & Slowdown Zone
+```
+
+```{figure} ../_static/images/diagrams/drive_manager_light.png
+:class: only-light
+:alt: Emergency Zone & Slowdown Zone
+:align: center
+:width: 70%
+
+Emergency Zone & Slowdown Zone
+```
+
+```{note}
+Critical and Slowdown Zone checking is implemented in C++ in [kompass-core](https://github.com/automatika-robotics/kompass-core) for fast emergency behaviors. The core implementation supports both **GPU** and **CPU** (**defaults to GPU if available**).
 ```
 
 DriveManager also includes built-in movement actions used for directly control the robot or unblocking the robot in certain conditions:
@@ -114,17 +139,17 @@ Check an example on configuring the robot unblocking functionality with an exter
 
 ## Configuration Parameters:
 
-See [DriveManagerConfig](../apidocs/kompass/kompass.components.drive_manager.md/#kompass.components.drive_manager.DriveManagerConfig)
+See all available parameters in [DriveManagerConfig](../apidocs/kompass/kompass.components.drive_manager.md/#kompass.components.drive_manager.DriveManagerConfig)
 
 ## Usage Example:
 ```python
     from kompass.components import DriveManager, DriveManagerConfig
-    from kompass.topic import Topic
+    from kompass.ros import Topic
 
     # Setup custom configuration
-    # cmd_rate: rate for sending commands to the robot (Hz)
+    # closed_loop: send commands to the robot in closed loop (checks feedback from robot state)
     # critical_zone_distance: for emergency stp (m)
-    my_config = DriveManagerConfig(cmd_rate=10.0, critical_zone_distance=0.05)
+    my_config = DriveManagerConfig(closed_loop=True, critical_zone_distance=0.1, slowdown_zone_distance=0.3, critical_zone_angle=90.0)
 
     driver = DriveManager(component_name="driver", config=my_config)
 

@@ -71,8 +71,8 @@ html_favicon = "_static/favicon.png"
 
 html_theme_options = {
     "logo": {
-        "image_light": "_static/Kompass_dark.png",
-        "image_dark": "_static/Kompass.png",
+        "image_light": "_static/Kompass_light.png",
+        "image_dark": "_static/Kompass_dark.png",
     },
     "icon_links": [
         {

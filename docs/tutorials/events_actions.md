@@ -1,4 +1,4 @@
-# Using Events/Actions in your application
+# ⚙️ Using Events/Actions in your application
 
 Events/Actions are a powerful tool to make your robot application adaptive to the changing working conditions (both internal and external to the robot), or to extend the operational scope of your application by adapting it to new spaces/usecases.
 

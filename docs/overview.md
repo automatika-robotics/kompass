@@ -1,8 +1,15 @@
-![Logo](_static/Kompass_dark.png)
+<div>
+  <img src="_static/Kompass_light.png" class="only-light" />
+  <img src="_static/Kompass_dark.png" class="only-dark" />
+</div>
 
 # Kompass
 
-Kompass is a framework for building robust and comprehensive event-driven navigation stacks using an easy-to-use and intuitive Python API. Kompass is built to be customizable, extendable and hardware-agnostic. It aims to implement the most cutting edge algorithms for all parts of the navigation stack. And most importantly, it allows users to create very sophisticated navigation capabilities for autonomous mobile robots, within a single python script.
+<!-- Kompass is a framework for building robust and comprehensive event-driven navigation stacks using an easy-to-use and intuitive Python API. Kompass is built to be customizable, extendable and hardware-agnostic. It aims to implement the most cutting edge algorithms for all parts of the navigation stack. And most importantly, it allows users to create very sophisticated navigation capabilities for autonomous mobile robots, within a single python script. -->
+
+Kompass is a framework for building **robust**, **event-driven** navigation stacks for autonomous mobile robots. It provides an **intuitive Python API** designed to be easy to integrate, extend, and adapt to a wide range of use cases.
+
+Kompass includes efficient implementations of **core navigation algorithms in C++** that make full use of available hardware resources. It supports **multi-threaded execution on CPUs** and can run on **ANY GPU** (Nvidia, AMD, etc.) without vendor lock-in. This makes it suitable for both development and deployment across diverse hardware setups. And most importantly, Kompass makes it straightforward to create and deploy sophisticated navigation capabilities for any mobile robot within **a single Python script**, without sacrificing performance or flexibility.
 
 - Find out more about our [**motivation**](why.md) to create Kompass ✨
 - [**Install**](install.md) Kompass on your robot 🛠️

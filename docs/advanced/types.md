@@ -1,4 +1,4 @@
-# Supported ROS2 Messages
+# 📨 Supported ROS2 Messages
 
 Kompass components create automatic subscribers and callbacks to all inputs and publishers to all outputs. Kompass comes with a set of supported message types; each supported type has an associated callback and publisher.
 
@@ -117,12 +117,12 @@ Below is a list of supported messages and the types accepted by their publishers
 
 * - **Detections**
   - automatika_agents_interfaces
-  - [`Optional[kompass_core.datatypes.TrackingData]`](https://github.com/automatika-robotics/kompass-core/blob/main/src/kompass_core/datatypes/vision.py#L30)
+  - [`Optional[kompass_core.datatypes.Bbox2D]`](https://github.com/automatika-robotics/kompass-core/blob/main/src/kompass_core/datatypes/vision.py#L30)
   - [`automatika_agents_interfaces.msg.Detections2D`](https://github.com/automatika-robotics/ros-agents/blob/main/agents/msg/Detections2D.msg)
 
 * - **Trackings**
   - automatika_agents_interfaces
-  - [`Optional[kompass_core.datatypes.TrackingData]`](https://github.com/automatika-robotics/kompass-core/blob/main/src/kompass_core/datatypes/vision.py#L30)
+  - [`Optional[kompass_core.datatypes.Bbox2D]`](https://github.com/automatika-robotics/kompass-core/blob/main/src/kompass_core/datatypes/vision.py#L30)
   - [`automatika_agents_interfaces.msg.Trackings`](https://github.com/automatika-robotics/ros-agents/blob/main/agents/msg/Trackings.msg)
 
 ```

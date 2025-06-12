@@ -6,12 +6,6 @@ The DVZ is a reactive motion control method first introduced by R. Zapata in 199
 In: Journal of Robotic Systems 11.1 (1994)](https://www.researchgate.net/publication/221787033_Reactive_Motion_Planning_for_Mobile_Robots)
 
 
-## Supported Motion Models
-
-- ACKERMANN
-- DIFFERENTIAL_DRIVE
-- OMNI
-
 ## Supported Sensory Inputs
 
 - LaserScan

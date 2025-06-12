@@ -1,8 +1,17 @@
 # Local Mapper
 
-A global map refers to a reference map containing the static space information. A local map, on the other hand, is a smaller ego-centric map around the robot that reflects the space dynamics using realtime sensor information. Local maps can reflect information fused from multiple sensors, providing a more stable, robust and complete source of information to the [Controller](control.md) rather than getting the direct sensor information.
+A global map provides a static, large-scale view of the environment—useful for long-term planning. In contrast, the **local map** is a dynamic, ego-centric map that constantly updates around the robot based on **real-time sensor data**. It reflects immediate surroundings, including recent changes like moving obstacles or temporary features, and serves as the most relevant input for the [Controller](control.md) rather than getting the direct sensor information.
 
-[LocalMapper](../apidocs/kompass/kompass.components.mapper.md) component is responsible for generating this local map during the navigation.
+The [LocalMapper](../apidocs/kompass/kompass.components.mapper.md) component in Kompass is responsible for generating this local occupancy map on the fly during navigation.
+
+## 🧠 Algorithm Details
+At its core, LocalMapper uses the Bresenham line drawing algorithm in C++ to efficiently update an occupancy grid from incoming LaserScan data. This approach ensures fast and accurate raycasting to determine free and occupied cells in the local grid.
+
+To maximize performance and adaptability, the implementation **supports both CPU and GPU execution**:
+
+- GPU acceleration is implemented using SYCL, making it vendor-agnostic—compatible with Nvidia, AMD, Intel, and any other GPGPU-capable devices.
+
+- On the CPU, the algorithm is multi-threaded for high-throughput processing, suitable even for dense scan rates or high-frequency updates.
 
 
 ```{note}

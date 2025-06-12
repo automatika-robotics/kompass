@@ -24,13 +24,21 @@ Kompass is designed as per the specification of open event-driven software stand
 For example, with Kompass the user can easily design a system that utilizes one planning system when the robot is out on the road or another controller when its inside the building or yet another when its close to its docking station, while easily configuring fallback conditions for each for those components. This approach of providing event driven control over the stack itself, makes it much more flexible to implement a comprehensive autonomous navigating agent which can operate in multiple scenarios. This is in contrast to other approaches like defining _behaviour trees_ where the changes in the stack are based on internal state of the robot alone (and that too with a rather complicated API).
 
 
+## Engineered for Speed: C++, Multi-Threading, and SYCL GPU Support
+
+Kompass core algorithms are implemented in modern C++ for maximum performance and efficiency. Designed with real-time robotics in mind, it makes full use of multi-threaded CPU execution and GPU acceleration to parallelize compute-heavy tasks like planning, control and map updates.
+
+The GPU support in Kompass is built using SYCL. Unlike other solutions that rely on vendor-specific GPU APIs (e.g. CUDA for Nvidia), Kompass is the **first navigation framework to support cross-GPU acceleration**. This means it can target any SYCL-compliant GPU, including those from Nvidia, AMD, Intel, and others—without requiring device-specific modifications.
+
+While the performance-critical core runs in C++, Kompass offers a clean Python API combining the speed of native code with the ease of Python development.
+
 ## Machine learning models as first class citizens
 
 The event driven stack control allows Kompass to utilize machine learning models unlike any other navigation stack. External events in Kompass can be driven by outputs of machine learning models interpreting sensor data or user commands, which means the entire stack becomes reconfigurable based on ML model outputs. This goes beyond well established scenarios of visual navigation.
 
 As an example consider the scenario where the robot observes a certain number of humans in its environment and switches from a path following controller like _Pure Pursuit_ to a predictive controller like _Timed Elastic Bands_ or even better a human-aware controller like _Human Aware TEB_. The same goes for utilizing outputs of VLMs, which can answer more abstract aggregate perception questions like 'Whether the robot is inside or outside?', to change control behaviour on the fly.
 
-To get more ideas about utilizing machine learning models with Kompass and create intelligent embodied agents, check out [integration of Kompass with ROS Agents]().
+To get more ideas about utilizing machine learning models with Kompass and create intelligent embodied agents, check out the example tutorial on using Kompass vision follower with ROS Agents' Vision Component [here](./tutorials/vision_tracking.md).
 
 
 ## Ease of use and intuitive API while remaining within the ROS ecosystem

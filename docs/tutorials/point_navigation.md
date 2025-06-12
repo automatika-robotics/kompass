@@ -1,4 +1,4 @@
-# Point Navigation: Step-by-Step Tutorial
+# 🎯 Point Navigation: Step-by-Step Tutorial
 
 ## Step 1: Setup your robot
 
