@@ -352,6 +352,7 @@ class DetectionsCallback(GenericCallback):
         self,
         input_topic,
         node_name: Optional[str] = None,
+        buffer_size: Optional[int] = 1,
     ) -> None:
         """__init__.
 
@@ -367,10 +368,40 @@ class DetectionsCallback(GenericCallback):
         # Initial time of the first detection is used to reset ROS time to zero on the first detection and avoid sending large timestamps to core
         self._initial_time = 0.0
         self._depth_image: Optional[np.ndarray] = None
+        self._label : str = None
+        self._buffer_items: int = 0
+        self._max_buffer_size = buffer_size
+        self._feature_items: int = (
+            4  # (top_left_corner_x, top_left_corner_y, size_x, size_y)
+        )
+        self._detections_buffer = np.ones((
+            buffer_size,
+            self._feature_items,
+        ))  # num_detections x num_features
+
+    def set_buffer_size(self, value: int, clear_old: bool = False) -> None:
+        """Resizes detections buffer (while maintaining old buffer items in the resized buffer)
+
+        :param value: New buffer size
+        :type value: int
+        """
+        new_buffer = np.ones((value, self._feature_items))
+
+        if clear_old:
+            self._buffer_items = 0
+        else:
+            if value >= self._max_buffer_size:
+                new_buffer[-self._max_buffer_size :] = self._detections_buffer
+            else:
+                new_buffer = self._detections_buffer[-self._max_buffer_size :]
+        self._max_buffer_size = value
+        self._detections_buffer = new_buffer
 
     def _process_raw_data(self, msg) -> None:
         """Process new raw detections data and add it to buffer if available"""
         if not msg or not msg.detections:
+            # No detections received -> Reduce buffer items
+            self._buffer_items = max(self._buffer_items - 1, 0)
             return
         # Gets first source, TODO: turn into parameter based on the image frame
         detections_set = msg.detections[0]
@@ -401,7 +432,18 @@ class DetectionsCallback(GenericCallback):
         if img_size is None:
             logging.error("No image is provided with the detections message. Unknown image size can lead to errors!")
 
+        got_label = False
         for label, box in zip(detections_set.labels, detections_set.boxes):
+            if label == self._label:
+                # Add new detection to the buffer
+                self._detections_buffer[-1:] = [
+                    (box.bottom_right_x + box.top_left_x) / 2,  # center_x
+                    (box.top_left_y + box.bottom_right_y) / 2,  # center_y
+                    abs(box.bottom_right_x - box.top_left_x),  # size_x
+                    abs(box.bottom_right_y - box.top_left_y),  # size_y
+                ]
+                self._buffer_items = min(self._buffer_items + 1, self._max_buffer_size)
+                got_label = True
             self._detected_boxes[label] = Bbox2D(
                 top_left_corner=np.array(
                     [box.top_left_x, box.top_left_y], dtype=np.int32
@@ -418,6 +460,8 @@ class DetectionsCallback(GenericCallback):
             )
             if img_size is not None:
                 self._detected_boxes[label].set_img_size(img_size)
+        if not got_label:
+            self._buffer_items = max(self._buffer_items - 1, 0)
         if self._initial_time == 0.0:
             # Get the initial time of the first detection
             self._initial_time = timestamp
@@ -455,9 +499,32 @@ class DetectionsCallback(GenericCallback):
         if not label:
             return list(self._detected_boxes.values())
         try:
-            return [self._detected_boxes[label]]
+            self._label = label
+            if self._buffer_items <= 0:
+                return [self._detected_boxes[label]]
+            else:
+                last_detections = self._detections_buffer[-self._buffer_items :]
+                # Create weights array: [1, 2, ..., n]
+                weights = np.arange(1, self._buffer_items + 1).reshape(-1, 1)
+                # Multiply each row by its weight then divide by the sum
+                average_det = np.sum(last_detections * weights, axis=0) / np.sum(weights)
+                return [
+                    Bbox2D(
+                        top_left_corner=np.array(
+                            [average_det[0], average_det[1]], dtype=np.int32
+                        ),
+                        size=np.array(
+                            [
+                                average_det[2],
+                                average_det[3],
+                            ],
+                            dtype=np.int32,
+                        ),
+                        timestamp=self._detected_boxes[label].timestamp,  # Gets last timestamp
+                        label=label,
+                    )
+                ]
         except KeyError:
-            # No detection -> reduce buffer items
             return None
 
 
