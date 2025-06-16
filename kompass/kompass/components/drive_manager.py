@@ -213,9 +213,7 @@ class DriveManager(Component):
             num_sensors = self._inputs_keys.count(TopicsKeys.SPATIAL_SENSOR)
             for idx in range(num_sensors):
                 callback = self.get_callback(TopicsKeys.SPATIAL_SENSOR, idx)
-                if isinstance(callback, LaserScanCallback):
-                    callback.on_callback_execute(self._check_emergency_stop_lidar)
-                else:
+                if not isinstance(callback, LaserScanCallback):
                     callback.on_callback_execute(
                         self._check_emergency_stop_proximity_sensor
                     )
@@ -268,19 +266,6 @@ class DriveManager(Component):
         """
         if self._unblocking_on:
             return
-        # Check emergency stop
-        self._update_state()
-        slowdown_val: float = min(self.slow_down_factor.values())
-        if slowdown_val == 0.0:
-            # STOP ROBOT
-            self.get_publisher(TopicsKeys.EMERGENCY).publish(True)
-            self.get_logger().warn("EMERGENCY STOP ON")
-            return
-
-        # Multiply by slowdown factor
-        output.linear.x *= slowdown_val
-        output.linear.y *= slowdown_val
-        output.angular.z *= slowdown_val
 
         filtered_output: Twist = (
             self._filter_commands(output=output) if smooth_cmds else output
@@ -358,9 +343,25 @@ class DriveManager(Component):
         # Check emergency stop
         if not slowdown_factor:
             self._update_state()
+            # Check emergency stop from Lidar in the direction of the command
+            self.slow_down_factor['laser_scan'] = (
+                self._emergency_checker.check(
+                    angles=self.laser_scan.angles,
+                    ranges=self.laser_scan.ranges,
+                    forward=(cmd.linear.x >= 0.0),
+                )
+            )
             slowdown_val: float = min(self.slow_down_factor.values())
         else:
             slowdown_val = slowdown_factor
+
+        if slowdown_val == 0.0:
+            # STOP ROBOT
+            self.get_publisher(TopicsKeys.EMERGENCY).publish(True)
+            self.get_logger().warn("EMERGENCY STOP ON")
+            # Publish zero velocity command
+            self.get_publisher(TopicsKeys.FINAL_COMMAND).publish(Twist())
+            return
         cmd.linear.x *= slowdown_val
         cmd.linear.y *= slowdown_val
         cmd.angular.z *= slowdown_val
@@ -446,6 +447,7 @@ class DriveManager(Component):
         # FRONT MOVEMENT
         while unblocking and traveled_distance < max_distance:
             # Check if max_distance forward is clear
+            self._update_state()
             slowdown_factor = self._emergency_checker.check(
                 angles=self.laser_scan.angles,
                 ranges=self.laser_scan.ranges,
@@ -480,6 +482,7 @@ class DriveManager(Component):
         # FRONT MOVEMENT
         while unblocking and traveled_distance < max_distance:
             # Check if max_distance behind the robot is clear
+            self._update_state()
             slowdown_factor = self._emergency_checker.check(
                 angles=self.laser_scan.angles,
                 ranges=self.laser_scan.ranges,
@@ -525,6 +528,7 @@ class DriveManager(Component):
 
         # FRONT MOVEMENT
         while unblocking and traveled_radius < max_rotation:
+            self._update_state()
             if any(self.laser_scan.ranges < (1 + safety_margin) * self.robot_radius):
                 unblocking = False
             else:
@@ -789,29 +793,6 @@ class DriveManager(Component):
             )
         else:
             self.slow_down_factor[topic.name] = 1.0
-
-    def _check_emergency_stop_lidar(
-        self, output: Optional[LaserScanData], topic: Topic, **_
-    ):
-        """
-        If emergency stop is required from direct sensor -> sets command to zero
-        """
-        # Update emergency stop check
-        if not output or not self._emergency_checker:
-            return
-        if not self._previous_command or self._previous_command.linear.x == 0.0:
-            forward: bool = (
-                self._last_direction_forward
-                if self._last_direction_forward is not None
-                else True
-            )
-        else:
-            forward = self._previous_command.linear.x >= 0
-
-        self.slow_down_factor[topic.name] = self._emergency_checker.check(
-            angles=output.angles, ranges=output.ranges, forward=forward
-        )
-        self._last_direction_forward = forward
 
     def _limit_command_vel(self, output: Twist) -> Twist:
         """Check and limit the control commands
