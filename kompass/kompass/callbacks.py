@@ -11,6 +11,7 @@ from kompass_core.datatypes import (
     LaserScanData,
     PointCloudData,
 )
+import logging
 from .utils import read_pc_points, read_pc_points_with_tf
 from kompass_core.utils import geometry as GeometryUtils
 from kompass_core.models import RobotState
@@ -364,7 +365,7 @@ class DetectionsCallback(GenericCallback):
         super().__init__(input_topic, node_name)
         self._detected_boxes: Dict[List, Bbox2D] = {}
         # Initial time of the first detection is used to reset ROS time to zero on the first detection and avoid sending large timestamps to core
-        self._initial_time = 0
+        self._initial_time = 0.0
         self._depth_image: Optional[np.ndarray] = None
 
     def _process_raw_data(self, msg) -> None:
@@ -375,6 +376,8 @@ class DetectionsCallback(GenericCallback):
         detections_set = msg.detections[0]
         # Clear old detections
         self._detected_boxes = {}
+
+        # Get depth image if available
         self._depth_image = (
             np.frombuffer(detections_set.depth.data, dtype=np.uint16).reshape((
                 detections_set.depth.height,
@@ -383,7 +386,21 @@ class DetectionsCallback(GenericCallback):
             if detections_set.depth.data
             else None
         )
+
+        # Get timestamp for tracking
         timestamp = msg.header.stamp.sec + 1e-9 * msg.header.stamp.nanosec
+
+        # Get image size
+        img_size = None
+        if self._depth_image:
+            img_size = np.array([detections_set.depth.width, detections_set.depth.height], dtype=np.int32)
+        elif detections_set.image.data:
+            img_size = np.array([detections_set.image.width, detections_set.image.height], dtype=np.int32)
+        elif detections_set.compressed_image.data:
+            img_size = np.array([detections_set.compressed_image.width, detections_set.compressed_image.height], dtype=np.int32)
+        if img_size is None:
+            logging.error("No image is provided with the detections message. Unknown image size can lead to errors!")
+
         for label, box in zip(detections_set.labels, detections_set.boxes):
             self._detected_boxes[label] = Bbox2D(
                 top_left_corner=np.array(
@@ -399,7 +416,9 @@ class DetectionsCallback(GenericCallback):
                 timestamp=timestamp - self._initial_time,
                 label=label,
             )
-        if self._initial_time == 0:
+            if img_size is not None:
+                self._detected_boxes[label].set_img_size(img_size)
+        if self._initial_time == 0.0:
             # Get the initial time of the first detection
             self._initial_time = timestamp
 
