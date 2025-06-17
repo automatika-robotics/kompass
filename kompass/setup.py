@@ -8,6 +8,7 @@ package_name = "kompass"
 console_scripts = [
     "executable = kompass.executable:main",
     "turtlebot3_test = recipes.turtlebot3:kompass_bringup",
+    "cli = kompass.cli:main",
 ]
 
 setup(

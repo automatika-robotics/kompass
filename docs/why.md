@@ -28,7 +28,7 @@ For example, with Kompass the user can easily design a system that utilizes one 
 
 Kompass core algorithms are implemented in modern C++ for maximum performance and efficiency. Designed with real-time robotics in mind, it makes full use of multi-threaded CPU execution and GPU acceleration to parallelize compute-heavy tasks like planning, control and map updates.
 
-The GPU support in Kompass is built using SYCL. Unlike other solutions that rely on vendor-specific GPU APIs (e.g. CUDA for Nvidia), Kompass is the **first navigation framework to support cross-GPU acceleration**. This means it can target any SYCL-compliant GPU, including those from Nvidia, AMD, Intel, and others—without requiring device-specific modifications.
+The GPU support in Kompass is built using SYCL. Unlike other solutions that rely on vendor-specific GPU APIs (e.g. CUDA for Nvidia), Kompass is the <span class="text-primary-strong">first navigation framework to support cross-GPU acceleration</span>. This means it can target any SYCL-compliant GPU, including those from Nvidia, AMD, Intel, and others—without requiring device-specific modifications.
 
 While the performance-critical core runs in C++, Kompass offers a clean Python API combining the speed of native code with the ease of Python development.
 
@@ -43,7 +43,7 @@ To get more ideas about utilizing machine learning models with Kompass and creat
 
 ## Ease of use and intuitive API while remaining within the ROS ecosystem
 
-Kompass provides an approachable and intuitive interface for creating navigation systems. This is made possible with a pythonic API using [**Sugarcoat**🍬](https://www.github.com/automatika-robotics/sugarcoat). A fairly sophisticated navigation system can be configured in one simple python script where the user can configure the stack component by component and configure the system level behavior by defining all the required events, their consequent actions and per component fallback behaviors. The user also has a choice to provide component level parameters in YAML files. Furthermore, the project is structured so that core algorithms are implemented in the Kompass Core package, which provides a pure python interface while the underlying algorithms can be implemented in both python for quick prototyping and  in C/C++ for performance optimization in production environments.
+Kompass provides an approachable and intuitive interface for creating navigation systems. This is made possible with a pythonic API using [Sugarcoat🍬](https://www.github.com/automatika-robotics/sugarcoat). A fairly sophisticated navigation system can be configured in one simple python script where the user can configure the stack component by component and configure the system level behavior by defining all the required events, their consequent actions and per component fallback behaviors. The user also has a choice to provide component level parameters in YAML files. Furthermore, the project is structured so that core algorithms are implemented in the Kompass Core package, which provides a pure python interface while the underlying algorithms can be implemented in both python for quick prototyping and  in C/C++ for performance optimization in production environments.
 
 
 ## Modular architecture and easy extensibility
