@@ -123,7 +123,7 @@ There are various fallback mechanisms available in Kompass. Learn more about the
 ```
 
 ```{seealso}
-To pass other components to the launcher from packages other than Kompass, use the method `add_pkg`. See more details in [ROS Sugar](link) about creating your own package and using it with the Launcher.
+To pass other components to the launcher from packages other than Kompass, use the method `add_pkg`. See more details in [Sugarcoat](https://automatika-robotics.github.io/sugarcoat/advanced/use.html) about creating your own package and using it with the Launcher.
 ```
 
 Finally, we bring up our stack and select the desired logging level.

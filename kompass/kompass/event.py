@@ -2,7 +2,7 @@
 Supported Events in Kompass
 
 ```{note}
-Check [ROS Sugar](https://github.com/automatika-robotics/ros_sugar) for related API documentation
+Check [Sugarcoat](https://github.com/automatika-robotics/sugarcoat) for related API documentation
 ```
 
 

@@ -39,7 +39,7 @@ You can build Kompass from source as follows:
 ```shell
 mkdir -p kompass_ws/src
 cd kompass_ws/src
-git clone https://github.com/automatika-robotics/ros-sugar
+git clone https://github.com/automatika-robotics/sugarcoat
 git clone https://github.com/automatika-robotics/kompass
 rosdep update
 rosdep install -y --from-paths . --ignore-src

@@ -15,7 +15,7 @@ The `Controller` does not subscribe directly to the `Depth` or `RGB` Images. The
 ```
 
 ```{seealso}
-See a full example of using the RGB mode vision follower from the Controller component along with a `Vision` component from (ROS Agents)[https://automatika-robotics.github.io/ros-agents/] [here](../../tutorials/vision_tracking.md).
+See a full example of using the RGB mode vision follower from the Controller component along with a `Vision` component from (**EmbodiedAgents**)[https://automatika-robotics.github.io/ros-agents/] [here](../../tutorials/vision_tracking.md).
 ```
 
 ## Supported Inputs

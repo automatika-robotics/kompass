@@ -1,7 +1,7 @@
 """Supported Actions in Kompass
 
 ```{note}
-Refer to [ROS Sugar](https://github.com/automatika-robotics/ros_sugar) for related API documentation
+Refer to [Sugarcoat](https://github.com/automatika-robotics/sugarcoat) for related API documentation
 ```
 
 Actions are methods or routines executed by a component or by the system monitor.
