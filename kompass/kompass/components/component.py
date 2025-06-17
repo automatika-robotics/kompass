@@ -147,7 +147,7 @@ class Component(BaseComponent):
                 ComponentRunType
             )
 
-        # Remove None values from topics before sending to ros sugar
+        # Remove None values from topics before sending to sugarcoat
         inputs_list: List[Topic] = [topic for topic in self._inputs_list if topic]
         outputs_list: List[Topic] = [topic for topic in self._outputs_list if topic]
 

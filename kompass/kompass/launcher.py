@@ -53,6 +53,8 @@ class Launcher(BaseLauncher):
         multiprocessing: bool = True,
         activate_all_components_on_start: bool = True,
         components_to_activate_on_start: Optional[List[Component]] = None,
+        ros_log_level: Optional[str] = None,
+        rclpy_log_level: Optional[str] = None,
     ):
         """Adds Kompass components to the launcher
 
@@ -66,6 +68,10 @@ class Launcher(BaseLauncher):
         :type activate_all_components_on_start: bool, optional
         :param components_to_activate_on_start: List of component to activate on start, defaults to None
         :type components_to_activate_on_start: Optional[List[Component]], optional
+        :param ros_log_level: Components logging level, defaults to None
+        :type ros_log_level: Optional[str], optional
+        :param rclpy_log_level: RCLPY logging level, defaults to None
+        :type rclpy_log_level: Optional[str], optional
         """
         self.add_pkg(
             components=components,
@@ -75,6 +81,8 @@ class Launcher(BaseLauncher):
             multiprocessing=multiprocessing,
             activate_all_components_on_start=activate_all_components_on_start,
             components_to_activate_on_start=components_to_activate_on_start,
+            ros_log_level=ros_log_level,
+            rclpy_log_level=rclpy_log_level,
         )
 
     @property
