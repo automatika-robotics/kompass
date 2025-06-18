@@ -147,14 +147,14 @@ class Planner(Component):
         self.service_type = PlanPathSrv
         self.action_type = PlanPathAction
 
-    def config_from_yaml(self, config_file: str):
+    def config_from_file(self, config_file: str):
         """
         Configure the planner node and the algorithm from file
 
-        :param config_file: Yaml file
+        :param config_file: Path to config file (yaml, json, toml)
         :type config_file: str
         """
-        super().config_from_yaml(config_file)
+        super().config_from_file(config_file)
         if hasattr(self, "ompl_planner"):
             self.ompl_planner.configure(config_file, self.node_name)
 
@@ -178,7 +178,7 @@ class Planner(Component):
         self.ompl_planner = OMPLGeometric(robot=self.__robot)
 
         if self._config_file:
-            self.config_from_yaml(self._config_file)
+            self.config_from_file(self._config_file)
 
         # Path and ROS path message
         self.path = None

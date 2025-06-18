@@ -29,7 +29,7 @@ class Launcher(BaseLauncher):
 
         :param namespace: ROS2 namespace for all the nodes, defaults to ""
         :type namespace: str, optional
-        :param config_file: Path to Yaml configuration file, defaults to None
+        :param config_file: Path to configuration file, defaults to None
         :type config_file: str | None, optional
         :param enable_monitoring: Enable components health status monitoring, defaults to True
         :type enable_monitoring: bool, optional

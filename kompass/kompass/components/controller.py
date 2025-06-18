@@ -869,7 +869,7 @@ class Controller(Component):
                 config=_controller_config,
                 ctrl_limits=self.__robot_ctr_limits,
                 config_file=self._config_file,
-                config_yaml_root_name=f"{self.node_name}.{self.config.algorithm}",
+                config_root_name=f"{self.node_name}.{self.config.algorithm}",
                 control_time_step=self.config.control_time_step,
             )
 
@@ -966,9 +966,6 @@ class Controller(Component):
         :rtype: bool
         """
         if self.__path_controller is None:
-            self.get_logger().warning(
-                f"Path controller is not initialized! {self.__path_controller}"
-            )
             return False
 
         if not self.__path_controller.path:
@@ -1189,7 +1186,7 @@ class Controller(Component):
             if self.depth_image_info
             else None,
             config_file=self._config_file,
-            config_yaml_root_name=f"{self.node_name}.{self.algorithm}",
+            config_root_name=f"{self.node_name}.{self.algorithm}",
         )
 
     def __setup_initial_tracking_target(
@@ -1414,7 +1411,7 @@ class Controller(Component):
                 config=_controller_config,
                 ctrl_limits=self.__robot_ctr_limits,
                 config_file=self._config_file,
-                config_yaml_root_name=f"{self.node_name}.{self.config.algorithm}",
+                config_root_name=f"{self.node_name}.{self.config.algorithm}",
             )
             self.get_logger().info(f"Initialized '{self.algorithm}' controller")
         else:

@@ -20,7 +20,7 @@ setup(
         ("share/" + package_name, ["package.xml"]),
         (
             os.path.join("share", package_name, "params"),
-            glob(os.path.join("params", "*.yaml*")),
+            glob(os.path.join("params", "*.*")),
         ),
     ],
     install_requires=["setuptools"],
