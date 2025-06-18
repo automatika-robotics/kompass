@@ -8,7 +8,7 @@
 
 Welcome to Kompass! The fastest and most intuitive navigation stack known to man! Kompass is a framework for building **robust**, **event-driven** navigation stacks for autonomous mobile robots. Kompass is built to be customizable, extendable and hardware-agnostic. It provides an **intuitive Python API** designed to be easy to integrate, extend, and adapt to a wide range of use cases.
 
-Kompass includes **highly optimized, GPU powered, versions of the most cutting edge navigation algorithms in C++** that make full use of available hardware resources. It supports **multi-threaded execution on CPUs** and can run on <span style="color: #E83F3F; font-weight: bold;">ANY GPU</span> (Nvidia, AMD, etc.) without vendor lock-in. This makes it suitable for both development and deployment across diverse hardware setups. And most importantly, Kompass makes it straightforward to create and deploy sophisticated navigation capabilities for any mobile robot within **a single Python script**, without sacrificing performance or flexibility.
+Kompass includes **highly optimized, GPU powered, versions of the most cutting edge navigation algorithms in C++** that make full use of available hardware resources. It supports **multi-threaded execution on CPUs** and can run on **ANY GPU** (Nvidia, AMD, etc.) without vendor lock-in. This makes it suitable for both development and deployment across diverse hardware setups. And most importantly, Kompass makes it straightforward to create and deploy sophisticated navigation capabilities for any mobile robot within **a single Python script**, without sacrificing performance or flexibility.
 
 - [**Install**](#installation) Kompass on your robot 🛠️
 - [**Why Kompass?**](#why-kompass)
@@ -19,16 +19,16 @@ Kompass includes **highly optimized, GPU powered, versions of the most cutting e
 
 ## Why Kompass?
 
-- <span style="color: #E83F3F; font-weight: bold;">Adaptive Event-Driven Design</span>: Kompass is built to be responsive to real-world events, robot state changes, and task updates. Its event-driven architecture makes it easy to define event-action pairs to reconfigure the navigation stack during runtime, or to seamlessly switch planning or control strategies based on environment context.
+- **Adaptive Event-Driven Design**: Kompass is built to be responsive to real-world events, robot state changes, and task updates. Its event-driven architecture makes it easy to define event-action pairs to reconfigure the navigation stack during runtime, or to seamlessly switch planning or control strategies based on environment context.
 
-- <span style="color: #E83F3F; font-weight: bold;">Engineered for Speed - C++, Multi-Threading, and Cross-GPU Support</span>: All core algorithms are written in modern C++ with multithreading support for fast CPU execution. Kompass is the first navigation framework to support SYCL-based GPGPU execution, unlocking high performance on any compatible GPU, breaking the vendor lock-in of traditional frameworks.
+- **Engineered for Speed - C++, Multi-Threading, and Cross-GPU Support**: All core algorithms are written in modern C++ with multithreading support for fast CPU execution. Kompass is the first navigation framework to support SYCL-based GPGPU execution, unlocking high performance on any compatible GPU, breaking the vendor lock-in of traditional frameworks.
 
-- <span style="color: #E83F3F; font-weight: bold;">Machine learning models as first class citizens</span>: External events in Kompass can be driven by outputs of machine learning models interpreting sensor data or user commands, which means the entire stack becomes reconfigurable based on ML model outputs. This goes beyond well established scenarios of visual navigation.
+- **Machine learning models as first class citizens**: External events in Kompass can be driven by outputs of machine learning models interpreting sensor data or user commands, which means the entire stack becomes reconfigurable based on ML model outputs. This goes beyond well established scenarios of visual navigation.
 
-- <span style="color: #E83F3F; font-weight: bold;">Pythonic API with Native Speed</span>: While the heavy lifting is done in optimized C++, Kompass provides an intuitive Python API, letting developers prototype quickly and deploy high-performance systems without rewriting code.
+- **Pythonic API with Native Speed**: While the heavy lifting is done in optimized C++, Kompass provides an intuitive Python API, letting developers prototype quickly and deploy high-performance systems without rewriting code.
 
 
-- <span style="color: #E83F3F; font-weight: bold;">Modular architecture and easy extensibility</span>: Kompass is built on ROS2 using [Sugarcoat🍬](https://github.com/automatika-robotics/sugarcoat). It decouples core algorithms from the ROS2 interface, Kompass ensures compatibility across ROS2 versions and simplifies core upgrades and community extensions.
+- **Modular architecture and easy extensibility**: Kompass is built on ROS2 using [Sugarcoat🍬](https://github.com/automatika-robotics/sugarcoat). It decouples core algorithms from the ROS2 interface, Kompass ensures compatibility across ROS2 versions and simplifies core upgrades and community extensions.
 
 Find out more about our [**motivation**](https://automatika-robotics.github.io/kompass/why.html) to create Kompass.
 
