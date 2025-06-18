@@ -423,7 +423,7 @@ class DetectionsCallback(GenericCallback):
 
         # Get image size
         img_size = None
-        if self._depth_image:
+        if self._depth_image is not None:
             img_size = np.array([detections_set.depth.width, detections_set.depth.height], dtype=np.int32)
         elif detections_set.image.data:
             img_size = np.array([detections_set.image.width, detections_set.image.height], dtype=np.int32)
@@ -501,29 +501,31 @@ class DetectionsCallback(GenericCallback):
         try:
             self._label = label
             if self._buffer_items <= 0:
-                return [self._detected_boxes[label]]
+                return None #[self._detected_boxes[label]]
             else:
                 last_detections = self._detections_buffer[-self._buffer_items :]
                 # Create weights array: [1, 2, ..., n]
                 weights = np.arange(1, self._buffer_items + 1).reshape(-1, 1)
                 # Multiply each row by its weight then divide by the sum
                 average_det = np.sum(last_detections * weights, axis=0) / np.sum(weights)
-                return [
-                    Bbox2D(
-                        top_left_corner=np.array(
-                            [average_det[0], average_det[1]], dtype=np.int32
-                        ),
-                        size=np.array(
-                            [
-                                average_det[2],
-                                average_det[3],
-                            ],
-                            dtype=np.int32,
-                        ),
-                        timestamp=self._detected_boxes[label].timestamp,  # Gets last timestamp
-                        label=label,
-                    )
-                ]
+                average_box = Bbox2D(
+                                top_left_corner=np.array(
+                                    [average_det[0], average_det[1]], dtype=np.int32
+                                ),
+                                size=np.array(
+                                    [
+                                        average_det[2],
+                                        average_det[3],
+                                    ],
+                                    dtype=np.int32,
+                                ),
+                                timestamp=self._detected_boxes[label].timestamp,  # Gets last timestamp
+                                label=label,
+                            )
+                average_box.set_img_size(
+                    self._detected_boxes[label].img_size
+                )
+                return [average_box]
         except KeyError:
             return None
 

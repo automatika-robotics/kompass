@@ -50,9 +50,9 @@ from .defaults import (
     TopicsKeys,
 )
 
-# from kompass_core import set_logging_level
+from kompass_core import set_logging_level
 
-# set_logging_level("DEBUG")
+set_logging_level("DEBUG")
 
 
 class CmdPublishType(StrEnum):
@@ -609,7 +609,7 @@ class Controller(Component):
         """
         # Note: Only DWA takes local map
         if (
-            self.algorithm not in [ControllersID.DWA, ControllersID.VISION]
+            self.algorithm not in [ControllersID.DWA, ControllersID.VISION_DEPTH]
             and not value
         ):
             get_logger(self.node_name).warning(
@@ -641,7 +641,7 @@ class Controller(Component):
         """
         self.config.algorithm = value
         # Select mode based on the algorithm
-        if value in [ControllersID.VISION, ControllersID.VISION.value]:
+        if value in [ControllersID.VISION_DEPTH, ControllersID.VISION_IMG, ControllersID.VISION_DEPTH.value, ControllersID.VISION_IMG.value]:
             self._activate_vision_mode()
         else:
             self._activate_follower_mode()
@@ -925,8 +925,8 @@ class Controller(Component):
 
             # Put new control commands to the queue
             [
-                self._cmds_queue.put(i)
-                for i in zip(
+                self._cmds_queue.put((float(vx), float(vy), float(omega)))
+                for (vx, vy, omega) in zip(
                     commands_vx,
                     commands_vy,
                     commands_omega,
@@ -1129,7 +1129,7 @@ class Controller(Component):
             time.sleep(1 / self.config.loop_rate)
         return wait_time < max_wait_time
 
-    def __setup_vision_controller(self) -> Optional[Union[ControlClasses.VISION_IMG, ControlClasses.VISION_DEPTH]]:
+    def __setup_vision_controller(self) -> Any:
         """Setup and configure a VisionDWA controller instance
 
         :return: Configured controller
@@ -1171,6 +1171,11 @@ class Controller(Component):
             camera_rotation_to_robot=self.depth_tf_listener.rotation,
         )
 
+        # Set the buffer size to the detections callback
+        detections_callback = self.get_callback(TopicsKeys.VISION_DETECTIONS)
+        if detections_callback:
+            detections_callback.set_buffer_size(config.buffer_size)
+
         _controller_config = self._configure_algorithm(config)
 
         return ControlClasses[self.algorithm](
@@ -1184,7 +1189,7 @@ class Controller(Component):
             if self.depth_image_info
             else None,
             config_file=self._config_file,
-            config_yaml_root_name=f"{self.node_name}.VisionDWA",
+            config_yaml_root_name=f"{self.node_name}.{self.algorithm}",
         )
 
     def __setup_initial_tracking_target(
@@ -1323,14 +1328,15 @@ class Controller(Component):
             # Publish feedback TODO
 
             # Publish control
+            self.get_logger().info(
+                f"Following tracked target with control: {_controller.linear_x_control}, {_controller.angular_control}"
+            )
             self._publish(
                 _controller.linear_x_control,
                 _controller.linear_y_control,
                 _controller.angular_control,
             )
-            self.get_logger().info(
-                f"Following tracked target with control: {_controller.linear_x_control}, {_controller.angular_control}"
-            )
+
 
             goal_handle.publish_feedback(feedback_msg)
 
@@ -1522,6 +1528,7 @@ class Controller(Component):
         3- Publish commands
         Robot is stopped when the end of the path is reached
         """
+        self.get_logger().debug("In execution step")
         # PATH FOLLOWER MODE
         if self.config._mode == ControllerMode.VISION_FOLLOWER:
             # If vision mode is activated -> do nothing
