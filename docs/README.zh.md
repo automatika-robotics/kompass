@@ -1,6 +1,6 @@
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/_static/Kompass_dark.png">
-  <source media="(prefers-color-scheme: light)" srcset="docs/_static/Kompass_light.png">
+  <source media="(prefers-color-scheme: dark)" srcset="_static/Kompass_dark.png">
+  <source media="(prefers-color-scheme: light)" srcset="_static/Kompass_light.png">
   <img alt="Kompass Logo." src="docs/_static/Kompass_light.png"  width="50%">
 </picture>
 <br/>
@@ -39,8 +39,8 @@ Kompass 内置了**高度优化、基于 GPU 的最先进导航算法的 C++ 实
 Kompass 由多个交互组件组成，每个组件负责导航任务中的一个子任务：
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/_static/images/diagrams/system_components_dark.png">
-  <source media="(prefers-color-scheme: light)" srcset="docs/_static/images/diagrams/system_components_light.png">
+  <source media="(prefers-color-scheme: dark)" srcset="_static/images/diagrams/system_components_dark.png">
+  <source media="(prefers-color-scheme: light)" srcset="_static/images/diagrams/system_components_light.png">
   <img alt="Kompass 组件任务图" src="_static/images/diagrams/system_components_dark.png"  width="100%">
 </picture>
 
