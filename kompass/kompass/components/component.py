@@ -1,7 +1,6 @@
 import time
 import json
 from typing import Dict, List, Optional, Union, Tuple
-from omegaconf import OmegaConf
 from ros_sugar.core import ComponentFallbacks, BaseComponent
 from ros_sugar.tf import TFListener, TFListenerConfig
 from ros_sugar.io import Publisher, AllowedTopics

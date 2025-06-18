@@ -35,7 +35,7 @@ from ament_index_python.packages import (
 
 def kompass_bringup():
     package_dir = get_package_share_directory(package_name="kompass")
-    config_file = os.path.join(package_dir, "params", "turtlebot3.yaml")
+    config_file = os.path.join(package_dir, "params", "turtlebot3.toml")
 
     # Setup your robot configuration
     my_robot = RobotConfig(
@@ -138,4 +138,4 @@ def kompass_bringup():
     # Set the robot config for all components
     launcher.robot = my_robot
 
-    launcher.bringup(ros_log_level="info", introspect=True)
+    launcher.bringup()
