@@ -28,7 +28,7 @@ For example, with Kompass the user can easily design a system that utilizes one 
 
 Kompass core algorithms are implemented in modern C++ for maximum performance and efficiency. Designed with real-time robotics in mind, it makes full use of multi-threaded CPU execution and GPU acceleration to parallelize compute-heavy tasks like planning, control and map updates.
 
-The GPU support in Kompass is built using SYCL. Unlike other solutions that rely on vendor-specific GPU APIs (e.g. CUDA for Nvidia), Kompass is the <span class="text-primary-strong">first navigation framework to support cross-GPU acceleration</span>. This means it can target any SYCL-compliant GPU, including those from Nvidia, AMD, Intel, and others—without requiring device-specific modifications.
+The GPU support in Kompass is built using SYCL. Unlike other solutions that rely on vendor-specific GPU APIs (e.g. CUDA for Nvidia), Kompass is the <span class="text-red-strong">first navigation framework to support cross-GPU acceleration</span>. This means it can target any SYCL-compliant GPU, including those from Nvidia, AMD, Intel, and others—without requiring device-specific modifications.
 
 While the performance-critical core runs in C++, Kompass offers a clean Python API combining the speed of native code with the ease of Python development.
 

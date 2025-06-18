@@ -6,15 +6,15 @@
 }
 
 /* === Text color classes === */
-.text-primary {
+.text-red {
     color: var(--automatika-primary);
 }
 
-.text-secondary {
+.text-blue {
     color: var(--automatika-secondary);
 }
 
-.text-primary-strong {
+.text-red-strong {
     color: var(--automatika-primary);
     font-weight: bold; }
 
