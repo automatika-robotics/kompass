@@ -1,8 +1,9 @@
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/_static/Kompass.png">
-  <source media="(prefers-color-scheme: light)" srcset="docs/_static/Kompass_dark.png">
-  <img alt="Kompass Logo." src="docs/_static/Kompass_dark.png"  width="50%">
+  <source media="(prefers-color-scheme: dark)" srcset="docs/_static/Kompass_dark.png">
+  <source media="(prefers-color-scheme: light)" srcset="docs/_static/Kompass_light.png">
+  <img alt="Kompass Logo." src="docs/_static/Kompass_light.png"  width="50%">
 </picture>
+<br/>
 
 🇨🇳  [简体中文](docs/README.zh.md)
 
