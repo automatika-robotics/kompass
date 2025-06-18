@@ -9,7 +9,7 @@
 
 Kompass is a framework for building **robust**, **event-driven** navigation stacks for autonomous mobile robots. It provides an **intuitive Python API** designed to be easy to integrate, extend, and adapt to a wide range of use cases.
 
-Kompass includes efficient implementations of **core navigation algorithms in C++** that make full use of available hardware resources. It supports **multi-threaded execution on CPUs** and can run on **ANY GPU** (Nvidia, AMD, etc.) without vendor lock-in. This makes it suitable for both development and deployment across diverse hardware setups. And most importantly, Kompass makes it straightforward to create and deploy sophisticated navigation capabilities for any mobile robot within **a single Python script**, without sacrificing performance or flexibility.
+Kompass includes efficient implementations of **core navigation algorithms in C++** that make full use of available hardware resources. It supports **multi-threaded execution on CPUs** and can run on <span class="text-primary-strong">ANY GPU</span> (Nvidia, AMD, etc.) without vendor lock-in. This makes it suitable for both development and deployment across diverse hardware setups. And most importantly, Kompass makes it straightforward to create and deploy sophisticated navigation capabilities for any mobile robot within **a single Python script**, without sacrificing performance or flexibility.
 
 - Find out more about our [**motivation**](why.md) to create Kompass ✨
 - [**Install**](install.md) Kompass on your robot 🛠️

@@ -13,6 +13,7 @@ title: KOMPASS Documentation
 why
 install
 quick_start
+cli
 ```
 
 <!-- # Navigation -->
