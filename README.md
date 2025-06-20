@@ -5,7 +5,7 @@
 </picture>
 <br/>
 
-🇨🇳  [简体中文](docs/README.zh.md)
+🇨🇳  [简体中文](docs/README.zh.md) | 🇯🇵  [日本語](docs/README.ja.md)
 
 Welcome to Kompass! The fastest and most intuitive navigation stack known to man! Kompass is a framework for building **robust**, **event-driven** navigation stacks for autonomous mobile robots. Kompass is built to be customizable, extendable and hardware-agnostic. It provides an **intuitive Python API** designed to be easy to integrate, extend, and adapt to a wide range of use cases.
 
@@ -22,12 +22,11 @@ Kompass includes **highly optimized, GPU powered, versions of the most cutting e
 
 - **Adaptive Event-Driven Design**: Kompass is built to be responsive to real-world events, robot state changes, and task updates. Its event-driven architecture makes it easy to define event-action pairs to reconfigure the navigation stack during runtime, or to seamlessly switch planning or control strategies based on environment context.
 
-- **Engineered for Speed - C++, Multi-Threading, and Cross-GPU Support**: All core algorithms are written in modern C++ with multithreading support for fast CPU execution. Kompass is the first navigation framework to support SYCL-based GPGPU execution, unlocking high performance on any compatible GPU, breaking the vendor lock-in of traditional frameworks.
+- **Engineered for Speed - C++, Multi-Threading, and Cross-GPU Support**: All core algorithms are written in modern C++ with multithreading support for fast CPU execution ([kompass-core](https://github.com/automatika-robotics/kompass-core)). Kompass is the first navigation framework to support SYCL-based GPGPU execution, unlocking high performance on any compatible GPU, breaking the vendor lock-in of traditional frameworks.
 
 - **Machine learning models as first class citizens**: External events in Kompass can be driven by outputs of machine learning models interpreting sensor data or user commands, which means the entire stack becomes reconfigurable based on ML model outputs. This goes beyond well established scenarios of visual navigation.
 
 - **Pythonic API with Native Speed**: While the heavy lifting is done in optimized C++, Kompass provides an intuitive Python API, letting developers prototype quickly and deploy high-performance systems without rewriting code.
-
 
 - **Modular architecture and easy extensibility**: Kompass is built on ROS2 using [Sugarcoat🍬](https://github.com/automatika-robotics/sugarcoat). It decouples core algorithms from the ROS2 interface, Kompass ensures compatibility across ROS2 versions and simplifies core upgrades and community extensions.
 
@@ -72,7 +71,9 @@ kompass-core is a python package that provides highly optimized implementations 
 
 On any Ubuntu (including Jetpack) based machine, you can simply run the following:
 
-`curl https://raw.githubusercontent.com/automatika-robotics/kompass-core/refs/heads/main/build_dependencies/install_gpu.sh | bash`
+```bash
+curl https://raw.githubusercontent.com/automatika-robotics/kompass-core/refs/heads/main/build_dependencies/install_gpu.sh | bash
+```
 
 This script will install all relevant dependencies, including [AdaptiveCPP](https://github.com/AdaptiveCpp/AdaptiveCpp) and install the latest version of kompass-core from source. It is good practice to read the [script](https://github.com/automatika-robotics/kompass-core/blob/main/build_dependencies/install_gpu.sh) first.
 
@@ -80,17 +81,24 @@ This script will install all relevant dependencies, including [AdaptiveCPP](http
 
 On Ubuntu versions >= 22.04, install dependencies by running the following:
 
-`sudo apt-get install libompl-dev libfcl-dev libpcl-dev`
+```bash
+sudo apt-get install libompl-dev libfcl-dev libpcl-dev
+```
 
 Then install kompass-core as follows:
 
-`pip install kompass-core`
+```bash
+pip install kompass-core
+```
 
 ### Install Kompass (available for `humble` and any distribution `\geq` `jazzy` )
 
 Install pre-build Kompass binary as follows:
 
-`sudo apt install ros-$ROS_DISTRO-kompass`
+```bash
+sudo apt install ros-$ROS_DISTRO-kompass
+```
+
 
 ### Build Kompass from source
 
