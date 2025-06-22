@@ -30,3 +30,7 @@ a:hover,
 a:focus {
     color: var(--automatika-primary);
     text-decoration: underline; }
+
+
+blockquote.epigraph {
+    font-size: 95%;}
