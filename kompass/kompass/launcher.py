@@ -1,4 +1,4 @@
-"""System Launcher extending the base Launcher in [Sugarcoat](https://github.com/automatika-robotics/sugarcoat)"""
+"""System Launcher extending the base Launcher in [Sugarcoat🍬](https://github.com/automatika-robotics/sugarcoat)"""
 
 from typing import Dict, List, Optional, Union
 from launch.action import Action as ROSLaunchAction
@@ -15,7 +15,7 @@ from .config import RobotConfig, RobotFrames
 
 class Launcher(BaseLauncher):
     """
-    System Launcher extending the base Launcher in [Sugarcoat](https://github.com/automatika-robotics/sugarcoat)
+    System Launcher extending the base Launcher in [Sugarcoat🍬](https://github.com/automatika-robotics/sugarcoat)
     """
 
     def __init__(

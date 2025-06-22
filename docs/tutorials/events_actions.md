@@ -2,7 +2,7 @@
 
 Events/Actions are a powerful tool to make your robot application adaptive to the changing working conditions (both internal and external to the robot), or to extend the operational scope of your application by adapting it to new spaces/usecases.
 
-In this tutorial we will extend the Turtlebot3 quick start [recipe](../quick_start.md) by adding a few events/actions to the system.
+In this tutorial we will extend the Turtlebot3 point navigation [recipe](point_navigation.md) by adding a few events/actions to the system.
 
 ## First Event/Action Pair
 
@@ -47,16 +47,16 @@ event_planner_algo_fail = event.OnEqual(
 ```
 
 ```{tip}
-If you are using Kompass with the [Costmap 2D](wiki.ros.org/costmap_2d) node: You can associate another Action to the Planner algorithm level fail event which is a ROS2 service call to the node `clear_costmap` service. (Keep reading to see how similar actions are executed!)
+If you are using Kompass with the [Costmap 2D](https://docs.nav2.org/configuration/packages/configuring-costmaps.html) node: You can associate another Action to the Planner algorithm level fail event which is a ROS2 service call to the node `clear_costmap` service. (Keep reading to see how similar actions are executed!)
 ```
 
 ```{note}
-In the quick start [recipe](../quick_start.md) we added a generic on_fail policy to restart the failed component. This policy will be applied whenever any type of failure is occurs, including the previously used algorithm failure. We can choose to keep this policy, meaning that while the driver is executing the `move_to_unblock` action, then the planner or controller will get restarted.
+In the point navigation [recipe](point_navigation.md) we added a generic on_fail policy to restart the failed component. This policy will be applied whenever any type of failure is occurs, including the previously used algorithm failure. We can choose to keep this policy, meaning that while the driver is executing the `move_to_unblock` action, then the planner or controller will get restarted.
 ```
 
 ## Tweak the system using events
 
-In our [_quick start_](../quick_start.md) example we used the Planner with a `Timed` run type and used RVIZ clicked point as the goal point input. In this configuration, once a point is clicked on RVIZ (a message is published on the topic), the Planner will keep producing a new plan each loop step from the current position to the clicked point. To track the mission during execution and end the mission once the point is reached we can run the Planner as an `ActionServer`. In this case the Planner produces a new plan on an incoming action request and will no longer take goals directly from RVIZ topic.
+In our [_point navigation_](point_navigation.md) example we used the Planner with a `Timed` run type and used RVIZ clicked point as the goal point input. In this configuration, once a point is clicked on RVIZ (a message is published on the topic), the Planner will keep producing a new plan each loop step from the current position to the clicked point. To track the mission during execution and end the mission once the point is reached we can run the Planner as an `ActionServer`. In this case the Planner produces a new plan on an incoming action request and will no longer take goals directly from RVIZ topic.
 
 We will use events here to run the Planner as an `ActionServer` and accept the goal directly from RVIZ to get the best of both worlds.
 
@@ -72,6 +72,12 @@ event_clicked_point = event.OnGreater(
     Topic(name="/clicked_point", msg_type="PointStamped"),
     0,
     ["header", "stamp", "sec"],
+)
+
+# Another way to define the same event
+event_clicked_point_1 = event.OnAny(
+    "rviz_goal_any",
+    Topic(name="/clicked_point", msg_type="PointStamped"),
 )
 ```
 

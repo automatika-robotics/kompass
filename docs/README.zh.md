@@ -20,7 +20,7 @@ Kompass 内置了**高度优化、基于 GPU 的最先进导航算法的 C++ 实
 - 深入学习请参阅一个[**完整教程**](https://automatika-robotics.github.io/kompass/tutorials/point_navigation.html) 🤖
 - 想了解设计理念？点击[**设计概念**](https://automatika-robotics.github.io/kompass/advanced/design.html) 📚
 
-## 为什么选择 Kompass？
+# 为什么选择 Kompass？
 
 - **自适应事件驱动设计**：Kompass 针对真实世界中的事件、机器人状态变化和任务更新做出响应。它的事件驱动架构使得用户可以轻松定义事件-动作对，在运行时动态重构导航栈，或根据环境上下文平滑切换规划/控制策略。
 
@@ -34,7 +34,7 @@ Kompass 内置了**高度优化、基于 GPU 的最先进导航算法的 C++ 实
 
 了解更多关于我们创建 Kompass 的[**动机**](https://automatika-robotics.github.io/kompass/why.html)。
 
-## 核心组件
+# 核心组件
 
 Kompass 由多个交互组件组成，每个组件负责导航任务中的一个子任务：
 
@@ -59,17 +59,17 @@ Kompass 由多个交互组件组成，每个组件负责导航任务中的一个
 - [驱动管理器（Drive Manager）](https://automatika-robotics.github.io/kompass/navigation/driver.html)
 - [运动服务器（Motion Server）](https://automatika-robotics.github.io/kompass/navigation/motion_server.html)
 
-## 安装
+# 安装
 
-### 前置条件
+## 前置条件
 
 Kompass 需要 ROS2 环境。支持从 _Foxy_ 到 _Rolling_ 的所有 ROS2 版本。请根据[官方文档](https://docs.ros.org/)安装你选择的 ROS2 版本。
 
-### 安装 kompass-core
+## 安装 kompass-core
 
 `kompass-core` 是 Kompass 的 Python 包，提供高度优化的规划与控制算法实现。你可以通过以下方式安装：
 
-#### 含 GPU 支持（推荐）：
+### 含 GPU 支持（推荐）：
 
 在任何基于 Ubuntu（包括 Jetpack）的设备上运行：
 
@@ -79,7 +79,7 @@ curl https://raw.githubusercontent.com/automatika-robotics/kompass-core/refs/hea
 
 此脚本将安装所有相关依赖（包括 AdaptiveCPP）并从源码安装最新版本的 kompass-core。建议你先阅读该安装脚本。
 
-#### 通过 pip 安装
+### 通过 pip 安装
 
 在 Ubuntu 22.04 或更高版本上，首先安装依赖：
 
@@ -87,18 +87,18 @@ curl https://raw.githubusercontent.com/automatika-robotics/kompass-core/refs/hea
 sudo apt-get install libompl-dev libfcl-dev libpcl-dev
 ```
 
-#### 然后安装 kompass-core：
+### 然后安装 kompass-core：
 
 ```bash
 pip install kompass-core
 ```
 
-### 安装 Kompass（二进制包，支持 humble 及以上如 jazzy 等版本）
+## 安装 Kompass（二进制包，支持 humble 及以上如 jazzy 等版本）
 ```bash
 sudo apt install ros-$ROS_DISTRO-kompass
 ```
 
-### 从源码构建 Kompass
+## 从源码构建 Kompass
 ```bash
 mkdir -p kompass_ws/src
 cd kompass_ws/src
@@ -110,16 +110,12 @@ cd ..
 colcon build
 ```
 
-## 版权声明
+# 版权声明
 
 除非另有明确说明，本发行版中的代码版权归 Automatika Robotics 所有 © 2024。
 
 Kompass 以 MIT 许可证开源发布。详细信息请参阅 [LICENSE](../LICENSE) 文件。
 
-## 社区贡献
+# 社区贡献
 
 Kompass 由 [Automatika Robotics](https://automatikarobotics.com/) 与 [Inria](https://inria.fr/) 合作开发。我们热烈欢迎来自社区的贡献。
-
-
-
-

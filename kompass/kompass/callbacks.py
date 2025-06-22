@@ -368,7 +368,7 @@ class DetectionsCallback(GenericCallback):
         # Initial time of the first detection is used to reset ROS time to zero on the first detection and avoid sending large timestamps to core
         self._initial_time = 0.0
         self._depth_image: Optional[np.ndarray] = None
-        self._label : str = None
+        self._label: str = None
         self._buffer_items: int = 0
         self._max_buffer_size = buffer_size
         self._feature_items: int = (
@@ -378,6 +378,40 @@ class DetectionsCallback(GenericCallback):
             buffer_size,
             self._feature_items,
         ))  # num_detections x num_features
+
+    def __get_img_size(self, detections_set) -> np.ndarray:
+        """Get image size from a detection set
+
+        :param detections_set: _description_
+        :type detections_set: _type_
+        :return: Image size (width, height)
+        :rtype: np.ndarray[dtype=np.int32]
+        """
+        # Get image size
+        img_size = None
+        if detections_set.depth.data is not None:
+            img_size = np.array(
+                [detections_set.depth.width, detections_set.depth.height],
+                dtype=np.int32,
+            )
+        elif detections_set.image.data:
+            img_size = np.array(
+                [detections_set.image.width, detections_set.image.height],
+                dtype=np.int32,
+            )
+        elif detections_set.compressed_image.data:
+            img_size = np.array(
+                [
+                    detections_set.compressed_image.width,
+                    detections_set.compressed_image.height,
+                ],
+                dtype=np.int32,
+            )
+        if img_size is None:
+            logging.error(
+                "No image is provided with the detections message. Unknown image size can lead to errors!"
+            )
+        return img_size
 
     def set_buffer_size(self, value: int, clear_old: bool = False) -> None:
         """Resizes detections buffer (while maintaining old buffer items in the resized buffer)
@@ -422,15 +456,7 @@ class DetectionsCallback(GenericCallback):
         timestamp = msg.header.stamp.sec + 1e-9 * msg.header.stamp.nanosec
 
         # Get image size
-        img_size = None
-        if self._depth_image is not None:
-            img_size = np.array([detections_set.depth.width, detections_set.depth.height], dtype=np.int32)
-        elif detections_set.image.data:
-            img_size = np.array([detections_set.image.width, detections_set.image.height], dtype=np.int32)
-        elif detections_set.compressed_image.data:
-            img_size = np.array([detections_set.compressed_image.width, detections_set.compressed_image.height], dtype=np.int32)
-        if img_size is None:
-            logging.error("No image is provided with the detections message. Unknown image size can lead to errors!")
+        img_size = self.__get_img_size(detections_set)
 
         got_label = False
         for label, box in zip(detections_set.labels, detections_set.boxes):
@@ -501,30 +527,32 @@ class DetectionsCallback(GenericCallback):
         try:
             self._label = label
             if self._buffer_items <= 0:
-                return None #[self._detected_boxes[label]]
+                return None  # [self._detected_boxes[label]]
             else:
                 last_detections = self._detections_buffer[-self._buffer_items :]
                 # Create weights array: [1, 2, ..., n]
                 weights = np.arange(1, self._buffer_items + 1).reshape(-1, 1)
                 # Multiply each row by its weight then divide by the sum
-                average_det = np.sum(last_detections * weights, axis=0) / np.sum(weights)
-                average_box = Bbox2D(
-                                top_left_corner=np.array(
-                                    [average_det[0], average_det[1]], dtype=np.int32
-                                ),
-                                size=np.array(
-                                    [
-                                        average_det[2],
-                                        average_det[3],
-                                    ],
-                                    dtype=np.int32,
-                                ),
-                                timestamp=self._detected_boxes[label].timestamp,  # Gets last timestamp
-                                label=label,
-                            )
-                average_box.set_img_size(
-                    self._detected_boxes[label].img_size
+                average_det = np.sum(last_detections * weights, axis=0) / np.sum(
+                    weights
                 )
+                average_box = Bbox2D(
+                    top_left_corner=np.array(
+                        [average_det[0], average_det[1]], dtype=np.int32
+                    ),
+                    size=np.array(
+                        [
+                            average_det[2],
+                            average_det[3],
+                        ],
+                        dtype=np.int32,
+                    ),
+                    timestamp=self._detected_boxes[
+                        label
+                    ].timestamp,  # Gets last timestamp
+                    label=label,
+                )
+                average_box.set_img_size(self._detected_boxes[label].img_size)
                 return [average_box]
         except KeyError:
             return None
@@ -707,7 +735,6 @@ class TrackingsCallback(GenericCallback):
                 not self._img_metadata
                 or track.compressed_image.header.frame_id != self._img_metadata.frame_id
             ):
-                data: np.ndarray = read_compressed_image(track.compressed_image)
                 self._detections_buffer = np.ones((
                     self._max_buffer_size,
                     self._feature_items,

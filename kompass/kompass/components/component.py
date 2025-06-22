@@ -257,7 +257,9 @@ class Component(BaseComponent):
         self._outputs_list = self._reparse_outputs_converts(_outputs)
         self.out_topics = [topic for topic in self._outputs_list if topic]
 
-    def __configure_input_from_file(self, idx: int, key: TopicsKeys, config_file: str) -> None:
+    def __configure_input_from_file(
+        self, idx: int, key: TopicsKeys, config_file: str
+    ) -> None:
         """Configure component input topic from config file
 
         :param idx: Input index
@@ -294,7 +296,9 @@ class Component(BaseComponent):
                 idx
             ].msg_type.callback(self.in_topics[idx], node_name=self.node_name)
 
-    def __configure_output_from_file(self, idx: int, key: TopicsKeys, config_file: str) -> None:
+    def __configure_output_from_file(
+        self, idx: int, key: TopicsKeys, config_file: str
+    ) -> None:
         """Configure component output topic from config file
 
         :param idx: Output index

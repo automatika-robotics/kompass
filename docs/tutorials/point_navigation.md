@@ -2,7 +2,7 @@
 
 ## Step 1: Setup your robot
 
-The first step to start navigating is to configure the robot the will use the navigation system. Kompass provides a `RobotConfig` primitive where you can add the robot motion model (ACKERMANN, OMNI, DIFFERENTIAL_DRIVE), the robot geometry parameters and the robot control limits. Lets see how that looks like in code.
+The first step to start navigating is to [configure the robot](../navigation/robot.md) that will use the navigation system. Kompass provides a `RobotConfig` primitive where you can add the robot motion model (ACKERMANN, OMNI, DIFFERENTIAL_DRIVE), the robot geometry parameters and the robot control limits. Lets see how that looks like in code.
 
 ```python
 import numpy as np
@@ -42,7 +42,7 @@ robot_frames = RobotFrames(
 ```
 
 ```{seealso}
-You can learn more [here](navigation/robot.md) about the available robot configurations in Kompass.
+You can learn more [here](../navigation/robot.md) about the available robot configurations in Kompass.
 ```
 
 ```{note}
@@ -79,12 +79,12 @@ driver.outputs(command=Topic(name="cmd_vel", msg_type="Twist"))
 ```
 
 ```{seealso}
-Several other configuration options are available for each component, refer to the [Planner](./navigation/path_planning.md) and [Controller](./navigation/control.md) dedicated pages for more details.
+Several other configuration options are available for each component, refer to the [Planner](../navigation/path_planning.md) and [Controller](../navigation/control.md) dedicated pages for more details.
 ```
 
 ## Step 3: Setup your Launcher
 
-The launcher in Kompass is a wrapper for ROS2 launch tools. Launcher requires a Component or a set of Components to start. Launcher can also manage Events/Actions which we will leave out of this simple example (check a more advanced example [here](tutorials/events_actions.md)).
+The launcher in Kompass is a wrapper for ROS2 launch tools. Launcher requires a Component or a set of Components to start. Launcher can also manage Events/Actions which we will leave out of this simple example (check a more advanced example [here](events_actions.md)).
 
 After initializing the Launcher with the required components, we also pass the robot configuration and frames to the launcher (which will be forwarded to all the components). We will also set two other parameters; we set 'activate_all_components_on_start' to `True` so all the components will transition to 'active' state after bringup. We also set 'multi_processing' to `True` to start each component in a separate process.
 
@@ -119,11 +119,11 @@ launcher.bringup()
 Notice that in the above code we also set a generic fallback policy to restart any failed components.
 
 ```{seealso}
-There are various fallback mechanisms available in Kompass. Learn more about them [here](design/fallbacks.md).
+There are various fallback mechanisms available in Kompass. Learn more about them in [Sugarcoat🍬 docs](https://automatika-robotics.github.io/sugarcoat/design/fallbacks.html).
 ```
 
 ```{seealso}
-To pass other components to the launcher from packages other than Kompass, use the method `add_pkg`. See more details in [Sugarcoat](https://automatika-robotics.github.io/sugarcoat/advanced/use.html) about creating your own package and using it with the Launcher.
+To pass other components to the launcher from packages other than Kompass, use the method `add_pkg`. See more details in [Sugarcoat🍬](https://automatika-robotics.github.io/sugarcoat/advanced/use.html) about creating your own package and using it with the Launcher.
 ```
 
 Finally, we bring up our stack and select the desired logging level.

@@ -13,8 +13,8 @@ Kompass includes **highly optimized, GPU powered, versions of the most cutting e
 
 - Find out more about our [**motivation**](why.md) to create Kompass ✨
 - [**Install**](install.md) Kompass on your robot 🛠️
-- To get started with Kompass, check the [**quick start**](quick_start.md) tutorial 🚀
-- Do a deep dive with one of the [**tutorials**](tutorials/point_navigation.md) 🤖
+- To get started with Kompass, check the [**quick start**](tutorials/quick_start.md) tutorial 🚀
+- Do a deep dive with one of the [**tutorials**](tutorials/index.md) 🤖
 - Learn more about the [**design concepts**](advanced/design.md) of Kompass 📚
 
 

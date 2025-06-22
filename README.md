@@ -18,7 +18,7 @@ Kompass includes **highly optimized, GPU powered, versions of the most cutting e
 - Do a deep dive with one of the [**tutorials**](https://automatika-robotics.github.io/kompass/tutorials/point_navigation.html) 🤖
 - Learn more about the [**design concepts**](https://automatika-robotics.github.io/kompass/advanced/design.html) of Kompass 📚
 
-## Why Kompass?
+# Why Kompass?
 
 - **Adaptive Event-Driven Design**: Kompass is built to be responsive to real-world events, robot state changes, and task updates. Its event-driven architecture makes it easy to define event-action pairs to reconfigure the navigation stack during runtime, or to seamlessly switch planning or control strategies based on environment context.
 
@@ -32,7 +32,7 @@ Kompass includes **highly optimized, GPU powered, versions of the most cutting e
 
 Find out more about our [**motivation**](https://automatika-robotics.github.io/kompass/why.html) to create Kompass.
 
-## Components
+# Components
 
 Kompass is divided into several interacting components each responsible for one of the navigation subtasks:
 
@@ -57,17 +57,17 @@ To learn more about the functionalities and configuration of each component chec
 - [Drive Manager](https://automatika-robotics.github.io/kompass/navigation/driver.html)
 - [Motion Server](https://automatika-robotics.github.io/kompass/navigation/motion_server.html)
 
-## Installation
+# Installation
 
-### Prerequisites
+## Prerequisites
 
 Kompass is built to be used with ROS2. All ROS2 distributions starting from _Foxy_ upto _Rolling_ are supported. Install ROS2 version of your choice by following the instructions on the [official site](https://docs.ros.org/).
 
-### Install kompass-core
+## Install kompass-core
 
 kompass-core is a python package that provides highly optimized implementations of planning and control algorithms for Kompass. You can install it in the following ways:
 
-#### With GPU support (Recommended):
+### With GPU support (Recommended):
 
 On any Ubuntu (including Jetpack) based machine, you can simply run the following:
 
@@ -77,7 +77,7 @@ curl https://raw.githubusercontent.com/automatika-robotics/kompass-core/refs/hea
 
 This script will install all relevant dependencies, including [AdaptiveCPP](https://github.com/AdaptiveCpp/AdaptiveCpp) and install the latest version of kompass-core from source. It is good practice to read the [script](https://github.com/automatika-robotics/kompass-core/blob/main/build_dependencies/install_gpu.sh) first.
 
-#### Installing with pip
+### Installing with pip
 
 On Ubuntu versions >= 22.04, install dependencies by running the following:
 
@@ -91,7 +91,7 @@ Then install kompass-core as follows:
 pip install kompass-core
 ```
 
-### Install Kompass (available for `humble` and any distribution `\geq` `jazzy` )
+## Install Kompass (available for `humble` and any distribution `\geq` `jazzy` )
 
 Install pre-build Kompass binary as follows:
 
@@ -100,7 +100,7 @@ sudo apt install ros-$ROS_DISTRO-kompass
 ```
 
 
-### Build Kompass from source
+## Build Kompass from source
 
 You can build Kompass from source as follows:
 
@@ -115,12 +115,12 @@ cd ..
 colcon build
 ```
 
-## Copyright
+# Copyright
 
 The code in this distribution is Copyright (c) 2024 Automatika Robotics unless explicitly indicated otherwise.
 
 Kompass is made available under the MIT license. Details can be found in the [LICENSE](LICENSE) file.
 
-## Contributions
+# Contributions
 
 Kompass has been developed in collaboration between [Automatika Robotics](https://automatikarobotics.com/) and [Inria](https://inria.fr/). Contributions from the community are most welcome.

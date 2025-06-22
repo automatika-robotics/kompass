@@ -7,7 +7,7 @@ Refer to [Sugarcoat](https://github.com/automatika-robotics/sugarcoat) for relat
 Actions are methods or routines executed by a component or by the system monitor.
 
 Actions can either be:
-- Actions paired with Events: in this case the Action is executed by a system monitor when an event is detected (see more details in [Monitor](monitor.md), [Launcher](launcher.md))
+- Actions paired with Events: based on the Action type, the Action is executed either by the concerned Component or centrally by the system monitor when an event is detected
 - Actions paired with Fallbacks: in this case the Action is executed by a Component when a failure is detected
 
 Actions are defined with:
@@ -17,15 +17,15 @@ Actions are defined with:
 
 - Usage Example:
 ```python
-    from kompass.components.component import Component
-    from kompass.config import ComponentConfig
+    from kompass.components import Controller, ControllerConfig
+    from kompass.actions import Action
     import logging
 
     def function():
         logging.info("I am executing an action!")
 
-    my_component = Component(component_name='test_component')
-    new_config = ComponentConfig(loop_rate=50.0)
+    my_controller = Controller(component_name='test_component')
+    new_config = ControllerConfig(loop_rate=50.0)
     action1 = Action(method=my_component.start)
     action2 = Action(method=my_component.reconfigure, args=(new_config, True),)
     action3 = Action(method=function)

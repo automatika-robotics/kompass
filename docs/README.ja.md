@@ -21,7 +21,7 @@ Kompass は、**最新のナビゲーションアルゴリズムをC++でGPU最�
 - [**チュートリアル**](https://automatika-robotics.github.io/kompass/tutorials/point_navigation.html)で深掘りする 🤖
 - Kompassの[**設計コンセプト**](https://automatika-robotics.github.io/kompass/advanced/design.html)を学ぶ 📚
 
-## なぜ Kompass？
+# なぜ Kompass？
 
 - **適応型イベント駆動設計**
   Kompassは現実世界のイベント、ロボットの状態変化、タスク更新に応じて柔軟に対応できるよう設計されています。イベント駆動型アーキテクチャにより、イベント-アクションのペアを定義することで、実行中にナビゲーションスタックを再構成したり、環境に応じて計画や制御戦略を切り替えることができます。
@@ -40,7 +40,7 @@ Kompass は、**最新のナビゲーションアルゴリズムをC++でGPU最�
 
 私たちがKompassを開発した[**背景**](https://automatika-robotics.github.io/kompass/why.html)についてもぜひご覧ください。
 
-## 構成要素
+# 構成要素
 
 Kompassは複数の相互連携するコンポーネントに分かれており、それぞれがナビゲーションの特定のサブタスクを担当します：
 
@@ -65,18 +65,18 @@ Kompassは複数の相互連携するコンポーネントに分かれており�
 - [ドライブマネージャー](https://automatika-robotics.github.io/kompass/navigation/driver.html)
 - [モーションサーバー](https://automatika-robotics.github.io/kompass/navigation/motion_server.html)
 
-## インストール
+# インストール
 
-### 前提条件
+## 前提条件
 
 KompassはROS2での利用を前提としています。FoxyからRollingまで、すべてのROS2ディストリビューションをサポートしています。
 ROS2のインストールは[公式サイト](https://docs.ros.org/)をご参照ください。
 
-### kompass-coreのインストール
+## kompass-coreのインストール
 
 `kompass-core`は、Kompassのための計画・制御アルゴリズムを高度に最適化して提供するPythonパッケージです。以下の方法でインストール可能です：
 
-#### GPUサポートあり（推奨）
+### GPUサポートあり（推奨）
 
 Ubuntu系システム（Jetpack含む）では、以下を実行してください：
 
@@ -86,7 +86,7 @@ curl https://raw.githubusercontent.com/automatika-robotics/kompass-core/refs/hea
 
 このスクリプトは、[AdaptiveCPP](https://github.com/AdaptiveCpp/AdaptiveCpp) を含むすべての関連依存関係をインストールし、`kompass-core` の最新版をソースからインストールします。事前に[スクリプト](https://github.com/automatika-robotics/kompass-core/blob/main/build_dependencies/install_gpu.sh)の内容を確認することを推奨します。
 
-#### pipによるインストール
+### pipによるインストール
 
 Ubuntu 22.04以降のバージョンでは、以下のコマンドで依存関係をインストールしてください：
 
@@ -100,7 +100,7 @@ sudo apt-get install libompl-dev libfcl-dev libpcl-dev
 pip install kompass-core
 ```
 
-### Kompassのインストール（humble および jazzy 以降のディストリビューションに対応）
+## Kompassのインストール（humble および jazzy 以降のディストリビューションに対応）
 
 事前ビルドされたKompassのバイナリは、以下のコマンドでインストールできます：
 
@@ -108,7 +108,7 @@ pip install kompass-core
 sudo apt install ros-$ROS_DISTRO-kompass
 ```
 
-### ソースからのKompassビルド
+## ソースからのKompassビルド
 
 以下の手順でKompassをソースからビルドできます：
 
@@ -124,12 +124,12 @@ colcon build
 
 ```
 
-## 著作権
+# 著作権
 
 この配布物に含まれるコードは、明記されていない限り、すべて 2024年 Automatika Robotics に著作権があります。
 
 Kompass は MIT ライセンスの下で提供されています。詳細は [LICENSE](../LICENSE) ファイルをご覧ください。
 
-## コミュニティへの貢献
+# コミュニティへの貢献
 
 Kompass は、[Automatika Robotics](https://automatikarobotics.com/) と [Inria](https://inria.fr/) の共同開発により作成されました。コミュニティからの貢献も大歓迎です。

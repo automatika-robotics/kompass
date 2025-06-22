@@ -26,7 +26,7 @@ Therefore, before starting with this tutorial you need to install both packages:
 - Install RoboML: `pip install roboml`
 
 ```{seealso}
-EmbodiedAgents is another [Sugarcoat](https://automatika-robotics.github.io/sugarcoat) based package used for creating interactive embodied agents that can understand, remember, and act upon contextual information from their environment.
+[EmbodiedAgents](https://automatika-robotics.github.io/embodied-agents) is another [Sugarcoat🍬](https://automatika-robotics.github.io/sugarcoat) based package used for creating interactive embodied agents that can understand, remember, and act upon contextual information from their environment.
 ```
 
 After installing both packages, you can start `roboml` to serve the model later either on the robot (or your development machine), or on another machine in the local network or any server the cloud. To start a roboml RESP server, simply run:
@@ -142,7 +142,7 @@ my_robot = RobotConfig(
 ```
 
 ```{seealso}
-See more details about the robot configuration in the point navigation [tutorial](../quick_start.md/#step-1-setup-your-robot) and in the `RobotConfig` class [details](../navigation/robot.md)
+See more details about the robot configuration in the point navigation [tutorial](../tutorials/point_navigation.md#step-1-setup-your-robot) and in the `RobotConfig` class [details](../navigation/robot.md)
 ```
 
 ## Import the required components from Kompass
@@ -155,7 +155,7 @@ from kompass.components import Controller, ControllerConfig, DriveManager
 
 ## Configure the VisionFollower and setup the components
 
-We select the vision follower method parameters by importing the config class `VisionFollowerConfig` (see default parameters [here](../advanced/algorithms/vision.md)), then configure both our components:
+We select the vision follower method parameters by importing the config class `VisionFollowerConfig` (see default parameters [here](../advanced/algorithms/vision_follower.md)), then configure both our components:
 
 ```python
 from kompass.control import VisionFollowerConfig

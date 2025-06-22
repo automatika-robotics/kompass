@@ -43,6 +43,9 @@ class TopicsKeys(StrEnum):
     * - VISION_TRACKINGS
       - vision_tracking
       - Visual tracking data from robot's cameras or vision systems
+    * - DEPTH_CAM_INFO
+      - depth_camera_info
+      - Depth camera information which includes camera intrinsics parameters
     * - LOCAL_PLAN
       - local_plan
       - Short-term path plan considering immediate surroundings
@@ -89,7 +92,6 @@ class TopicsKeys(StrEnum):
     ROBOT_LOCATION = "location"
     SPATIAL_SENSOR = "sensor_data"
     VISION_DETECTIONS = "vision_detections"
-    DEPTH_IMG = "depth_image"
     DEPTH_CAM_INFO = "depth_camera_info"
     # Calculated
     LOCAL_PLAN = "local_plan"

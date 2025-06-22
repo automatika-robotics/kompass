@@ -2,12 +2,14 @@ import argparse
 
 
 def _kompass_import_error():
+    """Prints kompass_core import error message"""
     print(
         "Welcome to Kompass! The fastest and most intuitive navigation stack known to man! Kompass uses the `kompass-core` python package, which implements highly parallelized navigation algorithms. Please install kompass-core using one of the following methods:\n - Install kompass-core with GPU support (Recommended):\n  `curl https://raw.githubusercontent.com/automatika-robotics/kompass-core/refs/heads/main/build_dependencies/install_gpu.sh | bash`\n - Install kompass-core from pypi without GPU support:\n  `sudo apt-get install -y libompl-dev libfcl-dev libpcl-dev && pip install kompass-core`"
     )
 
 
 def list_control_algorithms(args):
+    """Prints a list of available algorithms in the Controller component"""
     try:
         from kompass_core.control import ControllersID
     except ImportError:
@@ -18,6 +20,10 @@ def list_control_algorithms(args):
 
 
 def control_params(args):
+    """Prints a given control algorithm config parameters
+
+    :param args: Algorithm name in args.algorithm
+    """
     try:
         from kompass_core.control import ControllersID, ControlConfigClasses
     except ImportError:
@@ -35,6 +41,7 @@ def control_params(args):
 
 
 def list_planning_algorithms(args):
+    """Prints a list of available algorithms in the Planner component"""
     try:
         import omplpy as ompl
         from kompass_core.third_party.ompl.config import initializePlanners
@@ -49,6 +56,10 @@ def list_planning_algorithms(args):
 
 
 def planner_params(args):
+    """Prints a given planning algorithm config parameters
+
+    :param args: Algorithm name in args.algorithm
+    """
     try:
         import omplpy as ompl
         from kompass_core.third_party.ompl.config import initializePlanners
@@ -76,13 +87,14 @@ def planner_params(args):
 
 
 def gpu_support(args):
+    """Prints a list of available accelerators"""
     try:
         from kompass_cpp import get_available_accelerators
     except ImportError:
         _kompass_import_error()
         return
 
-    if (available_accelerators := get_available_accelerators()):
+    if available_accelerators := get_available_accelerators():
         print("Available GPU accelerators:")
         for acc in available_accelerators.split("\n"):
             print(f"- {acc}")
@@ -92,6 +104,7 @@ def gpu_support(args):
 
 
 def show_info(args):
+    """Shows CLI info"""
     print("""
     Kompass CLI - A command-line interface for inspection KOMPASS algorithms.
 
@@ -129,6 +142,7 @@ def show_info(args):
 
 
 def main():
+    """KOMPASS CLI MAIN"""
     parser = argparse.ArgumentParser(prog="kompass_cli", description="Kompass CLI")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
@@ -174,7 +188,9 @@ def main():
 
     # GPU Support
     gpu_parser = subparsers.add_parser(
-        "accelerators_support", help="Get the SYCL-compatible accelerator devices available on the system")
+        "accelerators_support",
+        help="Get the SYCL-compatible accelerator devices available on the system",
+    )
     gpu_parser.set_defaults(func=gpu_support)
 
     # Info

@@ -344,12 +344,10 @@ class DriveManager(Component):
         if not slowdown_factor:
             self._update_state()
             # Check emergency stop from Lidar in the direction of the command
-            self.slow_down_factor['laser_scan'] = (
-                self._emergency_checker.check(
-                    angles=self.laser_scan.angles,
-                    ranges=self.laser_scan.ranges,
-                    forward=(cmd.linear.x >= 0.0),
-                )
+            self.slow_down_factor["laser_scan"] = self._emergency_checker.check(
+                angles=self.laser_scan.angles,
+                ranges=self.laser_scan.ranges,
+                forward=(cmd.linear.x >= 0.0),
             )
             slowdown_val: float = min(self.slow_down_factor.values())
         else:
@@ -854,9 +852,7 @@ class DriveManager(Component):
             self.get_publisher(TopicsKeys.EMERGENCY).publish(False)
 
         if speed_factor == 0.0:
-            self.get_logger().warn(
-                "Emergency stop is ON, no commands will be executed"
-            )
+            self.get_logger().warn("Emergency stop is ON, no commands will be executed")
             return
 
         # Publish commands in the queue
@@ -875,6 +871,7 @@ class DriveManager(Component):
             self.execute_cmd_open_loop(_cmd_vel, max_time=self._multi_command_step)
 
     def _execute_once(self):
+        """Actions to be executed once at the start of the component execution"""
         super()._execute_once()
         # Get transformation from sensor to robot body
         while not self.scan_tf_listener or not self.scan_tf_listener.transform:
