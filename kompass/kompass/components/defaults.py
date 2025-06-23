@@ -134,7 +134,6 @@ controller_default_inputs: Dict[TopicsKeys, Optional[Topic]] = {
     ),
     TopicsKeys.ROBOT_LOCATION: Topic(name="/odom", msg_type="Odometry"),
     TopicsKeys.VISION_DETECTIONS: None,  # No default topic is assigned. Should be provided by the user to use the vision tracking action
-    TopicsKeys.DEPTH_IMG: None,  # No default topic is assigned. Should be provided by the user to use the vision tracking action
     TopicsKeys.DEPTH_CAM_INFO: None,  # No default topic is assigned. Should be provided by the user to use the vision tracking action
 }
 

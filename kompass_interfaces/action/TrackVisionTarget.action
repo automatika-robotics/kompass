@@ -9,8 +9,5 @@ bool success        # False if the target is lost at the end of the action
 float64 tracked_duration
 ---
 # Feedback
-float64 score
-float64[] center_xy
-float64[] size_xy
-float64 distance
-float64 orientation
+float64 distance_error
+float64 orientation_error

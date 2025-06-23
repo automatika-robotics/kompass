@@ -1092,14 +1092,12 @@ class Controller(Component):
         return response
 
     def __wait_for_trackings(
-        self, input_wait_time: Optional[float] = None, detection_wait_time: float = 0.0
+        self, input_wait_time: Optional[float] = None
     ) -> bool:
         """Wait for incoming tracking data until timeout
 
         :param input_wait_time: Max time to wait for getting all inputs from callbacks, defaults to None
         :type input_wait_time: Optional[float], optional
-        :param detection_wait_time: Max time to wait for a valid detection, defaults to None
-        :type detection_wait_time: Optional[float], optional
         :return: If vision detections and robot state are available
         :rtype: bool
         """
@@ -1108,15 +1106,11 @@ class Controller(Component):
         self.vision_detections = None
         self.depth_image = None
         condition_input_timeout = True
-        condition_detection_timeout = True
-        while condition_detection_timeout or condition_input_timeout:
+        while condition_input_timeout:
             # Update conditions
             condition_input_timeout = (
                 self.vision_detections is None
             ) and wait_time <= max_wait_time
-            condition_detection_timeout = (
-                not self.vision_detections
-            ) and wait_time <= detection_wait_time
             self.get_logger().info(
                 f"Waiting for vision target information, timeout in {round(max_wait_time - wait_time, 2)}s...",
                 once=True,
@@ -1134,32 +1128,23 @@ class Controller(Component):
         """
         timeout = 0.0
         # Get the depth image transform if the input is provided
-        while (
-            not self.got_all_inputs()
-            and timeout < self.config.topic_subscription_timeout
-        ):
-            self._update_state()
-            self.get_logger().info("Waiting to collect all inputs...", once=True)
-            if self.get_missing_inputs():
-                # Log missing inputs only once
-                self.get_logger().warn(
-                    f"Waiting for inputs: {self.get_missing_inputs()}"
+        if self.in_topic_name(TopicsKeys.DEPTH_CAM_INFO):
+            while (
+                    not (self.depth_tf_listener.got_transform and self.depth_image_info)
+                    and timeout < self.config.topic_subscription_timeout
+                ):
+                self._update_vision()
+                self.get_logger().info(
+                    f"Waiting to get Depth camera to body TF to initialize Vision Follower..."
                 )
-            time.sleep(1 / self.config.loop_rate)
-            timeout += 1 / self.config.loop_rate
+                time.sleep(1 / self.config.loop_rate)
+                timeout += 1 / self.config.loop_rate
 
         if timeout >= self.config.topic_subscription_timeout:
             return None
 
-        self.get_logger().info("Got all inputs...")
-
-        if self.in_topic_name(TopicsKeys.DEPTH_CAM_INFO):
-            while not self.depth_tf_listener.got_transform:
-                self.get_logger().warn(
-                    "Waiting to get Depth camera to body TF...", once=True
-                )
-            self.get_logger().warn(
-                "Got Depth camera to body TF -> Setting up VisionDWA controller"
+        self.get_logger().info(
+                "Got Depth camera to body TF -> Setting up Vision Follower controller"
             )
 
         config = ControlConfigClasses[self.algorithm](
@@ -1175,7 +1160,7 @@ class Controller(Component):
 
         _controller_config = self._configure_algorithm(config)
 
-        return ControlClasses[self.algorithm](
+        controller = ControlClasses[self.algorithm](
             robot=self.__robot,
             ctrl_limits=self.__robot_ctr_limits,
             config=_controller_config,
@@ -1189,6 +1174,11 @@ class Controller(Component):
             config_root_name=f"{self.node_name}.{self.algorithm}",
         )
 
+        self.get_logger().info(
+            f"Vision Controller '{self.algorithm}' is initialized and ready to use"
+        )
+        return controller
+
     def __setup_initial_tracking_target(
         self, controller: Any, label: str, pose_x: int, pose_y: int
     ) -> bool:
@@ -1199,10 +1189,11 @@ class Controller(Component):
                 target_2d = (
                     vision_callback.get_output(label=label) if vision_callback else None
                 )
-                self.get_logger().warn(
+                self.get_logger().info(
                     f"Waiting to get target {label} from vision detections...",
                     once=True,
                 )
+            self.get_logger().info(f"Got initial target {label}, setting to controller...")
             self._update_state()
             found_target = controller.set_initial_tracking_2d_target(
                 target_box=target_2d[0],
@@ -1238,18 +1229,19 @@ class Controller(Component):
 
         result = TrackVisionTarget.Result()
 
-        _controller = self.__setup_vision_controller()
+        if not hasattr(self, "__vision_controller") or not self.__vision_controller:
+            self.__vision_controller = self.__setup_vision_controller()
 
-        if not _controller:
+        if not self.__vision_controller:
             self.get_logger().error(
-                f"Missing Vision Tracking Inputs: {self.get_missing_inputs()} -> ABORTING ACTION"
+                f"Could not intialize controller -> ABORTING ACTION"
             )
             with self._main_goal_lock:
                 goal_handle.abort()
             return result
 
         found_target = self.__setup_initial_tracking_target(
-            _controller, request_msg.label, request_msg.pose_x, request_msg.pose_y
+            self.__vision_controller, request_msg.label, request_msg.pose_x, request_msg.pose_y
         )
 
         if not found_target:
@@ -1259,9 +1251,6 @@ class Controller(Component):
             return result
         else:
             self._tracked_center = np.array([request_msg.pose_x, request_msg.pose_y])
-            self.get_logger().info(
-                "Initial target is set -> Starting tracking action..."
-            )
 
         # time the tracking period
         start_time = time.time()
@@ -1281,8 +1270,7 @@ class Controller(Component):
 
             # Wait to get tracking
             got_data = self.__wait_for_trackings(
-                input_wait_time=self.config.topic_subscription_timeout,
-                detection_wait_time=_controller._config.target_search_pause,
+                input_wait_time=self.config.topic_subscription_timeout
             )
 
             if got_data:
@@ -1298,7 +1286,7 @@ class Controller(Component):
                 else:
                     local_map = self.local_map
 
-                found_ctrl = _controller.loop_step(
+                found_ctrl = self.__vision_controller.loop_step(
                     detections_2d=self.vision_detections or [],
                     current_state=self.robot_state,
                     depth_image=self.depth_image,
@@ -1322,20 +1310,20 @@ class Controller(Component):
                     self._tracked_center = None
                     return result
 
-            # Publish feedback TODO
+            # Publish feedback
+            feedback_msg.distance_error = float(self.__vision_controller.dist_error)
+            feedback_msg.orientation_error= float(self.__vision_controller.orientation_error)
+            goal_handle.publish_feedback(feedback_msg)
 
             # Publish control
-            self.get_logger().info(
-                f"Following tracked target with control: {_controller.linear_x_control}, {_controller.angular_control}"
+            self.get_logger().debug(
+                f"Following tracked target with control: {self.__vision_controller.linear_x_control}, {self.__vision_controller.angular_control}"
             )
             self._publish(
-                _controller.linear_x_control,
-                _controller.linear_y_control,
-                _controller.angular_control,
+                self.__vision_controller.linear_x_control,
+                self.__vision_controller.linear_y_control,
+                self.__vision_controller.angular_control,
             )
-
-
-            goal_handle.publish_feedback(feedback_msg)
 
             time.sleep(1 / self.config.loop_rate)
 
@@ -1515,6 +1503,13 @@ class Controller(Component):
             return True
         dist: float = self.robot_state.distance(goal_point)
         return dist <= self.__path_controller._config.goal_dist_tolerance
+
+    def _execution_once(self):
+        """Intialize controller post activation
+        """
+        if self.config._mode == ControllerMode.VISION_FOLLOWER:
+            # Setup the controller to avoid overhead when using the action server
+            self.__vision_controller = self.__setup_vision_controller()
 
     def _execution_step(self):
         """
