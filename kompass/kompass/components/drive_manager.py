@@ -41,10 +41,6 @@ class DriveManagerConfig(ComponentConfig):
       - `bool`, `True`
       - Publish commands in closed loop by checking the robot velocity from the odometry topic
 
-    * - **cmd_rate**
-      - `float`, `10.0`
-      - Rate for sending the commands to the robot in closed loop (Hz)
-
     * - **closed_loop_span**
       - `int`, `3`
       - Max number of commands to send in a closed loop execution
@@ -85,10 +81,6 @@ class DriveManagerConfig(ComponentConfig):
     closed_loop_span: int = field(
         default=3, validator=BaseValidators.in_range(min_value=1, max_value=10)
     )
-
-    cmd_rate: float = field(
-        default=10.0, validator=BaseValidators.in_range(min_value=1e-9, max_value=1e9)
-    )  # Rate for sending the commands to the robot (Hz)
 
     smooth_commands: bool = field(default=False)
 
@@ -272,13 +264,13 @@ class DriveManager(Component):
         )
         if closed_loop:
             self.execute_cmd_closed_loop(
-                filtered_output, self.config.closed_loop_span / self.config.cmd_rate
+                filtered_output, self.config.closed_loop_span / self.config.loop_rate
             )
         else:
             # Publish once in open loop
             self.execute_cmd_open_loop(
                 filtered_output,
-                max_time=self.config.closed_loop_span / self.config.cmd_rate,
+                max_time=self.config.closed_loop_span / self.config.loop_rate,
             )
         self._previous_command = filtered_output
 
@@ -376,7 +368,7 @@ class DriveManager(Component):
         :param max_time: Maximum time for the open loop execution (s)
         :type max_time: float
         """
-        _step = 1 / self.config.cmd_rate
+        _step = 1 / self.config.loop_rate
         _timer_count = 0.0
         while _timer_count < max_time:
             _timer_count += _step
@@ -398,7 +390,7 @@ class DriveManager(Component):
             return
 
         executing_closed_loop = True
-        _step = 1 / self.config.cmd_rate
+        _step = 1 / self.config.loop_rate
         _timer_count = 0.0
         while executing_closed_loop and _timer_count < max_time:
             vx_out = (
@@ -441,7 +433,7 @@ class DriveManager(Component):
         """
 
         unblocking = True
-        step_distance = self.robot.ctrl_vx_limits.max_vel / (2 * self.config.cmd_rate)
+        step_distance = self.robot.ctrl_vx_limits.max_vel / (2 * self.config.loop_rate)
         traveled_distance = 0.0
 
         # FRONT MOVEMENT
@@ -461,7 +453,7 @@ class DriveManager(Component):
                 )
                 self._publish_cmd(_cmd, slowdown_factor=slowdown_factor)
                 traveled_distance += step_distance
-                time.sleep(1 / self.config.cmd_rate)
+                time.sleep(1 / self.config.loop_rate)
 
         # Return true if unblocking forward is done
         return traveled_distance >= max_distance
@@ -476,7 +468,7 @@ class DriveManager(Component):
         :rtype: bool
         """
         unblocking = True
-        step_distance = self.robot.ctrl_vx_limits.max_vel / (2 * self.config.cmd_rate)
+        step_distance = self.robot.ctrl_vx_limits.max_vel / (2 * self.config.loop_rate)
         traveled_distance = 0.0
 
         # FRONT MOVEMENT
@@ -496,7 +488,7 @@ class DriveManager(Component):
                 )
                 self._publish_cmd(_cmd, slowdown_factor=slowdown_factor)
                 traveled_distance += step_distance
-                time.sleep(1 / self.config.cmd_rate)
+                time.sleep(1 / self.config.loop_rate)
 
         # Return true if unblocking forward is done
         return traveled_distance >= max_distance
@@ -519,7 +511,6 @@ class DriveManager(Component):
             return False
 
         unblocking = True
-        cmd_rate = self.create_rate(self.config.cmd_rate)
         traveled_radius = 0.0
 
         if not safety_margin:
@@ -537,9 +528,9 @@ class DriveManager(Component):
                 )
                 self.get_publisher(TopicsKeys.FINAL_COMMAND).publish(_cmd)
                 traveled_radius += self.robot.ctrl_omega_limits.max_vel / (
-                    2 * self.config.cmd_rate
+                    2 * self.config.loop_rate
                 )
-                cmd_rate.sleep()
+                time.sleep(1 / self.config.loop_rate)
 
         # Return true if unblocking forward is done
         return traveled_radius >= max_rotation
@@ -909,7 +900,14 @@ class DriveManager(Component):
                     slowdown_distance=self.config.slowdown_zone_distance,
                     scan_angles=self.laser_scan.angles,
                 )
-                self.get_logger().info("CriticalZoneCheckerGPU is READY!")
+                self.get_logger().info("Initialized CriticalZoneCheckerGPU")
+                # Warmup to avoid first call overhead
+                self._emergency_checker.check(
+                            angles=[0.0, 0.5],      # Dummy angles
+                            ranges=[1.0, 0.5],      # Dummy ranges
+                            forward=True,
+                        )
+                self.get_logger().info("CriticalZoneCheckerGPU: Warm-up complete - Ready to go!")
                 return
             except ImportError:
                 self.get_logger().warn(
