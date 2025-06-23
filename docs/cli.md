@@ -17,6 +17,7 @@ The Kompass CLI provides an easy way to quickly inspect Kompass core algorithms 
 ## Usage Examples
 
 ```bash
+ros2 run kompass kompass_cli --help
 ros2 run kompass kompass_cli controller list
 ros2 run kompass kompass_cli controller params DWA
 ros2 run kompass kompass_cli planner list

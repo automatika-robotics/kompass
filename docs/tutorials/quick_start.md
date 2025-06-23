@@ -18,13 +18,13 @@ This will start webots simulator, Rviz and the robot localization and map server
 
 :::{figure-md} fig-webots
 
-<img src="_static/images/webots_turtlebot3.png" alt="Webots Tutrlebot3 Simulation" width="700px">
+<img src="../_static/images/webots_turtlebot3.png" alt="Webots Tutrlebot3 Simulation" width="700px">
 
 Webots Tutrlebot3 Simulation
 :::
 
 :::{figure-md} fig-rviz
-<img src="_static/images/rviz_webots_turtlebot3.png" alt="Rviz" width="700px">
+<img src="../_static/images/rviz_webots_turtlebot3.png" alt="Rviz" width="700px">
 
 Rviz
 :::
@@ -38,6 +38,9 @@ Rviz
 ros2 run kompass turtlebot3_test
 ```
 
+Now, we'll break the recipe down step by step 👇
 
-```{include} tutorials/point_navigation.md
+<br/>
+
+```{include} point_navigation.md
 ```

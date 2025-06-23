@@ -626,6 +626,15 @@ class Planner(Component):
     def _start_path_recording_callback(
         self, request: StartPathRecording.Request, response: StartPathRecording.Response
     ) -> StartPathRecording.Response:
+        """Method executed on a new StartPathRecording incoming request
+
+        :param request: Path recording service request
+        :type request: StartPathRecording.Request
+        :param response: Path recording service response
+        :type response: StartPathRecording.Response
+        :return: Updated path recording service response
+        :rtype: StartPathRecording.Response
+        """
         self.get_logger().info("RECEIVED RECORDING PATH FROM MOTION SERVICE REQUEST")
         if self.robot_state:
             self.recorded_motion = Path()

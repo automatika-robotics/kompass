@@ -53,17 +53,17 @@ DriveManager also includes built-in movement actions used for directly control t
 * - Action
   - Function
 
-* - **[move_forward](../apidocs/kompass/kompass.components.drive_manager.md/#kompass.components.drive_manager.DriveManager)**
+* - **[move_forward](../apidocs/kompass/kompass.components.drive_manager.md/#classes)**
   - Moves the robot forward for `max_distance` meters, if the forward direction is clear of obstacles.
 
-* - **[move_backward](../apidocs/kompass/kompass.components.drive_manager.md/#kompass.components.drive_manager.DriveManager)**
+* - **move_backward**
   - Moves the robot backwards for `max_distance` meters, if the backward direction is clear of obstacles.
 
-* - **[rotate_in_place](../apidocs/kompass/kompass.components.drive_manager.md/#kompass.components.drive_manager.DriveManager)**
+* - **rotate_in_place**
   - Rotates the robot in place for `max_rotation` radians, if the given safety margin around the robot is clear of obstacles.
 
 
-* - **[move_to_unblock](../apidocs/kompass/kompass.components.drive_manager.md/#kompass.components.drive_manager.DriveManager)**
+* - **move_to_unblock**
   - Moves the robot forward, backwards or rotates in place if the space is free to move the robot away from a blocking point.
 ```
 
@@ -139,7 +139,7 @@ Check an example on configuring the robot unblocking functionality with an exter
 
 ## Configuration Parameters:
 
-See all available parameters in [DriveManagerConfig](../apidocs/kompass/kompass.components.drive_manager.md/#kompass.components.drive_manager.DriveManagerConfig)
+See all available parameters in [DriveManagerConfig](../apidocs/kompass/kompass.components.drive_manager.md/#classes)
 
 ## Usage Example:
 ```python

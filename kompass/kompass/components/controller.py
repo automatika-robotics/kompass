@@ -641,7 +641,12 @@ class Controller(Component):
         """
         self.config.algorithm = value
         # Select mode based on the algorithm
-        if value in [ControllersID.VISION_DEPTH, ControllersID.VISION_IMG, ControllersID.VISION_DEPTH.value, ControllersID.VISION_IMG.value]:
+        if value in [
+            ControllersID.VISION_DEPTH,
+            ControllersID.VISION_IMG,
+            ControllersID.VISION_DEPTH.value,
+            ControllersID.VISION_IMG.value,
+        ]:
             self._activate_vision_mode()
         else:
             self._activate_follower_mode()
@@ -719,6 +724,7 @@ class Controller(Component):
         self.custom_create_all_action_servers()
 
     def _update_vision(self) -> None:
+        """Update vision detections and depth image from the vision callback"""
         vision_callback = self.get_callback(TopicsKeys.VISION_DETECTIONS)
         self.vision_detections = (
             vision_callback.get_output(clear_last=True) if vision_callback else None
@@ -1182,6 +1188,19 @@ class Controller(Component):
     def __setup_initial_tracking_target(
         self, controller: Any, label: str, pose_x: int, pose_y: int
     ) -> bool:
+        """Set the initial target to the vision follower controller to start tracking
+
+        :param controller: Vision Follower controller object
+        :type controller: Any
+        :param label: Target label
+        :type label: str
+        :param pose_x: Target center pixel x coordinates in the image plane
+        :type pose_x: int
+        :param pose_y: Target center pixel y coordinates in the image plane
+        :type pose_y: int
+        :return: If target is set successfully to the controller
+        :rtype: bool
+        """
         if label != "":
             target_2d = None
             vision_callback = self.get_callback(TopicsKeys.VISION_DETECTIONS)

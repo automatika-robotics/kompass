@@ -102,7 +102,7 @@ Below is a list of supported messages and the types accepted by their publishers
 
 * - **[LaserScan](../apidocs/kompass/kompass.data_types.md/#classes)**
   - [sensor_msgs](https://docs.ros2.org/foxy/api/sensor_msgs/msg/LaserScan.html)
-  - [`kompass_core.datatypes.LaserScanData`]((https://github.com/automatika-robotics/kompass-core/blob/main/src/kompass_core/datatypes/laserscan.py))
+  - [`kompass_core.datatypes.LaserScanData`](https://github.com/automatika-robotics/kompass-core/blob/main/src/kompass_core/datatypes/laserscan.py)
   - `kompass_core.datatypes.LaserScanData`
 
 * - **[PointCloud2](../apidocs/kompass/kompass.data_types.md/#classes)**
