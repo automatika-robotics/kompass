@@ -1,20 +1,5 @@
 """
-Default configuration for Kompass stack components.
-
-This module defines the default input and output topics, as well as the allowed topic message types
-for each component in Kompass. It serves as a centralized configuration
-resource to ensure consistent topic usage and enforce compatibility of message types.
-
-### Key Components
-
-- **TopicsKeys**: Enum representing unique keys corresponding to standard input/output topic roles.
-  Includes detailed descriptions and expected usage for each key in the stack (rendered as a
-  rich list-table in documentation).
-- **controller_allowed_inputs**: Specifies which message types are valid for each input key.
-- **controller_allowed_outputs**: Specifies which message types are valid for each output key.
-- **controller_default_inputs**: Provides default topic names and types used by the controller
-  when no configuration is supplied by the user.
-- **controller_default_outputs**: Provides default topic names and types used for controller outputs.
+Default configuration for Kompass stack components. Defining the default input and output topics, as well as the allowed topic message types for each component in Kompass. It serves as a centralized configuration resource to ensure consistent topic usage and enforce compatibility of message types.
 
 This module is typically used during the initialization of Kompass components to apply a standard
 set of topic configurations, enabling faster prototyping and reliable system behavior out-of-the-box.
@@ -35,8 +20,6 @@ add_additional_datatypes(get_all_msg_types(data_types))
 
 class TopicsKeys(StrEnum):
     """Enum representing unique keys corresponding to standard input/output topic roles.
-    Includes detailed descriptions and expected usage for each key in the stack (rendered as a
-    rich list-table in documentation).
 
       ```{list-table}
       :widths: 20 20 60
