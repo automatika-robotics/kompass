@@ -900,11 +900,13 @@ class DriveManager(Component):
                 self.get_logger().info("Initialized CriticalZoneCheckerGPU")
                 # Warmup to avoid first call overhead
                 self._emergency_checker.check(
-                            angles=[0.0, 0.5],      # Dummy angles
-                            ranges=[1.0, 0.5],      # Dummy ranges
-                            forward=True,
-                        )
-                self.get_logger().info("CriticalZoneCheckerGPU: Warm-up complete - Ready to go!")
+                    angles=[0.0, 0.5],  # Dummy angles
+                    ranges=[1.0, 0.5],  # Dummy ranges
+                    forward=True,
+                )
+                self.get_logger().info(
+                    "CriticalZoneCheckerGPU: Warm-up complete - Ready to go!"
+                )
                 return
             except ImportError:
                 self.get_logger().warn(

@@ -1097,9 +1097,7 @@ class Controller(Component):
         response.success = False
         return response
 
-    def __wait_for_trackings(
-        self, input_wait_time: Optional[float] = None
-    ) -> bool:
+    def __wait_for_trackings(self, input_wait_time: Optional[float] = None) -> bool:
         """Wait for incoming tracking data until timeout
 
         :param input_wait_time: Max time to wait for getting all inputs from callbacks, defaults to None
@@ -1136,12 +1134,12 @@ class Controller(Component):
         # Get the depth image transform if the input is provided
         if self.in_topic_name(TopicsKeys.DEPTH_CAM_INFO):
             while (
-                    not (self.depth_tf_listener.got_transform and self.depth_image_info)
-                    and timeout < self.config.topic_subscription_timeout
-                ):
+                not (self.depth_tf_listener.got_transform and self.depth_image_info)
+                and timeout < self.config.topic_subscription_timeout
+            ):
                 self._update_vision()
                 self.get_logger().info(
-                    f"Waiting to get Depth camera to body TF to initialize Vision Follower..."
+                    "Waiting to get Depth camera to body TF to initialize Vision Follower..."
                 )
                 time.sleep(1 / self.config.loop_rate)
                 timeout += 1 / self.config.loop_rate
@@ -1150,8 +1148,8 @@ class Controller(Component):
             return None
 
         self.get_logger().info(
-                "Got Depth camera to body TF -> Setting up Vision Follower controller"
-            )
+            "Got Depth camera to body TF -> Setting up Vision Follower controller"
+        )
 
         config = ControlConfigClasses[self.algorithm](
             control_time_step=self.config.control_time_step,
@@ -1212,7 +1210,9 @@ class Controller(Component):
                     f"Waiting to get target {label} from vision detections...",
                     once=True,
                 )
-            self.get_logger().info(f"Got initial target {label}, setting to controller...")
+            self.get_logger().info(
+                f"Got initial target {label}, setting to controller..."
+            )
             self._update_state()
             found_target = controller.set_initial_tracking_2d_target(
                 target_box=target_2d[0],
@@ -1252,15 +1252,16 @@ class Controller(Component):
             self.__vision_controller = self.__setup_vision_controller()
 
         if not self.__vision_controller:
-            self.get_logger().error(
-                f"Could not intialize controller -> ABORTING ACTION"
-            )
+            self.get_logger().error("Could not intialize controller -> ABORTING ACTION")
             with self._main_goal_lock:
                 goal_handle.abort()
             return result
 
         found_target = self.__setup_initial_tracking_target(
-            self.__vision_controller, request_msg.label, request_msg.pose_x, request_msg.pose_y
+            self.__vision_controller,
+            request_msg.label,
+            request_msg.pose_x,
+            request_msg.pose_y,
         )
 
         if not found_target:
@@ -1331,7 +1332,9 @@ class Controller(Component):
 
             # Publish feedback
             feedback_msg.distance_error = float(self.__vision_controller.dist_error)
-            feedback_msg.orientation_error= float(self.__vision_controller.orientation_error)
+            feedback_msg.orientation_error = float(
+                self.__vision_controller.orientation_error
+            )
             goal_handle.publish_feedback(feedback_msg)
 
             # Publish control
@@ -1524,8 +1527,7 @@ class Controller(Component):
         return dist <= self.__path_controller._config.goal_dist_tolerance
 
     def _execution_once(self):
-        """Intialize controller post activation
-        """
+        """Intialize controller post activation"""
         if self.config._mode == ControllerMode.VISION_FOLLOWER:
             # Setup the controller to avoid overhead when using the action server
             self.__vision_controller = self.__setup_vision_controller()

@@ -1,5 +1,23 @@
 """
-Kompass stack default inputs/outputs values and allowed topic types for each component
+Default configuration for Kompass stack components.
+
+This module defines the default input and output topics, as well as the allowed topic message types
+for each component in Kompass. It serves as a centralized configuration
+resource to ensure consistent topic usage and enforce compatibility of message types.
+
+### Key Components
+
+- **TopicsKeys**: Enum representing unique keys corresponding to standard input/output topic roles.
+  Includes detailed descriptions and expected usage for each key in the stack (rendered as a
+  rich list-table in documentation).
+- **controller_allowed_inputs**: Specifies which message types are valid for each input key.
+- **controller_allowed_outputs**: Specifies which message types are valid for each output key.
+- **controller_default_inputs**: Provides default topic names and types used by the controller
+  when no configuration is supplied by the user.
+- **controller_default_outputs**: Provides default topic names and types used for controller outputs.
+
+This module is typically used during the initialization of Kompass components to apply a standard
+set of topic configurations, enabling faster prototyping and reliable system behavior out-of-the-box.
 """
 
 from typing import Dict, Optional
@@ -16,70 +34,72 @@ add_additional_datatypes(get_all_msg_types(data_types))
 
 
 class TopicsKeys(StrEnum):
-    """Unique stack keys associated with inputs/outputs
+    """Enum representing unique keys corresponding to standard input/output topic roles.
+    Includes detailed descriptions and expected usage for each key in the stack (rendered as a
+    rich list-table in documentation).
 
-    ```{list-table}
-    :widths: 20 20 60
-    :header-rows: 1
+      ```{list-table}
+      :widths: 20 20 60
+      :header-rows: 1
 
-    * - Key
-      - Name
-      - Description
-    * - GOAL_POINT
-      - goal_point
-      - Target destination point on the map for the robot point navigation
-    * - GLOBAL_PLAN
-      - plan
-      - Global navigation plan (path) from start to goal
-    * - GLOBAL_MAP
-      - map
-      - Global (reference) map used for navigation
-    * - ROBOT_LOCATION
-      - location
-      - Current position and orientation of the robot
-    * - SPATIAL_SENSOR
-      - sensor_data
-      - Raw data from robot's spatial sensors (e.g., LIDAR, depth sensors)
-    * - VISION_TRACKINGS
-      - vision_tracking
-      - Visual tracking data from robot's cameras or vision systems
-    * - DEPTH_CAM_INFO
-      - depth_camera_info
-      - Depth camera information which includes camera intrinsics parameters
-    * - LOCAL_PLAN
-      - local_plan
-      - Short-term path plan considering immediate surroundings
-    * - INTERMEDIATE_CMD
-      - command
-      - Robot velocity command produced by the control system
-    * - INTERMEDIATE_CMD_LIST
-      - multi_command
-      - List of intermediate velocity commands
-    * - LOCAL_MAP
-      - local_map
-      - Map of the immediate surroundings for local navigation (control)
-    * - LOCAL_MAP_OCC
-      - local_map
-      - Occupancy grid representation of the local environment
-    * - INTERPOLATED_PATH
-      - interpolation
-      - Interpolated global path
-    * - TRACKED_POINT
-      - tracked_point
-      - Specific point being tracked by the robot's systems on the reference path of reference vision target
-    * - FINAL_COMMAND
-      - robot_command
-      - Final control command sent to robot's driver
-    * - EMERGENCY
-      - emergency_stop
-      - Emergency stop signal for immediate robot halt
-    * - REACHED_END
-      - reached_end
-      - Flag indicating whether the goal point has been reached
-    * - RUN_TESTS
-      - run_tests
-      - Flag to initiate system test procedures
-    ```
+      * - Key
+        - Name
+        - Description
+      * - GOAL_POINT
+        - goal_point
+        - Target destination point on the map for the robot point navigation
+      * - GLOBAL_PLAN
+        - plan
+        - Global navigation plan (path) from start to goal
+      * - GLOBAL_MAP
+        - map
+        - Global (reference) map used for navigation
+      * - ROBOT_LOCATION
+        - location
+        - Current position and orientation of the robot
+      * - SPATIAL_SENSOR
+        - sensor_data
+        - Raw data from robot's spatial sensors (e.g., LIDAR, depth sensors)
+      * - VISION_TRACKINGS
+        - vision_tracking
+        - Visual tracking data from robot's cameras or vision systems
+      * - DEPTH_CAM_INFO
+        - depth_camera_info
+        - Depth camera information which includes camera intrinsics parameters
+      * - LOCAL_PLAN
+        - local_plan
+        - Short-term path plan considering immediate surroundings
+      * - INTERMEDIATE_CMD
+        - command
+        - Robot velocity command produced by the control system
+      * - INTERMEDIATE_CMD_LIST
+        - multi_command
+        - List of intermediate velocity commands
+      * - LOCAL_MAP
+        - local_map
+        - Map of the immediate surroundings for local navigation (control)
+      * - LOCAL_MAP_OCC
+        - local_map
+        - Occupancy grid representation of the local environment
+      * - INTERPOLATED_PATH
+        - interpolation
+        - Interpolated global path
+      * - TRACKED_POINT
+        - tracked_point
+        - Specific point being tracked by the robot's systems on the reference path of reference vision target
+      * - FINAL_COMMAND
+        - robot_command
+        - Final control command sent to robot's driver
+      * - EMERGENCY
+        - emergency_stop
+        - Emergency stop signal for immediate robot halt
+      * - REACHED_END
+        - reached_end
+        - Flag indicating whether the goal point has been reached
+      * - RUN_TESTS
+        - run_tests
+        - Flag to initiate system test procedures
+      ```
 
     """
 

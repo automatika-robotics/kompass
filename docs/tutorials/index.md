@@ -36,5 +36,3 @@ Implement a visual servoing pipeline to follow a moving target using an RGB came
 Extend the previous example using **depth sensing** to gain more robust tracking.
 
 👉 [**Track with depth data**](vision_depth_follow.md) -->
-
-
