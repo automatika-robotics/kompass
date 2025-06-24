@@ -10,6 +10,7 @@ from ..config import ComponentConfig, RobotConfig, ComponentRunType
 from .ros import Topic, update_topics
 from itertools import groupby
 from .defaults import TopicsKeys
+from kompass_core import set_logging_level
 
 
 def _parse_from_topics_dict(
@@ -163,6 +164,14 @@ class Component(BaseComponent):
             fallbacks=fallbacks,
             **kwargs,
         )
+
+    def custom_on_configure(self):
+        """
+        Component custom configuration method to set the core debug level
+        """
+        super().custom_on_configure()
+        # Set logging level for kompass_core
+        set_logging_level(self.config.core_log_level)
 
     @property
     def robot(self) -> RobotConfig:

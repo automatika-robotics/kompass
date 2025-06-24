@@ -7,6 +7,7 @@ from attrs import field
 from geometry_msgs.msg import PoseStamped
 from kompass_core.utils.geometry import from_euler_to_quaternion
 from nav_msgs.msg import Path
+import omplpy as ompl
 
 # KOMPASS NAVIGATION
 from kompass_core.models import Robot, RobotState
@@ -175,7 +176,9 @@ class Planner(Component):
         )
 
         # Init OMPL with collision checking
-        self.ompl_planner = OMPLGeometric(robot=self.__robot)
+        self.ompl_planner = OMPLGeometric(
+            robot=self.__robot, log_level=self.config.core_log_level
+        )
 
         if self._config_file:
             self.config_from_file(self._config_file)

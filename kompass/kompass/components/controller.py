@@ -50,10 +50,6 @@ from .defaults import (
     TopicsKeys,
 )
 
-from kompass_core import set_logging_level
-
-set_logging_level("DEBUG")
-
 
 class CmdPublishType(StrEnum):
     """
