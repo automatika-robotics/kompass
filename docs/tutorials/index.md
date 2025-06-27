@@ -31,12 +31,15 @@ Implement a visual servoing pipeline to follow a moving target using an RGB came
 
 ---
 
+## Following a Moving Target using Depth
+
+Extend the previous example using **depth sensing** to gain more robust tracking.
+
+👉 [**Track with depth data**](vision_tracking_depth.md)
+
+---
+
 ## Dive Deeper Into Components Configuration Options
 
 Want full control over how you define your components? Check out the [Component Configuration Guide](./configuration.md) to see how to set things up using Python, YAML, TOML, or JSON — your config, your rules.
 
-<!-- ## Following a Moving Target using Depth
-
-Extend the previous example using **depth sensing** to gain more robust tracking.
-
-👉 [**Track with depth data**](vision_depth_follow.md) -->

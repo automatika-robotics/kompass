@@ -39,7 +39,7 @@ Save the IP of the machine running `roboml` as we will use it later in our model
 ```
 
 
-## Setting up the vision component and model client in EmbodiedAgents
+## Setting up the vision model client in EmbodiedAgents
 
 First, we need to import the `VisionModel` class that defines the model used later in the component, and a [model client](https://automatika-robotics.github.io/ros-agents/basics.html#model-db-client) to communicate with the model which can be running on the same hardware or in the cloud. Here we will use a `RESPModelClient` from [RoboML](https://github.com/automatika-robotics/roboml/) as we activated the RESP based model server in roboml.
 
@@ -214,7 +214,7 @@ launcher.bringup()
 Et voila! our code for the full vision-based target follower is ready and here is the complete script
 
 ```{code-block} python
-:caption: vision_follower
+:caption: vision_rgb_follower
 :linenos:
 
 import numpy as np

@@ -24,6 +24,7 @@ tutorials/index
 tutorials/point_navigation
 tutorials/events_actions
 tutorials/vision_tracking
+tutorials/vision_tracking_depth
 tutorials/configuration
 ```
 
