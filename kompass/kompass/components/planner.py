@@ -227,8 +227,6 @@ class Planner(Component):
         """
         Clear the last computed path
         """
-        if hasattr(self, "ompl_planner"):
-            self.ompl_planner.clear()
         self.path = None
         # Set last path cost to inf to clear last path
         self._last_path_cost = float("inf")
@@ -472,7 +470,7 @@ class Planner(Component):
                 # This is to prevent publishing less optimal paths produced by sampling methods
                 if current_cost <= self._last_path_cost:
                     # Simplify solution
-                    self.path = self.ompl_planner.simplify_solution()
+                    self.path = path
                     self._last_path_cost = current_cost
 
                 self.health_status.set_healthy()

@@ -1050,7 +1050,6 @@ class Controller(Component):
         """
         return [
             self.in_topic_name(TopicsKeys.VISION_DETECTIONS),
-            self.in_topic_name(TopicsKeys.DEPTH_IMG),
             self.in_topic_name(TopicsKeys.DEPTH_CAM_INFO),
         ]
 
