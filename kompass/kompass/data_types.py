@@ -75,7 +75,7 @@ class Detections(SupportedType):
     def get_ros_type(cls) -> type:
         if find_spec("automatika_embodied_agents") is None:
             raise ModuleNotFoundError(
-                "'automatika_embodied_agents' module is required to use 'Detections' msg type but it is not installed"
+                "'automatika_embodied_agents' module is required to use 'Detections' msg type but it is not installed. Install it with `sudo apt install automatika_embodied_agents`"
             )
         from automatika_embodied_agents.msg import Detections2D
 
@@ -91,7 +91,7 @@ class Trackings(SupportedType):
     def get_ros_type(cls) -> type:
         if find_spec("automatika_embodied_agents") is None:
             raise ModuleNotFoundError(
-                "'automatika_embodied_agents' module is required to use 'Trackings' msg type but it is not installed"
+                "'automatika_embodied_agents' module is required to use 'Trackings' msg type but it is not installed. Install it with `sudo apt install automatika_embodied_agents`"
             )
         from automatika_embodied_agents.msg import Trackings as ROSTrackings
 

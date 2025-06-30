@@ -7,7 +7,6 @@ from attrs import field
 from geometry_msgs.msg import PoseStamped
 from kompass_core.utils.geometry import from_euler_to_quaternion
 from nav_msgs.msg import Path
-import omplpy as ompl
 
 # KOMPASS NAVIGATION
 from kompass_core.models import Robot, RobotState
