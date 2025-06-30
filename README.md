@@ -91,7 +91,7 @@ Then install kompass-core as follows:
 pip install kompass-core
 ```
 
-## Install Kompass (available for `humble` and any distribution `\geq` `jazzy` )
+## Install Kompass (available for `humble` and any distribution >= `jazzy` )
 
 Install pre-build Kompass binary as follows:
 
