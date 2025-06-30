@@ -6,7 +6,6 @@ from ros_sugar.io import GenericCallback, OccupancyGridCallback
 from ros_sugar.io import OdomCallback as BaseOdomCallback
 from ros_sugar.io import PointCallback as BasePointCallback
 from ros_sugar.io import PoseCallback as BasePoseCallback
-from ros_sugar.io.utils import read_compressed_image
 from kompass_core.datatypes import (
     LaserScanData,
     PointCloudData,
@@ -352,7 +351,7 @@ class DetectionsCallback(GenericCallback):
         self,
         input_topic,
         node_name: Optional[str] = None,
-        buffer_size: Optional[int] = 1,
+        buffer_size: int = 1,
     ) -> None:
         """__init__.
 
@@ -368,7 +367,7 @@ class DetectionsCallback(GenericCallback):
         # Initial time of the first detection is used to reset ROS time to zero on the first detection and avoid sending large timestamps to core
         self._initial_time = 0.0
         self._depth_image: Optional[np.ndarray] = None
-        self._label: str = None
+        self._label: Optional[str] = None
         self._buffer_items: int = 0
         self._max_buffer_size = buffer_size
         self._feature_items: int = (
@@ -379,7 +378,7 @@ class DetectionsCallback(GenericCallback):
             self._feature_items,
         ))  # num_detections x num_features
 
-    def __get_img_size(self, detections_set) -> np.ndarray:
+    def __get_img_size(self, detections_set) -> Optional[np.ndarray]:
         """Get image size from a detection set
 
         :param detections_set: _description_
@@ -394,12 +393,12 @@ class DetectionsCallback(GenericCallback):
                 [detections_set.depth.width, detections_set.depth.height],
                 dtype=np.int32,
             )
-        elif detections_set.image.data:
+        elif detections_set.image.data is not None:
             img_size = np.array(
                 [detections_set.image.width, detections_set.image.height],
                 dtype=np.int32,
             )
-        elif detections_set.compressed_image.data:
+        elif detections_set.compressed_image.data is not None:
             img_size = np.array(
                 [
                     detections_set.compressed_image.width,
@@ -503,12 +502,12 @@ class DetectionsCallback(GenericCallback):
         self._process_raw_data(msg)
 
     @property
-    def depth_image(self) -> np.ndarray:
+    def depth_image(self) -> Optional[np.ndarray]:
         """
         Sets the depth image to be used with the detections
 
         :param depth_image: Depth image in numpy array format
-        :type depth_image: np.ndarray
+        :type depth_image: Optional[np.ndarray]
         """
         return self._depth_image
 
@@ -565,7 +564,7 @@ class TrackingsCallback(GenericCallback):
         self,
         input_topic,
         node_name: Optional[str] = None,
-        buffer_size: Optional[int] = 10,
+        buffer_size: int = 10,
     ) -> None:
         """__init__.
 
