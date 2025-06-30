@@ -22,7 +22,7 @@ Kompass includes **highly optimized, GPU powered, versions of the most cutting e
 
 - **Adaptive Event-Driven Design**: Kompass is built to be responsive to real-world events, robot state changes, and task updates. Its event-driven architecture makes it easy to define event-action pairs to reconfigure the navigation stack during runtime, or to seamlessly switch planning or control strategies based on environment context.
 
-- **Engineered for Speed - C++, Multi-Threading, and Cross-GPU Support**: All core algorithms are written in modern C++ with multithreading support for fast CPU execution ([kompass-core](https://github.com/automatika-robotics/kompass-core)). Kompass is the first navigation framework to support SYCL-based GPGPU execution, unlocking high performance on any compatible GPU, breaking the vendor lock-in of traditional frameworks.
+- **Engineered for Speed - C++, Multi-Threading, and Cross-GPU Support**: All core algorithms are written in modern C++ for fast and safe execution ([kompass-core](https://github.com/automatika-robotics/kompass-core)). Kompass is the first navigation framework to explicitly support GPU based execution of primary navigation components. Furthermore its built with GPGPU support, unlocking high performance on any CPUs, GPUs, or even FPGAs, breaking the hardware vendor lock-in of traditional frameworks.
 
 - **Machine learning models as first class citizens**: External events in Kompass can be driven by outputs of machine learning models interpreting sensor data or user commands, which means the entire stack becomes reconfigurable based on ML model outputs. This goes beyond well established scenarios of visual navigation.
 

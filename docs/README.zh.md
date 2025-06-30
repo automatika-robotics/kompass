@@ -24,7 +24,7 @@ Kompass 内置了**高度优化、基于 GPU 的最先进导航算法的 C++ 实
 
 - **自适应事件驱动设计**：Kompass 针对真实世界中的事件、机器人状态变化和任务更新做出响应。它的事件驱动架构使得用户可以轻松定义事件-动作对，在运行时动态重构导航栈，或根据环境上下文平滑切换规划/控制策略。
 
-- **为速度而生 - C++、多线程和跨 GPU 支持**：所有核心算法均使用现代 C++ 编写，并支持多线程以实现快速 CPU 执行。Kompass 是首个支持基于 SYCL 的通用 GPU 编程的导航框架，可在任何兼容 GPU 上高效运行，突破传统框架的厂商限制。([kompass-core](https://github.com/automatika-robotics/kompass-core))
+* **为速度而设计 - C++、多线程与跨GPU支持**：所有核心算法均采用现代C++编写，确保执行快速且安全（[kompass-core](https://github.com/automatika-robotics/kompass-core)）。Kompass 是首个显式支持基于GPU执行主要导航组件的导航框架。此外，它内建通用GPU计算（GPGPU）支持，可在任何CPU、GPU甚至FPGA上实现高性能，打破传统框架对特定硬件厂商的依赖。
 
 - **将机器学习模型视为一等公民**：Kompass 中的外部事件可由机器学习模型对传感器数据或用户指令的解读结果驱动，意味着整个导航栈可根据 ML 模型的输出动态重构，超越传统的视觉导航场景。
 
@@ -94,11 +94,13 @@ pip install kompass-core
 ```
 
 ## 安装 Kompass（二进制包，支持 humble 及以上如 jazzy 等版本）
+
 ```bash
 sudo apt install ros-$ROS_DISTRO-kompass
 ```
 
 ## 从源码构建 Kompass
+
 ```bash
 mkdir -p kompass_ws/src
 cd kompass_ws/src
