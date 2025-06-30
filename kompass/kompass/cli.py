@@ -8,15 +8,16 @@ def _kompass_import_error():
     )
 
 
-def list_control_algorithms(args):
+def list_control_algorithms(*_):
     """Prints a list of available algorithms in the Controller component"""
     try:
         from kompass_core.control import ControllersID
+
+        print("Available control algorithms:")
+        for item in ControllersID:
+            print(f"- {item.value}")
     except ImportError:
         _kompass_import_error()
-    print("Available control algorithms:")
-    for item in ControllersID:
-        print(f"- {item.value}")
 
 
 def control_params(args):
@@ -26,33 +27,34 @@ def control_params(args):
     """
     try:
         from kompass_core.control import ControllersID, ControlConfigClasses
-    except ImportError:
-        _kompass_import_error()
-    try:
+
         config_cls = ControlConfigClasses[ControllersID(args.algorithm)]()
         print(f"Parameters for '{args.algorithm}' Controller in Kompass:")
         print("------------------------")
         print("Name: Default Value")
         print(f"{config_cls}")
+    except ImportError:
+        _kompass_import_error()
     except Exception:
         print(
             f"Unknown control algorithm: {args.algorithm}. To get available algorithms run: 'kompass_cli control list'"
         )
 
 
-def list_planning_algorithms(args):
+def list_planning_algorithms(*_):
     """Prints a list of available algorithms in the Planner component"""
     try:
         import omplpy as ompl
         from kompass_core.third_party.ompl.config import initializePlanners
+
+        initializePlanners()
+        planners = ompl.geometric.planners.getPlanners()
+        print("Available planning algorithms from OMPL Geometric Planners:")
+        for planner_name in planners.keys():
+            reduced_name = planner_name.split(".")[-1]
+            print(f"- {reduced_name}")
     except ImportError:
         _kompass_import_error()
-    initializePlanners()
-    planners = ompl.geometric.planners.getPlanners()
-    print("Available planning algorithms from OMPL Geometric Planners:")
-    for planner_name in planners.keys():
-        reduced_name = planner_name.split(".")[-1]
-        print(f"- {reduced_name}")
 
 
 def planner_params(args):
@@ -63,30 +65,31 @@ def planner_params(args):
     try:
         import omplpy as ompl
         from kompass_core.third_party.ompl.config import initializePlanners
+
+        initializePlanners()
+        planners = ompl.geometric.planners.getPlanners()
+        for planner_name, planner_params in planners.items():
+            reduced_name = planner_name.split(".")[-1]
+            if (
+                reduced_name.lower() == args.algorithm.lower()
+                or planner_name.lower() == args.algorithm.lower()
+            ):
+                print(f"'{planner_name}' Parameters:")
+                print("------------------------")
+                print("Name: Default Value")
+                from kompass_core.third_party.ompl.config import create_config_class
+
+                planner_config_class = create_config_class(reduced_name, planner_params)
+                print(f"{planner_config_class()}")
+                return
+        print(
+            f"Unknown planning algorithm: {args.algorithm}. To get available algorithms run: 'kompass_cli planning list'"
+        )
     except ImportError:
         _kompass_import_error()
-    initializePlanners()
-    planners = ompl.geometric.planners.getPlanners()
-    for planner_name, planner_params in planners.items():
-        reduced_name = planner_name.split(".")[-1]
-        if (
-            reduced_name.lower() == args.algorithm.lower()
-            or planner_name.lower() == args.algorithm.lower()
-        ):
-            print(f"'{planner_name}' Parameters:")
-            print("------------------------")
-            print("Name: Default Value")
-            from kompass_core.third_party.ompl.config import create_config_class
-
-            planner_config_class = create_config_class(reduced_name, planner_params)
-            print(f"{planner_config_class()}")
-            return
-    print(
-        f"Unknown planning algorithm: {args.algorithm}. To get available algorithms run: 'kompass_cli planning list'"
-    )
 
 
-def gpu_support(args):
+def gpu_support(*_):
     """Prints a list of available accelerators"""
     try:
         from kompass_cpp import get_available_accelerators
@@ -103,7 +106,7 @@ def gpu_support(args):
         return
 
 
-def show_info(args):
+def show_info(*_):
     """Shows CLI info"""
     print("""
     Kompass CLI - A command-line interface for inspection KOMPASS algorithms.
