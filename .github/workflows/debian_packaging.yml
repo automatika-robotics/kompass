@@ -20,7 +20,6 @@ jobs:
 
       - name: Create ROS debs for ${{ matrix.package_dir }}
         uses: automatika-robotics/create-ros-debs-action@v2
-        working-directory: ${{ matrix.package_dir }}
         with:
           source-dir-name: ${{ matrix.package_dir }}
           ros-versions-matrix: "humble jazzy kilted rolling"
