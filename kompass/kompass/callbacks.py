@@ -388,17 +388,17 @@ class DetectionsCallback(GenericCallback):
         """
         # Get image size
         img_size = None
-        if detections_set.depth.data is not None:
+        if detections_set.depth.data:
             img_size = np.array(
                 [detections_set.depth.width, detections_set.depth.height],
                 dtype=np.int32,
             )
-        elif detections_set.image.data is not None:
+        elif detections_set.image.data:
             img_size = np.array(
                 [detections_set.image.width, detections_set.image.height],
                 dtype=np.int32,
             )
-        elif detections_set.compressed_image.data is not None:
+        elif detections_set.compressed_image.data:
             img_size = np.array(
                 [
                     detections_set.compressed_image.width,
