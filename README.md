@@ -93,7 +93,7 @@ pip install kompass-core
 
 ## Install Kompass (available for `humble` and any distribution >= `jazzy` )
 
-Install pre-build Kompass binary as follows:
+Install pre-built Kompass binary as follows:
 
 ```bash
 sudo apt install ros-$ROS_DISTRO-kompass

@@ -22,7 +22,7 @@ jobs:
         uses: automatika-robotics/create-ros-debs-action@v2
         with:
           source-dir-name: ${{ matrix.package_dir }}
-          ros-versions-matrix: "humble jazzy kilted rolling"
+          ros-versions-matrix: "humble jazzy kilted"
 
       - uses: actions/upload-artifact@v4
         with:

@@ -28,7 +28,7 @@ Then install kompass-core as follows:
 
 ## Install Kompass
 
-Install pre-build Kompass binary as follows:
+Install pre-built Kompass binary as follows:
 
 `sudo apt install ros-$ROS_DISTRO-kompass`
 
