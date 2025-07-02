@@ -2,6 +2,54 @@
 Changelog for package kompass
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* (fix) Fixes image size check in callback
+* (feature) Adds config parameter for core algorithm logging level in Component
+* (fix) Moves vision controller setup to component start
+* (fix) Removes redundant cmd_rate parameter and adds emergecy_checker warmup
+* (docs) Updates docs, docstrings and add chinese and japanese README
+* (feature) Adds config parsing from json, toml and yaml
+* (fix) Fixes vision follower setup
+* (feature) Adds CLI and updates docs
+* (feature) Adds buffer size to detections callback
+* (fix) Moves emergency stop checking from lidar callback to publish method to include command direction
+* (feature) Updates Controller to use both RGB and RGBD based vision followers
+* (fix) Adds wait for incoming detections in VisionFollower action server
+* (fix) Adds logging info in unblocking action
+* (feature) Updates controller to use new detections message from embodied-agents (includeing Depth)
+* (feature) Adds tracking by label to vision tracking action server
+* (fix) Adds timestamp to detections callback
+* (feature) Adds slowdown factor to DriveManager
+* (feature) Sets vision tracking initial target directly from label in action request
+* (fix) Fixes minor errors in controller action server
+* (fix) Fixes commands parallel publishing in controller and drive manager
+* (fix) Adds inputs check to vision tracking action server
+* (fix) Minor fix in controller's twist array publish mode
+* (feature) Updates controller component to use VisionDWA from core
+* (feature) Adds 'debug' mode to controller component
+* (feature) Adds local map debug to controller
+* (fix) Fixes rate in loop sleep time
+* (fix) Fixes init usage of CriticalZoneCheckerGPU
+* (feature) Uses critical zone checker directly from kompass_cpp
+* (feature) Moves laserscan tf to be executed inside the emergency checker in Cpp
+* (feature) Moves laserscan transformation from callback to kompass-core
+* (fix) Fixes parsing local plan in controller
+* (fix) Treats both numpy arrays and lists in init_twist_array
+* (fix) Uses main_goal_lock in controller action callback and fixes activation based on mode
+* (fix) Fixes action cencellation on new coming action
+* (fix) Fixes emergency stop direction
+* (fix) Handles empty global paths in controller
+* (feature) Updates DriveManager to use EmergencyChecker from kompass_core
+* (fix) Sets detections buffer size from config
+* (chore) Adds error message for kompass-core installation when not found
+* (fix) Fixes setting new buffer size in DetectionsCallback
+* (feature) Adds map resolution set in controller from map callback metadata
+* (fix) Executes emergency stop check only if enabled in config
+* (fix) Minor fix for python3.8 compatibility
+* (feature) Adds message buffer to Detections/Trackings callbacks
+* Contributors: ahr, mkabtoul
+
 0.2.1 (2025-01-28)
 ------------------
 * (fix) Adds controller custom on activate method

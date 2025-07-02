@@ -2,6 +2,12 @@
 Changelog for package kompass_interfaces
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* (fix) Moves vision controller setup to component start
+* (feature) Updates controller component to use VisionDWA from core
+* Contributors: ahr, mkabtoul
+
 0.2.1 (2025-01-28)
 ------------------
 * (fix) Adds action_msgs dependency for kompass_interfaces
