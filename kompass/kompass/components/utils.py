@@ -1,5 +1,5 @@
 import numpy as np
-from typing import Optional, List
+from typing import List, Union
 from geometry_msgs.msg import Twist
 from nav_msgs.msg import Odometry
 from kompass_core.models import RobotState
@@ -63,9 +63,9 @@ def __restrict_list_length(list_values: List[float], list_len: int):
 
 def init_twist_array_msg(
     number_of_cmds: int,
-    linear_x: Optional[List[float]] = None,
-    linear_y: Optional[List[float]] = None,
-    angular: Optional[List[float]] = None,
+    linear_x: Union[List[float], np.ndarray, None] = None,
+    linear_y: Union[List[float], np.ndarray, None] = None,
+    angular: Union[List[float], np.ndarray, None] = None,
 ) -> TwistArray:
     """Initializes the TwistArray ROS msg with a set of zero commands of a given length or with given values
 
@@ -81,19 +81,19 @@ def init_twist_array_msg(
     :return: ROS message
     :rtype: TwistArray
     """
-    if linear_x:
+    if linear_x is not None:
         linear_x = __restrict_list_length(linear_x, number_of_cmds)
-    if linear_y:
+    if linear_y is not None:
         linear_y = __restrict_list_length(linear_y, number_of_cmds)
-    if angular:
+    if angular is not None:
         angular = __restrict_list_length(angular, number_of_cmds)
 
     cmd_list = TwistArray()
     init_list = number_of_cmds * [0.0]
-    cmd_list.linear_velocities.x = linear_x if linear_x else init_list
-    cmd_list.linear_velocities.y = linear_y if linear_y else init_list
+    cmd_list.linear_velocities.x = linear_x if linear_x is not None else init_list
+    cmd_list.linear_velocities.y = linear_y if linear_y is not None else init_list
     cmd_list.linear_velocities.z = init_list
     cmd_list.angular_velocities.x = init_list
     cmd_list.angular_velocities.y = init_list
-    cmd_list.angular_velocities.z = angular if angular else init_list
+    cmd_list.angular_velocities.z = angular if angular is not None else init_list
     return cmd_list

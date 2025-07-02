@@ -8,6 +8,7 @@ package_name = "kompass"
 console_scripts = [
     "executable = kompass.executable:main",
     "turtlebot3_test = recipes.turtlebot3:kompass_bringup",
+    "cli = kompass.cli:main",
 ]
 
 setup(
@@ -19,7 +20,7 @@ setup(
         ("share/" + package_name, ["package.xml"]),
         (
             os.path.join("share", package_name, "params"),
-            glob(os.path.join("params", "*.yaml*")),
+            glob(os.path.join("params", "*.*")),
         ),
     ],
     install_requires=["setuptools"],

@@ -1,4 +1,4 @@
-# Following a moving target using vision
+# 📷 Following a moving target using RGB Image
 
 In this tutorial we will create a vision-based target following navigation system to follow a moving target using an RGB camera input.
 
@@ -18,15 +18,15 @@ ros2 run usb_cam usb_cam_node_exe
 
 ### Start vision detection/tracking using an ML model
 
-To implement and run this example we will need a detection model processing the RGB camera images to provide the Detection or Tracking information. The most convenient way to obtain this is to use [ROS Agents](https://automatika-robotics.github.io/ros-agents/intro.html) package and [RoboML] to deploy and serve the model locally. ROS Agents provides a [Vision Component](https://automatika-robotics.github.io/ros-agents/apidocs/agents/agents.components.vision.html), which will allow us to easily deploy a ROS node in our system that interacts with vision models.
+To implement and run this example we will need a detection model processing the RGB camera images to provide the Detection or Tracking information. The most convenient way to obtain this is to use [**EmbodiedAgents**](https://automatika-robotics.github.io/ros-agents/intro.html) package and [RoboML] to deploy and serve the model locally. EmbodiedAgents provides a [Vision Component](https://automatika-robotics.github.io/ros-agents/apidocs/agents/agents.components.vision.html), which will allow us to easily deploy a ROS node in our system that interacts with vision models.
 
 Therefore, before starting with this tutorial you need to install both packages:
 
-- Install ROS Agents: check the instructions [here](https://automatika-robotics.github.io/ros-agents/installation.html)
+- Install **EmbodiedAgents**: check the instructions [here](https://automatika-robotics.github.io/ros-agents/installation.html)
 - Install RoboML: `pip install roboml`
 
 ```{seealso}
-ROS Agents is another [ROS Sugar](https://automatika-robotics.github.io/ros-sugar/) based package used for creating interactive embodied agents that can understand, remember, and act upon contextual information from their environment.
+[EmbodiedAgents](https://automatika-robotics.github.io/embodied-agents) is another [Sugarcoat🍬](https://automatika-robotics.github.io/sugarcoat) based package used for creating interactive embodied agents that can understand, remember, and act upon contextual information from their environment.
 ```
 
 After installing both packages, you can start `roboml` to serve the model later either on the robot (or your development machine), or on another machine in the local network or any server the cloud. To start a roboml RESP server, simply run:
@@ -39,7 +39,7 @@ Save the IP of the machine running `roboml` as we will use it later in our model
 ```
 
 
-## Setting up the vision component and model client in ROS Agents
+## Setting up the vision model client in EmbodiedAgents
 
 First, we need to import the `VisionModel` class that defines the model used later in the component, and a [model client](https://automatika-robotics.github.io/ros-agents/basics.html#model-db-client) to communicate with the model which can be running on the same hardware or in the cloud. Here we will use a `RESPModelClient` from [RoboML](https://github.com/automatika-robotics/roboml/) as we activated the RESP based model server in roboml.
 
@@ -142,7 +142,7 @@ my_robot = RobotConfig(
 ```
 
 ```{seealso}
-See more details about the robot configuration in the point navigation [tutorial](../quick_start.md/#step-1-setup-your-robot) and in the `RobotConfig` class [details](../navigation/robot.md)
+See more details about the robot configuration in the point navigation [tutorial](../tutorials/point_navigation.md#step-1-setup-your-robot) and in the `RobotConfig` class [details](../navigation/robot.md)
 ```
 
 ## Import the required components from Kompass
@@ -155,7 +155,7 @@ from kompass.components import Controller, ControllerConfig, DriveManager
 
 ## Configure the VisionFollower and setup the components
 
-We select the vision follower method parameters by importing the config class `VisionFollowerConfig` (see default parameters [here](../advanced/algorithms/vision.md)), then configure both our components:
+We select the vision follower method parameters by importing the config class `VisionFollowerConfig` (see default parameters [here](../advanced/algorithms/vision_follower.md)), then configure both our components:
 
 ```python
 from kompass.control import VisionFollowerConfig
@@ -214,7 +214,7 @@ launcher.bringup()
 Et voila! our code for the full vision-based target follower is ready and here is the complete script
 
 ```{code-block} python
-:caption: vision_follower
+:caption: vision_rgb_follower
 :linenos:
 
 import numpy as np

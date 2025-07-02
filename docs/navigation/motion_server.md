@@ -1,6 +1,6 @@
 # Motion Server
 
-[MotionServer](../apidocs/Kompass/Kompass.components.motion_server.md) offers additional motion related services for testing and recording. Unlike the rest of the navigation components, the Motion Server does not perform a core navigation task but offers complementary functionalities essential for validating and calibrating a navigation system.
+[MotionServer](../apidocs/kompass/kompass.components.motion_server.md) offers additional motion related services for testing and recording. Unlike the rest of the navigation components, the Motion Server does not perform a core navigation task but offers complementary functionalities essential for validating and calibrating a navigation system.
 
 Motion Server contains a set of basic motion tests. In each test, the MotionServer sends commands to the robot to perform the pre-configured motion and records both the sent command and the robot response (velocity and pose). This is used to test the motion response on new terrain or calibrate the robot motion model.
 

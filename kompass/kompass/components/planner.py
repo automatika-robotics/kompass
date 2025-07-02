@@ -147,14 +147,14 @@ class Planner(Component):
         self.service_type = PlanPathSrv
         self.action_type = PlanPathAction
 
-    def config_from_yaml(self, config_file: str):
+    def config_from_file(self, config_file: str):
         """
         Configure the planner node and the algorithm from file
 
-        :param config_file: Yaml file
+        :param config_file: Path to config file (yaml, json, toml)
         :type config_file: str
         """
-        super().config_from_yaml(config_file)
+        super().config_from_file(config_file)
         if hasattr(self, "ompl_planner"):
             self.ompl_planner.configure(config_file, self.node_name)
 
@@ -175,10 +175,12 @@ class Planner(Component):
         )
 
         # Init OMPL with collision checking
-        self.ompl_planner = OMPLGeometric(robot=self.__robot)
+        self.ompl_planner = OMPLGeometric(
+            robot=self.__robot, log_level=self.config.core_log_level
+        )
 
         if self._config_file:
-            self.config_from_yaml(self._config_file)
+            self.config_from_file(self._config_file)
 
         # Path and ROS path message
         self.path = None
@@ -224,8 +226,6 @@ class Planner(Component):
         """
         Clear the last computed path
         """
-        if hasattr(self, "ompl_planner"):
-            self.ompl_planner.clear()
         self.path = None
         # Set last path cost to inf to clear last path
         self._last_path_cost = float("inf")
@@ -375,6 +375,10 @@ class Planner(Component):
 
         try:
             while not self.reached_point(goal_state, end_goal_tolerance):
+                if not goal_handle.is_active or goal_handle.is_cancel_requested:
+                    self.get_logger().info("Goal Canceled")
+                    return action_result
+
                 # update state from input
                 self._update_state()
 
@@ -387,14 +391,15 @@ class Planner(Component):
                 else:
                     action_feedback_msg.plan = None
                 goal_handle.publish_feedback(action_feedback_msg)
-                self.get_logger().info(f"Action Feedback: {action_feedback_msg}")
+                self.get_logger().debug(f"Action Feedback: {action_feedback_msg}")
                 # NOTE: using Python time directly, as ros rate sleep (from self.create_rate) was not functioning as expected
                 time.sleep(1 / self.config.loop_rate)
 
         except Exception as e:
             self.get_logger().error(f"Action execution error - {e}")
-            goal_handle.abort()
-            goal_handle.reset()
+            with self._main_goal_lock:
+                goal_handle.abort()
+                goal_handle.reset()
 
         # Get the displacement at the end of the path
         end_state_error: RobotState = self.robot_state - goal_state
@@ -405,7 +410,14 @@ class Planner(Component):
         self.get_logger().error(
             f"End Goal Reached with result {action_result} -> Ending Action"
         )
-        goal_handle.succeed()
+        # Publish empty path
+        self.ros_path = Path()
+        self.ros_path.header.frame_id = self.config.frames.world
+        self.ros_path.header.stamp = self.get_ros_time()
+        self.get_publisher(TopicsKeys.GLOBAL_PLAN).publish(self.ros_path)
+
+        with self._main_goal_lock:
+            goal_handle.succeed()
 
         return action_result
 
@@ -457,7 +469,7 @@ class Planner(Component):
                 # This is to prevent publishing less optimal paths produced by sampling methods
                 if current_cost <= self._last_path_cost:
                     # Simplify solution
-                    self.path = self.ompl_planner.simplify_solution()
+                    self.path = path
                     self._last_path_cost = current_cost
 
                 self.health_status.set_healthy()
@@ -614,6 +626,15 @@ class Planner(Component):
     def _start_path_recording_callback(
         self, request: StartPathRecording.Request, response: StartPathRecording.Response
     ) -> StartPathRecording.Response:
+        """Method executed on a new StartPathRecording incoming request
+
+        :param request: Path recording service request
+        :type request: StartPathRecording.Request
+        :param response: Path recording service response
+        :type response: StartPathRecording.Response
+        :return: Updated path recording service response
+        :rtype: StartPathRecording.Response
+        """
         self.get_logger().info("RECEIVED RECORDING PATH FROM MOTION SERVICE REQUEST")
         if self.robot_state:
             self.recorded_motion = Path()

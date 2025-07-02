@@ -12,10 +12,21 @@ title: KOMPASS Documentation
 
 why
 install
-quick_start
+tutorials/quick_start
+cli
 ```
 
-<!-- # Navigation -->
+```{toctree}
+:maxdepth: 1
+:caption: Tutorials
+
+tutorials/index
+tutorials/point_navigation
+tutorials/events_actions
+tutorials/vision_tracking
+tutorials/vision_tracking_depth
+tutorials/configuration
+```
 
 ```{toctree}
 :maxdepth: 1
@@ -28,15 +39,6 @@ navigation/driver
 navigation/mapper
 navigation/motion_server
 navigation/mapping_localization
-```
-
-```{toctree}
-:maxdepth: 1
-:caption: Tutorials
-
-tutorials/point_navigation
-tutorials/vision_tracking
-tutorials/events_actions
 ```
 
 ```{toctree}

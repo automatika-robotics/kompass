@@ -92,11 +92,11 @@ Provide a 'vision_tracking' input topic to the controller to activate the creati
 - [Stanley](../advanced/algorithms/stanley.md) (pure follower)
 - [DVZ](../advanced/algorithms/dvz.md) (Deformable Virtual Zone)
 - [DWA](../advanced/algorithms/dwa.md) (Dynamic Window Approach)
-- [VisionFollower](../advanced/algorithms/vision.md) (Vision target following controller)
+- [VisionFollower](../advanced/algorithms/vision_follower.md) (Vision target following controller)
 
 ## Configuration Parameters:
 
-See [ControllerConfig](../apidocs/kompass/kompass.components.controller.md/#kompass.components.controller.ControllerConfig)
+See [ControllerConfig](../apidocs/kompass/kompass.components.controller.md/#classes)
 
 
 ## Usage Example:

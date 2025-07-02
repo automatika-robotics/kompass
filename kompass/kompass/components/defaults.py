@@ -1,5 +1,8 @@
 """
-Kompass stack default inputs/outputs values and allowed topic types for each component
+Default configuration for Kompass stack components. Defining the default input and output topics, as well as the allowed topic message types for each component in Kompass. It serves as a centralized configuration resource to ensure consistent topic usage and enforce compatibility of message types.
+
+This module is typically used during the initialization of Kompass components to apply a standard
+set of topic configurations, enabling faster prototyping and reliable system behavior out-of-the-box.
 """
 
 from typing import Dict, Optional
@@ -16,67 +19,70 @@ add_additional_datatypes(get_all_msg_types(data_types))
 
 
 class TopicsKeys(StrEnum):
-    """Unique stack keys associated with inputs/outputs
+    """Enum representing unique keys corresponding to standard input/output topic roles.
 
-    ```{list-table}
-    :widths: 20 20 60
-    :header-rows: 1
+      ```{list-table}
+      :widths: 20 20 60
+      :header-rows: 1
 
-    * - Key
-      - Name
-      - Description
-    * - GOAL_POINT
-      - goal_point
-      - Target destination point on the map for the robot point navigation
-    * - GLOBAL_PLAN
-      - plan
-      - Global navigation plan (path) from start to goal
-    * - GLOBAL_MAP
-      - map
-      - Global (reference) map used for navigation
-    * - ROBOT_LOCATION
-      - location
-      - Current position and orientation of the robot
-    * - SPATIAL_SENSOR
-      - sensor_data
-      - Raw data from robot's spatial sensors (e.g., LIDAR, depth sensors)
-    * - VISION_TRACKINGS
-      - vision_tracking
-      - Visual tracking data from robot's cameras or vision systems
-    * - LOCAL_PLAN
-      - local_plan
-      - Short-term path plan considering immediate surroundings
-    * - INTERMEDIATE_CMD
-      - command
-      - Robot velocity command produced by the control system
-    * - INTERMEDIATE_CMD_LIST
-      - multi_command
-      - List of intermediate velocity commands
-    * - LOCAL_MAP
-      - local_map
-      - Map of the immediate surroundings for local navigation (control)
-    * - LOCAL_MAP_OCC
-      - local_map
-      - Occupancy grid representation of the local environment
-    * - INTERPOLATED_PATH
-      - interpolation
-      - Interpolated global path
-    * - TRACKED_POINT
-      - tracked_point
-      - Specific point being tracked by the robot's systems on the reference path of reference vision target
-    * - FINAL_COMMAND
-      - robot_command
-      - Final control command sent to robot's driver
-    * - EMERGENCY
-      - emergency_stop
-      - Emergency stop signal for immediate robot halt
-    * - REACHED_END
-      - reached_end
-      - Flag indicating whether the goal point has been reached
-    * - RUN_TESTS
-      - run_tests
-      - Flag to initiate system test procedures
-    ```
+      * - Key
+        - Name
+        - Description
+      * - GOAL_POINT
+        - goal_point
+        - Target destination point on the map for the robot point navigation
+      * - GLOBAL_PLAN
+        - plan
+        - Global navigation plan (path) from start to goal
+      * - GLOBAL_MAP
+        - map
+        - Global (reference) map used for navigation
+      * - ROBOT_LOCATION
+        - location
+        - Current position and orientation of the robot
+      * - SPATIAL_SENSOR
+        - sensor_data
+        - Raw data from robot's spatial sensors (e.g., LIDAR, depth sensors)
+      * - VISION_TRACKINGS
+        - vision_tracking
+        - Visual tracking data from robot's cameras or vision systems
+      * - DEPTH_CAM_INFO
+        - depth_camera_info
+        - Depth camera information which includes camera intrinsics parameters
+      * - LOCAL_PLAN
+        - local_plan
+        - Short-term path plan considering immediate surroundings
+      * - INTERMEDIATE_CMD
+        - command
+        - Robot velocity command produced by the control system
+      * - INTERMEDIATE_CMD_LIST
+        - multi_command
+        - List of intermediate velocity commands
+      * - LOCAL_MAP
+        - local_map
+        - Map of the immediate surroundings for local navigation (control)
+      * - LOCAL_MAP_OCC
+        - local_map
+        - Occupancy grid representation of the local environment
+      * - INTERPOLATED_PATH
+        - interpolation
+        - Interpolated global path
+      * - TRACKED_POINT
+        - tracked_point
+        - Specific point being tracked by the robot's systems on the reference path of reference vision target
+      * - FINAL_COMMAND
+        - robot_command
+        - Final control command sent to robot's driver
+      * - EMERGENCY
+        - emergency_stop
+        - Emergency stop signal for immediate robot halt
+      * - REACHED_END
+        - reached_end
+        - Flag indicating whether the goal point has been reached
+      * - RUN_TESTS
+        - run_tests
+        - Flag to initiate system test procedures
+      ```
 
     """
 
@@ -88,9 +94,11 @@ class TopicsKeys(StrEnum):
     # Sensory information
     ROBOT_LOCATION = "location"
     SPATIAL_SENSOR = "sensor_data"
-    VISION_TRACKINGS = "vision_tracking"
+    VISION_DETECTIONS = "vision_detections"
+    DEPTH_CAM_INFO = "depth_camera_info"
     # Calculated
     LOCAL_PLAN = "local_plan"
+    PATH_SAMPLES = "path_samples"
     INTERMEDIATE_CMD = "command"
     INTERMEDIATE_CMD_LIST = "multi_command"
     LOCAL_MAP = "local_map"
@@ -109,7 +117,8 @@ controller_allowed_inputs: Dict[TopicsKeys, AllowedTopics] = {
     TopicsKeys.ROBOT_LOCATION: AllowedTopics(types=["Odometry", "PoseStamped", "Pose"]),
     TopicsKeys.SPATIAL_SENSOR: AllowedTopics(types=["LaserScan", "PointCloud2"]),
     TopicsKeys.LOCAL_MAP: AllowedTopics(types=["OccupancyGrid"]),
-    TopicsKeys.VISION_TRACKINGS: AllowedTopics(types=["Trackings", "Detections"]),
+    TopicsKeys.VISION_DETECTIONS: AllowedTopics(types=["Detections"]),
+    TopicsKeys.DEPTH_CAM_INFO: AllowedTopics(types=["CameraInfo"]),
 }
 
 controller_allowed_outputs: Dict[TopicsKeys, AllowedTopics] = {
@@ -117,6 +126,7 @@ controller_allowed_outputs: Dict[TopicsKeys, AllowedTopics] = {
     TopicsKeys.INTERMEDIATE_CMD_LIST: AllowedTopics(types=["TwistArray"]),
     TopicsKeys.INTERPOLATED_PATH: AllowedTopics(types=["Path"]),
     TopicsKeys.LOCAL_PLAN: AllowedTopics(types=["Path"]),
+    TopicsKeys.PATH_SAMPLES: AllowedTopics(types=["Path"]),
     TopicsKeys.TRACKED_POINT: AllowedTopics(types=["Odometry", "PoseStamped", "Pose"]),
 }
 
@@ -128,7 +138,8 @@ controller_default_inputs: Dict[TopicsKeys, Optional[Topic]] = {
         name="/local_map/occupancy_layer", msg_type="OccupancyGrid"
     ),
     TopicsKeys.ROBOT_LOCATION: Topic(name="/odom", msg_type="Odometry"),
-    TopicsKeys.VISION_TRACKINGS: None,  # No default topic is assigned. Should be provided by the user to use the vision tracking action
+    TopicsKeys.VISION_DETECTIONS: None,  # No default topic is assigned. Should be provided by the user to use the vision tracking action
+    TopicsKeys.DEPTH_CAM_INFO: None,  # No default topic is assigned. Should be provided by the user to use the vision tracking action
 }
 
 # Create default outputs - Used if no outputs config is provided to the controller
@@ -140,6 +151,7 @@ controller_default_outputs: Dict[TopicsKeys, Topic] = {
     TopicsKeys.INTERPOLATED_PATH: Topic(name="/interpolated_path", msg_type="Path"),
     TopicsKeys.TRACKED_POINT: Topic(name="/tracked_point", msg_type="PoseStamped"),
     TopicsKeys.LOCAL_PLAN: Topic(name="/local_path", msg_type="Path"),
+    TopicsKeys.PATH_SAMPLES: Topic(name="/debug_samples", msg_type="Path"),
 }
 
 # DRIVE MANAGER

@@ -5,12 +5,6 @@ DWA is a popular local planning method developed since the 90s.[^1] DWA is a sam
 At each step, the reachable velocity range is computed based on the acceleration limits and the motion model of the robot. Then a set of constant velocity trajectories is [sampled](#trajectory-samples-generator) within the range after checking its [admissibility](#admissible-trajectory-criteria). Finally, the best trajectory is selected using the trajectory [cost evaluation](#trajectory-selection) functions.
 
 
-## Supported Motion Models
-
-- ACKERMANN
-- DIFFERENTIAL_DRIVE
-- OMNI
-
 ## Supported Sensory Inputs
 
 - LaserScan

@@ -1,7 +1,6 @@
 import time
 import json
 from typing import Dict, List, Optional, Union, Tuple
-from omegaconf import OmegaConf
 from ros_sugar.core import ComponentFallbacks, BaseComponent
 from ros_sugar.tf import TFListener, TFListenerConfig
 from ros_sugar.io import Publisher, AllowedTopics
@@ -11,6 +10,7 @@ from ..config import ComponentConfig, RobotConfig, ComponentRunType
 from .ros import Topic, update_topics
 from itertools import groupby
 from .defaults import TopicsKeys
+from kompass_core import set_logging_level
 
 
 def _parse_from_topics_dict(
@@ -112,7 +112,7 @@ class Component(BaseComponent):
         :type node_name: str
         :param config: Configuration parameters, defaults to None
         :type config: Optional[ComponentConfig], optional
-        :param config_file: Path to a configuration Yaml file, defaults to None
+        :param config_file: Path to a configuration file (yaml, json, toml), defaults to None
         :type config_file: Optional[str], optional
         :param inputs: Component Inputs, defaults to None
         :type inputs: Optional[BaseAttrs], optional
@@ -147,7 +147,7 @@ class Component(BaseComponent):
                 ComponentRunType
             )
 
-        # Remove None values from topics before sending to ros sugar
+        # Remove None values from topics before sending to sugarcoat
         inputs_list: List[Topic] = [topic for topic in self._inputs_list if topic]
         outputs_list: List[Topic] = [topic for topic in self._outputs_list if topic]
 
@@ -164,6 +164,14 @@ class Component(BaseComponent):
             fallbacks=fallbacks,
             **kwargs,
         )
+
+    def custom_on_configure(self):
+        """
+        Component custom configuration method to set the core debug level
+        """
+        super().custom_on_configure()
+        # Set logging level for kompass_core
+        set_logging_level(self.config.core_log_level)
 
     @property
     def robot(self) -> RobotConfig:
@@ -258,68 +266,99 @@ class Component(BaseComponent):
         self._outputs_list = self._reparse_outputs_converts(_outputs)
         self.out_topics = [topic for topic in self._outputs_list if topic]
 
-    def config_from_yaml(self, config_file: str):
-        """
-        Configure component from yaml file
+    def __configure_input_from_file(
+        self, idx: int, key: TopicsKeys, config_file: str
+    ) -> None:
+        """Configure component input topic from config file
 
+        :param idx: Input index
+        :type idx: int
+        :param key: Input key name
+        :type key: TopicsKeys
         :param config_file: Path to file
         :type config_file: str
         """
-        super().config_from_yaml(config_file)
-        # Set Inputs/Outputs
-        raw_config = OmegaConf.load(config_file)
-
-        inputs_config = OmegaConf.select(raw_config, f"{self.node_name}.inputs")
-        for idx, key in enumerate(self._inputs_keys):
-            if hasattr(inputs_config, str(key)):
-                # If a topic key is found in the yaml file
-                topic_name = self.in_topic_name(key)
-                # If the key does not correspond to a None value -> replace callback
-                if isinstance(topic_name, str):
-                    self.callbacks.pop(topic_name)
-                    self.in_topics[idx].from_yaml(
-                        config_file, f"{self.node_name}.inputs.{key}"
-                    )
-                # TODO handle List case
-                else:
-                    # Create a dummy topic to parse the value from yaml
-                    dummy_topic = Topic(name="dummy", msg_type="String")
-                    dummy_topic.from_yaml(config_file, f"{self.node_name}.inputs.{key}")
-                    # If the key correspond to a None value -> create callback
-                    self.in_topics.insert(
-                        idx,
-                        dummy_topic,
-                    )
-                self.callbacks[self.in_topics[idx].name] = self.in_topics[
-                    idx
-                ].msg_type.callback(self.in_topics[idx], node_name=self.node_name)
-
-        outputs_config = OmegaConf.select(raw_config, f"{self.node_name}.outputs")
-        for idx, key in enumerate(self._outputs_keys):
-            if hasattr(outputs_config, str(key)):
-                # If a topic key is found in the yaml file
-                topic_name = self.out_topic_name(key)
-                if isinstance(topic_name, str):
-                    self.publishers_dict.pop(topic_name)
-                    self.out_topics[idx].from_yaml(
-                        config_file, f"{self.node_name}.outputs.{key}"
-                    )
-                else:
-                    dummy_topic = Topic(name="dummy", msg_type="String")
-                    dummy_topic.from_yaml(
-                        config_file, f"{self.node_name}.outputs.{key}"
-                    )
-                    self.out_topics.insert(
-                        idx,
-                        dummy_topic,
-                    )
-                self.publishers_dict[self.out_topics[idx].name] = Publisher(
-                    self.out_topics[idx], node_name=self.node_name
+        topic_updated: bool = False
+        topic_name = self.in_topic_name(key)
+        # If the key does not correspond to a None value -> replace callback
+        if isinstance(topic_name, str):
+            topic_updated = self.in_topics[idx].from_file(
+                config_file, f"{self.node_name}.inputs.{key}"
+            )
+            if topic_updated:
+                self.callbacks.pop(topic_name)
+        # TODO handle List case
+        else:
+            # Create a dummy topic to parse the value from file
+            dummy_topic = Topic(name="dummy", msg_type="String")
+            topic_updated = dummy_topic.from_file(
+                config_file, f"{self.node_name}.inputs.{key}"
+            )
+            # If the key correspond to a None value -> create callback
+            if topic_updated:
+                self.in_topics.insert(
+                    idx,
+                    dummy_topic,
                 )
+        if topic_updated:
+            self.callbacks[self.in_topics[idx].name] = self.in_topics[
+                idx
+            ].msg_type.callback(self.in_topics[idx], node_name=self.node_name)
+
+    def __configure_output_from_file(
+        self, idx: int, key: TopicsKeys, config_file: str
+    ) -> None:
+        """Configure component output topic from config file
+
+        :param idx: Output index
+        :type idx: int
+        :param key: Output key name
+        :type key: TopicsKeys
+        :param config_file: Path to file
+        :type config_file: str
+        """
+        # if hasattr(outputs_config, str(key)):
+        topic_updated: bool = False
+        topic_name = self.out_topic_name(key)
+        if isinstance(topic_name, str):
+            topic_updated = self.out_topics[idx].from_file(
+                config_file, f"{self.node_name}.outputs.{key}"
+            )
+            if topic_updated:
+                self.publishers_dict.pop(topic_name)
+        else:
+            dummy_topic = Topic(name="dummy", msg_type="String")
+            topic_updated: bool = dummy_topic.from_file(
+                config_file, f"{self.node_name}.outputs.{key}"
+            )
+            if topic_updated:
+                self.out_topics.insert(
+                    idx,
+                    dummy_topic,
+                )
+        if topic_updated:
+            self.publishers_dict[self.out_topics[idx].name] = Publisher(
+                self.out_topics[idx], node_name=self.node_name
+            )
+
+    def config_from_file(self, config_file: str):
+        """
+        Configure component from file
+
+        :param config_file: Path to file (yaml, json, toml)
+        :type config_file: str
+        """
+        super().config_from_file(config_file)
+        # Set Inputs/Outputs
+        for idx, key in enumerate(self._inputs_keys):
+            self.__configure_input_from_file(idx, key, config_file)
+
+        for idx, key in enumerate(self._outputs_keys):
+            self.__configure_output_from_file(idx, key, config_file)
 
     @property
     def odom_tf_listener(self) -> Optional[TFListener]:
-        """Gets a transform listener for Odomtery (from odom to world)
+        """Gets a transform listener for Odometry (from odom to world)
 
         :return:
         :rtype: TFListener
@@ -361,6 +400,20 @@ class Component(BaseComponent):
                 goal_frame=self.config.frames.robot_base,
             )
         return self._depth_tf_listener
+
+    @property
+    def pc_tf_listener(self) -> TFListener:
+        """Gets a transform listener for LaserScan (from scan to robot base)
+
+        :return:
+        :rtype: TFListener
+        """
+        if not hasattr(self, "_pc_tf_listener"):
+            self._pc_tf_listener = self.get_transform_listener(
+                src_frame=self.config.frames.point_cloud,
+                goal_frame=self.config.frames.robot_base,
+            )
+        return self._pc_tf_listener
 
     def get_transform_listener(self, src_frame: str, goal_frame: str) -> TFListener:
         """Gets a transform listener

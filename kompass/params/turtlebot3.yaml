@@ -4,7 +4,7 @@
     robot_base: "base_link"
     odom: "map"
     world: "map"
-    scan: "LDS-01"
+    scan: "hokuyo" #"LDS-01"
 
 mapper:
   loop_rate: 10.0
@@ -25,7 +25,6 @@ drive_manager:
 controller:
   loop_rate: 10.0
   control_time_step: 0.1
-  prediction_horizon: 4.0
   ctrl_publish_type: 'Array'
 
   Stanley:
@@ -41,7 +40,8 @@ controller:
     side_margin_width_ratio: 1.0
 
   DWA:
-    control_horizon: 0.6
+    control_horizon: 6
+    prediction_horizon: 40
     octree_resolution: 0.1
     max_linear_samples: 20
     max_angular_samples: 20
@@ -51,7 +51,7 @@ controller:
       obstacles_distance_weight: 2.0
       smoothness_weight: 1.0
       jerk_weight: 0.0
-    max_num_threads: 1
+    max_num_threads: 10
 
 planner:
   inputs:

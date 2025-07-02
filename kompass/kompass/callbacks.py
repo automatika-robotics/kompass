@@ -1,23 +1,20 @@
 """Callback classes used to process input topics data for supported types in Kompass"""
 
-from typing import Optional, Union, Any
+from typing import Optional, Union, Any, List, Dict
 import numpy as np
-from collections import deque
-
 from ros_sugar.io import GenericCallback, OccupancyGridCallback
 from ros_sugar.io import OdomCallback as BaseOdomCallback
 from ros_sugar.io import PointCallback as BasePointCallback
 from ros_sugar.io import PoseCallback as BasePoseCallback
-from ros_sugar.io.utils import read_compressed_image
 from kompass_core.datatypes import (
     LaserScanData,
     PointCloudData,
-    TrackingData,
-    ImageMetaData,
 )
+import logging
 from .utils import read_pc_points, read_pc_points_with_tf
 from kompass_core.utils import geometry as GeometryUtils
 from kompass_core.models import RobotState
+from kompass_core.datatypes import Bbox2D
 
 from nav_msgs.msg import Odometry
 from sensor_msgs.msg import LaserScan, PointCloud2
@@ -354,7 +351,220 @@ class DetectionsCallback(GenericCallback):
         self,
         input_topic,
         node_name: Optional[str] = None,
-        buffer_size: Optional[int] = 10,
+        buffer_size: int = 1,
+    ) -> None:
+        """__init__.
+
+        :param input_topic:
+        :param node_name:
+        :type node_name: Optional[str]
+        :param buffer_size:
+        :type buffer_size: Optional[Int], default 10
+        :rtype: None
+        """
+        super().__init__(input_topic, node_name)
+        self._detected_boxes: Dict[List, Bbox2D] = {}
+        # Initial time of the first detection is used to reset ROS time to zero on the first detection and avoid sending large timestamps to core
+        self._initial_time = 0.0
+        self._depth_image: Optional[np.ndarray] = None
+        self._label: Optional[str] = None
+        self._buffer_items: int = 0
+        self._max_buffer_size = buffer_size
+        self._feature_items: int = (
+            4  # (top_left_corner_x, top_left_corner_y, size_x, size_y)
+        )
+        self._detections_buffer = np.ones((
+            buffer_size,
+            self._feature_items,
+        ))  # num_detections x num_features
+
+    def __get_img_size(self, detections_set) -> Optional[np.ndarray]:
+        """Get image size from a detection set
+
+        :param detections_set: _description_
+        :type detections_set: _type_
+        :return: Image size (width, height)
+        :rtype: np.ndarray[dtype=np.int32]
+        """
+        # Get image size
+        img_size = None
+        if detections_set.depth.data:
+            img_size = np.array(
+                [detections_set.depth.width, detections_set.depth.height],
+                dtype=np.int32,
+            )
+        elif detections_set.image.data:
+            img_size = np.array(
+                [detections_set.image.width, detections_set.image.height],
+                dtype=np.int32,
+            )
+        elif detections_set.compressed_image.data:
+            img_size = np.array(
+                [
+                    detections_set.compressed_image.width,
+                    detections_set.compressed_image.height,
+                ],
+                dtype=np.int32,
+            )
+        if img_size is None:
+            logging.error(
+                "No image is provided with the detections message. Unknown image size can lead to errors!"
+            )
+        return img_size
+
+    def set_buffer_size(self, value: int, clear_old: bool = False) -> None:
+        """Resizes detections buffer (while maintaining old buffer items in the resized buffer)
+
+        :param value: New buffer size
+        :type value: int
+        """
+        new_buffer = np.ones((value, self._feature_items))
+
+        if clear_old:
+            self._buffer_items = 0
+        else:
+            if value >= self._max_buffer_size:
+                new_buffer[-self._max_buffer_size :] = self._detections_buffer
+            else:
+                new_buffer = self._detections_buffer[-self._max_buffer_size :]
+        self._max_buffer_size = value
+        self._detections_buffer = new_buffer
+
+    def _process_raw_data(self, msg) -> None:
+        """Process new raw detections data and add it to buffer if available"""
+        if not msg or not msg.detections:
+            # No detections received -> Reduce buffer items
+            self._buffer_items = max(self._buffer_items - 1, 0)
+            return
+        # Gets first source, TODO: turn into parameter based on the image frame
+        detections_set = msg.detections[0]
+        # Clear old detections
+        self._detected_boxes = {}
+
+        # Get depth image if available
+        self._depth_image = (
+            np.frombuffer(detections_set.depth.data, dtype=np.uint16).reshape((
+                detections_set.depth.height,
+                detections_set.depth.width,
+            ))
+            if detections_set.depth.data
+            else None
+        )
+
+        # Get timestamp for tracking
+        timestamp = msg.header.stamp.sec + 1e-9 * msg.header.stamp.nanosec
+
+        # Get image size
+        img_size = self.__get_img_size(detections_set)
+
+        got_label = False
+        for label, box in zip(detections_set.labels, detections_set.boxes):
+            if label == self._label:
+                # Add new detection to the buffer
+                self._detections_buffer[-1:] = [
+                    (box.bottom_right_x + box.top_left_x) / 2,  # center_x
+                    (box.top_left_y + box.bottom_right_y) / 2,  # center_y
+                    abs(box.bottom_right_x - box.top_left_x),  # size_x
+                    abs(box.bottom_right_y - box.top_left_y),  # size_y
+                ]
+                self._buffer_items = min(self._buffer_items + 1, self._max_buffer_size)
+                got_label = True
+            self._detected_boxes[label] = Bbox2D(
+                top_left_corner=np.array(
+                    [box.top_left_x, box.top_left_y], dtype=np.int32
+                ),
+                size=np.array(
+                    [
+                        abs(box.bottom_right_x - box.top_left_x),
+                        abs(box.bottom_right_y - box.top_left_y),
+                    ],
+                    dtype=np.int32,
+                ),
+                timestamp=timestamp - self._initial_time,
+                label=label,
+            )
+            if img_size is not None:
+                self._detected_boxes[label].set_img_size(img_size)
+        if not got_label:
+            self._buffer_items = max(self._buffer_items - 1, 0)
+        if self._initial_time == 0.0:
+            # Get the initial time of the first detection
+            self._initial_time = timestamp
+
+    def callback(self, msg) -> None:
+        """
+        Topic subscriber callback
+
+        :param msg: Received ros msg
+        :type msg: Any
+        """
+        super().callback(msg)
+        self._process_raw_data(msg)
+
+    @property
+    def depth_image(self) -> Optional[np.ndarray]:
+        """
+        Sets the depth image to be used with the detections
+
+        :param depth_image: Depth image in numpy array format
+        :type depth_image: Optional[np.ndarray]
+        """
+        return self._depth_image
+
+    def _get_output(
+        self,
+        label: Optional[str] = None,
+        **_,
+    ) -> Union[None, List[Bbox2D]]:
+        """
+        Gets the trackings data
+        :returns:   Topic content
+        :rtype:     Union[ROSTrackings, np.ndarray, None]
+        """
+        if not label:
+            return list(self._detected_boxes.values())
+        try:
+            self._label = label
+            if self._buffer_items <= 0:
+                return None  # [self._detected_boxes[label]]
+            else:
+                last_detections = self._detections_buffer[-self._buffer_items :]
+                # Create weights array: [1, 2, ..., n]
+                weights = np.arange(1, self._buffer_items + 1).reshape(-1, 1)
+                # Multiply each row by its weight then divide by the sum
+                average_det = np.sum(last_detections * weights, axis=0) / np.sum(
+                    weights
+                )
+                average_box = Bbox2D(
+                    top_left_corner=np.array(
+                        [average_det[0], average_det[1]], dtype=np.int32
+                    ),
+                    size=np.array(
+                        [
+                            average_det[2],
+                            average_det[3],
+                        ],
+                        dtype=np.int32,
+                    ),
+                    timestamp=self._detected_boxes[
+                        label
+                    ].timestamp,  # Gets last timestamp
+                    label=label,
+                )
+                average_box.set_img_size(self._detected_boxes[label].img_size)
+                return [average_box]
+        except KeyError:
+            return None
+
+
+class TrackingsCallback(GenericCallback):
+    """ROS2 Trackings Callback Handler to process and transform automatika_agents_interfaces/Trackings data"""
+
+    def __init__(
+        self,
+        input_topic,
+        node_name: Optional[str] = None,
+        buffer_size: int = 10,
     ) -> None:
         """__init__.
 
@@ -375,88 +585,74 @@ class DetectionsCallback(GenericCallback):
             buffer_size,
             self._feature_items,
         ))  # num_detections x num_features
-        self._img_metadata: Optional[ImageMetaData] = None
         self._label: Optional[str] = None
         self._id: Optional[int] = None
+        self._initial_time = 0.0
 
-    def _process_raw_data(self) -> None:
-        """Process new raw detections data and add it to buffer if available"""
-        # Remove a buffer item
-        self._detections_buffer = np.roll(self._detections_buffer, -1, axis=0)
+    def callback(self, msg) -> None:
+        """
+        Topic subscriber callback
 
-        if not self._label or not self.msg or (self.msg and not self.msg.detections):
-            # No detection -> reduce buffer items
-            self._buffer_items = max(self._buffer_items - 1, 0)
-            return
+        :param msg: Received ros msg
+        :type msg: Any
+        """
+        super().callback(msg)
+        self._process_raw_data()
 
-        raw_detections = self.msg.detections
+    def _get_output(
+        self,
+        label: Optional[str] = None,
+        idx: Optional[int] = 0,
+        **_,
+    ) -> Union[Any, Bbox2D, None]:
+        """
+        Gets the trackings data
+        :returns:   Topic content
+        :rtype:     Union[ROSTrackings, np.ndarray, None]
+        """
+        self._label = label or self._label
+        self._id = idx
 
-        # Get requested item from trackings using id or label
-        detection_index = None
-        label_index = None
-        for idx, detection in enumerate(raw_detections):
-            if self._label in detection.labels:
-                detection_index = idx
-                label_index = detection.labels.index(self._label)
-                break
+        if not self._buffer_items:
+            return None
 
-        # If requested label/id not in detections -> return None
-        if detection_index is None or label_index is None:
-            # No detection -> reduce buffer items
-            self._buffer_items = max(self._buffer_items - 1, 0)
-            return
+        last_detections = self._detections_buffer[-self._buffer_items :]
 
-        det = raw_detections[detection_index]
-        bbox_2d = det.boxes[label_index]
+        # Create weights array: [1, 2, ..., n]
+        weights = np.arange(1, self._buffer_items + 1).reshape(-1, 1)
 
-        # Update the source image data if available
-        if det.image.data:
-            if (
-                not self._img_metadata
-                or det.image.header.frame_id != self._img_metadata.frame_id
-            ):
-                # Update img_metadata if None or a new frame_id is provided (new camera)
-                self._img_metadata = ImageMetaData(
-                    frame_id=det.image.header.frame_id,
-                    width=det.image.width,
-                    height=det.image.height,
-                    encoding=det.image.encoding,
-                )
-                # If a new image meta data is detected -> clear the buffer (the detection is coming from a new camera -> clear old camera data)
-                self._detections_buffer = np.ones((
-                    self._max_buffer_size,
-                    self._feature_items,
-                ))
-                self._buffer_items = 0
+        # Multiply each row by its weight then divide by the sum
+        average_det = np.sum(last_detections * weights, axis=0) / np.sum(weights)
 
-        elif det.compressed_image.data:
-            if (
-                not self._img_metadata
-                or det.compressed_image.header.frame_id != self._img_metadata.frame_id
-            ):
-                data: np.ndarray = read_compressed_image(det.compressed_image)
-                self._img_metadata = ImageMetaData(
-                    frame_id=det.compressed_image.header.frame_id,
-                    width=data.shape[1],
-                    height=data.shape[0],
-                    encoding=det.compressed_image.format,
-                )
-                self._detections_buffer = np.ones((
-                    self._max_buffer_size,
-                    self._feature_items,
-                ))
-                self._buffer_items = 0
-
-        # Add new detection to the buffer
-        self._detections_buffer[-1:] = [
-            (bbox_2d.bottom_right_x + bbox_2d.top_left_x) / 2,  # center_x
-            (bbox_2d.top_left_y + bbox_2d.bottom_right_y) / 2,  # center_y
-            abs(bbox_2d.bottom_right_x - bbox_2d.top_left_x),  # size_x
-            abs(bbox_2d.bottom_right_y - bbox_2d.top_left_y),  # size_y
-            0.0,  # no estimate for vel_x
-            0.0,  # no estimate for vel_y
-        ]
-        self._buffer_items = min(self._buffer_items + 1, self._max_buffer_size)
+        timestamp = self.msg.header.stamp.sec + 1e-9 * self.msg.header.stamp.nanosec
+        box = Bbox2D(
+            top_left_corner=np.array(
+                [
+                    average_det[0],
+                    average_det[1],
+                ],
+                dtype=np.int32,
+            ),
+            size=np.array(
+                [
+                    average_det[2],
+                    average_det[3],
+                ],
+                dtype=np.int32,
+            ),
+            timestamp=timestamp - self._initial_time,
+            label=self._label,
+        )
+        box.set_vel(
+            np.array(
+                [average_det[4], average_det[5], 0.0],
+                dtype=np.float32,
+            )
+        )
+        if self._initial_time == 0:
+            # Get the initial time of the first detection
+            self._initial_time = timestamp
+        return box
 
     def set_buffer_size(self, value: int, clear_old: bool = False) -> None:
         """Resizes detections buffer (while maintaining old buffer items in the resized buffer)
@@ -485,76 +681,6 @@ class DetectionsCallback(GenericCallback):
         """
         self._label = label
         self._id = idx
-
-    def callback(self, msg) -> None:
-        """
-        Topic subscriber callback
-
-        :param msg: Received ros msg
-        :type msg: Any
-        """
-        super().callback(msg)
-        self._process_raw_data()
-
-    def _get_output(
-        self,
-        label: Optional[str] = None,
-        idx: Optional[int] = 0,
-        **_,
-    ) -> Union[Any, TrackingData, None]:
-        """
-        Gets the trackings data
-        :returns:   Topic content
-        :rtype:     Union[ROSTrackings, np.ndarray, None]
-        """
-        self._label = label or self._label
-        self._id = idx
-
-        if not self._buffer_items:
-            return None
-
-        last_detections = self._detections_buffer[-self._buffer_items :]
-
-        # Create weights array: [1, 2, ..., n]
-        weights = np.arange(1, self._buffer_items + 1).reshape(-1, 1)
-
-        # Multiply each row by its weight then divide by the sum
-        average_det = np.sum(last_detections * weights, axis=0) / np.sum(weights)
-        return TrackingData(
-            label=self._label,
-            id=self._id,
-            center_xy=[
-                average_det[0],
-                average_det[1],
-            ],
-            size_xy=[
-                average_det[2],
-                average_det[3],
-            ],
-            velocity_xy=[average_det[4], average_det[5]],
-            img_meta=self._img_metadata,
-        )
-
-
-class TrackingsCallback(DetectionsCallback):
-    """ROS2 Trackings Callback Handler to process and transform automatika_agents_interfaces/Trackings data"""
-
-    def __init__(
-        self,
-        input_topic,
-        node_name: Optional[str] = None,
-        buffer_size: Optional[int] = 10,
-    ) -> None:
-        """__init__.
-
-        :param input_topic:
-        :param node_name:
-        :type node_name: Optional[str]
-        :param buffer_size:
-        :type buffer_size: Optional[Int], default 10
-        :rtype: None
-        """
-        super().__init__(input_topic, node_name, buffer_size)
 
     def _process_raw_data(self) -> None:
         """Process new raw trackings data and add it to buffer if available"""
@@ -596,13 +722,6 @@ class TrackingsCallback(DetectionsCallback):
                 not self._img_metadata
                 or track.image.header.frame_id != self._img_metadata.frame_id
             ):
-                # Update img_metadata if None or a new frame_id is provided (new camera)
-                self._img_metadata = ImageMetaData(
-                    frame_id=track.image.header.frame_id,
-                    width=track.image.width,
-                    height=track.image.height,
-                    encoding=track.image.encoding,
-                )
                 # If a new image meta data is detected -> clear the buffer (the detection is coming from a new camera -> clear old camera data)
                 self._detections_buffer = np.ones((
                     self._max_buffer_size,
@@ -615,13 +734,6 @@ class TrackingsCallback(DetectionsCallback):
                 not self._img_metadata
                 or track.compressed_image.header.frame_id != self._img_metadata.frame_id
             ):
-                data: np.ndarray = read_compressed_image(track.compressed_image)
-                self._img_metadata = ImageMetaData(
-                    frame_id=track.compressed_image.header.frame_id,
-                    width=data.shape[1],
-                    height=data.shape[0],
-                    encoding=track.compressed_image.format,
-                )
                 self._detections_buffer = np.ones((
                     self._max_buffer_size,
                     self._feature_items,
@@ -638,6 +750,45 @@ class TrackingsCallback(DetectionsCallback):
             track.estimated_velocities[id_index].y,  # vel_y
         ]
         self._buffer_items = min(self._buffer_items + 1, self._max_buffer_size)
+
+
+class CameraInfoCallback(GenericCallback):
+    """ROS2 Image Callback Handler to process sensor_msgs/CameraInfo data"""
+
+    def __init__(
+        self,
+        input_topic,
+        node_name: Optional[str] = None,
+    ) -> None:
+        """__init__.
+
+        :param input_topic:
+        :param node_name:
+        :type node_name: Optional[str]
+        :param transformation:
+        :type transformation: Optional[TransformStamped]
+        :rtype: None
+        """
+        super().__init__(input_topic, node_name)
+
+    def _get_output(
+        self,
+        **_,
+    ) -> Optional[dict]:
+        """
+        Gets the CameraInfo data by applying the transformation if given.
+        :returns:   Topic content
+        :rtype:     Optional[dict]
+        """
+        if not self.msg:
+            return None
+
+        cam_intrinsics = self.msg.k
+
+        return {
+            "focal_length": np.array([cam_intrinsics[0], cam_intrinsics[4]]),
+            "principal_point": np.array([cam_intrinsics[2], cam_intrinsics[5]]),
+        }
 
 
 class LaserScanCallback(GenericCallback):

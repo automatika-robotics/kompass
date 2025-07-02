@@ -1,0 +1,74 @@
+["/**".frames]
+robot_base = "base_link"
+odom = "map"
+world = "map"
+scan = "hokuyo"
+
+[mapper]
+loop_rate = 10.0
+
+[mapper.map_params]
+width = 3.0
+height = 3.0
+resolution = 0.05
+
+[drive_manager]
+loop_rate = 20.0
+cmd_rate = 10.0
+critical_zone_distance = 0.15
+
+[drive_manager.outputs.robot_command]
+name = "cmd_vel"
+msg_type = "Twist"
+
+[controller]
+loop_rate = 10.0
+control_time_step = 0.1
+ctrl_publish_type = "Array"
+
+[controller.Stanley]
+cross_track_gain = 1.0
+heading_gain = 2.0
+
+[controller.DVZ]
+cross_track_gain = 1.0
+heading_gain = 2.0
+K_angular = 1.0
+K_linear = 1.0
+min_front_margin = 1.0
+side_margin_width_ratio = 1.0
+
+[controller.DWA]
+control_horizon = 6
+prediction_horizon = 40
+octree_resolution = 0.1
+max_linear_samples = 20
+max_angular_samples = 20
+max_num_threads = 10
+
+[controller.DWA.costs_weights]
+goal_distance_weight = 1.0
+reference_path_distance_weight = 1.5
+obstacles_distance_weight = 2.0
+smoothness_weight = 1.0
+jerk_weight = 0.0
+
+[planner.inputs.map_layer]
+name = "/map"
+msg_type = "OccupancyGrid"
+
+[planner.inputs.goal_point]
+name = "/clicked_point"
+msg_type = "PointStamped"
+
+[planner]
+loop_rate = 1.0
+algorithm = "ompl"
+
+[planner.ompl]
+log_level = "WARN"
+planning_timeout = 10.0
+planner_id = "ompl.geometric.KPIECE1"
+
+[planner.ompl.KPIECE1]
+optimization_objective = "MaximizeMinClearanceObjective"

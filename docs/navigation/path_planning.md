@@ -8,7 +8,7 @@ In a 2D navigation system, path planning refers to the **global path planning** 
 Path planning algorithms produce a complete path from the start point (robot location) to the final end point, then the robot can start following and locally modifying the planned path (see [Control](control.md)).
 
 
-[Planner](../apidocs/Kompass/Kompass.components.planner.md) Component is in charge of global path planning in Kompass. Planner uses the [Open Motion Planning Library (OMPL)](https://ompl.kavrakilab.org/) plugins to perform the path planning (more on [OMPL integration](../integrations/ompl.md) with Kompass)
+[Planner](../apidocs/kompass/kompass.components.planner.md) Component is in charge of global path planning in Kompass. Planner uses the [Open Motion Planning Library (OMPL)](https://ompl.kavrakilab.org/) plugins to perform the path planning (more on [OMPL integration](../integrations/ompl.md) with Kompass)
 
 
 ## Available Run Types
@@ -20,7 +20,7 @@ Planner can be used with all four available RunTypes:
   - Compute a new plan periodically from current location (last message received on location input Topic) to the goal location (last message received on goal_point input Topic)
 
 * - **Event**
-  - Compute a new plan from current location on every new message received on [**goal_point**](#planner-inputs) input Topic
+  - Compute a new plan from current location on every new message received on [**goal_point**](#inputs) input Topic
 
 * - **Server**
   - Offers a PlanPath ROS service and computes a new plan on every service request

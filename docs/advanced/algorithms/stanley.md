@@ -5,12 +5,6 @@ Stanley is a pure path following method designed to track a reference by computi
 :::{tip} Although Stanley is a pure path following method, it can be used in KOMPASS in the Controller component in combination with the Drive Manager Component to provide following + emergency stop.
 :::
 
-## Supported Motion Models
-
-- ACKERMANN
-- DIFFERENTIAL_DRIVE
-- OMNI
-
 
 :::{note} Stanley is designed for ACKERMANN models, however, it is adjusted for all models in Kompass by adapting a rotate-then-move strategy for non ACKERMANN robot.
 :::

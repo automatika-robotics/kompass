@@ -42,7 +42,7 @@ autodoc2_class_docstring = "both"  # bug in autodoc2, should be `merge`
 autodoc2_render_plugin = "myst"
 
 templates_path = ["_templates"]
-exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
+exclude_patterns = ["_build", "Thumbs.db", ".DS_Store", "README*"]
 
 myst_enable_extensions = [
     "amsmath",
@@ -64,14 +64,19 @@ language = "en"
 myst_html_meta = {
     "google-site-verification": "cQVj-BaADcGVOGB7GOvfbkgJjxni10C2fYWCZ03jOeo"
 }
+myst_heading_anchors = 7  # to remove cross reference errors with md
 
 html_theme = "sphinx_book_theme"  # install with `pip install sphinx-book-theme`
 html_static_path = ["_static"]
+html_css_files = [
+    "custom.css",
+]
+html_favicon = "_static/favicon.png"
 
 html_theme_options = {
     "logo": {
-        "image_light": "_static/Kompass_dark.png",
-        "image_dark": "_static/Kompass.png",
+        "image_light": "_static/Kompass_light.png",
+        "image_dark": "_static/Kompass_dark.png",
     },
     "icon_links": [
         {

@@ -5,6 +5,7 @@ from typing import Union
 
 import numpy as np
 import ros_sugar.config.base_validators as BaseValidators
+from ros_sugar.config.base_config import _convert_logging_severity_to_str, LoggingSeverity
 from attrs import Factory, define, field
 from kompass_core.models import (
     AngularCtrlLimits,
@@ -75,6 +76,7 @@ class RobotFrames(BaseAttrs):
     scan: str = field(default="base_link")
     rgb: str = field(default="camera_link")
     depth: str = field(default="camera_depth_link")
+    point_cloud: str = field(default="point_cloud_link")
 
 
 @define(kw_only=True)
@@ -161,27 +163,38 @@ class ComponentConfig(BaseComponentConfig):
     KOMPASS Component extended parameters
 
     ```{list-table}
-    :widths: 20 80
+    :widths: 20 20 60
     :header-rows: 1
 
     * - Name
+      - Type, Default
       - Description
 
     * - **robot**
+      - RobotConfig, `RobotConfig()`
       - Robot configuration parameters. See [RobotConfig](#kompass.config.RobotConfig) class for details.
 
     * - **frames**
+      - RobotFrames, `RobotFrames()`
       - Robot TF frames configuration. See [RobotFrames](#kompass.config.RobotFrames) class for details.
 
     * - **topic_subscription_timeout**
+      - float, `20.0`
       - Timeout when waiting for an input topic to become available (s)
 
     * - **topic_try_wait_timeout**
+      - float, `0.1`
       - Time interval when waiting for input topic to become available (s)
 
+    * - **topic_try_wait_timeout**
+      - float, `0.1`
+      - Time interval when waiting for input topic to become available (s)
+
+    * - **core_log_level**
+      - str, `LoggingSeverity.WARN`
+      - Debug level for the component core algorithm
     ```
     """
-
     # Robot config
     robot: RobotConfig = field(default=Factory(RobotConfig))
 
@@ -194,4 +207,8 @@ class ComponentConfig(BaseComponentConfig):
 
     topic_try_wait_timeout: float = field(
         default=0.1, validator=BaseValidators.in_range(min_value=1e-3, max_value=1e9)
+    )
+
+    core_log_level: str = field(
+        default=LoggingSeverity.WARN, converter=_convert_logging_severity_to_str
     )
