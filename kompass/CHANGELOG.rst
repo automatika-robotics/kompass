@@ -2,8 +2,8 @@
 Changelog for package kompass
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+0.3.0 (2025-07-02)
+------------------
 * (fix) Fixes image size check in callback
 * (feature) Adds config parameter for core algorithm logging level in Component
 * (fix) Moves vision controller setup to component start
