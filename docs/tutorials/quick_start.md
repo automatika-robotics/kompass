@@ -38,6 +38,10 @@ Rviz
 ros2 run kompass turtlebot3_test
 ```
 
+```{note}
+Depending on your Webots version, the robot's low-level controller can expect either a `Twist` control message or a `TwistStamped` message (for newer versions). To use the previous recipe with `TwistStamped`, all you need to do is edit the recipe params file to [assign the `TwistStamped` message type to the `robot_command` output of the driver](https://github.com/automatika-robotics/kompass/blob/main/kompass/params/turtlebot3.toml#L22). You also need to set the localization node to [use stamped control](https://github.com/automatika-robotics/kompass-sim/blob/main/params/turtlebot3_localization.yaml#L197).
+```
+
 Now, we'll break the recipe down step by step 👇
 
 <br/>
