@@ -27,7 +27,7 @@ Kompass は、**最新のナビゲーションアルゴリズムをC++でGPU最�
   Kompassは現実世界のイベント、ロボットの状態変化、タスク更新に応じて柔軟に対応できるよう設計されています。イベント駆動型アーキテクチャにより、イベント-アクションのペアを定義することで、実行中にナビゲーションスタックを再構成したり、環境に応じて計画や制御戦略を切り替えることができます。
 
 - **高速化のためのC++・マルチスレッド・クロスGPU対応**
-すべてのコアアルゴリズムは、モダンなC++で記述されており、高速かつ安全な実行を実現しています（[kompass-core](https://github.com/automatika-robotics/kompass-core)）。Kompass は、主要なナビゲーションコンポーネントのGPUベース実行を明示的にサポートする初のナビゲーションフレームワークです。さらに、GPGPU（汎用GPU計算）サポートを備えており、CPU、GPU、さらにはFPGA上でも高いパフォーマンスを発揮し、従来のフレームワークにありがちな特定ハードウェアベンダーへの依存を打ち破ります。
+  すべてのコアアルゴリズムは、モダンなC++で記述されており、高速かつ安全な実行を実現しています（[kompass-core](https://github.com/automatika-robotics/kompass-core)）。Kompass は、主要なナビゲーションコンポーネントのGPUベース実行を明示的にサポートする初のナビゲーションフレームワークです。さらに、GPGPU（汎用GPU計算）サポートを備えており、CPU、GPU、さらにはFPGA上でも高いパフォーマンスを発揮し、従来のフレームワークにありがちな特定ハードウェアベンダーへの依存を打ち破ります。
 
 - **機械学習モデルを第一級の市民として扱う設計**
   Kompassでは、センサーデータやユーザーコマンドを解釈する機械学習モデルの出力によって、外部イベントを駆動できます。これにより、ナビゲーションスタック全体がMLの出力に応じて再構成される可能性を持ちます。これは視覚ナビゲーションを超えた応用を意味します。
@@ -107,6 +107,11 @@ pip install kompass-core
 ```bash
 sudo apt install ros-$ROS_DISTRO-kompass
 ```
+
+或者，您也可以从 [发布页面](https://github.com/automatika-robotics/kompass/releases) 下载适用于您喜欢的发行版的 deb 安装包（包括 kompass_interfaces 和 kompass），然后按照以下方式安装：
+
+`sudo dpkg -i ros-$ROS_DISTRO-kompass_interfaces_$version$DISTRO_$ARCHITECTURE.deb`
+`sudo dpkg -i ros-$ROS_DISTRO-kompass_$version$DISTRO_$ARCHITECTURE.deb`
 
 ## ソースからのKompassビルド
 
