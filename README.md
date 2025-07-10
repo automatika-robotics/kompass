@@ -101,8 +101,10 @@ sudo apt install ros-$ROS_DISTRO-kompass
 
 Alternatively, grab deb packages (for kompass_interfaces and kompass) for your favourite distro from the [release page](https://github.com/automatika-robotics/kompass/releases) and install them as follows:
 
-`sudo dpkg -i ros-$ROS_DISTRO-kompass_interfaces_$version$DISTRO_$ARCHITECTURE.deb`
-`sudo dpkg -i ros-$ROS_DISTRO-kompass_$version$DISTRO_$ARCHITECTURE.deb`
+```bash
+sudo dpkg -i ros-$ROS_DISTRO-kompass-interfaces_$version$DISTRO_$ARCHITECTURE.deb
+sudo dpkg -i ros-$ROS_DISTRO-kompass_$version$DISTRO_$ARCHITECTURE.deb
+```
 
 ## Build Kompass from source
 

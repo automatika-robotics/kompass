@@ -110,8 +110,10 @@ sudo apt install ros-$ROS_DISTRO-kompass
 
 或者，您也可以从 [发布页面](https://github.com/automatika-robotics/kompass/releases) 下载适用于您喜欢的发行版的 deb 安装包（包括 kompass_interfaces 和 kompass），然后按照以下方式安装：
 
-`sudo dpkg -i ros-$ROS_DISTRO-kompass_interfaces_$version$DISTRO_$ARCHITECTURE.deb`
-`sudo dpkg -i ros-$ROS_DISTRO-kompass_$version$DISTRO_$ARCHITECTURE.deb`
+```bash
+sudo dpkg -i ros-$ROS_DISTRO-kompass-interfaces_$version$DISTRO_$ARCHITECTURE.deb
+sudo dpkg -i ros-$ROS_DISTRO-kompass_$version$DISTRO_$ARCHITECTURE.deb
+```
 
 ## ソースからのKompassビルド
 
