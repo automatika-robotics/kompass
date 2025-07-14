@@ -14,7 +14,7 @@ Kompass includes **highly optimized, GPU powered, versions of the most cutting e
 - [**Install**](#installation) Kompass on your robot 🛠️
 - [**Why Kompass?**](#why-kompass)
 - See an overview of Kompass [**Components**](#components)
-- To get started with Kompass, check the [**quick start**](https://automatika-robotics.github.io/kompass/quick_start.html) tutorial 🚀
+- To get started with Kompass, check the [**quick start**](https://automatika-robotics.github.io/kompass/tutorials/quick_start.html) tutorial 🚀
 - Do a deep dive with one of the [**tutorials**](https://automatika-robotics.github.io/kompass/tutorials/point_navigation.html) 🤖
 - Learn more about the [**design concepts**](https://automatika-robotics.github.io/kompass/advanced/design.html) of Kompass 📚
 

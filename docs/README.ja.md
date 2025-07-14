@@ -17,7 +17,7 @@ Kompass は、**最新のナビゲーションアルゴリズムをC++でGPU最�
 - Kompassをロボットに[**インストール**](#インストール)する 🛠️
 - [**なぜKompassなのか？**](#なぜ-kompass)
 - Kompassの[**構成要素**](#構成要素)の概要を見る
-- [**クイックスタート**](https://automatika-robotics.github.io/kompass/quick_start.html)で始める 🚀
+- [**クイックスタート**](https://automatika-robotics.github.io/kompass/tutorials/quick_start.html)で始める 🚀
 - [**チュートリアル**](https://automatika-robotics.github.io/kompass/tutorials/point_navigation.html)で深掘りする 🤖
 - Kompassの[**設計コンセプト**](https://automatika-robotics.github.io/kompass/advanced/design.html)を学ぶ 📚
 

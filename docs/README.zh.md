@@ -16,7 +16,7 @@ Kompass 内置了**高度优化、基于 GPU 的最先进导航算法的 C++ 实
 - 🛠️[**安装 Kompass**](#安装) 到你的机器人上
 - [**为什么选择 Kompass？**](#为什么选择-kompass)
 - 查看 Kompass 的[**核心组件概览**](#核心组件)
-- 快速上手请查阅[**快速入门教程**](https://automatika-robotics.github.io/kompass/quick_start.html) 🚀
+- 快速上手请查阅[**快速入门教程**](https://automatika-robotics.github.io/kompass/tutorials/quick_start.html) 🚀
 - 深入学习请参阅一个[**完整教程**](https://automatika-robotics.github.io/kompass/tutorials/point_navigation.html) 🤖
 - 想了解设计理念？点击[**设计概念**](https://automatika-robotics.github.io/kompass/advanced/design.html) 📚
 
