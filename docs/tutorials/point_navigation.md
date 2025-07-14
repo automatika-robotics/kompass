@@ -58,7 +58,8 @@ from kompass.components import (
     Controller,
     Planner,
     PlannerConfig,
-    Driver
+    DriveManager,
+    LocalMapper,
 )
 from kompass.ros import Topic
 
@@ -73,9 +74,15 @@ planner.inputs(goal_point=goal_topic)
 # Get a default controller component
 controller = Controller(component_name="controller")
 
+# Configure Controller to use local map instead of direct sensor information
+controller.direct_sensor = False
+
 # Set DriveManager velocity output to the turtlebot3 twist command
 driver = DriveManager(component_name="drive_manager")
 driver.outputs(command=Topic(name="cmd_vel", msg_type="Twist"))
+
+# Get a default Local Mapper component
+mapper = LocalMapper(component_name="mapper")
 ```
 
 ```{seealso}
@@ -98,7 +105,7 @@ launcher = Launcher()
 
 # Pass kompass components to the launcher
 launcher.kompass(
-    components=[planner, controller, driver],
+    components=[planner, controller, driver, mapper],
     activate_all_components_on_start=True,
     multi_processing=True,
 )
@@ -178,16 +185,22 @@ planner.inputs(goal_point=goal_topic)
 # Get a default controller component
 controller = Controller(component_name="controller")
 
+# Configure Controller to use local map instead of direct sensor information
+controller.direct_sensor = False
+
 # Set DriveManager velocity output to the turtlebot3 twist command
 driver = DriveManager(component_name="drive_manager")
 driver.outputs(command=Topic(name="cmd_vel", msg_type="Twist"))
+
+# Get a default Local Mapper component
+mapper = LocalMapper(component_name="mapper")
 
 # Init a launcher
 launcher = Launcher()
 
 # Pass kompass components to the launcher
 launcher.kompass(
-    components=[planner, controller, driver],
+    components=[planner, controller, driver, mapper],
     activate_all_components_on_start=True,
     multi_processing=True)
 
