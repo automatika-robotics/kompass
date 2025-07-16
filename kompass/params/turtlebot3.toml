@@ -17,14 +17,10 @@ loop_rate = 20.0
 cmd_rate = 10.0
 critical_zone_distance = 0.15
 
-[drive_manager.outputs.robot_command]
-name = "cmd_vel"
-msg_type = "Twist"
-
 [controller]
 loop_rate = 10.0
 control_time_step = 0.1
-ctrl_publish_type = "Array"
+ctrl_publish_type = "Sequence"
 
 [controller.Stanley]
 cross_track_gain = 1.0

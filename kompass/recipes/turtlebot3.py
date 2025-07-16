@@ -55,12 +55,24 @@ def kompass_bringup():
     driver = DriveManager(component_name="drive_manager")
     mapper = LocalMapper(component_name="mapper")
 
+    # Publish Twist or TwistStamped from the DriveManager based on the distribution
+    if "ROS_DISTRO" in os.environ and (
+        os.environ["ROS_DISTRO"] in ["rolling", "jazzy", "kilted"]
+    ):
+        cmd_msg_type : str = "TwistStamped"
+    else:
+        cmd_msg_type = "Twist"
+
+    driver.outputs(robot_command=Topic(name="/cmd_vel", msg_type=cmd_msg_type))
+
     # Configure Controller options
     controller.algorithm = ControllersID.DWA
     controller.direct_sensor = False
 
+    # Run the Planner as an action server
     planner.run_type = "ActionServer"
 
+    # Add on Any fail policy to the DriveManager
     driver.on_fail(action=Action(driver.restart))
 
     # DEFINE EVENTS - Uncomment this code to add reactive behavior in case of emergency stopping

@@ -18,13 +18,7 @@
     "drive_manager": {
         "loop_rate": 20.0,
         "cmd_rate": 10.0,
-        "critical_zone_distance": 0.15,
-        "outputs": {
-            "robot_command": {
-                "name": "cmd_vel",
-                "msg_type": "Twist"
-            }
-        }
+        "critical_zone_distance": 0.15
     },
     "controller": {
         "loop_rate": 10.0,

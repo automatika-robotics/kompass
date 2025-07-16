@@ -89,7 +89,23 @@ mapper = LocalMapper(component_name="mapper")
 Several other configuration options are available for each component, refer to the [Planner](../navigation/path_planning.md) and [Controller](../navigation/control.md) dedicated pages for more details.
 ```
 
-## Step 3: Setup your Launcher
+## Step 4: (Optional) Command type configuration:
+In more recent releases of ROS (starting `jazzy`), many systems and simulators have switched from the `Twist` command message which does not contain any time information to a stamped version of the same message: `TwistStamped`. Using Kompass, it is very straight forward to select one of these two by setting the output type of the `DriveManager` based on the desired output.
+To make this recipe more adaptive and ready to use with different simulations in different ROS2 versions out-of-the-box, let's detect the `$ROS_VERSION` and set the output accordingly:
+
+```python
+# Publish Twist or TwistStamped from the DriveManager based on the distribution
+if "ROS_DISTRO" in os.environ and (
+    os.environ["ROS_DISTRO"] in ["rolling", "jazzy", "kilted"]
+):
+    cmd_msg_type : str = "TwistStamped"
+else:
+    cmd_msg_type = "Twist"
+
+driver.outputs(robot_command=Topic(name="/cmd_vel", msg_type=cmd_msg_type))
+```
+
+## Step 5: Setup your Launcher
 
 The launcher in Kompass is a wrapper for ROS2 launch tools. Launcher requires a Component or a set of Components to start. Launcher can also manage Events/Actions which we will leave out of this simple example (check a more advanced example [here](events_actions.md)).
 
@@ -188,9 +204,18 @@ controller = Controller(component_name="controller")
 # Configure Controller to use local map instead of direct sensor information
 controller.direct_sensor = False
 
-# Set DriveManager velocity output to the turtlebot3 twist command
+# Get the default DriveManager
 driver = DriveManager(component_name="drive_manager")
-driver.outputs(command=Topic(name="cmd_vel", msg_type="Twist"))
+
+# Publish Twist or TwistStamped from the DriveManager based on the distribution
+if "ROS_DISTRO" in os.environ and (
+    os.environ["ROS_DISTRO"] in ["rolling", "jazzy", "kilted"]
+):
+    cmd_msg_type : str = "TwistStamped"
+else:
+    cmd_msg_type = "Twist"
+
+driver.outputs(robot_command=Topic(name="/cmd_vel", msg_type=cmd_msg_type))
 
 # Get a default Local Mapper component
 mapper = LocalMapper(component_name="mapper")
