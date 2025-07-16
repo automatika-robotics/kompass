@@ -231,8 +231,20 @@ config = PlannerConfig(robot=my_robot, loop_rate=1.0)
 planner = Planner(component_name="planner", config=config, config_file=config_file)
 
 controller = Controller(component_name="controller")
-driver = DriveManager(component_name="drive_manager")
 mapper = LocalMapper(component_name="mapper")
+
+# Get the default DriveManager
+driver = DriveManager(component_name="drive_manager")
+
+# Publish Twist or TwistStamped from the DriveManager based on the distribution
+if "ROS_DISTRO" in os.environ and (
+    os.environ["ROS_DISTRO"] in ["rolling", "jazzy", "kilted"]
+):
+    cmd_msg_type : str = "TwistStamped"
+else:
+    cmd_msg_type = "Twist"
+
+driver.outputs(robot_command=Topic(name="/cmd_vel", msg_type=cmd_msg_type))
 
 # Configure Controller options
 controller.algorithm = ControllersID.STANLEY
@@ -334,5 +346,5 @@ launcher.inputs(location=odom_topic)
 # Set the robot config for all components
 launcher.robot = my_robot
 
-launcher.bringup(introspect=True)
+launcher.bringup()
 ```

@@ -241,3 +241,9 @@ launcher.on_fail(action_name="restart")
 # After all configuration is done bringup the stack
 launcher.bringup()
 ```
+
+## Step 6: Add your first Event!
+
+ To track the mission during execution and end the mission once the point is reached we want to run the Planner as an `ActionServer` and still set its navigation goals directly using Rviz. To do so we can configure an event/action pair with Kompass. Jump to the [next tutorial](events_actions.md) to learn how to extend the previous recipe.
+
+ 👉 [Add Event/Action Pairs to the Recipe](events_actions.md)
