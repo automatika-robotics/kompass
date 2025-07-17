@@ -12,11 +12,13 @@ from kompass_core.mapping.laserscan_model import LaserScanModelConfig
 from kompass_core.datatypes.pose import PoseData
 from kompass_core.models import RobotState
 from kompass_core.datatypes.laserscan import LaserScanData
+from kompass_core.models import RobotGeometry
 
 # KOMPASS ROS
 from ..config import ComponentConfig
 from .ros import Topic, update_topics
 from .component import Component
+from ..callbacks import LaserScanCallback, PointCloudCallback
 from .defaults import (
     TopicsKeys,
     mapper_allowed_inputs,
@@ -156,6 +158,10 @@ class LocalMapper(Component):
             None  # robot current state - to be updated from odom
         )
 
+        self.robot_height = RobotGeometry.get_height(
+            self.config.robot.geometry_type, self.config.robot.geometry_params
+        )
+
         self.sensor_data: Optional[LaserScanData] = None
 
         self._local_map_builder = LocalMapperHandler(
@@ -179,13 +185,23 @@ class LocalMapper(Component):
             else None
         )
 
-        self.sensor_data: Optional[LaserScanData] = self.get_callback(
-            TopicsKeys.SPATIAL_SENSOR
-        ).get_output(
-            transformation=self.scan_tf_listener.transform
-            if self.scan_tf_listener
-            else None
-        )
+        callback = self.get_callback(TopicsKeys.SPATIAL_SENSOR)
+        if isinstance(callback, LaserScanCallback):
+            self.sensor_data: Optional[LaserScanData] = callback.get_output(
+                transformation=self.scan_tf_listener.transform
+                if self.scan_tf_listener
+                else None
+            )
+        elif isinstance(callback, PointCloudCallback):
+            self.sensor_data = callback.get_output(
+                transformation=self.scan_tf_listener.transform
+                if self.scan_tf_listener
+                else None,
+                get_2d=True,
+                min_z=0.0,
+                max_z=self.robot_height,
+                discard_underground=True,
+            )
 
     def publish_data(self):
         """

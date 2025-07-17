@@ -21,68 +21,68 @@ add_additional_datatypes(get_all_msg_types(data_types))
 class TopicsKeys(StrEnum):
     """Enum representing unique keys corresponding to standard input/output topic roles.
 
-      ```{list-table}
-      :widths: 20 20 60
-      :header-rows: 1
+    ```{list-table}
+    :widths: 20 20 60
+    :header-rows: 1
 
-      * - Key
-        - Name
-        - Description
-      * - GOAL_POINT
-        - goal_point
-        - Target destination point on the map for the robot point navigation
-      * - GLOBAL_PLAN
-        - plan
-        - Global navigation plan (path) from start to goal
-      * - GLOBAL_MAP
-        - map
-        - Global (reference) map used for navigation
-      * - ROBOT_LOCATION
-        - location
-        - Current position and orientation of the robot
-      * - SPATIAL_SENSOR
-        - sensor_data
-        - Raw data from robot's spatial sensors (e.g., LIDAR, depth sensors)
-      * - VISION_TRACKINGS
-        - vision_tracking
-        - Visual tracking data from robot's cameras or vision systems
-      * - DEPTH_CAM_INFO
-        - depth_camera_info
-        - Depth camera information which includes camera intrinsics parameters
-      * - LOCAL_PLAN
-        - local_plan
-        - Short-term path plan considering immediate surroundings
-      * - INTERMEDIATE_CMD
-        - command
-        - Robot velocity command produced by the control system
-      * - INTERMEDIATE_CMD_LIST
-        - multi_command
-        - List of intermediate velocity commands
-      * - LOCAL_MAP
-        - local_map
-        - Map of the immediate surroundings for local navigation (control)
-      * - LOCAL_MAP_OCC
-        - local_map
-        - Occupancy grid representation of the local environment
-      * - INTERPOLATED_PATH
-        - interpolation
-        - Interpolated global path
-      * - TRACKED_POINT
-        - tracked_point
-        - Specific point being tracked by the robot's systems on the reference path of reference vision target
-      * - FINAL_COMMAND
-        - robot_command
-        - Final control command sent to robot's driver
-      * - EMERGENCY
-        - emergency_stop
-        - Emergency stop signal for immediate robot halt
-      * - REACHED_END
-        - reached_end
-        - Flag indicating whether the goal point has been reached
-      * - RUN_TESTS
-        - run_tests
-        - Flag to initiate system test procedures
-      ```
+    * - Key
+      - Name
+      - Description
+    * - GOAL_POINT
+      - goal_point
+      - Target destination point on the map for the robot point navigation
+    * - GLOBAL_PLAN
+      - plan
+      - Global navigation plan (path) from start to goal
+    * - GLOBAL_MAP
+      - map
+      - Global (reference) map used for navigation
+    * - ROBOT_LOCATION
+      - location
+      - Current position and orientation of the robot
+    * - SPATIAL_SENSOR
+      - sensor_data
+      - Raw data from robot's spatial sensors (e.g., LIDAR, depth sensors)
+    * - VISION_TRACKINGS
+      - vision_tracking
+      - Visual tracking data from robot's cameras or vision systems
+    * - DEPTH_CAM_INFO
+      - depth_camera_info
+      - Depth camera information which includes camera intrinsics parameters
+    * - LOCAL_PLAN
+      - local_plan
+      - Short-term path plan considering immediate surroundings
+    * - INTERMEDIATE_CMD
+      - command
+      - Robot velocity command produced by the control system
+    * - INTERMEDIATE_CMD_LIST
+      - multi_command
+      - List of intermediate velocity commands
+    * - LOCAL_MAP
+      - local_map
+      - Map of the immediate surroundings for local navigation (control)
+    * - LOCAL_MAP_OCC
+      - local_map
+      - Occupancy grid representation of the local environment
+    * - INTERPOLATED_PATH
+      - interpolation
+      - Interpolated global path
+    * - TRACKED_POINT
+      - tracked_point
+      - Specific point being tracked by the robot's systems on the reference path of reference vision target
+    * - FINAL_COMMAND
+      - robot_command
+      - Final control command sent to robot's driver
+    * - EMERGENCY
+      - emergency_stop
+      - Emergency stop signal for immediate robot halt
+    * - REACHED_END
+      - reached_end
+      - Flag indicating whether the goal point has been reached
+    * - RUN_TESTS
+      - run_tests
+      - Flag to initiate system test procedures
+    ```
 
     """
 
@@ -159,7 +159,7 @@ driver_allowed_inputs: Dict[TopicsKeys, AllowedTopics] = {
     TopicsKeys.INTERMEDIATE_CMD: AllowedTopics(types=["Twist"]),
     TopicsKeys.INTERMEDIATE_CMD_LIST: AllowedTopics(types=["TwistArray"]),
     TopicsKeys.SPATIAL_SENSOR: AllowedTopics(
-        types=["LaserScan", "Float64", "Float32"],
+        types=["LaserScan", "Float64", "Float32", "PointCloud2"],
         number_required=1,
         number_optional=10,
     ),
@@ -188,7 +188,7 @@ driver_default_outputs: Dict[TopicsKeys, Topic] = {
 
 # LOCAL MAPPER
 mapper_allowed_inputs: Dict[TopicsKeys, AllowedTopics] = {
-    TopicsKeys.SPATIAL_SENSOR: AllowedTopics(types=["LaserScan"]),
+    TopicsKeys.SPATIAL_SENSOR: AllowedTopics(types=["LaserScan", "PointCloud2"]),
     TopicsKeys.ROBOT_LOCATION: AllowedTopics(types=["Odometry", "PoseStamped", "Pose"]),
 }
 

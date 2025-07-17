@@ -1006,16 +1006,52 @@ class PointCloudCallback(GenericCallback):
                 xyz_points.add(point[0], point[1], point[2])
         return xyz_points
 
+    def _process_2d(
+        self,
+        msg: PointCloud2,
+        min_z: float,
+        max_z: float,
+        discard_negative_z: bool = False,
+    ) -> LaserScanData:
+        ranges = []
+        angles = []
+        for point in read_pc_points(msg):
+            if (
+                (point[2] > 0 if discard_negative_z else True)
+                and (point[0] < self.max_range if self.max_range else True)
+                and (point[2] >= min_z)
+                and (point[2] <= max_z if max_z >= 0 else True)
+            ):
+                ranges.append(np.sqrt(point[0] ** 2 + point[1] ** 2))
+                angles.append(np.arctan2(point[1], point[0]))
+        return LaserScanData(
+            angles=np.array(angles),
+            ranges=np.array(ranges),
+        )
+
     def _get_output(
         self,
         transformation: Optional[TransformStamped] = None,
         discard_underground: bool = True,
+        get_2d: bool = False,
+        min_z: float = 0.0,
+        max_z: float = -1.0,
         **_,
-    ) -> Optional[PointCloudData]:
-        """
-        Gets the laserscan data by applying the transformation if given.
-        :returns:   Topic content
-        :rtype:     Optional[LaserScanData]
+    ) -> Optional[Union[PointCloudData, LaserScanData]]:
+        """Gets the PointCloud2 message data in 2D or 3D by applying the transformation if given.
+
+        :param transformation: Data transformation, defaults to None
+        :type transformation: Optional[TransformStamped], optional
+        :param discard_underground: Discard negative Z points, defaults to True
+        :type discard_underground: bool, optional
+        :param get_2d: Transform data to 2D (LaserScan-like), defaults to False
+        :type get_2d: bool, optional
+        :param min_z: Minimum Z value when applying 2D transformation, defaults to 0.0
+        :type min_z: float, optional
+        :param max_z: Maximum Z value when applying 2D transformation, defaults to -1.0
+        :type max_z: float, optional
+        :return: Transformed message data in 2D or 3D format
+        :rtype: Optional[Union[PointCloudData, LaserScanData]]
         """
         if not self.msg:
             return None
@@ -1024,7 +1060,11 @@ class PointCloudCallback(GenericCallback):
             xyz_points = self._transform(
                 self.msg, transformation or self.transformation, discard_underground
             )
-        else:
+        elif not get_2d:
             xyz_points = self._process(self.msg, discard_underground)
-
+        if get_2d:
+            # Convert 3D points to 2D points by ignoring the z-axis
+            xyz_points = self._process_2d(
+                self.msg, min_z, max_z, discard_negative_z=discard_underground
+            )
         return xyz_points
