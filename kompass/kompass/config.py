@@ -5,7 +5,10 @@ from typing import Union
 
 import numpy as np
 import ros_sugar.config.base_validators as BaseValidators
-from ros_sugar.config.base_config import _convert_logging_severity_to_str, LoggingSeverity
+from ros_sugar.config.base_config import (
+    _convert_logging_severity_to_str,
+    LoggingSeverity,
+)
 from attrs import Factory, define, field
 from kompass_core.models import (
     AngularCtrlLimits,
@@ -195,6 +198,7 @@ class ComponentConfig(BaseComponentConfig):
       - Debug level for the component core algorithm
     ```
     """
+
     # Robot config
     robot: RobotConfig = field(default=Factory(RobotConfig))
 

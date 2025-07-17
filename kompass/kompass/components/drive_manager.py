@@ -14,7 +14,7 @@ from kompass_interfaces.msg import TwistArray
 from ..config import BaseValidators, ComponentConfig, ComponentRunType
 from .ros import Topic, update_topics
 from .component import Component
-from ..callbacks import LaserScanCallback
+from ..callbacks import LaserScanCallback, PointCloudCallback
 from .defaults import (
     TopicsKeys,
     driver_allowed_inputs,
@@ -173,6 +173,10 @@ class DriveManager(Component):
             self.config.robot.geometry_type, self.config.robot.geometry_params
         )
 
+        self.robot_height = RobotGeometry.get_height(
+            self.config.robot.geometry_type, self.config.robot.geometry_params
+        )
+
         if not self.robot_radius:
             raise ValueError(
                 "Unknown robot radius. Cannot start drive manager with unknown robot size."
@@ -314,7 +318,22 @@ class DriveManager(Component):
         for idx in range(num_sensors):
             callback = self.get_callback(TopicsKeys.SPATIAL_SENSOR, idx)
             if isinstance(callback, LaserScanCallback):
-                self.laser_scan: Optional[LaserScanData] = callback.get_output()
+                self.laser_scan: Optional[LaserScanData] = callback.get_output(
+                    transformation=self.scan_tf_listener.transform
+                    if self.scan_tf_listener
+                    else None,
+                )
+                break
+            elif isinstance(callback, PointCloudCallback):
+                self.laser_scan: Optional[LaserScanData] = callback.get_output(
+                    transformation=self.scan_tf_listener.transform
+                    if self.scan_tf_listener
+                    else None,
+                    get_2d=True,
+                    min_z=0.0,
+                    max_z=self.robot_height,
+                    discard_underground=True,
+                )
                 break
         # If laserscan is not available and safety_stop is enabled -> raise an emergency stop flog to block publishing
         if not self.config.disable_safety_stop and not self.laser_scan:
@@ -333,7 +352,7 @@ class DriveManager(Component):
         :type cmd: Twist
         """
         # Check emergency stop
-        if not slowdown_factor:
+        if not slowdown_factor and self._emergency_checker:
             self._update_state()
             # Check emergency stop from Lidar in the direction of the command
             self.slow_down_factor["laser_scan"] = self._emergency_checker.check(
@@ -435,7 +454,9 @@ class DriveManager(Component):
         traveled_distance = 0.0
 
         # FRONT MOVEMENT
-        while unblocking and traveled_distance < max_distance:
+        while (
+            unblocking and traveled_distance < max_distance and self._emergency_checker
+        ):
             # Check if max_distance forward is clear
             self._update_state()
             slowdown_factor = self._emergency_checker.check(
@@ -470,7 +491,9 @@ class DriveManager(Component):
         traveled_distance = 0.0
 
         # FRONT MOVEMENT
-        while unblocking and traveled_distance < max_distance:
+        while (
+            unblocking and traveled_distance < max_distance and self._emergency_checker
+        ):
             # Check if max_distance behind the robot is clear
             self._update_state()
             slowdown_factor = self._emergency_checker.check(
@@ -866,7 +889,7 @@ class DriveManager(Component):
         super()._execute_once()
         # Get transformation from sensor to robot body
         while not self.scan_tf_listener or not self.scan_tf_listener.transform:
-            self.get_logger().info("Waiting to get laserscan TF...", once=True)
+            self.get_logger().info("Waiting to get Proximity Sensor TF...", once=True)
             time.sleep(1 / self.config.loop_rate)
 
         robot_shape = RobotGeometry.Type.to_kompass_cpp_lib(
