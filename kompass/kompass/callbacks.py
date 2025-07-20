@@ -1011,22 +1011,31 @@ class PointCloudCallback(GenericCallback):
         msg: PointCloud2,
         min_z: float,
         max_z: float,
-        discard_negative_z: bool = False,
+        max_range: float = 100.0,
+        angle_step: float = 0.01,
     ) -> LaserScanData:
-        ranges = []
-        angles = []
+        """Processes PointCloud2 data to 2D LaserScan-like data"""
+        angles = np.arange(
+                0.0,
+                2 * np.pi,
+                angle_step,
+            )
+        max_range = self.max_range or max_range
+        ranges = np.full(len(angles), max_range)
         for point in read_pc_points(msg):
             if (
-                (point[2] > 0 if discard_negative_z else True)
-                and (point[0] < self.max_range if self.max_range else True)
-                and (point[2] >= min_z)
+                (point[2] >= min_z)
                 and (point[2] <= max_z if max_z >= 0 else True)
             ):
-                ranges.append(np.sqrt(point[0] ** 2 + point[1] ** 2))
-                angles.append(np.arctan2(point[1], point[0]))
+                angle = np.arctan2(point[1], point[0])
+                normalized_angle = angle % (2 * np.pi)
+                index = int(normalized_angle / angle_step)
+                if ranges[index] > np.sqrt(point[0] ** 2 + point[1] ** 2):
+                    # Update the range if the point is closer than the current range
+                    ranges[index] = np.sqrt(point[0] ** 2 + point[1] ** 2)
         return LaserScanData(
-            angles=np.array(angles),
-            ranges=np.array(ranges),
+            angles=angles,
+            ranges=ranges,
         )
 
     def _get_output(
