@@ -11,13 +11,12 @@ from kompass_core.datatypes import (
     PointCloudData,
 )
 import logging
-from .utils import read_pc_points, read_pc_points_with_tf
 from kompass_core.utils import geometry as GeometryUtils
 from kompass_core.models import RobotState
 from kompass_core.datatypes import Bbox2D
 
 from nav_msgs.msg import Odometry
-from sensor_msgs.msg import LaserScan, PointCloud2
+from sensor_msgs.msg import LaserScan
 from tf2_ros import TransformStamped
 from geometry_msgs.msg import Point, Pose
 
@@ -918,162 +917,49 @@ class PointCloudCallback(GenericCallback):
         self,
         input_topic,
         node_name: Optional[str] = None,
-        transformation: Optional[TransformStamped] = None,
-        max_range: Optional[float] = None,
     ) -> None:
         """__init__.
 
         :param input_topic:
         :param node_name:
         :type node_name: Optional[str]
-        :param transformation:
-        :type transformation: Optional[TransformStamped]
         :rtype: None
         """
         super().__init__(input_topic, node_name)
-        self.__tf = transformation
-        self.__max_range: Optional[float] = max_range
-
-    @property
-    def max_range(self) -> Optional[float]:
-        """Getter of a maximum distance (meters) to limit the PointCloud2 range
-
-        :return: Maximum range (m)
-        :rtype: Optional[float]
-        """
-        return self.__max_range
-
-    @max_range.setter
-    def max_range(self, dist: float):
-        """Setter of the maximum range to limit the PointCloud2 points
-
-        :param dist: Maximum range (m)
-        :type dist: float
-        """
-        self.__max_range = dist
-
-    @property
-    def transformation(self) -> Optional[TransformStamped]:
-        """Getter of the transformation
-
-        :return: Frame transformation
-        :rtype: Optional[TransformStamped]
-        """
-        return self.__tf
-
-    @transformation.setter
-    def transformation(self, transform: TransformStamped):
-        """
-        Sets a new transformation value
-
-        :param transform: Detected transform from source to desired goal frame
-        :type transform: TransformStamped
-        """
-        self.__tf = transform
-
-    def _transform(
-        self,
-        msg: PointCloud2,
-        transform: TransformStamped,
-        discard_negative_z: bool = False,
-    ) -> PointCloudData:
-        """Transform PointCloud data using ROS2 transform
-
-        :param msg: Point Cloud data
-        :type msg: PointCloud2
-        :param transform: Transform to desired frame
-        :type transform: TransformStamped
-
-        :return: Transformed Point Cloud data
-        :rtype: PointCloud2
-        """
-        xyz_points = PointCloudData()
-        for point in read_pc_points_with_tf(msg, transform):
-            if (point[2] > 0 if discard_negative_z else True) and (
-                point[0] < self.max_range if self.max_range else True
-            ):
-                xyz_points.add(point[0], point[1], point[2])
-        return xyz_points
-
-    def _process(
-        self, msg: PointCloud2, discard_negative_z: bool = False
-    ) -> PointCloudData:
-        xyz_points = PointCloudData()
-        for point in read_pc_points(msg):
-            if (point[2] > 0 if discard_negative_z else True) and (
-                point[0] < self.max_range if self.max_range else True
-            ):
-                xyz_points.add(point[0], point[1], point[2])
-        return xyz_points
-
-    def _process_2d(
-        self,
-        msg: PointCloud2,
-        min_z: float,
-        max_z: float,
-        max_range: float = 100.0,
-        angle_step: float = 0.01,
-    ) -> LaserScanData:
-        """Processes PointCloud2 data to 2D LaserScan-like data"""
-        angles = np.arange(
-                0.0,
-                2 * np.pi,
-                angle_step,
-            )
-        max_range = self.max_range or max_range
-        ranges = np.full(len(angles), max_range)
-        for point in read_pc_points(msg):
-            if (
-                (point[2] >= min_z)
-                and (point[2] <= max_z if max_z >= 0 else True)
-            ):
-                angle = np.arctan2(point[1], point[0])
-                normalized_angle = angle % (2 * np.pi)
-                index = int(normalized_angle / angle_step)
-                if ranges[index] > np.sqrt(point[0] ** 2 + point[1] ** 2):
-                    # Update the range if the point is closer than the current range
-                    ranges[index] = np.sqrt(point[0] ** 2 + point[1] ** 2)
-        return LaserScanData(
-            angles=angles,
-            ranges=ranges,
-        )
 
     def _get_output(
         self,
-        transformation: Optional[TransformStamped] = None,
-        discard_underground: bool = True,
-        get_2d: bool = False,
-        min_z: float = 0.0,
-        max_z: float = -1.0,
         **_,
-    ) -> Optional[Union[PointCloudData, LaserScanData]]:
+    ) -> Optional[PointCloudData]:
         """Gets the PointCloud2 message data in 2D or 3D by applying the transformation if given.
 
-        :param transformation: Data transformation, defaults to None
-        :type transformation: Optional[TransformStamped], optional
-        :param discard_underground: Discard negative Z points, defaults to True
-        :type discard_underground: bool, optional
-        :param get_2d: Transform data to 2D (LaserScan-like), defaults to False
-        :type get_2d: bool, optional
-        :param min_z: Minimum Z value when applying 2D transformation, defaults to 0.0
-        :type min_z: float, optional
-        :param max_z: Maximum Z value when applying 2D transformation, defaults to -1.0
-        :type max_z: float, optional
-        :return: Transformed message data in 2D or 3D format
-        :rtype: Optional[Union[PointCloudData, LaserScanData]]
+        :return: Return PointCloudData
+        :rtype: Optional[PointCloudData]
         """
         if not self.msg:
             return None
 
-        if transformation or self.transformation:
-            xyz_points = self._transform(
-                self.msg, transformation or self.transformation, discard_underground
-            )
-        elif not get_2d:
-            xyz_points = self._process(self.msg, discard_underground)
-        if get_2d:
-            # Convert 3D points to 2D points by ignoring the z-axis
-            xyz_points = self._process_2d(
-                self.msg, min_z, max_z, discard_negative_z=discard_underground
-            )
-        return xyz_points
+        if self.msg.is_bigendian:
+            raise TypeError("Bigendian data is not supported")
+
+        pc = PointCloudData(
+            point_step=self.msg.point_step,
+            row_step=self.msg.row_step,
+            data=np.array(self.msg.data, dtype=np.int8),
+            height=self.msg.height,
+            width=self.msg.width
+        )
+
+        for field in self.msg.fields:
+            if field.name == "x":
+                pc.x_offset = field.offset
+            elif field.name == "y":
+                pc.y_offset = field.offset
+            elif field.name == "z":
+                pc.z_offset = field.offset
+
+        assert pc.x_offset is not None and pc.y_offset is not None and pc.z_offset is not None, (
+            "Offsets for x, y, z are not found"
+        )
+
+        return pc
