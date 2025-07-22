@@ -69,6 +69,10 @@ class DriveManagerConfig(ComponentConfig):
       - `bool`, `False`
       - Set to `True` to disable the safety stop functionality
 
+    * - **use_without_scan_sensor**
+      - `bool`, `False`
+      - Set to `True` to use the drive manager without 360deg scan sensor, e.g. for robots with only front and back ultrasound sensors
+
     * - **use_gpu**
       - `bool`, `True`
       - Use GPU implementation for the critical zone checking if available, otherwise use CPU implementation
@@ -98,6 +102,7 @@ class DriveManagerConfig(ComponentConfig):
         default=0.2, validator=BaseValidators.in_range(min_value=1e-9, max_value=1e9)
     )  # Distance for the slowdown zone (meters)
     disable_safety_stop: bool = field(default=False)
+    use_without_scan_sensor: bool = field(default=False)  # Use the component without 360deg scan sensor
     use_gpu: bool = field(default=True)
 
 
@@ -272,10 +277,7 @@ class DriveManager(Component):
             )
         else:
             # Publish once in open loop
-            self.execute_cmd_open_loop(
-                filtered_output,
-                max_time=self.config.closed_loop_span / self.config.loop_rate,
-            )
+            self._publish_cmd(filtered_output)
         self._previous_command = filtered_output
 
     def _multi_cmds_callback(self, output: TwistArray, smooth_cmds: bool, **_):
@@ -336,7 +338,7 @@ class DriveManager(Component):
                 )
                 break
         # If laserscan is not available and safety_stop is enabled -> raise an emergency stop flog to block publishing
-        if not self.config.disable_safety_stop and not self.laser_scan:
+        if not self.config.disable_safety_stop and not self.laser_scan and not self.config.use_without_scan_sensor:
             self.get_logger().warn(
                 "LaserScan data is not available -> disabling command publish to robot. To use the DriveManager without safety stop set 'disable_safety_stop' to 'True'",
                 once=True,
@@ -352,14 +354,15 @@ class DriveManager(Component):
         :type cmd: Twist
         """
         # Check emergency stop
-        if not slowdown_factor and self._emergency_checker:
-            self._update_state()
-            # Check emergency stop from Lidar in the direction of the command
-            self.slow_down_factor["laser_scan"] = self._emergency_checker.check(
-                angles=self.laser_scan.angles,
-                ranges=self.laser_scan.ranges,
-                forward=(cmd.linear.x >= 0.0),
-            )
+        if not slowdown_factor:
+            if self._emergency_checker:
+                self._update_state()
+                # Check emergency stop from Lidar in the direction of the command
+                self.slow_down_factor["laser_scan"] = self._emergency_checker.check(
+                    angles=self.laser_scan.angles,
+                    ranges=self.laser_scan.ranges,
+                    forward=(cmd.linear.x >= 0.0),
+                )
             slowdown_val: float = min(self.slow_down_factor.values())
         else:
             slowdown_val = slowdown_factor
@@ -377,20 +380,6 @@ class DriveManager(Component):
         # Publish command
         self.get_publisher(TopicsKeys.FINAL_COMMAND).publish(cmd)
 
-    def execute_cmd_open_loop(self, cmd: Twist, max_time: float):
-        """Execute a control command in open loop
-
-        :param cmd: Velocity Twist message
-        :type cmd: Twist
-        :param max_time: Maximum time for the open loop execution (s)
-        :type max_time: float
-        """
-        _step = 1 / self.config.loop_rate
-        _timer_count = 0.0
-        while _timer_count < max_time:
-            _timer_count += _step
-            self._publish_cmd(cmd)
-            time.sleep(_step)
 
     def execute_cmd_closed_loop(self, output: Twist, max_time: float):
         """Execute a control command in closed loop
@@ -882,11 +871,20 @@ class DriveManager(Component):
         if self.config.closed_loop:
             self.execute_cmd_closed_loop(_cmd_vel, max_time=self._multi_command_step)
         else:
-            self.execute_cmd_open_loop(_cmd_vel, max_time=self._multi_command_step)
+            # Execute cmd in open loop -> Publish once
+            self._publish_cmd(_cmd_vel)
 
     def _execute_once(self):
         """Actions to be executed once at the start of the component execution"""
         super()._execute_once()
+
+        if self.config.use_without_scan_sensor and not self.config.disable_safety_stop:
+            self.get_logger().warn(
+                "Using DriveManager without 360deg scan sensor and Safety stop functionality is still enabled."
+            )
+            self._emergency_checker = None
+            return
+
         # Get transformation from sensor to robot body
         while not self.scan_tf_listener or not self.scan_tf_listener.transform:
             self.get_logger().info("Waiting to get Proximity Sensor TF...", once=True)
