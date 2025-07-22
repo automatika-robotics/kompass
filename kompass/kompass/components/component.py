@@ -53,9 +53,30 @@ def _parse_to_topics_dict(
         values = [v for _, v in group]
         # If multiple values, store as a list
         if len(values) == 1:
-            grouped_dict[TopicsKeys(key[0])] = values[0]
+            if not grouped_dict.get(TopicsKeys(key[0])):
+                grouped_dict[TopicsKeys(key[0])] = values[0]
+            elif isinstance(grouped_dict[TopicsKeys(key[0])], list):
+                # Already has a value -> store as a list
+                grouped_dict[TopicsKeys(key[0])].append(values[0])
+            else:
+                # Already has a value -> store as a list
+                grouped_dict[TopicsKeys(key[0])] = [
+                    grouped_dict[TopicsKeys(key[0])], values[0]
+                ]
         else:
-            grouped_dict[TopicsKeys(key[0])] = [val for val in values if val]
+            if not grouped_dict.get(TopicsKeys(key[0])):
+                grouped_dict[TopicsKeys(key[0])] = [val for val in values if val]
+            elif isinstance(grouped_dict[TopicsKeys(key[0])], list):
+                # Already has a list -> append values
+                grouped_dict[TopicsKeys(key[0])].extend(
+                    [val for val in values if val]
+                )
+            else:
+                # Already has a value -> store as a list
+                grouped_dict[TopicsKeys(key[0])] = [
+                    grouped_dict[TopicsKeys(key[0])],
+                    *[val for val in values if val],
+                ]
     return grouped_dict
 
 
