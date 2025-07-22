@@ -621,7 +621,7 @@ class Component(BaseComponent):
         if not hasattr(self, "in_topics"):
             return "[]"
         return json.dumps([
-            topic.to_json() if topic else None for topic in self._inputs_list
+            (topic_key.value, topic.to_json()) if topic else (topic_key.value, None) for topic_key, topic in zip(self._inputs_keys, self._inputs_list)
         ])
 
     @_inputs_json.setter
@@ -635,8 +635,9 @@ class Component(BaseComponent):
         :param value: Serialized inputs
         :type value: Union[str, bytes, bytearray]
         """
-        topics = json.loads(value)
-        inputs = [Topic(**json.loads(t)) if t else None for t in topics]
+        topics_and_keys = json.loads(value)
+        self._inputs_keys = [TopicsKeys(pair[0]) for pair in topics_and_keys]
+        inputs = [Topic(**json.loads(pair[1])) if pair[1] else None for pair in topics_and_keys]
         self._inputs_list = self._reparse_inputs_callbacks(inputs)
         self.in_topics = [topic for topic in self._inputs_list if topic]
         self.callbacks = {
@@ -655,7 +656,7 @@ class Component(BaseComponent):
         if not hasattr(self, "out_topics"):
             return "[]"
         return json.dumps([
-            topic.to_json() if topic else None for topic in self._outputs_list
+            (topic_key.value, topic.to_json()) if topic else (topic_key.value, None) for topic_key, topic in zip(self._outputs_keys, self._outputs_list)
         ])
 
     @_outputs_json.setter
@@ -669,8 +670,9 @@ class Component(BaseComponent):
         :param value: Serialized inputs
         :type value: Union[str, bytes, bytearray]
         """
-        topics = json.loads(value)
-        outputs = [Topic(**json.loads(t)) if t else None for t in topics]
+        topics_and_keys = json.loads(value)
+        self._outputs_keys = [TopicsKeys(pair[0]) for pair in topics_and_keys]
+        outputs = [Topic(**json.loads(pair[1])) if pair[1] else None for pair in topics_and_keys]
         self._outputs_list = self._reparse_outputs_converts(outputs)
         self.out_topics = [topic for topic in self._outputs_list if topic]
         self.publishers_dict = {
