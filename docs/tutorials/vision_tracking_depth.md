@@ -178,7 +178,7 @@ launcher.add_pkg(components=[vision], ros_log_level="warn",
                  multiprocessing=True)
 launcher.kompass(components=[controller, mapper, driver])
 # Set the robot config for all components
-launcher.robot = lite3
+launcher.robot = my_robot
 launcher.bringup()
 ```
 
