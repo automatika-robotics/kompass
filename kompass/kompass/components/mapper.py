@@ -8,10 +8,10 @@ from geometry_msgs.msg import Pose
 # KOMPASS CORE
 from kompass_core.mapping import MapConfig
 from kompass_core.mapping import LocalMapper as LocalMapperHandler
-from kompass_core.datatype.scan_model import ScanModelConfig
+from kompass_core.datatypes.scan_model import ScanModelConfig
 from kompass_core.datatypes.pose import PoseData
 from kompass_core.models import RobotState
-from kompass_core.datatypes.laserscan import LaserScanData, PointCloudData
+from kompass_core.datatypes import LaserScanData, PointCloudData
 from kompass_core.models import RobotGeometry
 
 # KOMPASS ROS
@@ -221,7 +221,6 @@ class LocalMapper(Component):
         self.get_publisher(TopicsKeys.LOCAL_MAP_OCC).publish(
             self._local_map_builder.occupancy,
             frame_id=self.config.frames.world,
-            time_stamp=self.get_ros_time(),
             origin=origin_pose_msg,
             width=self._local_map_builder.grid_width,
             height=self._local_map_builder.grid_height,
