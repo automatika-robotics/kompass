@@ -947,7 +947,7 @@ class PointCloudCallback(GenericCallback):
             row_step=self.msg.row_step,
             data=np.array(self.msg.data, dtype=np.int8),
             height=self.msg.height,
-            width=self.msg.width
+            width=self.msg.width,
         )
 
         for field in self.msg.fields:
@@ -958,8 +958,10 @@ class PointCloudCallback(GenericCallback):
             elif field.name == "z":
                 pc.z_offset = field.offset
 
-        assert pc.x_offset is not None and pc.y_offset is not None and pc.z_offset is not None, (
-            "Offsets for x, y, z are not found"
-        )
+        assert (
+            pc.x_offset is not None
+            and pc.y_offset is not None
+            and pc.z_offset is not None
+        ), "Offsets for x, y, z are not found"
 
         return pc

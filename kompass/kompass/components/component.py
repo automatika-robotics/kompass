@@ -61,16 +61,15 @@ def _parse_to_topics_dict(
             else:
                 # Already has a value -> store as a list
                 grouped_dict[TopicsKeys(key[0])] = [
-                    grouped_dict[TopicsKeys(key[0])], values[0]
+                    grouped_dict[TopicsKeys(key[0])],
+                    values[0],
                 ]
         else:
             if not grouped_dict.get(TopicsKeys(key[0])):
                 grouped_dict[TopicsKeys(key[0])] = [val for val in values if val]
             elif isinstance(grouped_dict[TopicsKeys(key[0])], list):
                 # Already has a list -> append values
-                grouped_dict[TopicsKeys(key[0])].extend(
-                    [val for val in values if val]
-                )
+                grouped_dict[TopicsKeys(key[0])].extend([val for val in values if val])
             else:
                 # Already has a value -> store as a list
                 grouped_dict[TopicsKeys(key[0])] = [
@@ -621,7 +620,8 @@ class Component(BaseComponent):
         if not hasattr(self, "in_topics"):
             return "[]"
         return json.dumps([
-            (topic_key.value, topic.to_json()) if topic else (topic_key.value, None) for topic_key, topic in zip(self._inputs_keys, self._inputs_list)
+            (topic_key.value, topic.to_json()) if topic else (topic_key.value, None)
+            for topic_key, topic in zip(self._inputs_keys, self._inputs_list)
         ])
 
     @_inputs_json.setter
@@ -637,7 +637,10 @@ class Component(BaseComponent):
         """
         topics_and_keys = json.loads(value)
         self._inputs_keys = [TopicsKeys(pair[0]) for pair in topics_and_keys]
-        inputs = [Topic(**json.loads(pair[1])) if pair[1] else None for pair in topics_and_keys]
+        inputs = [
+            Topic(**json.loads(pair[1])) if pair[1] else None
+            for pair in topics_and_keys
+        ]
         self._inputs_list = self._reparse_inputs_callbacks(inputs)
         self.in_topics = [topic for topic in self._inputs_list if topic]
         self.callbacks = {
@@ -656,7 +659,8 @@ class Component(BaseComponent):
         if not hasattr(self, "out_topics"):
             return "[]"
         return json.dumps([
-            (topic_key.value, topic.to_json()) if topic else (topic_key.value, None) for topic_key, topic in zip(self._outputs_keys, self._outputs_list)
+            (topic_key.value, topic.to_json()) if topic else (topic_key.value, None)
+            for topic_key, topic in zip(self._outputs_keys, self._outputs_list)
         ])
 
     @_outputs_json.setter
@@ -672,7 +676,10 @@ class Component(BaseComponent):
         """
         topics_and_keys = json.loads(value)
         self._outputs_keys = [TopicsKeys(pair[0]) for pair in topics_and_keys]
-        outputs = [Topic(**json.loads(pair[1])) if pair[1] else None for pair in topics_and_keys]
+        outputs = [
+            Topic(**json.loads(pair[1])) if pair[1] else None
+            for pair in topics_and_keys
+        ]
         self._outputs_list = self._reparse_outputs_converts(outputs)
         self.out_topics = [topic for topic in self._outputs_list if topic]
         self.publishers_dict = {

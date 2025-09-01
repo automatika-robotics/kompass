@@ -187,7 +187,7 @@ class LocalMapper(Component):
 
         callback = self.get_callback(TopicsKeys.SPATIAL_SENSOR)
         if isinstance(callback, LaserScanCallback):
-            self.sensor_data: Optional[LaserScanData] = callback.get_output(
+            self.sensor_data = callback.get_output(
                 transformation=self.scan_tf_listener.transform
                 if self.scan_tf_listener
                 else None
@@ -239,7 +239,9 @@ class LocalMapper(Component):
         pose_robot_in_world.qw = np.cos(self.robot_state.yaw / 2)
 
         if isinstance(self.sensor_data, LaserScanData):
-            self._local_map_builder.scan_update_model.range_max = self.sensor_data.range_max
+            self._local_map_builder.scan_update_model.range_max = (
+                self.sensor_data.range_max
+            )
 
         self._local_map_builder.update_from_scan(pose_robot_in_world, self.sensor_data)
 

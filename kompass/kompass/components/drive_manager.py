@@ -102,7 +102,9 @@ class DriveManagerConfig(ComponentConfig):
         default=0.2, validator=BaseValidators.in_range(min_value=1e-9, max_value=1e9)
     )  # Distance for the slowdown zone (meters)
     disable_safety_stop: bool = field(default=False)
-    use_without_scan_sensor: bool = field(default=False)  # Use the component without 360deg scan sensor
+    use_without_scan_sensor: bool = field(
+        default=False
+    )  # Use the component without 360deg scan sensor
     use_gpu: bool = field(default=True)
 
 
@@ -338,7 +340,11 @@ class DriveManager(Component):
                 )
                 break
         # If laserscan is not available and safety_stop is enabled -> raise an emergency stop flog to block publishing
-        if not self.config.disable_safety_stop and not self.laser_scan and not self.config.use_without_scan_sensor:
+        if (
+            not self.config.disable_safety_stop
+            and not self.laser_scan
+            and not self.config.use_without_scan_sensor
+        ):
             self.get_logger().warn(
                 "LaserScan data is not available -> disabling command publish to robot. To use the DriveManager without safety stop set 'disable_safety_stop' to 'True'",
                 once=True,
@@ -379,7 +385,6 @@ class DriveManager(Component):
         cmd.angular.z *= slowdown_val
         # Publish command
         self.get_publisher(TopicsKeys.FINAL_COMMAND).publish(cmd)
-
 
     def execute_cmd_closed_loop(self, output: Twist, max_time: float):
         """Execute a control command in closed loop
