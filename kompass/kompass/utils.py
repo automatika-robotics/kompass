@@ -11,9 +11,6 @@ from ros_sugar.utils import (
     log_srv,
 )
 from kompass_core.control import StrEnum
-from sensor_msgs.msg import PointCloud2
-from kompass_core.datatypes import PointCloudData
-import numpy as np
 
 __all__ = [
     "IncompatibleSetup",
