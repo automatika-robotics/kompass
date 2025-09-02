@@ -2,6 +2,9 @@
 Changelog for package kompass_interfaces
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+
 0.3.0 (2025-07-02)
 ------------------
 * (fix) Moves vision controller setup to component start

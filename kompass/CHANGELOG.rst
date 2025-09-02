@@ -2,6 +2,16 @@
 Changelog for package kompass
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* (fix) Adds 'reached_end' publishing in Planner
+* (feature) Simplifies pointcloud callback as its processing is handled in kompass core and changes local mapper to take pointcloud data
+* (fix) Adds missing inputs/outputs keys serialization in component
+* (feature) Adds option to enable emergency stop usage in DriveManager without 360 scan
+* (fix) Fixes list inputs parsing in component
+* (feature) Adds PointCloud2 to DriveManager and Mapper allowed inputs
+* Contributors: ahr, mkabtoul
+
 0.3.0 (2025-07-02)
 ------------------
 * (fix) Fixes image size check in callback
