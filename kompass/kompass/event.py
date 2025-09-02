@@ -48,6 +48,10 @@ from ros_sugar.events import (
     OnEqual,
     OnGreater,
     OnLess,
+    OnChangeContainsAny,
+    OnChangeContainsAll,
+    OnContainsAny,
+    OnContainsAll,
 )
 
 __all__ = [
@@ -61,4 +65,8 @@ __all__ = [
     "OnGreater",
     "OnInternalEvent",
     "OnLess",
+    "OnChangeContainsAny",
+    "OnChangeContainsAll",
+    "OnContainsAny",
+    "OnContainsAll",
 ]
