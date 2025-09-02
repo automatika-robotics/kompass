@@ -2,8 +2,8 @@
 Changelog for package kompass
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+0.3.1 (2025-09-02)
+------------------
 * (fix) Adds 'reached_end' publishing in Planner
 * (feature) Simplifies pointcloud callback as its processing is handled in kompass core and changes local mapper to take pointcloud data
 * (fix) Adds missing inputs/outputs keys serialization in component

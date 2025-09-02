@@ -13,7 +13,7 @@ console_scripts = [
 
 setup(
     name=package_name,
-    version="0.3.0",
+    version="0.3.1",
     packages=find_packages(exclude=["test"]),
     data_files=[
         ("share/ament_index/resource_index/packages", ["resource/" + package_name]),
