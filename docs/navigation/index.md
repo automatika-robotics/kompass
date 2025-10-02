@@ -85,10 +85,10 @@ It handles safe motion execution and integrates emergency stop and safety-check 
 
 
 ### [**Map Server**](map_server.md)
-The Map Server is resposible for serving a static global map from a file and making available to the navigation stack at runtime.
+The Map Server is resposible for serving a static global map from a file and making it available to the navigation stack at runtime.
 
 **Key Responsibilities:**
-- Convert 2D and 3D maps to OccupnacyGrid ROS maps.
+- Convert 2D and 3D maps to OccupancyGrid ROS maps.
 - Serve the global map during runtime.
 - Save custom maps to files.
 

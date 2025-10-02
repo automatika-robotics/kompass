@@ -20,7 +20,7 @@ Kompass main system components each responsible for one of the navigation subtas
   - This component is responsible for generating this local map during the navigation.
 
 * - **[MapServer](kompass.components.map_server.md)**
-  - This component is resposible for serving a static global map from a file and making available to the navigation stack during runtime.
+  - This component is resposible for serving a static global map from a file and making it available to the navigation stack during runtime.
 
 * - **[MotionServer](kompass.components.motion_server.md)**
   - This component is used for automatic testing by sending automatic reference commands to the robot and recording resulting motion.

@@ -22,11 +22,10 @@ The MapServer component can perform the following functionalities:
 * - **Map Saving**
   - The MapServer can save the generated or modified maps to files. It supports saving both 2D and 3D maps using the `Save2dMapToFile` and `Save3dMapToFile` services. This allows map data to be preserved for later use or shared between different systems.
 
-* - **Map Conversing Frequency Control**
+* - **Map Update Frequency Control**
   - The MapServer can be configured to control how often map data is read and converted. The rate of map updates can be controlled by the `map_file_read_rate` parameter, ensuring that map data is refreshed periodically or only when necessary.
 
 ```
-
 
 ## Outputs:
 
@@ -54,6 +53,7 @@ The MapServer component can perform the following functionalities:
 See all available parameters in [MapServerConfig](../apidocs/kompass/kompass.components.map_server.md/#classes)
 
 ## Usage Example:
+
 ```python
     from kompass.components import MapServerConfig, MapServer
     from kompass.ros import Topic

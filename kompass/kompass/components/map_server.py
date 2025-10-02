@@ -1,4 +1,4 @@
-from typing import Optional, Dict, List
+from typing import Optional, Dict, List, Union
 import threading
 import os
 from pathlib import Path
@@ -432,7 +432,7 @@ class MapServer(Component):
         :rtype: bool
         """
         self.get_logger().info(f"RECEIVED SAVE {msg_type} MAP SERVICE REQUEST")
-        self._save_map_data: Optional[PointCloud2] = None
+        self._save_map_data: Optional[Union[PointCloud2, OccupancyGrid]] = None
         # Confirm the topic exists and is being published
         topic_end_point_info: List[TopicEndpointInfo] = (
             self.get_publishers_info_by_topic(request.topic_name)
@@ -507,7 +507,7 @@ class MapServer(Component):
             o3d.io.write_point_cloud(save_path, pcd)
             self.get_logger().info(f"Saved point cloud map to {save_path}")
             response.success = True
-        except ImportError:
+        except ModuleNotFoundError:
             self.get_logger().error(
                 "open3d is not installed => Cannot save point cloud. Please run 'pip install open3d' it to handle '.pcd' files."
             )

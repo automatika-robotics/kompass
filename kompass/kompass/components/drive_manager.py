@@ -701,6 +701,7 @@ class DriveManager(Component):
         :return: Smoothed commands
         :rtype: list
         """
+        # TODO: Requires further optimization
         # Use a low pass filter based on maximum allowed acceleration/vel if multi commands are available
         cmds = np.array(cmd_list)
         freq_limit = (max_acc / max_vel) / 2
