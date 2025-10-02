@@ -154,6 +154,21 @@ controller_default_outputs: Dict[TopicsKeys, Topic] = {
     TopicsKeys.PATH_SAMPLES: Topic(name="/debug_samples", msg_type="Path"),
 }
 
+# MAP SERVER
+map_server_allowed_outputs: Dict[TopicsKeys, AllowedTopics] = {
+    TopicsKeys.GLOBAL_MAP: AllowedTopics(types=["OccupancyGrid"]),
+    TopicsKeys.SPATIAL_SENSOR: AllowedTopics(types=["PointCloud2"]),
+}
+
+map_server_default_outputs: Dict[TopicsKeys, Topic] = {
+    TopicsKeys.GLOBAL_MAP: Topic(
+        name="/map",
+        msg_type="OccupancyGrid",
+        qos_profile=QoSConfig(durability=qos.DurabilityPolicy.TRANSIENT_LOCAL),
+    ),
+    TopicsKeys.SPATIAL_SENSOR: Topic(name="/row_point_cloud", msg_type="PointCloud2"),
+}
+
 # DRIVE MANAGER
 driver_allowed_inputs: Dict[TopicsKeys, AllowedTopics] = {
     TopicsKeys.INTERMEDIATE_CMD: AllowedTopics(types=["Twist"]),

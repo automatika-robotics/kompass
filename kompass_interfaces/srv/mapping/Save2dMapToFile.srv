@@ -1,0 +1,8 @@
+string topic_name
+string save_file_location
+string save_file_name
+float64 timeout
+float64 free_thresh
+float64 occupied_thresh
+---
+bool success
