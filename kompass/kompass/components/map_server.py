@@ -97,30 +97,31 @@ class MapServerConfig(ComponentConfig):
 
 class MapServer(Component):
     """
-        MapServer component used for reading and converting map data from file to serve a global map.
-        Supports both 2D maps with a YAML file and 3D maps with PCD files.
+    MapServer component used for reading and converting map data from file to serve a global map.
+    Supports both 2D maps with a YAML file and 3D maps with PCD files.
 
-        ## Outputs:
+    ## Outputs:
 
-        ```{list-table}
-        :widths: 10 40 10 40
-        :header-rows: 1
-        * - Key Name
-          - Allowed Types
-          - Number
-          - Default
+    ```{list-table}
+    :widths: 10 40 10 40
+    :header-rows: 1
 
-        * - **global_map**
-          - [`nav_msgs.msg.OccupancyGrid`](http://docs.ros.org/en/noetic/api/nav_msgs/html/msg/OccupancyGrid.html)
-          - 1
-          - `Topic(name="/map", msg_type="OccupancyGrid")` - Global map generated from input data.
+    * - Key Name
+      - Allowed Types
+      - Number
+      - Default
 
-        * - **spatial_sensor**
-          - [`sensor_msgs.msg.PointCloud2`](http://docs.ros.org/en/noetic/api/sensor_msgs/html/msg/PointCloud2.html)
-          - 1, optional
-          - `Topic(name="/row_point_cloud", msg_type="PointCloud2")` - Row point cloud data for visualization or further processing.
+    * - **global_map**
+      - [`nav_msgs.msg.OccupancyGrid`](http://docs.ros.org/en/noetic/api/nav_msgs/html/msg/OccupancyGrid.html)
+      - 1
+      - `Topic(name="/map", msg_type="OccupancyGrid")` - Global map generated from input data.
 
-        ```
+    * - **spatial_sensor**
+      - [`sensor_msgs.msg.PointCloud2`](http://docs.ros.org/en/noetic/api/sensor_msgs/html/msg/PointCloud2.html)
+      - 1, optional
+      - `Topic(name="/row_point_cloud", msg_type="PointCloud2")` - Row point cloud data for visualization or further processing.
+
+    ```
 
     ## Available Services:
 

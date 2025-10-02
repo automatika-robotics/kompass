@@ -39,6 +39,7 @@ navigation/path_planning
 navigation/control
 navigation/driver
 navigation/mapper
+navigation/map_server
 navigation/motion_server
 navigation/mapping_localization
 ```
