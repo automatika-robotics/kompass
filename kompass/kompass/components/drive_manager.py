@@ -7,7 +7,6 @@ from functools import partial
 from geometry_msgs.msg import Twist
 from kompass_core.datatypes import LaserScanData
 from kompass_core.models import RobotGeometry, RobotState, RobotType
-from scipy import signal
 from kompass_interfaces.msg import TwistArray
 
 # KOMPASS ROS
@@ -109,7 +108,61 @@ class DriveManagerConfig(ComponentConfig):
 
 
 class DriveManager(Component):
-    """DriveManager."""
+    """
+    DriveManager component used for direct communication with the robot.
+
+
+    ## Inputs:
+    ```{list-table}
+    :widths: 10 40 10 40
+    :header-rows: 1
+    * - Key Name
+      - Allowed Types
+      - Number
+      - Default
+
+    * - **intermediate_cmd**
+      - [`geometry_msgs.msg.Twist`](http://docs.ros.org/en/noetic/api/geometry_msgs/html/msg/Twist.html)
+      - 1
+      - `Topic(name="/control", msg_type="Twist")`
+
+    * - **intermediate_cmd_list**
+      - [`kompass_interfaces.msg.TwistArray`](https://github.com/automatika-robotics/kompass/tree/main/kompass_interfaces/msg)
+      - 1
+      - `Topic(name="/control_list", msg_type="TwistArray")`
+
+    * - **spatial_sensor**
+      - [`sensor_msgs.msg.LaserScan`](https://docs.ros.org/en/noetic/api/sensor_msgs/html/msg/LaserScan.html), [`sensor_msgs.msg.PointCloud2`](http://docs.ros.org/en/noetic/api/sensor_msgs/html/msg/PointCloud2.html), [`std_msgs.msg.Float32`](http://docs.ros.org/en/noetic/api/std_msgs/html/msg/Float32.html), [`std_msgs.msg.Float64`](http://docs.ros.org/en/noetic/api/std_msgs/html/msg/Float64.html)
+      - 1 to 10
+      - `Topic(name="/scan", msg_type="LaserScan")`
+
+    * - **robot_location**
+      - [`nav_msgs.msg.Odometry`](https://docs.ros.org/en/noetic/api/nav_msgs/html/msg/Odometry.html), [`geometry_msgs.msg.PoseStamped`](http://docs.ros.org/en/jade/api/geometry_msgs/html/msg/PoseStamped.html), [`geometry_msgs.msg.Pose`](http://docs.ros.org/en/jade/api/geometry_msgs/html/msg/Pose.html)
+      - 1
+      - `Topic(name="/odom", msg_type="Odometry")`
+    ```
+
+    ## Outputs:
+
+    ```{list-table}
+    :widths: 10 40 10 40
+    :header-rows: 1
+    * - Key Name
+      - Allowed Types
+      - Number
+      - Default
+
+    * - **final_command**
+      - [`geometry_msgs.msg.Twist`](http://docs.ros.org/en/noetic/api/geometry_msgs/html/msg/Twist.html), [`geometry_msgs.msg.TwistStamped`](http://docs.ros.org/en/noetic/api/geometry_msgs/html/msg/TwistStamped.html)
+      - 1
+      - `Topic(name="/cmd_vel", msg_type="Twist")`
+
+    * - **emergency**
+      - [`std_msgs.msg.Bool`](http://docs.ros.org/en/noetic/api/std_msgs/html/msg/Bool.html)
+      - 1
+      - `Topic(name="/emergency_stop", msg_type="Bool")`
+        ```
+    """
 
     def __init__(
         self,
@@ -633,18 +686,30 @@ class DriveManager(Component):
         _cmd.angular.z = omega
         return _cmd
 
-    def __filter_multi_cmds(self, cmd_list, max_acc: float):
-        """__filter_multi_cmds.
+    def __filter_multi_cmds(self, cmd_list: list, max_acc: float, max_vel: float):
+        """Smooth the multi-cmds
 
-        :param cmd_list:
-        :param max_acc:
+        :param cmd_list: List of commands
+        :type cmd_list: list
+        :param max_acc: Maximum acceleration
         :type max_acc: float
+        :param max_vel: Maximum velocity
+        :type max_vel: float
+        :param loop_rate: Loop rate (Hz)
+        :type loop_rate: float
+
+        :return: Smoothed commands
+        :rtype: list
         """
-        # Use a low pass filter based on maximum allowed acceleration if multi commands are available
+        # TODO: Requires further optimization
+        # Use a low pass filter based on maximum allowed acceleration/vel if multi commands are available
         cmds = np.array(cmd_list)
-        w_lin = max_acc / (self.config.loop_rate / 2)  # Normalize the frequency
-        b, a = signal.butter(1, w_lin, "low")
-        return signal.filtfilt(b, a, cmds)
+        freq_limit = (max_acc / max_vel) / 2
+        bandlimit_index = int(freq_limit * cmds.shape[0] * self.config.loop_rate)
+        fsig = np.fft.fft(cmds)
+        fsig[bandlimit_index + 1 : -bandlimit_index] = 0
+        adata_filtered = np.fft.ifft(fsig)
+        return np.real(adata_filtered).tolist()
 
     def _filter_multi_commands(self, output: TwistArray, **_) -> TwistArray:
         """
@@ -653,15 +718,21 @@ class DriveManager(Component):
 
         # Use a low pass filter based on maximum allowed acceleration if multi commands are available
         self._filtered_linear_commands_x = self.__filter_multi_cmds(
-            output.linear_velocities.x, self.config.robot.ctrl_vx_limits.max_acc
+            output.linear_velocities.x,
+            self.config.robot.ctrl_vx_limits.max_acc,
+            self.config.robot.ctrl_vx_limits.max_vel,
         )
 
         self._filtered_linear_commands_y = self.__filter_multi_cmds(
-            output.linear_velocities.y, self.config.robot.ctrl_vy_limits.max_acc
+            output.linear_velocities.y,
+            self.config.robot.ctrl_vy_limits.max_acc,
+            self.config.robot.ctrl_vy_limits.max_vel,
         )
 
         self._filtered_angular_commands = self.__filter_multi_cmds(
-            output.angular_velocities.z, self.config.robot.ctrl_omega_limits.max_acc
+            output.angular_velocities.z,
+            self.config.robot.ctrl_omega_limits.max_acc,
+            self.config.robot.ctrl_omega_limits.max_vel,
         )
 
     def _check_bounds(self, target, previous, max_acc, max_decel, freq):

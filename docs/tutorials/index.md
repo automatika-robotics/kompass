@@ -42,4 +42,3 @@ Extend the previous example using **depth sensing** to gain more robust tracking
 ## Dive Deeper Into Components Configuration Options
 
 Want full control over how you define your components? Check out the [Component Configuration Guide](./configuration.md) to see how to set things up using Python, YAML, TOML, or JSON — your config, your rules.
-

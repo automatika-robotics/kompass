@@ -1,0 +1,6 @@
+string topic_name
+string save_file_location
+string save_file_name
+float64 timeout
+---
+bool success

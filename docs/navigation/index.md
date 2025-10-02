@@ -83,6 +83,15 @@ It handles safe motion execution and integrates emergency stop and safety-check 
 - Translates Controllers velocity commands to the robot.
 - Ensures motion safety through emergency stop checks.
 
+
+### [**Map Server**](map_server.md)
+The Map Server is resposible for serving a static global map from a file and making it available to the navigation stack at runtime.
+
+**Key Responsibilities:**
+- Convert 2D and 3D maps to OccupancyGrid ROS maps.
+- Serve the global map during runtime.
+- Save custom maps to files.
+
 ---
 
 ## Minimum Sensor Requirements
