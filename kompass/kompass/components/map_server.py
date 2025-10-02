@@ -13,6 +13,7 @@ from geometry_msgs.msg import Pose
 import sensor_msgs_py.point_cloud2 as pc2
 from kompass_core.models import RobotGeometry
 from kompass_core.datatypes import get_occupancy_grid_from_pcd, get_points_from_pcd
+
 # KOMPASS ROS
 from rclpy.topic_endpoint_info import TopicEndpointInfo
 from rclpy.callback_groups import ReentrantCallbackGroup
@@ -193,21 +194,24 @@ class MapServer(Component):
         Overwrites the init variables method called at Node init
         """
         self._pc_msg: Optional[PointCloud2] = None
-        self._grid_data : Optional[np.ndarray] = None
-        self._grid_res : Optional[float] = None
-        self._grid_origin : Optional[Pose] = None
+        self._grid_data: Optional[np.ndarray] = None
+        self._grid_res: Optional[float] = None
+        self._grid_origin: Optional[Pose] = None
         self.robot_height = RobotGeometry.get_height(
             self.config.robot.geometry_type, self.config.robot.geometry_params
         )
 
     def create_all_timers(self):
-        """Create all node timers
-        """
+        """Create all node timers"""
         super().create_all_timers()
         if self.config.map_file_read_rate > 0.0:
             if self.config.map_file_read_rate < 1.0:
-                self.get_logger().warn("map_file_read_rate is too low, consider increasing it to at least 1 Hz!")
-            self.__conversion_timer = self.create_timer(1.0 / self.config.map_file_read_rate, self.convert_map_from_file)
+                self.get_logger().warn(
+                    "map_file_read_rate is too low, consider increasing it to at least 1 Hz!"
+                )
+            self.__conversion_timer = self.create_timer(
+                1.0 / self.config.map_file_read_rate, self.convert_map_from_file
+            )
 
     def create_all_services(self):
         """
@@ -226,8 +230,7 @@ class MapServer(Component):
         super().create_all_services()
 
     def destroy_all_timers(self):
-        """Destroys all node timers
-        """
+        """Destroys all node timers"""
         super().destroy_all_timers()
         if self.config.map_file_read_rate > 0.0:
             self.destroy_timer(self.__conversion_timer)
@@ -245,13 +248,19 @@ class MapServer(Component):
         Convert the map from file to OccupancyGrid message
         """
         # Check if the file exists
-        if not self.config.map_file_path or not os.path.isfile(self.config.map_file_path):
-            self.get_logger().error(f"Map file {self.config.map_file_path} does not exist!")
+        if not self.config.map_file_path or not os.path.isfile(
+            self.config.map_file_path
+        ):
+            self.get_logger().error(
+                f"Map file {self.config.map_file_path} does not exist!"
+            )
             return False
 
         # Check if the file is of supported type
         supported_extensions = [".yaml", ".pcd"]  # TODO check ".las", ".laz"]
-        if not any(self.config.map_file_path.endswith(ext) for ext in supported_extensions):
+        if not any(
+            self.config.map_file_path.endswith(ext) for ext in supported_extensions
+        ):
             self.get_logger().error(
                 f"Map file {self.config.map_file_path} has unsupported extension. Supported extensions are: {supported_extensions}"
             )
@@ -263,7 +272,7 @@ class MapServer(Component):
                 self.config.map_file_path,
                 grid_resolution=self.config.grid_resolution,
                 z_ground_limit=self.config.z_ground_limit,
-                robot_height=self.robot_height
+                robot_height=self.robot_height,
             )
             self._grid_res = self.config.grid_resolution
             self._grid_origin = Pose()
@@ -280,11 +289,12 @@ class MapServer(Component):
             self._pc_msg = None
 
         self.get_logger().info(
-            f"Loaded 2D map from {self.config.map_file_path} with size {self._grid_data.shape}.")
+            f"Loaded 2D map from {self.config.map_file_path} with size {self._grid_data.shape}."
+        )
         return True
 
     def _read_map_from_yaml(self, yaml_path: str):
-        """ Read a 2D map from a YAML file and convert it to an OccupancyGrid message
+        """Read a 2D map from a YAML file and convert it to an OccupancyGrid message
 
         :param yaml_path: Path to the YAML file
         :type yaml_path: str
@@ -327,9 +337,14 @@ class MapServer(Component):
         self._grid_origin.position.y = origin[1]
 
     def _save_map_to_yaml(
-        self, msg: OccupancyGrid, yaml_filename: str, image_filename: str, occupied_thresh: float, free_thresh: float
+        self,
+        msg: OccupancyGrid,
+        yaml_filename: str,
+        image_filename: str,
+        occupied_thresh: float,
+        free_thresh: float,
     ) -> bool:
-        """ Save an OccupancyGrid message to a YAML file and a PGM image
+        """Save an OccupancyGrid message to a YAML file and a PGM image
 
         :param msg: OccupancyGrid message
         :type msg: OccupancyGrid
@@ -364,7 +379,7 @@ class MapServer(Component):
 
             # Map occupancy grid values to grayscale
             img[data == -1] = MapColors.GRAY  # Unknown -> gray
-            img[data >= occupied_thresh * 100] = MapColors.BLACK    # Occupied -> black
+            img[data >= occupied_thresh * 100] = MapColors.BLACK  # Occupied -> black
             img[data <= free_thresh * 100] = MapColors.WHITE  # Free -> white
 
             # Flip vertically (ROS uses bottom-left origin)
@@ -392,7 +407,7 @@ class MapServer(Component):
             return False
 
     def _create_pointcloud2(self) -> None:
-        """ Create a PointCloud2 message from a Nx3 numpy array of points"""
+        """Create a PointCloud2 message from a Nx3 numpy array of points"""
         pc_points = get_points_from_pcd(self.config.map_file_path)
         header = Header()
         header.stamp = self.get_clock().now().to_msg()
@@ -466,7 +481,7 @@ class MapServer(Component):
         """
         if not self._save_map_srv_prep(PointCloud2, request):
             response.success = False
-            if hasattr(self, '_save_map_subscriber'):
+            if hasattr(self, "_save_map_subscriber"):
                 self.destroy_subscription(self._save_map_subscriber)
             return response
 
@@ -474,8 +489,8 @@ class MapServer(Component):
             request.save_file_location + request.save_file_name + ".pcd"
         )
         points = pc2.read_points(
-                self._save_map_data, field_names=("x", "y", "z"), skip_nans=True
-            )
+            self._save_map_data, field_names=("x", "y", "z"), skip_nans=True
+        )
         # Convert structured array to plain Nx3 float array
         points_array = np.vstack((
             points["x"],
@@ -486,13 +501,16 @@ class MapServer(Component):
         points_array = points_array.astype(np.float64)
         try:
             import open3d as o3d
+
             pcd = o3d.geometry.PointCloud()
             pcd.points = o3d.utility.Vector3dVector(points_array)
             o3d.io.write_point_cloud(save_path, pcd)
             self.get_logger().info(f"Saved point cloud map to {save_path}")
             response.success = True
         except ImportError:
-            self.get_logger().error("open3d is not installed => Cannot save point cloud. Please run 'pip install open3d' it to handle '.pcd' files.")
+            self.get_logger().error(
+                "open3d is not installed => Cannot save point cloud. Please run 'pip install open3d' it to handle '.pcd' files."
+            )
             response.success = False
 
         self.destroy_subscription(self._save_map_subscriber)
@@ -527,7 +545,7 @@ class MapServer(Component):
                 request.save_file_location, request.save_file_name + ".pgm"
             ),
             occupied_thresh=request.occupied_thresh,
-            free_thresh=request.free_thresh
+            free_thresh=request.free_thresh,
         )
 
         self.destroy_subscription(self._save_map_subscriber)
@@ -551,14 +569,15 @@ class MapServer(Component):
         Main execution of the component, executed at ech timer tick with rate self.config.loop_rate
         """
         if self._pc_msg is not None and self.config.pc_publish_row:
-            self.get_publisher(TopicsKeys.SPATIAL_SENSOR).publish(
-                self._pc_msg
-            )
+            self.get_publisher(TopicsKeys.SPATIAL_SENSOR).publish(self._pc_msg)
         if self._grid_data is None:
             self.get_logger().debug("No map data to publish")
             return
         self.get_publisher(TopicsKeys.GLOBAL_MAP).publish(
-            self._grid_data, resolution=self._grid_res, origin=self._grid_origin, frame_id=self.config.custom_map_frame or self.config.frames.world
+            self._grid_data,
+            resolution=self._grid_res,
+            origin=self._grid_origin,
+            frame_id=self.config.custom_map_frame or self.config.frames.world,
         )
 
     def _execute_once(self):
