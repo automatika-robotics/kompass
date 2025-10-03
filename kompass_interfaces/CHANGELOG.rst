@@ -2,6 +2,11 @@
 Changelog for package kompass_interfaces
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* (feature) Adds map server for serving static global map
+* Contributors: ahr, mkabtoul
+
 0.3.1 (2025-09-02)
 ------------------
 
