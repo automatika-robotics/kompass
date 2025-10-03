@@ -2,8 +2,8 @@
 Changelog for package kompass
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+0.3.2 (2025-10-03)
+------------------
 * (fix) Removes Scipy dependency from DriveManager
 * (docs) Adds MapServer docs
 * (feature) Adds map server for serving static global map
