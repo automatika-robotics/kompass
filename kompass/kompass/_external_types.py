@@ -76,21 +76,10 @@ if EmbodiedAgentsCallbacks is not None:
                     [msg.image.width, msg.image.height],
                     dtype=np.int32,
                 )
-            elif msg.compressed_image.data:
-                img_size = np.array(
-                    [
-                        msg.compressed_image.width,
-                        msg.compressed_image.height,
-                    ],
-                    dtype=np.int32,
-                )
+            # TODO: get compressed image size
             if img_size is None:
-                logging.error(
+                logging.debug(
                     f"No image is provided with the detections message. Unknown image size can lead to errors! {len(msg.depth.data)} and {len(msg.image.data)} and {len(msg.compressed_image.data)}"
-                )
-            else:
-                logging.error(
-                    f"Got image with size {img_size}"
                 )
             return img_size
 
@@ -135,7 +124,8 @@ if EmbodiedAgentsCallbacks is not None:
             timestamp = msg.header.stamp.sec + 1e-9 * msg.header.stamp.nanosec
 
             # Get image size (Only update if the image is sent with the new detections)
-            self._img_size = self._img_size or self.__get_img_size(msg)
+            if self._img_size is None:
+                self._img_size = self.__get_img_size(msg)
 
             got_label = False
             for label, box in zip(msg.labels, msg.boxes):
