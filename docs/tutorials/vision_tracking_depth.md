@@ -36,8 +36,9 @@ Therefore, before starting with this tutorial you need to install both packages:
 In this example, we will set `enable_local_classifier` to `True` in the vision component so the model would be deployed directly on the robot. Additionally, we will set the input topic to be the `RGBD` camera topic. This setting will allow the `Vision` component to **publish both the depth and the rgb image data along with the detections**.
 
 ```python
-from agents.models import VisionModel
-from agents.clients.roboml import RESPModelClient
+from agents.components import Vision
+from agents.config import VisionConfig
+from agents.ros import Topic
 
 image0 = Topic(name="/camera/rgbd", msg_type="RGBD")
 detections_topic = Topic(name="detections", msg_type="Detections")
