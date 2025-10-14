@@ -55,7 +55,7 @@ class MotionServer(Component):
     :::
 
     ## Available Run Types:
-    Set from MotionServerConfig class or directly from MotionServer 'run_type' property.
+    Set directly from MotionServer 'run_type' property.
 
     - *TIMED*: Launches an automated test periodically after start.
     - *EVENT*: Launches automated testing when a trigger ir received on RUN input.

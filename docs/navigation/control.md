@@ -5,7 +5,7 @@ Local planning and control is essential for any mobile robot in real-world appli
 Controller is used for path tracking and control around dynamic obstacles during navigation.
 
 ## Available Run Types
-Set from ControllerConfig class or directly from Controller 'run_type' property.
+Set directly from Controller 'run_type' property.
 
 ```{list-table}
 :widths: 10 80

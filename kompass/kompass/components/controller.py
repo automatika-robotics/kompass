@@ -219,7 +219,7 @@ class Controller(Component):
     ```
 
     ## Available Run Types:
-    Set from ControllerConfig class or directly from Controller 'run_type' property.
+    Set directly from Controller 'run_type' property.
 
     - *TIMED*: Compute a new control command periodically if all inputs are available.
     - *ACTIONSERVER*: Offers a ControlPath ROS action and continuously computes a new control once an action request is received until goal point is reached

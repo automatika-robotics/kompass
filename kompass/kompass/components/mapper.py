@@ -49,7 +49,7 @@ class LocalMapper(Component):
 
 
     ## Available Run Types
-    Set from ControllerConfig class or directly from Controller 'run_type' property.
+    Set directly from LocalMapper 'run_type' property.
 
     ```{list-table}
     :widths: 10 80
