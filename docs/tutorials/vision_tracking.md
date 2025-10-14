@@ -45,7 +45,7 @@ First, we need to import the `VisionModel` class that defines the model used lat
 
 ```python
 from agents.models import VisionModel
-from agents.clients.roboml import RESPModelClient
+from agents.clients import RoboMLRESPClient
 ```
 
 Now let's configure the model we want to use for detections/tracking and the model client:
@@ -54,14 +54,13 @@ Now let's configure the model we want to use for detections/tracking and the mod
 object_detection = VisionModel(
     name="object_detection",
     checkpoint="rtmdet_tiny_8xb32-300e_coco",
-    setup_trackers=True,
 )
-roboml_detection = RESPModelClient(object_detection, host='127.0.0.1', logging_level="warn")
+roboml_detection = RoboMLRESPClient(object_detection, host='127.0.0.1', logging_level="warn")
   # 127.0.0.1 should be replaced by the IP of the machine running roboml. In this case we assume that roboml is running on our robot.
 ```
 The model is configured with a name and a checkpoint (any checkpoint from mmdetection framework can be used, see [available checkpoints](https://github.com/open-mmlab/mmdetection?tab=readme-ov-file#overview-of-benchmark-and-model-zoo)). In this example, we have chosen a model checkpoint trained on the MS COCO dataset which has over 80 [classes](https://github.com/amikelive/coco-labels/blob/master/coco-labels-2014_2017.txt) of commonly found objects. We also set the option `setup_trackers` to `True` to enable publishing tracking information.
 
-We load the `VisionModel` into the `RESPModelClient` and configure the host to the IP of the machine running RoboML. In this code above, it is assumed that we are running RoboML on localhost.
+We load the `VisionModel` into the `RoboMLRESPClient` and configure the host to the IP of the machine running RoboML. In this code above, it is assumed that we are running RoboML on localhost.
 
 ```{seealso}
 See all available VisionModel options [here](https://automatika-robotics.github.io/ros-agents/apidocs/agents/agents.models.html), and all available model clients in agents [here](https://automatika-robotics.github.io/ros-agents/apidocs/agents/agents.clients.html)
@@ -158,7 +157,7 @@ from kompass.components import Controller, ControllerConfig, DriveManager
 We select the vision follower method parameters by importing the config class `VisionFollowerConfig` (see default parameters [here](../advanced/algorithms/vision_follower.md)), then configure both our components:
 
 ```python
-from kompass.control import VisionFollowerConfig
+from kompass.control import VisionRGBFollowerConfig
 
 # Set the controller component configuration
 config = ControllerConfig(loop_rate=10.0, ctrl_publish_type="Sequence", control_time_step=0.3)
@@ -171,7 +170,7 @@ controller = Controller(
 controller.inputs(vision_tracking=detections_topic)
 
 # Set the vision follower configuration
-vision_follower_config = VisionFollowerConfig(
+vision_follower_config = VisionRGBFollowerConfig(
     control_horizon=3, enable_search=False, target_search_pause=6, tolerance=0.2
 )
 controller.algorithms_config = vision_follower_config  # We can also configure other algorithms (DWA, DV etc.) and pass a list to the algorithms_config property
@@ -220,7 +219,7 @@ Et voila! our code for the full vision-based target follower is ready and here i
 import numpy as np
 from agents.components import Vision
 from agents.models import VisionModel
-from agents.clients.roboml import RESPModelClient
+from agents.clients import RoboMLRESPClient
 from agents.config import VisionConfig
 from agents.ros import Topic
 
@@ -232,7 +231,7 @@ from kompass.robot import (
     RobotType,
     RobotConfig,
 )
-from kompass.control import VisionFollowerConfig
+from kompass.control import VisionRGBFollowerConfig
 from kompass.ros import Launcher
 
 # RGB camera input topic is set to the compressed image topic
@@ -245,13 +244,8 @@ trackings_topic = Topic(name="trackings", msg_type="Trackings")
 object_detection = VisionModel(
     name="object_detection",
     checkpoint="rtmdet_tiny_8xb32-300e_coco",
-    setup_trackers=True,
-    deploy_tensorrt=True,
 )
-
-roboml_detection = RESPModelClient(
-    object_detection, host="192.168.1.1", logging_level="warn"
-)
+roboml_detection = RoboMLRESPClient(object_detection, host='127.0.0.1', logging_level="warn")
 
 # Select the vision component configuration
 detection_config = VisionConfig(threshold=0.5, enable_visualization=True)
@@ -287,7 +281,7 @@ controller = Controller(component_name="my_controller", config=config)
 controller.inputs(vision_tracking=detections_topic)
 
 # Set the vision follower configuration
-vision_follower_config = VisionFollowerConfig(
+vision_follower_config = VisionRGBFollowerConfig(
     control_horizon=3, enable_search=False, target_search_pause=6, tolerance=0.2
 )
 controller.algorithms_config = vision_follower_config  # We can also configure other algorithms (DWA, DV etc.) and pass a list to the algorithms_config property
@@ -321,7 +315,7 @@ ros2 action send_goal /my_controller/track_vision_target kompass_interfaces/acti
 You can also re-run the previous script and activate the target search by adding the following config or sending the config along with the action send_goal:
 
 ```python
-vision_follower_config = VisionFollowerConfig(
+vision_follower_config = VisionRGBFollowerConfig(
     control_horizon=3, enable_search=True, target_search_pause=6, tolerance=0.2
 )
 ```

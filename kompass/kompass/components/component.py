@@ -221,7 +221,7 @@ class Component(BaseComponent):
         :return: Timed, ActionServer or Server
         :rtype: str
         """
-        return self.config.run_type
+        return self.config._run_type
 
     @run_type.setter
     def run_type(self, value: Union[ComponentRunType, str]):
@@ -236,7 +236,7 @@ class Component(BaseComponent):
                 f"Component {self.node_name} cannot have run_type '{value}', can only run as one of the following: {self.__allowed_run_types}"
             )
 
-        self.config.run_type = value
+        self.config._run_type = value
 
     @property
     def inputs_keys(self) -> List[TopicsKeys]:
