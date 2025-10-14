@@ -559,5 +559,3 @@ class PointCloudCallback(GenericCallback):
         ), "Offsets for x, y, z are not found"
 
         return pc
-
-

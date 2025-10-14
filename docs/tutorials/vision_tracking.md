@@ -241,7 +241,7 @@ image0 = Topic(name="/image_raw/compressed", msg_type="CompressedImage")
 detections_topic = Topic(name="detections", msg_type="Detections")
 trackings_topic = Topic(name="trackings", msg_type="Trackings")
 
-bject_detection = VisionModel(
+object_detection = VisionModel(
     name="object_detection",
     checkpoint="rtmdet_tiny_8xb32-300e_coco",
 )

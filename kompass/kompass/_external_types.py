@@ -419,12 +419,9 @@ if EmbodiedAgentsCallbacks is not None:
             self._buffer_items = min(self._buffer_items + 1, self._max_buffer_size)
 
 else:
-    class DetectionsCallback(GenericCallback):
 
-        def __init__(
-            self,
-            *args, **kwargs
-        ) -> None:
+    class DetectionsCallback(GenericCallback):
+        def __init__(self, *args, **kwargs) -> None:
             raise ModuleNotFoundError(
                 "'automatika_embodied_agents' module is required to use 'Detections' msg type but it is not installed. Install it with `sudo apt install ros-$ROS_DISTRO-automatika-embodied-agents`"
             )
