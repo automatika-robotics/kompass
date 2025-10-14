@@ -135,7 +135,7 @@ if EmbodiedAgentsCallbacks is not None:
             timestamp = msg.header.stamp.sec + 1e-9 * msg.header.stamp.nanosec
 
             # Get image size (Only update if the image is sent with the new detections)
-            self._img_size = self.__get_img_size(msg) or self._img_size
+            self._img_size = self._img_size or self.__get_img_size(msg)
 
             got_label = False
             for label, box in zip(msg.labels, msg.boxes):
