@@ -32,6 +32,7 @@ Kompass includes **highly optimized, GPU powered, versions of the most cutting e
 
 Find out more about our [**motivation**](https://automatika-robotics.github.io/kompass/why.html) to create Kompass.
 
+
 # Components
 
 Kompass is divided into several interacting components each responsible for one of the navigation subtasks:
@@ -120,6 +121,34 @@ rosdep install -y --from-paths . --ignore-src
 cd ..
 colcon build
 ```
+
+## Dynamic Web UI for Kompass Recipes
+
+Leveraging the power of the underlying [**Sugarcoat**](https://github.com/automatika-robotics/sugarcoat) framework, **Kompass** now offers a **fully dynamic, auto-generated Web UI** for every recipe. This feature is built with **FastHTML** and eliminates manual GUI development, instantly providing a responsive interface for control and visualization.
+
+The UI automatically creates:
+* Settings interfaces for all the components used in the recipe.
+* Real-time data visualizations and controls for component inputs/outputs.
+
+### Example 1: Vision Follower Recipe UI
+
+A full interface is automatically generated for an [RGB-based vision follower](https://automatika-robotics.github.io/kompass/tutorials/vision_tracking.html) recipe. The UI automatically renders image data, detections, and robot action commands, demonstrating its ability to handle multimedia and complex component interactions.
+
+<p align="center">
+<picture align="center">
+  <img alt="KOMPASS UI Example GIF" src="docs/_static/images/follow_ui.gif" width="60%">
+</picture>
+</p>
+
+### Example 2: Point Navigation Recipe UI
+
+An example for an automatically generated UI for a point navigation system, similar to the [quick start example](https://automatika-robotics.github.io/kompass/tutorials/quick_start_webots.html). The UI renders map data, and sends navigation goals to the robot.
+
+<p align="center">
+<picture align="center">
+  <img alt="KOMPASS UI Example GIF" src="docs/_static/images/nav_ui.gif" width="60%">
+</picture>
+</p>
 
 # Copyright
 
