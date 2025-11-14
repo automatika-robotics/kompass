@@ -202,6 +202,9 @@ class DriveManager(Component):
             else driver_default_outputs
         )
 
+        # Trun on robot plugin Handling
+        config._enable_plugin_actions_handling = True
+
         super().__init__(
             config=config,
             config_file=config_file,
@@ -332,7 +335,7 @@ class DriveManager(Component):
             )
         else:
             # Publish once in open loop
-            self._publish_cmd(filtered_output)
+            self._publish_cmd(filtered_output.linear.x, filtered_output.linear.y, filtered_output.angular.z)
         self._previous_command = filtered_output
 
     def _multi_cmds_callback(self, output: TwistArray, smooth_cmds: bool, **_):
@@ -406,7 +409,7 @@ class DriveManager(Component):
         else:
             self.slow_down_factor["unavailable_data"] = 1.0
 
-    def _publish_cmd(self, cmd: Twist, slowdown_factor: Optional[float] = None):
+    def _publish_cmd(self, vx_out: float, vy_out: float, omega_out: float, slowdown_factor: Optional[float] = None):
         """Publish command to the robot
 
         :param cmd: Velocity Twist message
@@ -420,7 +423,7 @@ class DriveManager(Component):
                 self.slow_down_factor["laser_scan"] = self._emergency_checker.check(
                     angles=self.laser_scan.angles,
                     ranges=self.laser_scan.ranges,
-                    forward=(cmd.linear.x >= 0.0),
+                    forward=(vx_out >= 0.0),
                 )
             slowdown_val: float = min(self.slow_down_factor.values())
         else:
@@ -431,13 +434,10 @@ class DriveManager(Component):
             self.get_publisher(TopicsKeys.EMERGENCY).publish(True)
             self.get_logger().warn("EMERGENCY STOP ON")
             # Publish zero velocity command
-            self.get_publisher(TopicsKeys.FINAL_COMMAND).publish(Twist())
+            self.get_publisher(TopicsKeys.FINAL_COMMAND).publish(0.0, 0.0, 0.0)
             return
-        cmd.linear.x *= slowdown_val
-        cmd.linear.y *= slowdown_val
-        cmd.angular.z *= slowdown_val
-        # Publish command
-        self.get_publisher(TopicsKeys.FINAL_COMMAND).publish(cmd)
+        # Publish command with slowdown
+        self.get_publisher(TopicsKeys.FINAL_COMMAND).publish(vx_out * slowdown_val, vy_out * slowdown_val, omega_out * slowdown_val)
 
     def execute_cmd_closed_loop(self, output: Twist, max_time: float):
         """Execute a control command in closed loop
@@ -482,8 +482,7 @@ class DriveManager(Component):
 
             _timer_count += _step
             # Publish command
-            _cmd = self.__make_twist(vx_out, vy_out, omega_out)
-            self._publish_cmd(_cmd)
+            self._publish_cmd(vx_out, vy_out, omega_out)
             time.sleep(_step)
 
     def move_forward(self, max_distance: float) -> bool:
@@ -514,10 +513,7 @@ class DriveManager(Component):
             if slowdown_factor == 0.0:
                 unblocking = False
             else:
-                _cmd = self.__make_twist(
-                    vx=self.robot.ctrl_vx_limits.max_vel / 2, vy=0.0, omega=0.0
-                )
-                self._publish_cmd(_cmd, slowdown_factor=slowdown_factor)
+                self._publish_cmd(self.robot.ctrl_vx_limits.max_vel / 2, 0.0, 0.0, slowdown_factor=slowdown_factor)
                 traveled_distance += step_distance
                 time.sleep(1 / self.config.loop_rate)
 
@@ -551,10 +547,7 @@ class DriveManager(Component):
             if slowdown_factor == 0.0:
                 unblocking = False
             else:
-                _cmd = self.__make_twist(
-                    vx=-self.robot.ctrl_vx_limits.max_vel / 4, vy=0.0, omega=0.0
-                )
-                self._publish_cmd(_cmd, slowdown_factor=slowdown_factor)
+                self._publish_cmd(-self.robot.ctrl_vx_limits.max_vel / 4, 0.0, 0.0, slowdown_factor=slowdown_factor)
                 traveled_distance += step_distance
                 time.sleep(1 / self.config.loop_rate)
 
@@ -591,10 +584,7 @@ class DriveManager(Component):
             if any(self.laser_scan.ranges < (1 + safety_margin) * self.robot_radius):
                 unblocking = False
             else:
-                _cmd = self.__make_twist(
-                    vx=0.0, vy=0.0, omega=self.robot.ctrl_omega_limits.max_vel / 2
-                )
-                self.get_publisher(TopicsKeys.FINAL_COMMAND).publish(_cmd)
+                self.get_publisher(TopicsKeys.FINAL_COMMAND).publish(0.0, 0.0, self.robot.ctrl_omega_limits.max_vel / 2)
                 traveled_radius += self.robot.ctrl_omega_limits.max_vel / (
                     2 * self.config.loop_rate
                 )
@@ -666,25 +656,6 @@ class DriveManager(Component):
         self._unblocking_on = False
 
         return unblocked
-
-    def __make_twist(self, vx: float, vy: float, omega: float) -> Twist:
-        """Create a Twist message
-
-        :param vx: Linear X velocity (m/s)
-        :type vx: float
-        :param vy: Linear Y velocity (m/s)
-        :type vy: float
-        :param omega: Angular velocity (rad/s)
-        :type omega: float
-
-        :return: Twist message
-        :rtype: Twist
-        """
-        _cmd = Twist()
-        _cmd.linear.x = vx
-        _cmd.linear.y = vy
-        _cmd.angular.z = omega
-        return _cmd
 
     def __filter_multi_cmds(self, cmd_list: list, max_acc: float, max_vel: float):
         """Smooth the multi-cmds
@@ -942,13 +913,15 @@ class DriveManager(Component):
             return
 
         # create a publish one twist message
-        _cmd_vel = self.__make_twist(cmd[0], cmd[1], cmd[2])
-
         if self.config.closed_loop:
+            _cmd_vel = Twist()
+            _cmd_vel.linear.x = cmd[0]
+            _cmd_vel.linear.y = cmd[1]
+            _cmd_vel.angular.z = cmd[2]
             self.execute_cmd_closed_loop(_cmd_vel, max_time=self._multi_command_step)
         else:
             # Execute cmd in open loop -> Publish once
-            self._publish_cmd(_cmd_vel)
+            self._publish_cmd(cmd[0], cmd[1], cmd[2])
 
     def _execute_once(self):
         """Actions to be executed once at the start of the component execution"""
@@ -957,6 +930,13 @@ class DriveManager(Component):
         if self.config.use_without_scan_sensor and not self.config.disable_safety_stop:
             self.get_logger().warn(
                 "Using DriveManager without 360deg scan sensor and Safety stop functionality is still enabled."
+            )
+            self._emergency_checker = None
+            return
+
+        if self.config.disable_safety_stop:
+            self.get_logger().warn(
+                "Saftey Stop is Disabled!"
             )
             self._emergency_checker = None
             return
@@ -971,18 +951,18 @@ class DriveManager(Component):
         )
         robot_dimensions = self.config.robot.geometry_params
 
+        # Get laserscan data to initialize the GPU based checker
+        while not self.laser_scan:
+            self.get_logger().info(
+                "Waiting to get laserscan data to initialize CriticalZoneChecker..",
+                once=True,
+            )
+            self._update_state()
+            time.sleep(1 / self.config.loop_rate)
+
         if self.config.use_gpu:
             try:
                 from kompass_cpp.utils import CriticalZoneCheckerGPU
-
-                # Get laserscan data to initialize the GPU based checker
-                while not self.laser_scan:
-                    self.get_logger().info(
-                        "Waiting to get laserscan data to initialize CriticalZoneCheckerGPU...",
-                        once=True,
-                    )
-                    self._update_state()
-                    time.sleep(1 / self.config.loop_rate)
 
                 self._emergency_checker = CriticalZoneCheckerGPU(
                     robot_shape=robot_shape,
@@ -993,6 +973,9 @@ class DriveManager(Component):
                     critical_distance=self.config.critical_zone_distance,
                     slowdown_distance=self.config.slowdown_zone_distance,
                     scan_angles=self.laser_scan.angles,
+                    max_height=self.robot_height,
+                    min_height=0.0,
+                    range_max=self.config.slowdown_zone_distance
                 )
                 self.get_logger().info("Initialized CriticalZoneCheckerGPU")
                 # Warmup to avoid first call overhead
@@ -1020,5 +1003,9 @@ class DriveManager(Component):
             critical_angle=self.config.critical_zone_angle,
             critical_distance=self.config.critical_zone_distance,
             slowdown_distance=self.config.slowdown_zone_distance,
+            scan_angles=self.laser_scan.angles,
+            max_height=self.robot_height,
+            min_height=0.0,
+            range_max=self.config.slowdown_zone_distance
         )
         self.get_logger().info("CriticalZoneChecker is READY!")

@@ -216,3 +216,7 @@ class ComponentConfig(BaseComponentConfig):
     core_log_level: str = field(
         default=LoggingSeverity.WARN, converter=_convert_logging_severity_to_str
     )
+
+    # Ovvride to Disable handling the robot plugin in the component
+    _enable_plugin_feedbacks_handling: bool = field(default=True, alias="_enable_plugin_feedback_handling")
+    _enable_plugin_actions_handling: bool = field(default=False, alias="_enable_plugin_actions_handling")
