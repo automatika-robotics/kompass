@@ -229,7 +229,7 @@ class LocalMapper(Component):
 
     def _update_map_from_scan(self, *_, **__):
         """Update local map from scan"""
-        if not self.sensor_data or not self.robot_state:
+        if self.sensor_data is None or not self.robot_state:
             return
 
         pose_robot_in_world = PoseData()
@@ -237,11 +237,6 @@ class LocalMapper(Component):
         pose_robot_in_world.y = self.robot_state.y
         pose_robot_in_world.qz = np.sin(self.robot_state.yaw / 2)
         pose_robot_in_world.qw = np.cos(self.robot_state.yaw / 2)
-
-        if isinstance(self.sensor_data, LaserScanData):
-            self._local_map_builder.scan_update_model.range_max = (
-                self.sensor_data.range_max
-            )
 
         self._local_map_builder.update_from_scan(pose_robot_in_world, self.sensor_data)
 
