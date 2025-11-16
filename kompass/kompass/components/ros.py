@@ -28,7 +28,7 @@ def _check_value_type_allowed_config(
 
     if value.msg_type not in allowed_config[key].types:
         raise TypeError(
-            f"Key {key} is of type {value.msg_type} can only be set to one of the following types: {allowed_config[key].types}"
+            f"Key {key} is set to type {value.msg_type}, but can only be one of the following types: {allowed_config[key].types}"
         )
     return True
 
@@ -101,10 +101,21 @@ def update_topics(
     if "allowed_config" in kwargs.keys():
         allowed_config = kwargs["allowed_config"]
         kwargs.pop("allowed_config")
+        # try:
         for key, value in kwargs.items():
-            if _get_allowed_number(TopicsKeys(key), value, allowed_config):
-                topics_dict[TopicsKeys(key)] = value
+            try:
+                topic_key = TopicsKeys(key)
+            except ValueError as e:
+                raise ValueError(f"Error updating topics: '{key}' is not a valid topic key. Allowed keys are: {list(allowed_config.keys())}") from e
+            if _get_allowed_number(topic_key, value, allowed_config):
+                topics_dict[topic_key] = value
     else:
         for key, value in kwargs.items():
-            topics_dict[TopicsKeys(key)] = value
+            try:
+                topic_key = TopicsKeys(key)
+            except ValueError as e:
+                raise ValueError(
+                    f"Error updating topics: '{key}' is not a valid topic key. Allowed keys are: {list(allowed_config.keys())}"
+                ) from e
+            topics_dict[topic_key] = value
     return topics_dict
