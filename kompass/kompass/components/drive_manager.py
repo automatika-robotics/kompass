@@ -308,7 +308,8 @@ class DriveManager(Component):
         ).get_output(
             transformation=self.odom_tf_listener.transform
             if self.odom_tf_listener
-            else None
+            else None,
+            clear_last=False
         )
 
     def _single_cmd_callback(
@@ -431,7 +432,6 @@ class DriveManager(Component):
                 self._update_state()
                 # Check emergency stop from Lidar in the direction of the command
                 self.slow_down_factor["laser_scan"] = self._emergency_checker.check(
-                    angles=self.laser_scan.angles,
                     ranges=self.laser_scan.ranges,
                     forward=(vx_out >= 0.0),
                 )
@@ -518,7 +518,6 @@ class DriveManager(Component):
             # Check if max_distance forward is clear
             self._update_state()
             slowdown_factor = self._emergency_checker.check(
-                angles=self.laser_scan.angles,
                 ranges=self.laser_scan.ranges,
                 forward=True,
             )
@@ -557,7 +556,6 @@ class DriveManager(Component):
             # Check if max_distance behind the robot is clear
             self._update_state()
             slowdown_factor = self._emergency_checker.check(
-                angles=self.laser_scan.angles,
                 ranges=self.laser_scan.ranges,
                 forward=False,
             )
@@ -960,6 +958,8 @@ class DriveManager(Component):
             self.get_logger().info("Waiting to get Proximity Sensor TF...", once=True)
             time.sleep(1 / self.config.loop_rate)
 
+        self.get_logger().info("Got Proximity Sensor TF...")
+
         robot_shape = RobotGeometry.Type.to_kompass_cpp_lib(
             self.config.robot.geometry_type
         )
@@ -989,13 +989,12 @@ class DriveManager(Component):
                     scan_angles=self.laser_scan.angles,
                     max_height=self.robot_height,
                     min_height=0.0,
-                    range_max=self.config.slowdown_zone_distance,
+                    range_max=self.config.slowdown_zone_distance    # Check starting from the slowdown distance
                 )
                 self.get_logger().info("Initialized CriticalZoneCheckerGPU")
                 # Warmup to avoid first call overhead
                 self._emergency_checker.check(
-                    angles=[0.0, 0.5],  # Dummy angles
-                    ranges=[1.0, 0.5],  # Dummy ranges
+                    ranges=self.laser_scan.ranges,
                     forward=True,
                 )
                 self.get_logger().info(
