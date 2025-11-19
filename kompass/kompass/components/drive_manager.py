@@ -335,7 +335,11 @@ class DriveManager(Component):
             )
         else:
             # Publish once in open loop
-            self._publish_cmd(filtered_output.linear.x, filtered_output.linear.y, filtered_output.angular.z)
+            self._publish_cmd(
+                filtered_output.linear.x,
+                filtered_output.linear.y,
+                filtered_output.angular.z,
+            )
         self._previous_command = filtered_output
 
     def _multi_cmds_callback(self, output: TwistArray, smooth_cmds: bool, **_):
@@ -409,7 +413,13 @@ class DriveManager(Component):
         else:
             self.slow_down_factor["unavailable_data"] = 1.0
 
-    def _publish_cmd(self, vx_out: float, vy_out: float, omega_out: float, slowdown_factor: Optional[float] = None):
+    def _publish_cmd(
+        self,
+        vx_out: float,
+        vy_out: float,
+        omega_out: float,
+        slowdown_factor: Optional[float] = None,
+    ):
         """Publish command to the robot
 
         :param cmd: Velocity Twist message
@@ -437,7 +447,9 @@ class DriveManager(Component):
             self.get_publisher(TopicsKeys.FINAL_COMMAND).publish(0.0, 0.0, 0.0)
             return
         # Publish command with slowdown
-        self.get_publisher(TopicsKeys.FINAL_COMMAND).publish(vx_out * slowdown_val, vy_out * slowdown_val, omega_out * slowdown_val)
+        self.get_publisher(TopicsKeys.FINAL_COMMAND).publish(
+            vx_out * slowdown_val, vy_out * slowdown_val, omega_out * slowdown_val
+        )
 
     def execute_cmd_closed_loop(self, output: Twist, max_time: float):
         """Execute a control command in closed loop
@@ -513,7 +525,12 @@ class DriveManager(Component):
             if slowdown_factor == 0.0:
                 unblocking = False
             else:
-                self._publish_cmd(self.robot.ctrl_vx_limits.max_vel / 2, 0.0, 0.0, slowdown_factor=slowdown_factor)
+                self._publish_cmd(
+                    self.robot.ctrl_vx_limits.max_vel / 2,
+                    0.0,
+                    0.0,
+                    slowdown_factor=slowdown_factor,
+                )
                 traveled_distance += step_distance
                 time.sleep(1 / self.config.loop_rate)
 
@@ -547,7 +564,12 @@ class DriveManager(Component):
             if slowdown_factor == 0.0:
                 unblocking = False
             else:
-                self._publish_cmd(-self.robot.ctrl_vx_limits.max_vel / 4, 0.0, 0.0, slowdown_factor=slowdown_factor)
+                self._publish_cmd(
+                    -self.robot.ctrl_vx_limits.max_vel / 4,
+                    0.0,
+                    0.0,
+                    slowdown_factor=slowdown_factor,
+                )
                 traveled_distance += step_distance
                 time.sleep(1 / self.config.loop_rate)
 
@@ -584,7 +606,9 @@ class DriveManager(Component):
             if any(self.laser_scan.ranges < (1 + safety_margin) * self.robot_radius):
                 unblocking = False
             else:
-                self.get_publisher(TopicsKeys.FINAL_COMMAND).publish(0.0, 0.0, self.robot.ctrl_omega_limits.max_vel / 2)
+                self.get_publisher(TopicsKeys.FINAL_COMMAND).publish(
+                    0.0, 0.0, self.robot.ctrl_omega_limits.max_vel / 2
+                )
                 traveled_radius += self.robot.ctrl_omega_limits.max_vel / (
                     2 * self.config.loop_rate
                 )
@@ -842,7 +866,7 @@ class DriveManager(Component):
         else:
             self.slow_down_factor[topic.name] = 1.0
 
-    def _limit_command_vel(self, output: Twist) -> Twist:
+    def _limit_command_vel(self, vx: float, vy: float, omega: float) -> Twist:
         """Check and limit the control commands
 
         :param cmd: Robot control command
@@ -852,38 +876,30 @@ class DriveManager(Component):
         :rtype: bool
         """
 
-        if abs(output.linear.x) > self.config.robot.ctrl_vx_limits.max_vel:
+        if abs(vx) > self.config.robot.ctrl_vx_limits.max_vel:
             self.get_logger().warn(
                 f"Limiting linear velocity by allowed maximum {self.config.robot.ctrl_vx_limits.max_vel}"
             )
-            output.linear.x = (
-                np.sign(output.linear.x) * self.config.robot.ctrl_vx_limits.max_vel
-            )
-        elif abs(output.linear.x) < self.config.robot.ctrl_vx_limits.min_absolute_val:
-            output.linear.x = 0.0
+            vx = np.sign(vx) * self.config.robot.ctrl_vx_limits.max_vel
+        elif abs(vx) < self.config.robot.ctrl_vx_limits.min_absolute_val:
+            vx = 0.0
 
-        if abs(output.linear.y) > self.config.robot.ctrl_vy_limits.max_vel:
+        if abs(vy) > self.config.robot.ctrl_vy_limits.max_vel:
             self.get_logger().warn(
                 f"Limiting linear Vy velocity by allowed maximum {self.config.robot.ctrl_vy_limits.max_vel}"
             )
-            output.linear.y = (
-                np.sign(output.linear.y) * self.config.robot.ctrl_vy_limits.max_vel
-            )
-        elif abs(output.linear.y) < self.config.robot.ctrl_vy_limits.min_absolute_val:
-            output.linear.y = 0.0
+            vy = np.sign(vy) * self.config.robot.ctrl_vy_limits.max_vel
+        elif abs(vy) < self.config.robot.ctrl_vy_limits.min_absolute_val:
+            vy = 0.0
 
-        if abs(output.angular.z) > self.config.robot.ctrl_omega_limits.max_vel:
+        if abs(omega) > self.config.robot.ctrl_omega_limits.max_vel:
             self.get_logger().warn(
                 f"Limiting angular velocity by allowed maximum {self.config.robot.ctrl_omega_limits.max_vel}"
             )
-            output.angular.z = (
-                np.sign(output.angular.z) * self.config.robot.ctrl_omega_limits.max_vel
-            )
-        elif (
-            abs(output.angular.z) < self.config.robot.ctrl_omega_limits.min_absolute_val
-        ):
-            output.angular.z = 0.0
-        return output
+            omega = np.sign(omega) * self.config.robot.ctrl_omega_limits.max_vel
+        elif abs(omega) < self.config.robot.ctrl_omega_limits.min_absolute_val:
+            omega = 0.0
+        return (float(vx), float(vy), float(omega))
 
     def _execution_step(self):
         """
@@ -935,9 +951,7 @@ class DriveManager(Component):
             return
 
         if self.config.disable_safety_stop:
-            self.get_logger().warn(
-                "Saftey Stop is Disabled!"
-            )
+            self.get_logger().warn("Saftey Stop is Disabled!")
             self._emergency_checker = None
             return
 
@@ -975,7 +989,7 @@ class DriveManager(Component):
                     scan_angles=self.laser_scan.angles,
                     max_height=self.robot_height,
                     min_height=0.0,
-                    range_max=self.config.slowdown_zone_distance
+                    range_max=self.config.slowdown_zone_distance,
                 )
                 self.get_logger().info("Initialized CriticalZoneCheckerGPU")
                 # Warmup to avoid first call overhead
@@ -1006,6 +1020,6 @@ class DriveManager(Component):
             scan_angles=self.laser_scan.angles,
             max_height=self.robot_height,
             min_height=0.0,
-            range_max=self.config.slowdown_zone_distance
+            range_max=self.config.slowdown_zone_distance,
         )
         self.get_logger().info("CriticalZoneChecker is READY!")
