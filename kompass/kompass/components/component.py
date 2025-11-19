@@ -4,7 +4,6 @@ from typing import Dict, List, Optional, Union, Tuple
 from ros_sugar.core import ComponentFallbacks, BaseComponent
 from ros_sugar.tf import TFListener, TFListenerConfig
 from ros_sugar.io import Publisher, AllowedTopics
-from ros_sugar.base_clients import RobotPluginServiceClient
 
 from ..callbacks import GenericCallback
 from ..config import ComponentConfig, RobotConfig, ComponentRunType
@@ -294,9 +293,7 @@ class Component(BaseComponent):
         self._outputs_list = self._reparse_outputs_converts(_outputs)
         self.out_topics = [topic for topic in self._outputs_list if topic]
 
-    def _update_inactive_input_topic(
-        self, old_topic, new_topic
-    ):
+    def _update_inactive_input_topic(self, old_topic, new_topic):
         """Updates internal topics list with a new input topic.
         Overrides the parent hook to add child-specific list updates.
         """
@@ -310,22 +307,20 @@ class Component(BaseComponent):
             self._inputs_list.pop(idx)
             self._inputs_list.insert(idx, new_topic)
         except ValueError:
-             self.get_logger().debug(f"Old topic {old_topic.name} not in self._inputs_list.")
+            self.get_logger().debug(
+                f"Old topic {old_topic.name} not in self._inputs_list."
+            )
 
         # Re-parse inputs (KOMPASS-specific)
         self._inputs_list = self._reparse_inputs_callbacks(self._inputs_list)
         self.in_topics = [topic for topic in self._inputs_list if topic]
 
-    def _update_inactive_output_topic(
-        self, old_topic, new_topic
-    ):
+    def _update_inactive_output_topic(self, old_topic, new_topic):
         """Updates internal topics list with a new output topic.
         Overrides the parent hook to add child-specific list updates.
         """
         # (This updates self.out_topics and self.publishers_dict)
-        super()._update_inactive_output_topic(
-            old_topic, new_topic
-        )
+        super()._update_inactive_output_topic(old_topic, new_topic)
 
         self.get_logger().info("Running child-specific output topic update logic...")
 
@@ -335,14 +330,14 @@ class Component(BaseComponent):
             self._outputs_list.pop(idx)
             self._outputs_list.insert(idx, new_topic)
         except ValueError:
-            self.get_logger().debug(f"Old topic {old_topic.name} not in self._outputs_list.")
+            self.get_logger().debug(
+                f"Old topic {old_topic.name} not in self._outputs_list."
+            )
 
         if isinstance(new_topic, Topic):
             # Re-parse and rebuild if it was a Topic update (KOMPASS-specific)
             self._outputs_list = self._reparse_outputs_converts(self._outputs_list)
             self.out_topics = [topic for topic in self._outputs_list if topic]
-
-
 
     def __configure_input_from_file(
         self, idx: int, key: TopicsKeys, config_file: str
@@ -358,13 +353,9 @@ class Component(BaseComponent):
         """
         topic_updated: bool = False
         topic_name = self.in_topic_name(key)
-        # If the key does not correspond to a None value -> replace callback
+        # If the key does not correspond to a None value -> update topic
         if isinstance(topic_name, str):
-            topic_updated = self.in_topics[idx].from_file(
-                config_file, f"{self.node_name}.inputs.{key}"
-            )
-            if topic_updated:
-                self.callbacks.pop(topic_name)
+            self.in_topics[idx].from_file(config_file, f"{self.node_name}.inputs.{key}")
         # TODO handle List case
         else:
             # Create a dummy topic to parse the value from file
@@ -378,10 +369,6 @@ class Component(BaseComponent):
                     idx,
                     dummy_topic,
                 )
-        if topic_updated:
-            self.callbacks[self.in_topics[idx].name] = self.in_topics[
-                idx
-            ].msg_type.callback(self.in_topics[idx], node_name=self.node_name)
 
     def __configure_output_from_file(
         self, idx: int, key: TopicsKeys, config_file: str
@@ -395,15 +382,12 @@ class Component(BaseComponent):
         :param config_file: Path to file
         :type config_file: str
         """
-        # if hasattr(outputs_config, str(key)):
         topic_updated: bool = False
         topic_name = self.out_topic_name(key)
         if isinstance(topic_name, str):
-            topic_updated = self.out_topics[idx].from_file(
+            self.out_topics[idx].from_file(
                 config_file, f"{self.node_name}.outputs.{key}"
             )
-            if topic_updated:
-                self.publishers_dict.pop(topic_name)
         else:
             dummy_topic = Topic(name="dummy", msg_type="String")
             topic_updated: bool = dummy_topic.from_file(
@@ -414,10 +398,6 @@ class Component(BaseComponent):
                     idx,
                     dummy_topic,
                 )
-        if topic_updated:
-            self.publishers_dict[self.out_topics[idx].name] = Publisher(
-                self.out_topics[idx], node_name=self.node_name
-            )
 
     def config_from_file(self, config_file: str):
         """

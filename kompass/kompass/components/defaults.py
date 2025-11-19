@@ -252,7 +252,7 @@ planner_allowed_inputs: Dict[TopicsKeys, AllowedTopics] = {
     TopicsKeys.GOAL_POINT: AllowedTopics(
         types=["Odometry", "PoseStamped", "PointStamped"]
     ),
-    TopicsKeys.ROBOT_LOCATION: AllowedTopics(types=["Odometry"]),
+    TopicsKeys.ROBOT_LOCATION: AllowedTopics(types=["Odometry", "PoseStamped", "Pose"]),
 }
 
 planner_allowed_outputs: Dict[TopicsKeys, AllowedTopics] = {

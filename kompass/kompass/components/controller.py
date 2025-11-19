@@ -949,7 +949,9 @@ class Controller(Component):
         # TWIST_SEQUENCE: Publish one-by-one in a blocking loop
         if self.config.ctrl_publish_type == CmdPublishType.TWIST_SEQUENCE:
             for vx, vy, omega in zip(commands_vx, commands_vy, commands_omega):
-                self.get_publisher(TopicsKeys.INTERMEDIATE_CMD).publish(float(vx), float(vy), float(omega))
+                self.get_publisher(TopicsKeys.INTERMEDIATE_CMD).publish(
+                    float(vx), float(vy), float(omega)
+                )
                 time.sleep(self.config.control_time_step)
 
     def _path_control(self) -> bool:
