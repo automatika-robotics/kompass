@@ -20,6 +20,8 @@ Kompass は、**最新のナビゲーションアルゴリズムをC++でGPU最�
 - [**クイックスタート**](https://automatika-robotics.github.io/kompass/tutorials/quick_start.html)で始める 🚀
 - [**チュートリアル**](https://automatika-robotics.github.io/kompass/tutorials/point_navigation.html)で深掘りする 🤖
 - Kompassの[**設計コンセプト**](https://automatika-robotics.github.io/kompass/advanced/design.html)を学ぶ 📚
+- リアルタイムのシステム可視化と制御のための [**ダイナミック Web UI**](#kompassレシピ向けのダイナミックweb-ui) を探索 🖥️
+- (**!NEW**) **ロボットプラグイン (Robot Plugins)** 🔌 を使用して、[**KOMPASS自動化レシピを異なるロボットやハードウェア間で移植**](#ロボットプラグインを使用した汎用的でポータブルな自動化レシピアプリの利用)
 
 # なぜ Kompass？
 
@@ -130,6 +132,43 @@ cd ..
 colcon build
 
 ```
+
+# Kompassレシピ向けのダイナミックWeb UI
+
+基盤となる [**Sugarcoat**](https://github.com/automatika-robotics/sugarcoat) フレームワークの力を活用し、**Kompass** はすべてのレシピに対して **完全にダイナミックで自動生成された Web UI** を提供するようになりました。この機能は **FastHTML** で構築されており、手動による GUI 開発を不要にし、制御と可視化のためのレスポンシブなインターフェースを即座に提供します。
+
+この UI は自動的に以下を作成します：
+* レシピで使用されるすべてのコンポーネントの設定インターフェース。
+* コンポーネントの入力/出力のためのリアルタイムなデータ可視化と制御。
+
+## 例 1：ビジョンフォロワーレシピ UI
+
+[RGBベースのビジョンフォロワー](https://automatika-robotics.github.io/kompass/tutorials/vision_tracking.html) レシピに対して、完全なインターフェースが自動的に生成されます。この UI は画像データ、検出結果、およびロボットアクションコマンドを自動的にレンダリングし、マルチメディアや複雑なコンポーネント間の相互作用を処理する能力を示しています。
+
+<p align="center">
+<picture align="center">
+  <img alt="KOMPASS UI Example GIF" src="_static/images/follow_ui.gif" width="60%">
+</picture>
+</p>
+
+## 例 2：ポイントナビゲーションレシピ UI
+
+[クイックスタートの例](https://automatika-robotics.github.io/kompass/tutorials/quick_start_webots.html) に類似した、ポイントナビゲーションシステム用の自動生成 UI の例です。この UI はマップデータをレンダリングし、ロボットにナビゲーションゴールを送信します。
+
+<p align="center">
+<picture align="center">
+  <img alt="KOMPASS UI Example GIF" src="_static/images/nav_ui.gif" width="60%">
+</picture>
+</p>
+
+# ロボットプラグインを使用した汎用的でポータブルな自動化レシピ（アプリ）の利用
+
+異なるロボットは、ロボットアクションの送信（速度）や多様な低レベルフィードバック（オドメトリ、IMUなど）の取得といった基本操作を処理するために、ROS2インターフェースでカスタムメッセージやサービスを使用することがよくあります。従来のROS2パッケージでは、新しいメッセージ/サービスタイプごとにコードの変更を行う必要がありました。これにより、コードが特定のロボットに密接に結合される「ロックイン」状態が生じます。
+
+新しいロボットプラグインは、翻訳レイヤーとして機能します。これは、あなたのアプリケーションと、すべてのカスタムタイプを持つロボットのハードウェアとの間に位置します。これにより、ロボット固有のROS2インターフェースが抽象化され、標準タイプを使用して、コード変更なしでどのロボットでも実行できる、汎用的でポータブルな自動化ロジックを作成できるようになります。
+
+- ロボットプラグインの紹介とKompassレシピでのテスト方法については、[**こちらのビデオ**](https://www.youtube.com/watch?v=oZN6pcJKgfY)をご覧ください。
+- ロボットプラグインの作成と使用に関する完全なガイドは、[ドキュメント](https://automatika-robotics.github.io/sugarcoat/advanced/robot_plugins.html)をご確認ください。
 
 # 著作権
 

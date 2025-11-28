@@ -17,6 +17,8 @@ Kompass includes **highly optimized, GPU powered, versions of the most cutting e
 - To get started with Kompass, check the [**quick start**](https://automatika-robotics.github.io/kompass/tutorials/quick_start.html) tutorial 🚀
 - Do a deep dive with one of the [**tutorials**](https://automatika-robotics.github.io/kompass/tutorials/point_navigation.html) 🤖
 - Learn more about the [**design concepts**](https://automatika-robotics.github.io/kompass/advanced/design.html) of Kompass 📚
+- Explore the [**Dynamic Web UI**](#dynamic-web-ui-for-kompass-recipes) for real-time system visualization and control 🖥️
+- (**!NEW**) [**Port KOMPASS automation recipes across different robots and hardware**](#using-robot-plugins-for-generic-and-portable-automation-recipes-apps) using **Robot Plugins** 🔌
 
 # Why Kompass?
 
@@ -122,7 +124,7 @@ cd ..
 colcon build
 ```
 
-## Dynamic Web UI for Kompass Recipes
+# Dynamic Web UI for Kompass Recipes
 
 Leveraging the power of the underlying [**Sugarcoat**](https://github.com/automatika-robotics/sugarcoat) framework, **Kompass** now offers a **fully dynamic, auto-generated Web UI** for every recipe. This feature is built with **FastHTML** and eliminates manual GUI development, instantly providing a responsive interface for control and visualization.
 
@@ -130,7 +132,7 @@ The UI automatically creates:
 * Settings interfaces for all the components used in the recipe.
 * Real-time data visualizations and controls for component inputs/outputs.
 
-### Example 1: Vision Follower Recipe UI
+## Example 1: Vision Follower Recipe UI
 
 A full interface is automatically generated for an [RGB-based vision follower](https://automatika-robotics.github.io/kompass/tutorials/vision_tracking.html) recipe. The UI automatically renders image data, detections, and robot action commands, demonstrating its ability to handle multimedia and complex component interactions.
 
@@ -140,7 +142,7 @@ A full interface is automatically generated for an [RGB-based vision follower](h
 </picture>
 </p>
 
-### Example 2: Point Navigation Recipe UI
+## Example 2: Point Navigation Recipe UI
 
 An example for an automatically generated UI for a point navigation system, similar to the [quick start example](https://automatika-robotics.github.io/kompass/tutorials/quick_start_webots.html). The UI renders map data, and sends navigation goals to the robot.
 
@@ -149,6 +151,15 @@ An example for an automatically generated UI for a point navigation system, simi
   <img alt="KOMPASS UI Example GIF" src="docs/_static/images/nav_ui.gif" width="60%">
 </picture>
 </p>
+
+# Using Robot Plugins for Generic and Portable Automation Recipes (Apps)
+
+Different robots often use custom messages, or services in their ROS2 interfaces to handle basic operations like sending robot actions (Velocity) or getting diverse low-level feedback (Odometry, IMU, etc.). With traditional ROS2 packages, you will need to do code changes to handle each new message/service type. This creates a “lock-in” where your code becomes tightly coupled to a specific robot.
+
+The new Robot Plugins act as a translation layer. It sits between your application and the robot’s hardware with all its custom types. It abstracts away robot-specific ROS2 interfaces, and allows you to write generic, portable automation logic using standard types that runs on any robot without code changes.
+
+- See an introduction to the robot plugins and how to test them in Kompass recipes in [**this video**](https://www.youtube.com/watch?v=oZN6pcJKgfY)
+- For a complete guide on how to create and use a robot plugin, [check out the documentations](https://automatika-robotics.github.io/sugarcoat/advanced/robot_plugins.html)
 
 # Copyright
 

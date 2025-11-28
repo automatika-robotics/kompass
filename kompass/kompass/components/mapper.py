@@ -229,7 +229,7 @@ class LocalMapper(Component):
 
     def _update_map_from_scan(self, *_, **__):
         """Update local map from scan"""
-        if self.sensor_data is None or not self.robot_state:
+        if self.sensor_data is None or self.robot_state is None:
             return
 
         pose_robot_in_world = PoseData()

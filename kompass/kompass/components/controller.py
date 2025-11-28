@@ -427,12 +427,8 @@ class Controller(Component):
             self.get_logger().debug("No command to execute")
             return
 
-        # create a publish one twist message
-        _cmd_vel = Twist()
-        _cmd_vel.linear.x = cmd[0]
-        _cmd_vel.linear.y = cmd[1]
-        _cmd_vel.angular.z = cmd[2]
-        self.get_publisher(TopicsKeys.INTERMEDIATE_CMD).publish(_cmd_vel)
+        # Publish one twist message
+        self.get_publisher(TopicsKeys.INTERMEDIATE_CMD).publish(cmd[0], cmd[1], cmd[2])
 
     def _info_publishing_callback(self):
         """Tracking publishing timer callback"""
@@ -912,7 +908,7 @@ class Controller(Component):
             _cmd_vel_array = _cmd_vel_array = init_twist_array_msg(1)
             self.get_publisher(TopicsKeys.INTERMEDIATE_CMD_LIST).publish(_cmd_vel_array)
         else:
-            self.get_publisher(TopicsKeys.INTERMEDIATE_CMD).publish(Twist())
+            self.get_publisher(TopicsKeys.INTERMEDIATE_CMD).publish(0.0, 0.0, 0.0)
 
     def _publish(
         self,
@@ -953,11 +949,9 @@ class Controller(Component):
         # TWIST_SEQUENCE: Publish one-by-one in a blocking loop
         if self.config.ctrl_publish_type == CmdPublishType.TWIST_SEQUENCE:
             for vx, vy, omega in zip(commands_vx, commands_vy, commands_omega):
-                _cmd_vel = Twist()
-                _cmd_vel.linear.x = float(vx)
-                _cmd_vel.linear.y = float(vy)
-                _cmd_vel.angular.z = float(omega)
-                self.get_publisher(TopicsKeys.INTERMEDIATE_CMD).publish(_cmd_vel)
+                self.get_publisher(TopicsKeys.INTERMEDIATE_CMD).publish(
+                    float(vx), float(vy), float(omega)
+                )
                 time.sleep(self.config.control_time_step)
 
     def _path_control(self) -> bool:
