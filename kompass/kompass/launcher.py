@@ -23,6 +23,8 @@ class Launcher(BaseLauncher):
         namespace: str = "",
         config_file: Optional[str] = None,
         enable_monitoring: bool = True,
+        activation_timeout: Optional[float] = None,
+        robot_plugin: Optional[str] = None,
         **kwargs,
     ) -> None:
         """Initialize a launcher to manager components launch in ROS2
@@ -33,11 +35,17 @@ class Launcher(BaseLauncher):
         :type config_file: str | None, optional
         :param enable_monitoring: Enable components health status monitoring, defaults to True
         :type enable_monitoring: bool, optional
+        :param activation_timeout: Timeout (seconds) for waiting on ROS2 nodes to come up for activation, defaults to None
+        :type activation_timeout: float, optional
+        :param robot_plugin: Name of the robot plugin package for compatibility handling, defaults to None
+        :type robot_plugin: str, optional
         """
         super().__init__(
             namespace=namespace,
             config_file=config_file,
             enable_monitoring=enable_monitoring,
+            activation_timeout=activation_timeout,
+            robot_plugin=robot_plugin,
             **kwargs,
         )
 
