@@ -19,6 +19,8 @@ Kompass 内置了**高度优化、基于 GPU 的最先进导航算法的 C++ 实
 - 快速上手请查阅[**快速入门教程**](https://automatika-robotics.github.io/kompass/tutorials/quick_start.html) 🚀
 - 深入学习请参阅一个[**完整教程**](https://automatika-robotics.github.io/kompass/tutorials/point_navigation.html) 🤖
 - 想了解设计理念？点击[**设计概念**](https://automatika-robotics.github.io/kompass/advanced/design.html) 📚
+- 探索用于实时系统可视化和控制的 [**动态 Web UI**](#kompass-配方的动态-web-ui) 🖥️
+- (**!NEW**) 利用 **机器人插件 (Robot Plugins)** 🔌 [**在不同机器人和硬件之间移植 KOMPASS 自动化配方**](#使用机器人插件构建通用且可移植的自动化配方应用)
 
 # 为什么选择 Kompass？
 
@@ -118,6 +120,43 @@ rosdep install -y --from-paths . --ignore-src
 cd ..
 colcon build
 ```
+
+# Kompass 配方的动态 Web UI
+
+借助底层 [**Sugarcoat**](https://github.com/automatika-robotics/sugarcoat) 框架的强大功能，**Kompass** 现在为每个配方提供**完全动态、自动生成的 Web UI**。此功能基于 **FastHTML** 构建，消除了手动 GUI 开发的需求，能够即时提供用于控制和可视化的响应式界面。
+
+该 UI 会自动创建：
+* 配方中使用的所有组件的设置界面。
+* 组件输入/输出的实时数据可视化和控件。
+
+## 示例 1：视觉跟随器配方 UI
+
+为 [基于 RGB 的视觉跟随器](https://automatika-robotics.github.io/kompass/tutorials/vision_tracking.html) 配方自动生成的完整界面。该 UI 自动渲染图像数据、检测结果和机器人动作指令，展示了其处理多媒体和复杂组件交互的能力。
+
+<p align="center">
+<picture align="center">
+  <img alt="KOMPASS UI Example GIF" src="_static/images/follow_ui.gif" width="60%">
+</picture>
+</p>
+
+## 示例 2：点导航配方 UI
+
+一个为点导航系统自动生成 UI 的示例，类似于 [快速入门示例](https://automatika-robotics.github.io/kompass/tutorials/quick_start_webots.html)。该 UI 渲染地图数据，并向机器人发送导航目标。
+
+<p align="center">
+<picture align="center">
+  <img alt="KOMPASS UI Example GIF" src="_static/images/nav_ui.gif" width="60%">
+</picture>
+</p>
+
+# 使用机器人插件构建通用且可移植的自动化配方（应用）
+
+不同的机器人通常在其 ROS2 接口中使用自定义消息或服务来处理基本操作，例如发送机器人动作（速度）或获取各种底层反馈（里程计、IMU 等）。使用传统的 ROS2 功能包时，您需要修改代码以处理每种新的消息/服务类型。这会造成一种“锁定”效应，导致您的代码与特定机器人紧密耦合。
+
+新的机器人插件充当了一个翻译层。它位于您的应用程序和包含各种自定义类型的机器人硬件之间。它屏蔽了机器人特定的 ROS2 接口细节，使您能够使用标准类型编写通用、可移植的自动化逻辑，无需修改代码即可在任何机器人上运行。
+
+- 在 [**此视频**](https://www.youtube.com/watch?v=oZN6pcJKgfY) 中观看机器人插件的介绍以及如何在 Kompass 配方中测试它们。
+- 有关如何创建和使用机器人插件的完整指南，[请查阅文档](https://automatika-robotics.github.io/sugarcoat/advanced/robot_plugins.html)。
 
 # 版权声明
 
