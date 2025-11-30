@@ -2,8 +2,8 @@
 Changelog for package kompass
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+0.3.3 (2025-11-30)
+------------------
 * (fix) Updates critical zone checker initialization to match kompass core
 * (feature) Adds robot_plugin argument to launcher
 * (fix) Fixes command publishing pre-processor
