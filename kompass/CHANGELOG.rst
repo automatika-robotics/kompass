@@ -2,6 +2,18 @@
 Changelog for package kompass
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* (fix) Updates critical zone checker initialization to match kompass core
+* (feature) Adds robot_plugin argument to launcher
+* (fix) Fixes command publishing pre-processor
+* (fix) Fixes topic update from file
+* (feature) Enables using robot plugin in drive manager
+* (fix) Fixes image size update in callback
+* (fix) Moves external callbacks to new module and inherets from external callback classes
+* (fix) Fixes update attribute name in BaseComponentConfig attrs class
+* Contributors: ahr, mkabtoul
+
 0.3.2 (2025-10-03)
 ------------------
 * (fix) Removes Scipy dependency from DriveManager
