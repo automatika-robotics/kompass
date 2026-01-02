@@ -106,7 +106,9 @@ def update_topics(
             try:
                 topic_key = TopicsKeys(key)
             except ValueError as e:
-                raise ValueError(f"Error updating topics: '{key}' is not a valid topic key. Allowed keys are: {list(allowed_config.keys())}") from e
+                raise ValueError(
+                    f"Error updating topics: '{key}' is not a valid topic key. Allowed keys are: {list(allowed_config.keys())}"
+                ) from e
             if _get_allowed_number(topic_key, value, allowed_config):
                 topics_dict[topic_key] = value
     else:

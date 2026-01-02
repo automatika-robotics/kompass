@@ -122,7 +122,7 @@ controller_allowed_inputs: Dict[TopicsKeys, AllowedTopics] = {
 }
 
 controller_allowed_outputs: Dict[TopicsKeys, AllowedTopics] = {
-    TopicsKeys.INTERMEDIATE_CMD: AllowedTopics(types=["Twist"]),
+    TopicsKeys.INTERMEDIATE_CMD: AllowedTopics(types=["Twist", "TwistStamped"]),
     TopicsKeys.INTERMEDIATE_CMD_LIST: AllowedTopics(types=["TwistArray"]),
     TopicsKeys.INTERPOLATED_PATH: AllowedTopics(types=["Path"]),
     TopicsKeys.LOCAL_PLAN: AllowedTopics(types=["Path"]),
