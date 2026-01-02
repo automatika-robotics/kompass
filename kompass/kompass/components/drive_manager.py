@@ -1,13 +1,14 @@
-from typing import Optional, Dict
+from typing import Optional, Dict, Union
 import numpy as np
 import time
 from queue import Queue, Empty
 from attrs import define, field
 from functools import partial
 from geometry_msgs.msg import Twist
-from kompass_core.datatypes import LaserScanData
+from kompass_core.datatypes import LaserScanData, PointCloudData
 from kompass_core.models import RobotGeometry, RobotState, RobotType
 from kompass_interfaces.msg import TwistArray
+from kompass_cpp.types import SensorInputType
 
 # KOMPASS ROS
 from ..config import BaseValidators, ComponentConfig, ComponentRunType
@@ -76,6 +77,10 @@ class DriveManagerConfig(ComponentConfig):
       - `bool`, `True`
       - Use GPU implementation for the critical zone checking if available, otherwise use CPU implementation
 
+    * - **pointcloud_angle_resolution**
+      - `float`, `0.1`
+      - Angle resolution when converting point cloud data for critical zone check
+
     ```
     """
 
@@ -89,7 +94,7 @@ class DriveManagerConfig(ComponentConfig):
 
     cmd_tolerance: float = field(
         default=0.01
-    )  # tolerance value when checking for reaching the command in closed loop
+    )  # tolerance value when checking for reaching the desired command in closed loop
 
     critical_zone_angle: float = field(
         default=45.0, validator=BaseValidators.in_range(min_value=1e-9, max_value=360.0)
@@ -105,6 +110,10 @@ class DriveManagerConfig(ComponentConfig):
         default=False
     )  # Use the component without 360deg scan sensor
     use_gpu: bool = field(default=True)
+    pointcloud_angle_resolution: float = field(
+        default=0.1,
+        validator=BaseValidators.in_range(min_value=1e-9, max_value=2 * np.pi),
+    )
 
 
 class DriveManager(Component):
@@ -253,7 +262,7 @@ class DriveManager(Component):
             "distance": self.config.critical_zone_distance + self.robot_radius,
         }
 
-        self.laser_scan: Optional[LaserScanData] = None
+        self.sensor_data: Optional[Union[LaserScanData, PointCloudData]] = None
 
         self.slow_down_factor: Dict[str, float] = {}
 
@@ -272,7 +281,7 @@ class DriveManager(Component):
             num_sensors = self._inputs_keys.count(TopicsKeys.SPATIAL_SENSOR)
             for idx in range(num_sensors):
                 callback = self.get_callback(TopicsKeys.SPATIAL_SENSOR, idx)
-                if not isinstance(callback, LaserScanCallback):
+                if not isinstance(callback, (LaserScanCallback, PointCloudCallback)):
                     callback.on_callback_execute(
                         self._check_emergency_stop_proximity_sensor
                     )
@@ -309,7 +318,7 @@ class DriveManager(Component):
             transformation=self.odom_tf_listener.transform
             if self.odom_tf_listener
             else None,
-            clear_last=False
+            clear_last=False,
         )
 
     def _single_cmd_callback(
@@ -383,14 +392,14 @@ class DriveManager(Component):
         for idx in range(num_sensors):
             callback = self.get_callback(TopicsKeys.SPATIAL_SENSOR, idx)
             if isinstance(callback, LaserScanCallback):
-                self.laser_scan: Optional[LaserScanData] = callback.get_output(
+                self.sensor_data: Optional[LaserScanData] = callback.get_output(
                     transformation=self.scan_tf_listener.transform
                     if self.scan_tf_listener
                     else None,
                 )
                 break
             elif isinstance(callback, PointCloudCallback):
-                self.laser_scan: Optional[LaserScanData] = callback.get_output(
+                self.sensor_data: Optional[PointCloudData] = callback.get_output(
                     transformation=self.scan_tf_listener.transform
                     if self.scan_tf_listener
                     else None,
@@ -403,7 +412,7 @@ class DriveManager(Component):
         # If laserscan is not available and safety_stop is enabled -> raise an emergency stop flog to block publishing
         if (
             not self.config.disable_safety_stop
-            and not self.laser_scan
+            and not self.sensor_data
             and not self.config.use_without_scan_sensor
         ):
             self.get_logger().warn(
@@ -431,10 +440,26 @@ class DriveManager(Component):
             if self._emergency_checker:
                 self._update_state()
                 # Check emergency stop from Lidar in the direction of the command
-                self.slow_down_factor["laser_scan"] = self._emergency_checker.check(
-                    ranges=self.laser_scan.ranges,
-                    forward=(vx_out >= 0.0),
-                )
+                if isinstance(self.sensor_data, LaserScanData):
+                    self.slow_down_factor["scan_data"] = self._emergency_checker.check(
+                        ranges=self.sensor_data.ranges,
+                        forward=(vx_out >= 0.0),
+                    )
+                elif isinstance(self.sensor_data, PointCloudData):
+                    self.slow_down_factor["scan_data"] = self._emergency_checker.check(
+                        data=self.sensor_data.data,
+                        point_step=self.sensor_data.point_step,
+                        row_step=self.sensor_data.row_step,
+                        height=self.sensor_data.height,
+                        width=self.sensor_data.width,
+                        x_offset=self.sensor_data.x_offset,
+                        y_offset=self.sensor_data.y_offset,
+                        z_offset=self.sensor_data.z_offset,
+                        forward=(vx_out >= 0.0),
+                    )
+                    self.get_logger().info(
+                        f"PointCloud emergency check forward={(vx_out >= 0.0)} returned {self.slow_down_factor['scan_data']}"
+                    )
             slowdown_val: float = min(self.slow_down_factor.values())
         else:
             slowdown_val = slowdown_factor
@@ -517,10 +542,24 @@ class DriveManager(Component):
         ):
             # Check if max_distance forward is clear
             self._update_state()
-            slowdown_factor = self._emergency_checker.check(
-                ranges=self.laser_scan.ranges,
-                forward=True,
-            )
+            slowdown_factor = 1.0
+            if isinstance(self.sensor_data, LaserScanData):
+                slowdown_factor = self._emergency_checker.check(
+                    ranges=self.sensor_data.ranges,
+                    forward=True,
+                )
+            elif isinstance(self.sensor_data, PointCloudData):
+                slowdown_factor = self._emergency_checker.check(
+                    data=self.sensor_data.data,
+                    point_step=self.sensor_data.point_step,
+                    row_step=self.sensor_data.row_step,
+                    height=self.sensor_data.height,
+                    width=self.sensor_data.width,
+                    x_offset=self.sensor_data.x_offset,
+                    y_offset=self.sensor_data.y_offset,
+                    z_offset=self.sensor_data.z_offset,
+                    forward=True,
+                )
             if slowdown_factor == 0.0:
                 unblocking = False
             else:
@@ -555,10 +594,24 @@ class DriveManager(Component):
         ):
             # Check if max_distance behind the robot is clear
             self._update_state()
-            slowdown_factor = self._emergency_checker.check(
-                ranges=self.laser_scan.ranges,
-                forward=False,
-            )
+            slowdown_factor = 1.0
+            if isinstance(self.sensor_data, LaserScanData):
+                slowdown_factor = self._emergency_checker.check(
+                    ranges=self.sensor_data.ranges,
+                    forward=False,
+                )
+            elif isinstance(self.sensor_data, PointCloudData):
+                slowdown_factor = self._emergency_checker.check(
+                    data=self.sensor_data.data,
+                    point_step=self.sensor_data.point_step,
+                    row_step=self.sensor_data.row_step,
+                    height=self.sensor_data.height,
+                    width=self.sensor_data.width,
+                    x_offset=self.sensor_data.x_offset,
+                    y_offset=self.sensor_data.y_offset,
+                    z_offset=self.sensor_data.z_offset,
+                    forward=False,
+                )
             if slowdown_factor == 0.0:
                 unblocking = False
             else:
@@ -601,7 +654,44 @@ class DriveManager(Component):
         # FRONT MOVEMENT
         while unblocking and traveled_radius < max_rotation:
             self._update_state()
-            if any(self.laser_scan.ranges < (1 + safety_margin) * self.robot_radius):
+            slowdown_factor = 1.0
+            if isinstance(self.sensor_data, LaserScanData):
+                slowdown_factor = min(
+                    self._emergency_checker.check(
+                        ranges=self.sensor_data.ranges,
+                        forward=True,
+                    ),
+                    self._emergency_checker.check(
+                        ranges=self.sensor_data.ranges,
+                        forward=False,
+                    ),
+                )
+            elif isinstance(self.sensor_data, PointCloudData):
+                slowdown_factor = min(
+                    self._emergency_checker.check(
+                        data=self.sensor_data.data,
+                        point_step=self.sensor_data.point_step,
+                        row_step=self.sensor_data.row_step,
+                        height=self.sensor_data.height,
+                        width=self.sensor_data.width,
+                        x_offset=self.sensor_data.x_offset,
+                        y_offset=self.sensor_data.y_offset,
+                        z_offset=self.sensor_data.z_offset,
+                        forward=True,
+                    ),
+                    self._emergency_checker.check(
+                        data=self.sensor_data.data,
+                        point_step=self.sensor_data.point_step,
+                        row_step=self.sensor_data.row_step,
+                        height=self.sensor_data.height,
+                        width=self.sensor_data.width,
+                        x_offset=self.sensor_data.x_offset,
+                        y_offset=self.sensor_data.y_offset,
+                        z_offset=self.sensor_data.z_offset,
+                        forward=False,
+                    ),
+                )
+            if slowdown_factor == 0.0:
                 unblocking = False
             else:
                 self.get_publisher(TopicsKeys.FINAL_COMMAND).publish(
@@ -636,7 +726,7 @@ class DriveManager(Component):
         :return: If one of the movement actions is performed
         :rtype: bool
         """
-        if not self.laser_scan:
+        if not self.sensor_data:
             self.get_logger().error(
                 "Scan unavailable - Unblocking functionality requires LaserScan information"
             )
@@ -949,7 +1039,7 @@ class DriveManager(Component):
             return
 
         if self.config.disable_safety_stop:
-            self.get_logger().warn("Saftey Stop is Disabled!")
+            self.get_logger().warn("Safety Stop is Disabled!")
             self._emergency_checker = None
             return
 
@@ -966,7 +1056,7 @@ class DriveManager(Component):
         robot_dimensions = self.config.robot.geometry_params
 
         # Get laserscan data to initialize the GPU based checker
-        while not self.laser_scan:
+        while not self.sensor_data:
             self.get_logger().info(
                 "Waiting to get laserscan data to initialize CriticalZoneChecker..",
                 once=True,
@@ -974,11 +1064,19 @@ class DriveManager(Component):
             self._update_state()
             time.sleep(1 / self.config.loop_rate)
 
+        if isinstance(self.sensor_data, LaserScanData):
+            input_type = SensorInputType.LASERSCAN
+            angles = self.sensor_data.angles
+        else:
+            input_type = SensorInputType.POINTCLOUD
+            angles = np.arange(0, 2 * np.pi, self.config.pointcloud_angle_resolution)
+
         if self.config.use_gpu:
             try:
                 from kompass_cpp.utils import CriticalZoneCheckerGPU
 
                 self._emergency_checker = CriticalZoneCheckerGPU(
+                    input_type=input_type,
                     robot_shape=robot_shape,
                     robot_dimensions=robot_dimensions,
                     sensor_position_body=self.scan_tf_listener.translation,
@@ -986,17 +1084,31 @@ class DriveManager(Component):
                     critical_angle=self.config.critical_zone_angle,
                     critical_distance=self.config.critical_zone_distance,
                     slowdown_distance=self.config.slowdown_zone_distance,
-                    scan_angles=self.laser_scan.angles,
+                    scan_angles=angles,
                     max_height=self.robot_height,
-                    min_height=0.0,
-                    range_max=self.config.slowdown_zone_distance    # Check starting from the slowdown distance
+                    min_height=-self.robot_height,
+                    range_max=3 * self.config.slowdown_zone_distance,
                 )
                 self.get_logger().info("Initialized CriticalZoneCheckerGPU")
+
                 # Warmup to avoid first call overhead
-                self._emergency_checker.check(
-                    ranges=self.laser_scan.ranges,
-                    forward=True,
-                )
+                if isinstance(self.sensor_data, LaserScanData):
+                    self._emergency_checker.check(
+                        ranges=self.sensor_data.ranges,
+                        forward=True,
+                    )
+                elif isinstance(self.sensor_data, PointCloudData):
+                    self._emergency_checker.check(
+                        data=self.sensor_data.data,
+                        point_step=self.sensor_data.point_step,
+                        row_step=self.sensor_data.row_step,
+                        height=self.sensor_data.height,
+                        width=self.sensor_data.width,
+                        x_offset=self.sensor_data.x_offset,
+                        y_offset=self.sensor_data.y_offset,
+                        z_offset=self.sensor_data.z_offset,
+                        forward=True,
+                    )
                 self.get_logger().info(
                     "CriticalZoneCheckerGPU: Warm-up complete - Ready to go!"
                 )
@@ -1009,6 +1121,7 @@ class DriveManager(Component):
         from kompass_cpp.utils import CriticalZoneChecker
 
         self._emergency_checker = CriticalZoneChecker(
+            input_type=input_type,
             robot_shape=robot_shape,
             robot_dimensions=robot_dimensions,
             sensor_position_body=self.scan_tf_listener.translation,
@@ -1016,9 +1129,9 @@ class DriveManager(Component):
             critical_angle=self.config.critical_zone_angle,
             critical_distance=self.config.critical_zone_distance,
             slowdown_distance=self.config.slowdown_zone_distance,
-            scan_angles=self.laser_scan.angles,
+            scan_angles=angles,
             max_height=self.robot_height,
-            min_height=0.0,
-            range_max=self.config.slowdown_zone_distance,
+            min_height=-self.robot_height,
+            range_max=3 * self.config.slowdown_zone_distance,
         )
         self.get_logger().info("CriticalZoneChecker is READY!")
