@@ -2,7 +2,7 @@
 robot_base = "base_link"
 odom = "map"
 world = "map"
-scan = "hokuyo"
+scan = "base_link"
 
 [mapper]
 loop_rate = 10.0
@@ -15,11 +15,13 @@ resolution = 0.05
 [drive_manager]
 loop_rate = 20.0
 cmd_rate = 10.0
-critical_zone_distance = 0.15
+critical_zone_distance = 0.3
+slowdown_zone_distance = 0.4
+closed_loop = false
 
 [controller]
 loop_rate = 10.0
-control_time_step = 0.1
+control_time_step = 0.2
 ctrl_publish_type = "Sequence"
 
 [controller.Stanley]
@@ -44,10 +46,11 @@ max_num_threads = 10
 
 [controller.DWA.costs_weights]
 goal_distance_weight = 1.0
-reference_path_distance_weight = 1.5
-obstacles_distance_weight = 2.0
-smoothness_weight = 1.0
+reference_path_distance_weight = 2.0
+obstacles_distance_weight = 1.0
+smoothness_weight = 0.0
 jerk_weight = 0.0
+
 
 [planner.inputs.map_layer]
 name = "/map"

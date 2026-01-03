@@ -332,7 +332,7 @@ class Controller(Component):
                 continue
 
             # In vision follower mode skip the plan
-            elif (
+            if (
                 self.config._mode == ControllerMode.VISION_FOLLOWER
                 and callback.input_topic.name
                 == self.in_topic_name(TopicsKeys.GLOBAL_PLAN)
@@ -349,7 +349,7 @@ class Controller(Component):
                 # skip local map for direct sensor
                 continue
             # Skip sensor data if using map
-            elif (
+            if (
                 not self.config.use_direct_sensor
                 and callback.input_topic.name
                 == self.in_topic_name(TopicsKeys.SPATIAL_SENSOR)
@@ -601,7 +601,12 @@ class Controller(Component):
         """
         # Note: Only DWA takes local map
         if (
-            self.algorithm not in [ControllersID.DWA, ControllersID.VISION_DEPTH]
+            self.algorithm
+            not in [
+                ControllersID.DWA,
+                ControllersID.VISION_DEPTH,
+                ControllersID.PURE_PURSUIT,
+            ]
             and not value
         ):
             get_logger(self.node_name).warning(
@@ -854,23 +859,6 @@ class Controller(Component):
             omega_limits=self.config.robot.ctrl_omega_limits,
         )
 
-        self.__path_controller: Optional[ControllerType] = None
-
-        if self.config._mode == ControllerMode.PATH_FOLLOWER:
-            # Get default controller configuration and update it from user defined config
-            _controller_config = self._configure_algorithm(
-                ControlConfigClasses[self.algorithm]()
-            )
-
-            self.__path_controller = ControlClasses[self.algorithm](
-                robot=self.__robot,
-                config=_controller_config,
-                ctrl_limits=self.__robot_ctr_limits,
-                config_file=self._config_file,
-                config_root_name=f"{self.node_name}.{self.config.algorithm}",
-                control_time_step=self.config.control_time_step,
-            )
-
         self.__reached_end = False
         self.__lat_dist_error: float = 0.0
         self.__ori_error: float = 0.0
@@ -891,6 +879,32 @@ class Controller(Component):
             )
 
             self.sensor_data: Optional[Union[LaserScanData, PointCloudData]] = None
+
+        self.__path_controller: Optional[ControllerType] = None
+
+        if self.config._mode == ControllerMode.PATH_FOLLOWER:
+            config_kwargs = {}
+            if self.direct_sensor and self.__sensor_tf_listener.got_transform:
+                config_kwargs["proximity_sensor_position_to_robot"] = (
+                    self.__sensor_tf_listener.translation
+                )
+                config_kwargs["proximity_sensor_rotation_to_robot"] = (
+                    self.__sensor_tf_listener.rotation
+                )
+                config_kwargs["control_time_step"] = self.config.control_time_step
+            # Get default controller configuration and update it from user defined config
+            _controller_config = self._configure_algorithm(
+                ControlConfigClasses[self.algorithm](**config_kwargs)
+            )
+
+            self.__path_controller = ControlClasses[self.algorithm](
+                robot=self.__robot,
+                config=_controller_config,
+                ctrl_limits=self.__robot_ctr_limits,
+                config_file=self._config_file,
+                config_root_name=f"{self.node_name}.{self.config.algorithm}",
+                control_time_step=self.config.control_time_step,
+            )
 
         # Vision Follower variables
         self.vision_detections: Optional[Bbox2D] = None

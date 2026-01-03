@@ -191,7 +191,7 @@ class Odometry(BaseOdometry):
         return msg
 
 
-class TwistStamped(SupportedType):
+class TwistStamped(Twist):
     """Class to support ROS2 geometry_msgs/msg/TwistStamped message"""
 
     _ros_type = ROSTwistStamped
@@ -200,8 +200,10 @@ class TwistStamped(SupportedType):
     @classmethod
     def convert(
         cls,
-        output: ROSTwist,
-        **_,
+        vx: float,
+        vy: float,
+        omega: float,
+        **kwargs,
     ) -> ROSTwistStamped:
         """Converter to publish Twist data to TwistStamped
 
@@ -211,7 +213,7 @@ class TwistStamped(SupportedType):
         :rtype: ROSTwistStamped
         """
         msg = ROSTwistStamped()
-        msg.twist = output
+        msg.twist = super().convert(vx=vx, vy=vy, omega=omega, **kwargs)
         return msg
 
 
@@ -326,3 +328,12 @@ class Path(BasePath):
         # File not found or format is not compatible
         except Exception:
             return None
+
+    @classmethod
+    def length(cls, path: ROSPath):
+        total_length = 0.0
+        for pose_stamped in path.poses:
+            total_length += np.sqrt(
+                pose_stamped.pose.position.x**2 + pose_stamped.pose.position.y**2
+            )
+        return float(total_length)

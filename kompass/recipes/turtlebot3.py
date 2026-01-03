@@ -23,6 +23,8 @@ from kompass.components import (
     Planner,
     PlannerConfig,
     LocalMapper,
+    MapServer,
+    MapServerConfig,
 )
 from kompass.actions import ComponentActions, LogInfo
 from kompass.launcher import Launcher
@@ -35,6 +37,7 @@ from ament_index_python.packages import (
 
 def kompass_bringup():
     package_dir = get_package_share_directory(package_name="kompass")
+    kompass_sim_dir = get_package_share_directory(package_name="kompass_sim")
     config_file = os.path.join(package_dir, "params", "turtlebot3.toml")
 
     # Setup your robot configuration
@@ -55,19 +58,30 @@ def kompass_bringup():
     driver = DriveManager(component_name="drive_manager")
     mapper = LocalMapper(component_name="mapper")
 
+    # Map server
+    map_file = os.path.join(kompass_sim_dir, "maps", "turtlebot3_webots.yaml")
+    config = MapServerConfig(
+        loop_rate=1.0,
+        map_file_path=map_file,  # Path to a 2D map yaml file or a point cloud file
+        grid_resolution=0.5,
+        pc_publish_row=False,
+    )
+    map_server = MapServer(component_name="global_map_server", config=config)
+
     # Publish Twist or TwistStamped from the DriveManager based on the distribution
     if "ROS_DISTRO" in os.environ and (
         os.environ["ROS_DISTRO"] in ["rolling", "jazzy", "kilted"]
     ):
-        cmd_msg_type : str = "TwistStamped"
+        cmd_msg_type: str = "TwistStamped"
     else:
         cmd_msg_type = "Twist"
 
-    driver.outputs(robot_command=Topic(name="/cmd_vel", msg_type=cmd_msg_type))
+    driver.outputs(command=Topic(name="/cmd_vel", msg_type=cmd_msg_type))
 
     # Configure Controller options
     controller.algorithm = ControllersID.DWA
     controller.direct_sensor = False
+    controller.run_type = "Timed"
 
     # Run the Planner as an action server
     planner.run_type = "ActionServer"
@@ -76,12 +90,12 @@ def kompass_bringup():
     driver.on_fail(action=Action(driver.restart))
 
     # DEFINE EVENTS - Uncomment this code to add reactive behavior in case of emergency stopping
-    # event_emergency_stop = event.OnEqual(
-    #     "emergency_stop",
-    #     Topic(name="emergency_stop", msg_type="Bool"),
-    #     True,
-    #     "data",
-    # )
+    event_emergency_stop = event.OnEqual(
+        "emergency_stop",
+        Topic(name="emergency_stop", msg_type="Bool"),
+        True,
+        "data",
+    )
     event_controller_fail = event.OnEqual(
         "controller_fail",
         Topic(name="controller_status", msg_type="ComponentStatus"),
@@ -127,10 +141,10 @@ def kompass_bringup():
         event_clicked_point: [LogInfo(msg="Got new goal point"), send_goal],
         event_controller_fail: unblock_action,
         # Add the event action - Uncomment this code to add reactive behavior in case of emergency stopping
-        # event_emergency_stop: [
-        #     ComponentActions.restart(component=planner),
-        #     unblock_action,
-        # ],
+        event_emergency_stop: [
+            ComponentActions.restart(component=planner),
+            unblock_action,
+        ],
     }
 
     # Setup the launcher
@@ -138,7 +152,7 @@ def kompass_bringup():
 
     # Add Kompass components
     launcher.kompass(
-        components=[planner, controller, mapper, driver],
+        components=[driver, mapper, map_server, controller, planner],
         events_actions=events_actions,
         multiprocessing=True,
     )

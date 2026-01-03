@@ -184,7 +184,7 @@ class Planner(Component):
 
         # Path and ROS path message
         self.path = None
-        self.recorded_motion = None
+        self._recorded_motion = None
         self._recording_on = False
         self.ros_path = None
 
@@ -331,6 +331,7 @@ class Planner(Component):
         :return: Action result
         :rtype: PlanPathAction.Result
         """
+        self.get_logger().info("Executing Action to plan path...")
         # Clear any previous path
         self._clear_path()
 
@@ -368,10 +369,14 @@ class Planner(Component):
         while not self.got_all_inputs(
             inputs_to_check=[self.in_topic_name(TopicsKeys.ROBOT_LOCATION)]
         ):
+            if not goal_handle.is_active or goal_handle.is_cancel_requested:
+                self.get_logger().info("Goal Canceled")
+                return action_result
             self.get_logger().warn(
                 f"Location input topic '{self.in_topic_name(TopicsKeys.ROBOT_LOCATION)}' is not available, waiting...",
                 once=True,
             )
+            time.sleep(1 / self.config.loop_rate)
 
         try:
             while not self.reached_point(goal_state, end_goal_tolerance):
@@ -493,8 +498,6 @@ class Planner(Component):
         # If a plan was produced publish it
         if publish_path and self.path:
             self.ros_path = Path()
-            self.ros_path.header.frame_id = self.config.frames.world
-            self.ros_path.header.stamp = self.get_ros_time()
             points = self.path.getStates()
 
             for point in points:
@@ -509,7 +512,9 @@ class Planner(Component):
                 ros_point.pose.orientation.w = q_rot[0]
                 self.ros_path.poses.append(ros_point)
             try:
-                self.get_publisher(TopicsKeys.GLOBAL_PLAN).publish(self.ros_path)
+                self.get_publisher(TopicsKeys.GLOBAL_PLAN).publish(
+                    self.ros_path, frame_id=self.config.frames.world
+                )
 
             except Exception as e:
                 self.get_logger().error(f"Publishing exception: {e}")
@@ -577,52 +582,6 @@ class Planner(Component):
             self._plan(self.robot_state, self.goal)
 
     # SERVICES CALLBACKS
-    def _save_plan_to_file_srv_callback(
-        self, request: PathFromToFile.Request, response: PathFromToFile.Response
-    ) -> PathFromToFile.Response:
-        """
-        Saves current plan to JSON file if the plan is available
-
-        :param request: ROS service request
-        :type request: PathFromToFile.request
-        :param response: ROS service response
-        :type response: PathFromToFile.response
-        :return: Response
-        :rtype: PathFromToFile.response
-        """
-        self.get_logger().info("RECEIVED SAVE PATH SERVICE REQUEST")
-        if self._recording_on:
-            KompassPath = self.recorded_motion
-        else:
-            KompassPath = self.ros_path
-
-        if KompassPath:
-            self.get_logger().info(f"Saving path of {len(self.ros_path.poses)} points")
-
-            KompassPath.to_json(
-                self.ros_path, json_file=f"{request.file_location}/{request.file_name}"
-            )
-
-            # Log saved path and return service response
-            self.get_logger().info(
-                f"Path saved to {request.file_location}/{request.file_name}"
-            )
-            response.path_length = len(KompassPath.poses)
-            response.global_path = KompassPath
-
-            if self._recording_on:
-                self._recording_on = False
-                self.recorded_motion = None
-
-        else:
-            self.get_logger().warning("No plan is available to save")
-
-            # Return response with empty path of length zero
-            response.path_length = 0.0
-            response.global_path = Path()
-
-        return response
-
     def _start_path_recording_callback(
         self, request: StartPathRecording.Request, response: StartPathRecording.Response
     ) -> StartPathRecording.Response:
@@ -637,7 +596,7 @@ class Planner(Component):
         """
         self.get_logger().info("RECEIVED RECORDING PATH FROM MOTION SERVICE REQUEST")
         if self.robot_state:
-            self.recorded_motion = Path()
+            self._recorded_motion = Path()
             self._recording_on = True
             recording_step = max(
                 request.recording_time_step, 1e-3
@@ -651,22 +610,75 @@ class Planner(Component):
                 f"Started recording motion from odom topic {TopicsKeys.ROBOT_LOCATION}"
             )
         else:
-            self.recorded_motion = None
+            self._recorded_motion = None
             self._recording_on = False
             response.started_recording = False
             response.message = f"Cannot start recording. Location not available on topic: {TopicsKeys.ROBOT_LOCATION}"
+            self.get_logger().info(f"Cannot record returning {response}")
         return response
 
     def __record_new_point_callback(self):
         """Timer callback to record new motion point while recording is on"""
         if not self._recording_on:
             self.destroy_timer(self.__motion_recording_timer)
+            return
+        self._update_state()
         new_pose = PoseStamped()
-        new_pose.pose.position.x = self.robot_state.x
-        new_pose.pose.position.y = self.robot_state.y
-        new_pose.pose.orientation.z = np.sin(self.robot_state.yaw / 2)
-        new_pose.pose.orientation.w = np.cos(self.robot_state.yaw / 2)
-        self.recorded_motion.poses.append(new_pose)
+        new_pose.header.frame_id = self.config.frames.world
+        new_pose.header.stamp = self.get_ros_time()
+        new_pose.pose.position.x = float(self.robot_state.x)
+        new_pose.pose.position.y = float(self.robot_state.y)
+        new_pose.pose.orientation.z = float(np.sin(self.robot_state.yaw / 2))
+        new_pose.pose.orientation.w = float(np.cos(self.robot_state.yaw / 2))
+        self._recorded_motion.poses.append(new_pose)
+
+    def _save_plan_to_file_srv_callback(
+        self, request: PathFromToFile.Request, response: PathFromToFile.Response
+    ) -> PathFromToFile.Response:
+        """
+        Saves current plan to JSON file if the plan is available
+
+        :param request: ROS service request
+        :type request: PathFromToFile.request
+        :param response: ROS service response
+        :type response: PathFromToFile.response
+        :return: Response
+        :rtype: PathFromToFile.response
+        """
+        self.get_logger().info("RECEIVED SAVE PATH SERVICE REQUEST")
+        # If planning and recording is happening simultaneously -> will save the recorded motion
+        if self._recording_on:
+            path = self._recorded_motion
+        else:
+            # If no recording is on -> save the planned path
+            path = self.ros_path
+
+        if path:
+            self.get_logger().info(f"Saving path of {len(path.poses)} points")
+
+            KompassPath.to_json(
+                path, json_file=f"{request.file_location}/{request.file_name}"
+            )
+
+            # Log saved path and return service response
+            self.get_logger().info(
+                f"Path saved to {request.file_location}/{request.file_name}"
+            )
+            response.path_length = KompassPath.length(path)
+            response.path_num_points = len(path.poses)
+
+            if self._recording_on:
+                self._recording_on = False
+                self._recorded_motion = None
+
+        else:
+            self.get_logger().warning("No plan or motion points are available to save")
+
+            # Return response with empty path of length zero
+            response.path_length = 0.0
+            response.path_num_points = 0
+
+        return response
 
     def _load_plan_from_file_srv_callback(
         self, request: PathFromToFile.Request, response: PathFromToFile.Response
@@ -682,16 +694,15 @@ class Planner(Component):
         :rtype: PathFromToFile.response
         """
         self.get_logger().info("RECEIVED LOAD PATH SERVICE REQUEST")
-        self.ros_path = KompassPath.from_json(
-            f"{request.file_location}/{request.file_name}"
-        )
-        if self.ros_path:
+        path = KompassPath.from_json(f"{request.file_location}/{request.file_name}")
+        if path:
+            self.ros_path = path
             # Log saved path and return service response
             self.get_logger().info(
                 f"Path loaded from {request.file_location}/{request.file_name}"
             )
-            response.path_length = len(self.ros_path.poses)
-            response.global_path = self.ros_path
+            response.path_num_points = len(self.ros_path.poses)
+            response.path_length = KompassPath.length(self.ros_path)
 
             self.get_publisher(TopicsKeys.GLOBAL_PLAN).publish(self.ros_path)
 
@@ -700,6 +711,6 @@ class Planner(Component):
 
             # Return response with empty path of length zero
             response.path_length = 0.0
-            response.global_path = Path()
+            response.path_num_points = 0
 
         return response

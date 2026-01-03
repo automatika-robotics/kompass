@@ -18,6 +18,7 @@ Kompass 内置了**高度优化、基于 GPU 的最先进导航算法的 C++ 实
 - 查看 Kompass 的[**核心组件概览**](#核心组件)
 - 快速上手请查阅[**快速入门教程**](https://automatika-robotics.github.io/kompass/tutorials/quick_start.html) 🚀
 - 深入学习请参阅一个[**完整教程**](https://automatika-robotics.github.io/kompass/tutorials/point_navigation.html) 🤖
+- 查看 [**基准测试结果**](#基准测试结果) 📊
 - 想了解设计理念？点击[**设计概念**](https://automatika-robotics.github.io/kompass/advanced/design.html) 📚
 - 探索用于实时系统可视化和控制的 [**动态 Web UI**](#kompass-配方的动态-web-ui) 🖥️
 - (**!NEW**) 利用 **机器人插件 (Robot Plugins)** 🔌 [**在不同机器人和硬件之间移植 KOMPASS 自动化配方**](#使用机器人插件构建通用且可移植的自动化配方应用)
@@ -120,6 +121,25 @@ rosdep install -y --from-paths . --ignore-src
 cd ..
 colcon build
 ```
+
+# 基准测试结果
+
+下面的图表可视化展示了导航栈各组件（由 [`kompass-core`](https://github.com/automatika-robotics/kompass-core) 提供）在不同平台上的性能差异。**对数刻度 (Logarithmic Scale)** 图表对于比较 CPU 与 GPU 的性能至关重要，因为两者之间的差异可能达到数个数量级；而 **线性刻度 (Linear Scale)** 图表则更有助于比较同类硬件之间的性能。请参阅核心仓库中的 [基准测试详情](https://github.com/automatika-robotics/kompass-core/blob/main/src/kompass_cpp/benchmarks/README.md)，了解这些图表是如何生成的以及具体的测试任务。
+
+### 对数刻度（CPU 与 GPU 对比）
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/automatika-robotics/kompass-core/main/docs/benchmark_log_dark.png">
+  <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/automatika-robotics/kompass-core/main/docs/benchmark_log_light.png">
+  <img alt="对数刻度基准测试结果" src="https://raw.githubusercontent.com/automatika-robotics/kompass-core/main/docs/benchmark_log_light.png">
+</picture>
+
+### 线性刻度（绝对时间）
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/automatika-robotics/kompass-core/main/docs/benchmark_abs_dark.png">
+  <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/automatika-robotics/kompass-core/main/docs/benchmark_abs_light.png">
+  <img alt="线性刻度基准测试结果" src="https://raw.githubusercontent.com/automatika-robotics/kompass-core/main/docs/benchmark_abs_light.png">
+</picture>
+
 
 # Kompass 配方的动态 Web UI
 
