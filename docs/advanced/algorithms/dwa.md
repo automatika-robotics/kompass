@@ -80,7 +80,7 @@ All the previous parameters can be configured when using DWA algorithm using a Y
 
 ## Usage Example:
 
-DWA algorithm can be used in the [Controller](../../navigation/control.md) component by setting 'algorithm' property or component config parameter. The Controller will configure DWA algorithm using the default values of all the previous configuration parameters. To configure custom values of the parameters, a YAML file is passed to the component.
+DWA algorithm can be used in the [Controller](../../navigation/control.md) component by setting 'algorithm' property or component config parameter. The Controller will configure DWA algorithm using the default values of all the previous configuration parameters. The specific algorithms parameters can be configured using a config file or the algorithm's configuration class.
 
 
 
