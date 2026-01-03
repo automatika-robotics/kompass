@@ -1072,7 +1072,11 @@ class DriveManager(Component):
             angles = np.arange(0, 2 * np.pi, self.config.pointcloud_angle_resolution)
             # NOTE: Force the DriveManager to use CPU implementation of the CriticalZoneChecker when handling direct PointCloudData due to current limitations of the GPU implementation.
             # TODO: Remove this when GPU implementation is updated in kompass-core
-            self.config.use_gpu = False
+            if self.config.use_gpu:
+                self.get_logger().warn(
+                    "Unsupported configuration detected: detected PointCloud sensor input with 'use_gpu' option enabled. Critical zone checking is currently not supported for GPU implementations with point clouds. Using default CPU implementation..."
+                )
+                self.config.use_gpu = False
 
         if self.config.use_gpu:
             try:
