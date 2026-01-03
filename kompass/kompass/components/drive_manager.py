@@ -1070,6 +1070,9 @@ class DriveManager(Component):
         else:
             input_type = SensorInputType.POINTCLOUD
             angles = np.arange(0, 2 * np.pi, self.config.pointcloud_angle_resolution)
+            # NOTE: Force the DriveManager to use CPU implementation of the CriticalZoneChecker when handling direct PointCloudData due to current limitations of the GPU implementation.
+            # TODO: Remove this when GPU implementation is updated in kompass-core
+            self.config.use_gpu = False
 
         if self.config.use_gpu:
             try:
