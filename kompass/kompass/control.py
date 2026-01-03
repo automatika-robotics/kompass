@@ -5,6 +5,7 @@ from kompass_core.control import (
     DVZConfig,
     VisionRGBFollowerConfig,
     VisionRGBDFollowerConfig,
+    PurePursuitConfig
 )
 
 __all__ = [
@@ -14,4 +15,5 @@ __all__ = [
     "StanleyConfig",
     "DWAConfig",
     "DVZConfig",
+    "PurePursuitConfig",
 ]
