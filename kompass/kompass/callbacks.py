@@ -7,6 +7,7 @@ from ros_sugar.io import GenericCallback, OccupancyGridCallback
 from ros_sugar.io import OdomCallback as BaseOdomCallback
 from ros_sugar.io import PointCallback as BasePointCallback
 from ros_sugar.io import PoseCallback as BasePoseCallback
+from ros_sugar.io import get_logger
 from kompass_core.datatypes import (
     LaserScanData,
     PointCloudData,
@@ -552,10 +553,11 @@ class PointCloudCallback(GenericCallback):
             elif field.name == "z":
                 pc.z_offset = field.offset
 
-        assert (
-            pc.x_offset is not None
-            and pc.y_offset is not None
-            and pc.z_offset is not None
-        ), "Offsets for x, y, z are not found"
+        if (pc.x_offset is None
+        or pc.y_offset is None
+        or pc.z_offset is None
+            ):
+            get_logger(self.node_name).warning("Offsets for x, y, z are not found, point cloud data is null")
+            return None
 
         return pc
