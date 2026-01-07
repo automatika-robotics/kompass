@@ -387,6 +387,7 @@ class DriveManager(Component):
         Update all inputs
         """
         self.__update_robot_state()
+        self.__pc_callback = None
 
         num_sensors = self._inputs_keys.count(TopicsKeys.SPATIAL_SENSOR)
         for idx in range(num_sensors):
@@ -399,14 +400,17 @@ class DriveManager(Component):
                 )
                 break
             elif isinstance(callback, PointCloudCallback):
-                self.sensor_data: Optional[PointCloudData] = callback.get_output(
-                    transformation=self.scan_tf_listener.transform
-                    if self.scan_tf_listener
-                    else None,
-                    get_2d=True,
-                    min_z=0.0,
-                    max_z=self.robot_height,
-                    discard_underground=True,
+                self.__pc_callback = callback
+                self.sensor_data: Optional[PointCloudData] = (
+                    self.__pc_callback.get_output(
+                        transformation=self.scan_tf_listener.transform
+                        if self.scan_tf_listener
+                        else None,
+                        get_2d=True,
+                        min_z=0.0,
+                        max_z=self.robot_height,
+                        discard_underground=True,
+                    )
                 )
                 break
         # If laserscan is not available and safety_stop is enabled -> raise an emergency stop flog to block publishing
@@ -1065,25 +1069,28 @@ class DriveManager(Component):
             time.sleep(1 / self.config.loop_rate)
 
         if isinstance(self.sensor_data, LaserScanData):
-            input_type = SensorInputType.LASERSCAN
-            angles = self.sensor_data.angles
-        else:
-            input_type = SensorInputType.POINTCLOUD
-            angles = np.arange(0, 2 * np.pi, self.config.pointcloud_angle_resolution)
-            # NOTE: Force the DriveManager to use CPU implementation of the CriticalZoneChecker when handling direct PointCloudData due to current limitations of the GPU implementation.
-            # TODO: Remove this when GPU implementation is updated in kompass-core
+            kwargs = {
+                "input_type": SensorInputType.LASERSCAN,
+                "scan_angles": self.sensor_data.angles,
+            }
+        elif isinstance(self.sensor_data, PointCloudData):
+            kwargs = {
+                "input_type": SensorInputType.POINTCLOUD,
+                "scan_angles": np.arange(
+                    0.0,
+                    2 * np.pi,
+                    self.config.pointcloud_angle_resolution,
+                ),
+            }
             if self.config.use_gpu:
-                self.get_logger().warn(
-                    "Unsupported configuration detected: detected PointCloud sensor input with 'use_gpu' option enabled. Critical zone checking is currently not supported for GPU implementations with point clouds. Using default CPU implementation..."
-                )
-                self.config.use_gpu = False
+                # this parameter is only used in the GPU kernel
+                kwargs["cloud_field_type"] = self.__pc_callback.field_type
 
         if self.config.use_gpu:
             try:
                 from kompass_cpp.utils import CriticalZoneCheckerGPU
 
                 self._emergency_checker = CriticalZoneCheckerGPU(
-                    input_type=input_type,
                     robot_shape=robot_shape,
                     robot_dimensions=robot_dimensions,
                     sensor_position_body=self.scan_tf_listener.translation,
@@ -1091,10 +1098,10 @@ class DriveManager(Component):
                     critical_angle=self.config.critical_zone_angle,
                     critical_distance=self.config.critical_zone_distance,
                     slowdown_distance=self.config.slowdown_zone_distance,
-                    scan_angles=angles,
                     max_height=self.robot_height,
                     min_height=-self.robot_height,
                     range_max=3 * self.config.slowdown_zone_distance,
+                    **kwargs,
                 )
                 self.get_logger().info("Initialized CriticalZoneCheckerGPU")
 
@@ -1128,7 +1135,6 @@ class DriveManager(Component):
         from kompass_cpp.utils import CriticalZoneChecker
 
         self._emergency_checker = CriticalZoneChecker(
-            input_type=input_type,
             robot_shape=robot_shape,
             robot_dimensions=robot_dimensions,
             sensor_position_body=self.scan_tf_listener.translation,
@@ -1136,9 +1142,9 @@ class DriveManager(Component):
             critical_angle=self.config.critical_zone_angle,
             critical_distance=self.config.critical_zone_distance,
             slowdown_distance=self.config.slowdown_zone_distance,
-            scan_angles=angles,
             max_height=self.robot_height,
             min_height=-self.robot_height,
             range_max=3 * self.config.slowdown_zone_distance,
+            **kwargs,
         )
         self.get_logger().info("CriticalZoneChecker is READY!")

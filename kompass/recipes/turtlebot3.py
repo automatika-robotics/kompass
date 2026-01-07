@@ -76,7 +76,7 @@ def kompass_bringup():
     else:
         cmd_msg_type = "Twist"
 
-    driver.outputs(command=Topic(name="/cmd_vel", msg_type=cmd_msg_type))
+    driver.outputs(robot_command=Topic(name="/cmd_vel", msg_type=cmd_msg_type))
 
     # Configure Controller options
     controller.algorithm = ControllersID.DWA

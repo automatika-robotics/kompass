@@ -14,6 +14,7 @@ from kompass_core.datatypes import (
 )
 from kompass_core.utils import geometry as GeometryUtils
 from kompass_core.models import RobotState
+from kompass_cpp.types import PointFieldType
 
 from nav_msgs.msg import Odometry
 from sensor_msgs.msg import LaserScan
@@ -521,6 +522,16 @@ class PointCloudCallback(GenericCallback):
         :rtype: None
         """
         super().__init__(input_topic, node_name)
+        self.__x_field_datatype: Optional[PointFieldType] = None
+
+    @property
+    def field_type(self) -> Optional[PointFieldType]:
+        """Getter of the point cloud fields datatype (from the X field)
+
+        :return: Data type
+        :rtype: Optional[PointFieldType]
+        """
+        return self.__x_field_datatype
 
     def _get_output(
         self,
@@ -548,6 +559,8 @@ class PointCloudCallback(GenericCallback):
         for field in self.msg.fields:
             if field.name == "x":
                 pc.x_offset = field.offset
+                # Get the x field point type
+                self.__x_field_datatype = PointFieldType.from_int(field.datatype)
             elif field.name == "y":
                 pc.y_offset = field.offset
             elif field.name == "z":
