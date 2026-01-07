@@ -84,20 +84,14 @@ ROS2のインストールは[公式サイト](https://docs.ros.org/)をご参照
 Ubuntu系システム（Jetpack含む）では、以下を実行してください：
 
 ```bash
-curl https://raw.githubusercontent.com/automatika-robotics/kompass-core/refs/heads/main/build_dependencies/install_gpu.sh | bash
+curl -sSL https://raw.githubusercontent.com/automatika-robotics/kompass-core/refs/heads/main/build_dependencies/install_gpu.sh | bash
 ```
 
 このスクリプトは、[AdaptiveCPP](https://github.com/AdaptiveCpp/AdaptiveCpp) を含むすべての関連依存関係をインストールし、`kompass-core` の最新版をソースからインストールします。事前に[スクリプト](https://github.com/automatika-robotics/kompass-core/blob/main/build_dependencies/install_gpu.sh)の内容を確認することを推奨します。
 
-### pipによるインストール
+### pip を使ったインストール
 
-Ubuntu 22.04以降のバージョンでは、以下のコマンドで依存関係をインストールしてください：
-
-```bash
-sudo apt-get install libompl-dev libfcl-dev libpcl-dev
-```
-
-その後、以下のようにして kompass-core をインストールします：
+以下のように kompass-core をインストールします：
 
 ```bash
 pip install kompass-core

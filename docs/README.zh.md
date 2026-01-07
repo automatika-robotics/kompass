@@ -77,36 +77,32 @@ Kompass 需要 ROS2 环境。支持从 _Foxy_ 到 _Rolling_ 的所有 ROS2 版�
 在任何基于 Ubuntu（包括 Jetpack）的设备上运行：
 
 ```bash
-curl https://raw.githubusercontent.com/automatika-robotics/kompass-core/refs/heads/main/build_dependencies/install_gpu.sh | bash
+curl -sSL https://raw.githubusercontent.com/automatika-robotics/kompass-core/refs/heads/main/build_dependencies/install_gpu.sh | bash
 ```
 
 此脚本将安装所有相关依赖（包括 AdaptiveCPP）并从源码安装最新版本的 kompass-core。建议你先阅读该安装脚本。
 
-### 通过 pip 安装
+### 使用 pip 安装
 
-在 Ubuntu 22.04 或更高版本上，首先安装依赖：
-
-```bash
-sudo apt-get install libompl-dev libfcl-dev libpcl-dev
-```
-
-### 然后安装 kompass-core：
+按如下方式安装 kompass-core：
 
 ```bash
 pip install kompass-core
 ```
 
-或者，您也可以从 [发布页面](https://github.com/automatika-robotics/kompass/releases) 下载适用于您喜欢的发行版的 deb 安装包（包括 kompass_interfaces 和 kompass），然后按照以下方式安装：
+## 安装 Kompass（支持 `humble` 以及所有版本 ≥ `jazzy` 的发行版）
+
+按如下方式安装预构建的 Kompass 二进制包：
+
+```bash
+sudo apt install ros-$ROS_DISTRO-kompass
+```
+
+或者，从 [release 页面](https://github.com/automatika-robotics/kompass/releases) 下载适用于你所使用发行版的 deb 包（包括 kompass_interfaces 和 kompass），并按如下方式安装：
 
 ```bash
 sudo dpkg -i ros-$ROS_DISTRO-kompass-interfaces_$version$DISTRO_$ARCHITECTURE.deb
 sudo dpkg -i ros-$ROS_DISTRO-kompass_$version$DISTRO_$ARCHITECTURE.deb
-```
-
-## 安装 Kompass（二进制包，支持 humble 及以上如 jazzy 等版本）
-
-```bash
-sudo apt install ros-$ROS_DISTRO-kompass
 ```
 
 ## 从源码构建 Kompass
@@ -127,6 +123,7 @@ colcon build
 下面的图表可视化展示了导航栈各组件（由 [`kompass-core`](https://github.com/automatika-robotics/kompass-core) 提供）在不同平台上的性能差异。**对数刻度 (Logarithmic Scale)** 图表对于比较 CPU 与 GPU 的性能至关重要，因为两者之间的差异可能达到数个数量级；而 **线性刻度 (Linear Scale)** 图表则更有助于比较同类硬件之间的性能。请参阅核心仓库中的 [基准测试详情](https://github.com/automatika-robotics/kompass-core/blob/main/src/kompass_cpp/benchmarks/README.md)，了解这些图表是如何生成的以及具体的测试任务。
 
 ### 对数刻度（CPU 与 GPU 对比）
+
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/automatika-robotics/kompass-core/main/docs/benchmark_log_dark.png">
   <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/automatika-robotics/kompass-core/main/docs/benchmark_log_light.png">
@@ -134,20 +131,21 @@ colcon build
 </picture>
 
 ### 线性刻度（绝对时间）
+
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/automatika-robotics/kompass-core/main/docs/benchmark_abs_dark.png">
   <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/automatika-robotics/kompass-core/main/docs/benchmark_abs_light.png">
   <img alt="线性刻度基准测试结果" src="https://raw.githubusercontent.com/automatika-robotics/kompass-core/main/docs/benchmark_abs_light.png">
 </picture>
 
-
 # Kompass 配方的动态 Web UI
 
 借助底层 [**Sugarcoat**](https://github.com/automatika-robotics/sugarcoat) 框架的强大功能，**Kompass** 现在为每个配方提供**完全动态、自动生成的 Web UI**。此功能基于 **FastHTML** 构建，消除了手动 GUI 开发的需求，能够即时提供用于控制和可视化的响应式界面。
 
 该 UI 会自动创建：
-* 配方中使用的所有组件的设置界面。
-* 组件输入/输出的实时数据可视化和控件。
+
+- 配方中使用的所有组件的设置界面。
+- 组件输入/输出的实时数据可视化和控件。
 
 ## 示例 1：视觉跟随器配方 UI
 

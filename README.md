@@ -76,20 +76,14 @@ kompass-core is a python package that provides highly optimized implementations 
 On any Ubuntu (including Jetpack) based machine, you can simply run the following:
 
 ```bash
-curl https://raw.githubusercontent.com/automatika-robotics/kompass-core/refs/heads/main/build_dependencies/install_gpu.sh | bash
+curl -sSL https://raw.githubusercontent.com/automatika-robotics/kompass-core/refs/heads/main/build_dependencies/install_gpu.sh | bash
 ```
 
 This script will install all relevant dependencies, including [AdaptiveCPP](https://github.com/AdaptiveCpp/AdaptiveCpp) and install the latest version of kompass-core from source. It is good practice to read the [script](https://github.com/automatika-robotics/kompass-core/blob/main/build_dependencies/install_gpu.sh) first.
 
 ### Installing with pip
 
-On Ubuntu versions >= 22.04, install dependencies by running the following:
-
-```bash
-sudo apt-get install libompl-dev libfcl-dev libpcl-dev
-```
-
-Then install kompass-core as follows:
+Install kompass-core as follows:
 
 ```bash
 pip install kompass-core
