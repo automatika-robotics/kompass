@@ -2,6 +2,20 @@
 Changelog for package kompass
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* (chore) Adds version check for kompass-core
+* (fix) Uses new PointFieldType for emergency stop checking with point cloud data
+* (fix) Removes assertion from pointcloud callback and gives a warning
+* (fix) Adds pure pursuit config class to control module
+* (fix) Adds warning message for unsupported configuration in drive manager
+* (feature) Adds global map server to turtlebot3 recipe
+* (fix) Adds missing header frame to global path publisher
+* (feature) Enables using pure pursuit controller from kompass-core
+* (fix) Fixes TwistStamped converter
+* (fix) Updates drive manager to enable using point cloud data directly in critical zone check
+* Contributors: ahr, aleph-ra, mkabtoul
+
 0.3.3 (2025-11-30)
 ------------------
 * (fix) Updates critical zone checker initialization to match kompass core
