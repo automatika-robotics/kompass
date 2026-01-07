@@ -2,8 +2,8 @@
 Changelog for package kompass
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+0.4.0 (2026-01-07)
+------------------
 * (chore) Adds version check for kompass-core
 * (fix) Uses new PointFieldType for emergency stop checking with point cloud data
 * (fix) Removes assertion from pointcloud callback and gives a warning
