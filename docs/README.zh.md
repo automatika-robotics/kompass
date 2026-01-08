@@ -120,22 +120,26 @@ colcon build
 
 # 基准测试结果
 
-下面的图表可视化展示了导航栈各组件（由 [`kompass-core`](https://github.com/automatika-robotics/kompass-core) 提供）在不同平台上的性能差异。**对数刻度 (Logarithmic Scale)** 图表对于比较 CPU 与 GPU 的性能至关重要，因为两者之间的差异可能达到数个数量级；而 **线性刻度 (Linear Scale)** 图表则更有助于比较同类硬件之间的性能。请参阅核心仓库中的 [基准测试详情](https://github.com/automatika-robotics/kompass-core/blob/main/src/kompass_cpp/benchmarks/README.md)，了解这些图表是如何生成的以及具体的测试任务。
+下方图表展示了在不同平台上，导航栈各个组件的性能差异（由 [`kompass-core`](https://github.com/automatika-robotics/kompass-core) 提供）。**对数坐标图（Logarithmic Scale）** 对于比较 CPU 与 GPU 的性能尤为重要，因为两者之间的差距可能达到数量级级别。有关这些图表的生成方式以及所测量任务的详细信息，请参阅核心仓库中的[基准测试说明](https://github.com/automatika-robotics/kompass-core/blob/main/src/kompass_cpp/benchmarks/README.md)。
 
-### 对数刻度（CPU 与 GPU 对比）
+### 对数坐标（CPU 与 GPU 对比）
+
+_注意：为确保计时准确性，此图表排除了启用功耗监测的运行结果。_
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/automatika-robotics/kompass-core/main/docs/benchmark_log_dark.png">
   <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/automatika-robotics/kompass-core/main/docs/benchmark_log_light.png">
-  <img alt="对数刻度基准测试结果" src="https://raw.githubusercontent.com/automatika-robotics/kompass-core/main/docs/benchmark_log_light.png">
+  <img alt="对数基准测试结果" src="https://raw.githubusercontent.com/automatika-robotics/kompass-core/main/docs/benchmark_log_light.png">
 </picture>
 
-### 线性刻度（绝对时间）
+### 2. 功耗与能效
+
+_注意：能效的计算方式为 **每焦耳操作数**（吞吐量 / 功率）。数值越高表示效率越好。_
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/automatika-robotics/kompass-core/main/docs/benchmark_abs_dark.png">
-  <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/automatika-robotics/kompass-core/main/docs/benchmark_abs_light.png">
-  <img alt="线性刻度基准测试结果" src="https://raw.githubusercontent.com/automatika-robotics/kompass-core/main/docs/benchmark_abs_light.png">
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/automatika-robotics/kompass-core/main/docs/benchmark_power_dark.png">
+  <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/automatika-robotics/kompass-core/main/docs/benchmark_power_light.png">
+  <img alt="线性基准测试结果" src="https://raw.githubusercontent.com/automatika-robotics/kompass-core/main/docs/benchmark_power_light.png">
 </picture>
 
 # Kompass 配方的动态 Web UI

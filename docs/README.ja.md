@@ -128,33 +128,38 @@ colcon build
 
 ```
 
-
 # ベンチマーク結果
 
-以下のグラフは、ナビゲーションスタックの様々なコンポーネント（[`kompass-core`](https://github.com/automatika-robotics/kompass-core)により提供）における、プラットフォーム間の性能差を可視化したものです。**対数スケール（Logarithmic Scale）**のグラフは、桁違いの差が生じる可能性があるCPUとGPUの性能を比較するために不可欠です。一方、**線形スケール（Linear Scale）**のグラフは、類似したハードウェアクラス内での性能比較に役立ちます。これらのグラフの生成方法や測定されたタスクの詳細については、コアリポジトリの[ベンチマーク詳細](https://github.com/automatika-robotics/kompass-core/blob/main/src/kompass_cpp/benchmarks/README.md)を参照してください。
+以下のプロットは、ナビゲーションスタックの各コンポーネントにおける、プラットフォーム間の性能差を可視化したものです（[`kompass-core`](https://github.com/automatika-robotics/kompass-core) により提供）。**対数スケール（Logarithmic Scale）** のプロットは、CPU と GPU の性能を比較する上で非常に重要です。両者の差が桁違いになる場合があるためです。これらのプロットの生成方法や測定されたタスクの詳細については、コアリポジトリ内の[ベンチマーク詳細](https://github.com/automatika-robotics/kompass-core/blob/main/src/kompass_cpp/benchmarks/README.md)を参照してください。
 
-### 対数スケール（CPU vs GPU 比較）
+### 対数スケール（CPU と GPU の比較）
+
+_注意：計測時間の正確性を確保するため、電力モニタリングが有効な状態で実行された結果は除外しています。_
+
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/automatika-robotics/kompass-core/main/docs/benchmark_log_dark.png">
   <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/automatika-robotics/kompass-core/main/docs/benchmark_log_light.png">
-  <img alt="対数スケールのベンチマーク結果" src="https://raw.githubusercontent.com/automatika-robotics/kompass-core/main/docs/benchmark_log_light.png">
+  <img alt="対数ベンチマーク結果" src="https://raw.githubusercontent.com/automatika-robotics/kompass-core/main/docs/benchmark_log_light.png">
 </picture>
 
-### 線形スケール（絶対時間）
+### 2. 消費電力と効率
+
+_注意：効率は **1 ジュールあたりの処理回数**（スループット / 消費電力）として算出されます。数値が高いほど効率が良いことを示します。_
+
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/automatika-robotics/kompass-core/main/docs/benchmark_abs_dark.png">
-  <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/automatika-robotics/kompass-core/main/docs/benchmark_abs_light.png">
-  <img alt="線形スケールのベンチマーク結果" src="https://raw.githubusercontent.com/automatika-robotics/kompass-core/main/docs/benchmark_abs_light.png">
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/automatika-robotics/kompass-core/main/docs/benchmark_power_dark.png">
+  <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/automatika-robotics/kompass-core/main/docs/benchmark_power_light.png">
+  <img alt="線形ベンチマーク結果" src="https://raw.githubusercontent.com/automatika-robotics/kompass-core/main/docs/benchmark_power_light.png">
 </picture>
-
 
 # Kompassレシピ向けのダイナミックWeb UI
 
 基盤となる [**Sugarcoat**](https://github.com/automatika-robotics/sugarcoat) フレームワークの力を活用し、**Kompass** はすべてのレシピに対して **完全にダイナミックで自動生成された Web UI** を提供するようになりました。この機能は **FastHTML** で構築されており、手動による GUI 開発を不要にし、制御と可視化のためのレスポンシブなインターフェースを即座に提供します。
 
 この UI は自動的に以下を作成します：
-* レシピで使用されるすべてのコンポーネントの設定インターフェース。
-* コンポーネントの入力/出力のためのリアルタイムなデータ可視化と制御。
+
+- レシピで使用されるすべてのコンポーネントの設定インターフェース。
+- コンポーネントの入力/出力のためのリアルタイムなデータ可視化と制御。
 
 ## 例 1：ビジョンフォロワーレシピ UI
 

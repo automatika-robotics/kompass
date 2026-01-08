@@ -35,7 +35,6 @@ Kompass includes **highly optimized, GPU powered, versions of the most cutting e
 
 Find out more about our [**motivation**](https://automatika-robotics.github.io/kompass/why.html) to create Kompass.
 
-
 # Components
 
 Kompass is divided into several interacting components each responsible for one of the navigation subtasks:
@@ -121,30 +120,36 @@ colcon build
 
 # Benchmarking Results
 
-The plots below visualize the performance differences across platforms for various components of the navigation stack (provided by [`kompass-core`](https://github.com/automatika-robotics/kompass-core)). The **Logarithmic Scale** plot is essential for comparing CPU vs. GPU performance where differences can be orders of magnitude large, while the **Linear Scale** plot is useful for comparing performance within similar hardware classes. See the [benchmarking details](https://github.com/automatika-robotics/kompass-core/blob/main/src/kompass_cpp/benchmarks/README.md) in the core repository for how these plots were generated and what tasks were measured.
+The plots below visualize the performance differences across platforms for various components of the navigation stack (provided by [`kompass-core`](https://github.com/automatika-robotics/kompass-core)). The **Logarithmic Scale** plot is essential for comparing CPU vs. GPU performance where differences can be orders of magnitude large. See the [benchmarking details](https://github.com/automatika-robotics/kompass-core/blob/main/src/kompass_cpp/benchmarks/README.md) in the core repository for how these plots were generated and what tasks were measured.
 
 ### Logarithmic Scale (CPU vs GPU Comparison)
+
+_Note: This chart excludes runs where power monitoring was active to ensure timing accuracy._
+
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/automatika-robotics/kompass-core/main/docs/benchmark_log_dark.png">
   <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/automatika-robotics/kompass-core/main/docs/benchmark_log_light.png">
   <img alt="Logarithmic Benchmark Results" src="https://raw.githubusercontent.com/automatika-robotics/kompass-core/main/docs/benchmark_log_light.png">
 </picture>
 
-### Linear Scale (Absolute Time)
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/automatika-robotics/kompass-core/main/docs/benchmark_abs_dark.png">
-  <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/automatika-robotics/kompass-core/main/docs/benchmark_abs_light.png">
-  <img alt="Linear Benchmark Results" src="https://raw.githubusercontent.com/automatika-robotics/kompass-core/main/docs/benchmark_abs_light.png">
-</picture>
+### 2. Power Consumption & Efficiency
 
+_Note: Efficiency is calculated as **Operations per Joule** (Throughput / Watts). Higher is better._
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/automatika-robotics/kompass-core/main/docs/benchmark_power_dark.png">
+  <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/automatika-robotics/kompass-core/main/docs/benchmark_power_light.png">
+  <img alt="Linear Benchmark Results" src="https://raw.githubusercontent.com/automatika-robotics/kompass-core/main/docs/benchmark_power_light.png">
+</picture>
 
 # Dynamic Web UI for Kompass Recipes
 
 Leveraging the power of the underlying [**Sugarcoat**](https://github.com/automatika-robotics/sugarcoat) framework, **Kompass** now offers a **fully dynamic, auto-generated Web UI** for every recipe. This feature is built with **FastHTML** and eliminates manual GUI development, instantly providing a responsive interface for control and visualization.
 
 The UI automatically creates:
-* Settings interfaces for all the components used in the recipe.
-* Real-time data visualizations and controls for component inputs/outputs.
+
+- Settings interfaces for all the components used in the recipe.
+- Real-time data visualizations and controls for component inputs/outputs.
 
 ## Example 1: Vision Follower Recipe UI
 
