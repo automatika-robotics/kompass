@@ -4,6 +4,7 @@ import sys
 from datetime import date
 import xml.etree.ElementTree as ET
 import shutil
+from pathlib import Path
 
 
 sys.path.insert(0, os.path.abspath(".."))
@@ -107,6 +108,99 @@ html_theme_options = {
     "use_edit_page_button": True,
 }
 
+# --- LLMS.TXT CONFIGURATION ---
+# Defines the order of manual documentation for the curriculum
+LLMS_TXT_SELECTION = [
+    # Introduction & Setup
+    "overview.md",
+    "why.md",
+    "install.md",
+    "cli.md",
+    # Getting Started (Simulations & Basics)
+    "tutorials/quick_start.md",
+    "tutorials/quick_start_gazebo.md",
+    "tutorials/quick_start_webots.md",
+    "tutorials/configuration.md",
+    # Core Architecture (Navigation Stack Definition)
+    "navigation/robot.md",
+    "navigation/driver.md",
+    "navigation/control.md",
+    "navigation/path_planning.md",
+    "navigation/motion_server.md",
+    "navigation/mapper.md",
+    "navigation/map_server.md",
+    "navigation/mapping_localization.md",
+    # Key Capabilities & Tutorials
+    "tutorials/point_navigation.md",
+    "tutorials/events_actions.md",
+    "tutorials/vision_tracking.md",
+    "tutorials/vision_tracking_depth.md",
+    # Advanced Concepts & System Design
+    "advanced/design.md",
+    "advanced/types.md",
+    "advanced/extending.md",
+    "advanced/advanced_conf/topics.md",
+    "advanced/advanced_conf/qos.md",
+    # Algorithms (Technical Details)
+    "advanced/algorithms/dwa.md",
+    "advanced/algorithms/pure_pursuit.md",
+    "advanced/algorithms/stanley.md",
+    "advanced/algorithms/vision_follower.md",
+    "advanced/algorithms/dvz.md",
+    "advanced/algorithms/cost_eval.md",
+    # Integrations
+    "integrations/ompl.md",
+    "integrations/fcl.md",
+]
+
+
+def format_for_llm(filename: str, content: str) -> str:
+    """Helper to wrap content in a readable format for LLMs."""
+    # Clean up HTML image tags to reduce noise
+    lines = content.split("\n")
+    cleaned_lines = [line for line in lines if "<img src=" not in line]
+    cleaned_content = "\n".join(cleaned_lines).strip()
+
+    return f"## File: {filename}\n```markdown\n{cleaned_content}\n```\n\n"
+
+
+def generate_llms_txt(app, exception):
+    """Generates llms.txt combining manual docs and autodoc2 API docs."""
+    if exception is not None:
+        return  # Do not generate if build failed
+
+    print("[llms.txt] Starting generation...")
+
+    src_dir = Path(app.srcdir)
+    out_dir = Path(app.outdir)
+    full_text = []
+
+    # Add Preamble
+    preamble = (
+        "# Kompass Documentation\n\n"
+        "The following text contains the documentation for the Kompass framework "
+        "by Automatika Robotics. It is optimized for context ingestion.\n\n"
+    )
+    full_text.append(preamble)
+
+    # Process Manual Docs (Curated List)
+    print(f"[llms.txt] Processing {len(LLMS_TXT_SELECTION)} manual files...")
+    for relative_path in LLMS_TXT_SELECTION:
+        file_path = src_dir / relative_path
+        if file_path.exists():
+            content = file_path.read_text(encoding="utf-8")
+            full_text.append(format_for_llm(relative_path, content))
+        else:
+            print(f"[llms.txt] Warning: Manual file not found: {relative_path}")
+
+    # Write output to the build root
+    output_path = out_dir / "llms.txt"
+    try:
+        output_path.write_text("".join(full_text), encoding="utf-8")
+        print(f"[llms.txt] Successfully generated: {output_path}")
+    except Exception as e:
+        print(f"[llms.txt] Error writing file: {e}")
+
 
 def copy_markdown_files(app, exception):
     """Copy source markdown files"""
@@ -146,3 +240,4 @@ def setup(app):
     """Plugin to post build and copy markdowns as well"""
     app.connect("build-finished", copy_markdown_files)
     app.connect("build-finished", create_robots_txt)
+    app.connect("build-finished", generate_llms_txt)
