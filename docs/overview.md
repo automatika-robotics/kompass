@@ -13,6 +13,7 @@ Kompass includes **highly optimized, GPU powered, versions of the most cutting e
 - [**Install**](install.md) Kompass on your robot 🛠️
 - To get started with Kompass, check the [**quick start**](tutorials/quick_start.md) tutorial 🚀
 - Do a deep dive with one of the [**tutorials**](tutorials/index.md) 🤖
+- Check out the [**Benchmarking Results**](./advanced/benchmark.md) to see how Kompass performs across different hardware ⚡
 - Learn more about the [**design concepts**](advanced/design.md) of Kompass 📚
 - Use the automatically generated [**Dynamic Web UI**](https://automatika-robotics.github.io/sugarcoat/advanced/web_ui.html) for real-time system visualization and control 🖥️
 - (**!NEW**) [**Port KOMPASS automation recipes across different robots and hardware**](https://automatika-robotics.github.io/sugarcoat/advanced/robot_plugins.html) using **Robot Plugins** 🔌
