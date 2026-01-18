@@ -1,0 +1,739 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta content="cQVj-BaADcGVOGB7GOvfbkgJjxni10C2fYWCZ03jOeo" name="google-site-verification" />
+
+    <title>🧩 Design Concepts &#8212; Kompass 0.4.0 documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../_static/styles/theme.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+<link href="../_static/styles/bootstrap.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+<link href="../_static/styles/pydata-sphinx-theme.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+
+  
+  <link href="../_static/vendor/fontawesome/6.5.2/css/all.min.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+  <link rel="preload" as="font" type="font/woff2" crossorigin href="../_static/vendor/fontawesome/6.5.2/webfonts/fa-solid-900.woff2" />
+<link rel="preload" as="font" type="font/woff2" crossorigin href="../_static/vendor/fontawesome/6.5.2/webfonts/fa-brands-400.woff2" />
+<link rel="preload" as="font" type="font/woff2" crossorigin href="../_static/vendor/fontawesome/6.5.2/webfonts/fa-regular-400.woff2" />
+
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=a746c00c" />
+    <link rel="stylesheet" type="text/css" href="../_static/styles/sphinx-book-theme.css?v=eba8b062" />
+    <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../_static/custom.css?v=8eace815" />
+  
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=dfe6caa3a7d634c4db9b" />
+<link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=dfe6caa3a7d634c4db9b" />
+  <script src="../_static/vendor/fontawesome/6.5.2/js/all.min.js?digest=dfe6caa3a7d634c4db9b"></script>
+
+    <script src="../_static/documentation_options.js?v=183391d5"></script>
+    <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../_static/copybutton.js?v=f281be69"></script>
+    <script src="../_static/scripts/sphinx-book-theme.js?v=887ef09a"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'advanced/design';</script>
+    <link rel="canonical" href="https://automatika-robotics.github.io/kompass/advanced/design.html" />
+    <link rel="icon" href="../_static/favicon.png"/>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="🛠️ Advanced Configurations" href="advanced_conf/index.html" />
+    <link rel="prev" title="&lt;no title&gt;" href="index.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <input type="checkbox"
+          class="sidebar-toggle"
+          id="pst-primary-sidebar-checkbox"/>
+  <label class="overlay overlay-primary" for="pst-primary-sidebar-checkbox"></label>
+  
+  <input type="checkbox"
+          class="sidebar-toggle"
+          id="pst-secondary-sidebar-checkbox"/>
+  <label class="overlay overlay-secondary" for="pst-secondary-sidebar-checkbox"></label>
+  
+  <div class="search-button__wrapper">
+    <div class="search-button__overlay"></div>
+    <div class="search-button__search-container">
+<form class="bd-search d-flex align-items-center"
+      action="../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         id="search-input"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form></div>
+  </div>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <div class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+    
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../_static/Kompass_light.png" class="logo__image only-light" alt="Kompass 0.4.0 documentation - Home"/>
+    <script>document.write(`<img src="../_static/Kompass_dark.png" class="logo__image only-dark" alt="Kompass 0.4.0 documentation - Home"/>`);</script>
+  
+  
+</a></div>
+        <div class="sidebar-primary-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://automatikarobotics.com/" title="Automatika" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="../_static/automatika-logo.png" class="icon-link-image" alt="Automatika"/></a>
+        </li>
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/automatika-robotics/kompass" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://discord.gg/B9ZU6qjzND" title="Discord" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-discord fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">Discord</span></a>
+        </li>
+</ul></div>
+        <div class="sidebar-primary-item">
+
+ <script>
+ document.write(`
+   <button class="btn search-button-field search-button__button" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass"></i>
+    <span class="search-button__default-text">Search</span>
+    <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+   </button>
+ `);
+ </script></div>
+        <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item navbar-nav active">
+        <p aria-level="2" class="caption" role="heading"><span class="caption-text">Overview</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../why.html">Why Kompass?</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../install.html">Installation</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../tutorials/quick_start.html">Quick Start</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/quick_start_webots.html">Quick Start (Webots Simulator)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/quick_start_gazebo.html">Quick Start (Gazebo Simulator)</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../cli.html">Kompass CLI</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/index.html">Tutorials Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/point_navigation.html">🎯 Point Navigation: Step-by-Step Tutorial</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/events_actions.html">⚙️ Using Events/Actions in your application</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/vision_tracking.html">📷 Following a moving target using RGB Image</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/vision_tracking_depth.html">🎥 Vision Tracking Using Depth Information</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/configuration.html">🔧 Configuring Components Your Way</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Navigation Components</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../navigation/index.html">Navigation Components Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../navigation/robot.html">Robot Configuration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../navigation/path_planning.html">Planner</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../navigation/control.html">Controller</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../navigation/driver.html">Drive Manager</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../navigation/mapper.html">Local Mapper</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../navigation/map_server.html">Map Server</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../navigation/motion_server.html">Motion Server</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../navigation/mapping_localization.html">Global Mapping and Localization</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Integrations</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../integrations/ompl.html">OMPL (Open Motion Planning Library)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../integrations/fcl.html">FCL (Flexible Collisions Library)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Advanced</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">🧩 Design Concepts</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="advanced_conf/index.html">🛠️ Advanced Configurations</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="advanced_conf/topics.html">Inputs and Outputs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="advanced_conf/qos.html">QoS Configuration</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="algorithms/index.html">🧠 Algorithms</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="algorithms/pure_pursuit.html">Pure Pursuit</a></li>
+<li class="toctree-l2"><a class="reference internal" href="algorithms/dwa.html">DWA (Dynamic Window Approach)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="algorithms/stanley.html">Stanley Steering</a></li>
+<li class="toctree-l2"><a class="reference internal" href="algorithms/dvz.html">DVZ (Deformable Virtual Zone)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="algorithms/vision_follower.html">Vision Follower</a></li>
+<li class="toctree-l2"><a class="reference internal" href="algorithms/cost_eval.html">Trajectory Cost Evaluation</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="types.html">📨 Supported ROS2 Messages</a></li>
+<li class="toctree-l1"><a class="reference internal" href="benchmark.html">Benchmarking Results</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">References</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../apidocs/index.html">API Reference</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../apidocs/kompass/kompass.html"><code class="xref py py-mod docutils literal notranslate"><span class="pre">kompass</span></code></a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l3 has-children"><a class="reference internal" href="../apidocs/kompass/kompass.components.html"><code class="xref py py-mod docutils literal notranslate"><span class="pre">kompass.components</span></code></a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l4"><a class="reference internal" href="../apidocs/kompass/kompass.components.defaults.html"><code class="xref py py-mod docutils literal notranslate"><span class="pre">kompass.components.defaults</span></code></a></li>
+</ul>
+</details></li>
+<li class="toctree-l3"><a class="reference internal" href="../apidocs/kompass/kompass.event.html"><code class="xref py py-mod docutils literal notranslate"><span class="pre">kompass.event</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../apidocs/kompass/kompass.launcher.html"><code class="xref py py-mod docutils literal notranslate"><span class="pre">kompass.launcher</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../apidocs/kompass/kompass.data_types.html"><code class="xref py py-mod docutils literal notranslate"><span class="pre">kompass.data_types</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../apidocs/kompass/kompass.callbacks.html"><code class="xref py py-mod docutils literal notranslate"><span class="pre">kompass.callbacks</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../apidocs/kompass/kompass.actions.html"><code class="xref py py-mod docutils literal notranslate"><span class="pre">kompass.actions</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../apidocs/kompass/kompass.ros.html"><code class="xref py py-mod docutils literal notranslate"><span class="pre">kompass.ros</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../apidocs/kompass/kompass.config.html"><code class="xref py py-mod docutils literal notranslate"><span class="pre">kompass.config</span></code></a></li>
+</ul>
+</details></li>
+</ul>
+</details></li>
+</ul>
+
+    </div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+  </div>
+  
+  <div id="rtd-footer-container"></div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+
+<div class="sbt-scroll-pixel-helper"></div>
+
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item"><button class="sidebar-toggle primary-toggle btn btn-sm" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <span class="fa-solid fa-bars"></span>
+</button></div>
+      
+    </div>
+  
+  
+    <div class="header-article-items__end">
+      
+        <div class="header-article-item">
+
+<div class="article-header-buttons">
+
+
+
+
+
+<div class="dropdown dropdown-source-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Source repositories">
+    <i class="fab fa-github"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="https://github.com/automatika-robotics/kompass/blob/main/docs/advanced/design.md?plain=1" target="_blank"
+   class="btn btn-sm btn-source-file-button dropdown-item"
+   title="Show source"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-code"></i>
+  </span>
+<span class="btn__text-container">Show source</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li><a href="https://github.com/automatika-robotics/kompass/edit/main/docs/advanced/design.md" target="_blank"
+   class="btn btn-sm btn-source-edit-button dropdown-item"
+   title="Suggest edit"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-pencil-alt"></i>
+  </span>
+<span class="btn__text-container">Suggest edit</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li><a href="https://github.com/automatika-robotics/kompass/issues/new?title=Issue%20on%20page%20%2Fadvanced/design.html&body=Your%20issue%20content%20here." target="_blank"
+   class="btn btn-sm btn-source-issues-button dropdown-item"
+   title="Open an issue"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-lightbulb"></i>
+  </span>
+<span class="btn__text-container">Open issue</span>
+</a>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+
+
+<div class="dropdown dropdown-download-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Download this page">
+    <i class="fas fa-download"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="../_sources/advanced/design.md" target="_blank"
+   class="btn btn-sm btn-download-source-button dropdown-item"
+   title="Download source file"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file"></i>
+  </span>
+<span class="btn__text-container">.md</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li>
+<button onclick="window.print()"
+  class="btn btn-sm btn-download-pdf-button dropdown-item"
+  title="Print to PDF"
+  data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file-pdf"></i>
+  </span>
+<span class="btn__text-container">.pdf</span>
+</button>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+<button onclick="toggleFullScreen()"
+  class="btn btn-sm btn-fullscreen-button"
+  title="Fullscreen mode"
+  data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-expand"></i>
+  </span>
+
+</button>
+
+
+
+<script>
+document.write(`
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button" title="light/dark" aria-label="light/dark" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="theme-switch fa-solid fa-sun fa-lg" data-mode="light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg" data-mode="dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"></i>
+  </button>
+`);
+</script>
+
+
+<script>
+document.write(`
+  <button class="btn btn-sm pst-navbar-icon search-button search-button__button" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+  </button>
+`);
+</script>
+<button class="sidebar-toggle secondary-toggle btn btn-sm" title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <span class="fa-solid fa-list"></span>
+</button>
+</div></div>
+      
+    </div>
+  
+</div>
+</div>
+              
+              
+
+<div id="jb-print-docs-body" class="onlyprint">
+    <h1>🧩 Design Concepts</h1>
+    <!-- Table of contents -->
+    <div id="print-main-content">
+        <div id="jb-print-toc">
+            
+            <div>
+                <h2> Contents </h2>
+            </div>
+            <nav aria-label="Page">
+                <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#the-component-smart-execution-unit">1. The Component: Smart Execution unit</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#standardized-inputs-outputs">2. Standardized Inputs &amp; Outputs</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#active-resilience-health-fallbacks">3. Active Resilience: Health &amp; Fallbacks</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#self-monitoring-health-status">Self-Monitoring (Health Status)</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#automatic-recovery-fallbacks">Automatic Recovery (Fallbacks)</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#dynamic-orchestration-events-actions">4. Dynamic Orchestration: Events &amp; Actions</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#flexible-execution-with-performance-in-mind">5. Flexible Execution with Performance in Mind</a></li>
+</ul>
+            </nav>
+        </div>
+    </div>
+</div>
+
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section class="tex2jax_ignore mathjax_ignore" id="design-concepts">
+<h1>🧩 Design Concepts<a class="headerlink" href="#design-concepts" title="Link to this heading">#</a></h1>
+<p>Kompass is built on <a class="reference external" href="https://automatika-robotics.github.io/sugarcoat"><strong>Sugarcoat🍬</strong></a>, inheriting a lightweight, expressive, and event-driven architecture for designing ROS2-based systems.</p>
+<p>At the core of Kompass is the <strong>Component</strong>—a “super-sweetened” version of the standard ROS2 lifecycle node. By standardizing execution, health monitoring, and data flow, Kompass allows you to build navigation stacks that are not just modular, but <strong>reactive</strong> and <strong>self-healing</strong>.</p>
+<p>The following sections outline the five pillars of the Kompass design.</p>
+<section id="the-component-smart-execution-unit">
+<h2>1. The Component: Smart Execution unit<a class="headerlink" href="#the-component-smart-execution-unit" title="Link to this heading">#</a></h2>
+<p>The Component is the atomic unit of logic in Kompass. Unlike a standard node, a Component manages its own lifecycle, validates its own configuration, and reports its own health.</p>
+<figure class="align-center" id="id1">
+<img alt="Kompass Component" class="only-dark" src="../_images/component_dark.png" />
+<figcaption>
+<p><span class="caption-text">Component Structure</span><a class="headerlink" href="#id1" title="Link to this image">#</a></p>
+</figcaption>
+</figure>
+<figure class="align-center" id="id2">
+<img alt="Kompass Component" class="only-light" src="../_images/component_light.png" />
+<figcaption>
+<p><span class="caption-text">Component Structure</span><a class="headerlink" href="#id2" title="Link to this image">#</a></p>
+</figcaption>
+</figure>
+</section>
+<section id="standardized-inputs-outputs">
+<h2>2. Standardized Inputs &amp; Outputs<a class="headerlink" href="#standardized-inputs-outputs" title="Link to this heading">#</a></h2>
+<p>Components communicate through defined <a class="reference external" href="https://automatika-robotics.github.io/sugarcoat/design/topics.html"><strong>Inputs/Outputs</strong></a>, allowing you to easily specify the ROS2 topics that connect different parts of your system.</p>
+<p>To ensure that different navigation components (planners, controllers, mappers) snap together effortlessly, Kompass communicates through <strong>Standardized I/O Keys</strong>. Crucially, each key supports <strong>multiple message types</strong>, providing extra flexibility and out-of-the-box configuration for your data pipelines.</p>
+<p>Each Input/Output key is governed by:</p>
+<ul class="simple">
+<li><p><strong>Allowed Types:</strong> Ensures data compatibility by strictly defining which message classes are accepted (e.g., a map input only accepting <code class="docutils literal notranslate"><span class="pre">OccupancyGrid</span></code>, or a position input can accept both ‘Pose’ and <code class="docutils literal notranslate"><span class="pre">PoseStamped</span></code> messages).</p></li>
+<li><p><strong>Cardinality:</strong> Defines the topology of the connection—specifically, <strong>if a stream is mandatory</strong> and <strong>how many sources are allowed</strong> (e.g., “Requires exactly 1 Odometry source” or “Accepts up to 3 PointCloud sources”).</p></li>
+</ul>
+<div class="admonition seealso">
+<p class="admonition-title">See also</p>
+<p>See a complete list of the Inputs/Outputs keys in Kompass stack along with configuration examples <a class="reference internal" href="advanced_conf/topics.html"><span class="std std-doc">here</span></a></p>
+</div>
+</section>
+<section id="active-resilience-health-fallbacks">
+<h2>3. Active Resilience: Health &amp; Fallbacks<a class="headerlink" href="#active-resilience-health-fallbacks" title="Link to this heading">#</a></h2>
+<p>Robots operate in unpredictable environments. Kompass components are designed to handle failures gracefully rather than crashing the whole stack.</p>
+<section id="self-monitoring-health-status">
+<h3>Self-Monitoring (Health Status)<a class="headerlink" href="#self-monitoring-health-status" title="Link to this heading">#</a></h3>
+<p>Every component continuously introspects its state and broadcasts a <a class="reference external" href="https://automatika-robotics.github.io/sugarcoat/design/status.html"><strong>Health Status</strong></a>. This allows the system to distinguish between a crashing driver and a path planning algorithm that simply can’t find a route.</p>
+<p>The following health codes help diagnose issues at different layers—from algorithmic faults to systemic problems—allowing fine-grained fault handling and robust navigation behavior:</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Status Code</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>0</p></td>
+<td><p>Running - Healthy</p></td>
+</tr>
+<tr class="row-odd"><td><p>1</p></td>
+<td><p>Failure: Algorithm Level</p></td>
+</tr>
+<tr class="row-even"><td><p>2</p></td>
+<td><p>Failure: Component Level</p></td>
+</tr>
+<tr class="row-odd"><td><p>3</p></td>
+<td><p>Failure: System Level</p></td>
+</tr>
+<tr class="row-even"><td><p>4</p></td>
+<td><p>Failure: General</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="automatic-recovery-fallbacks">
+<h3>Automatic Recovery (Fallbacks)<a class="headerlink" href="#automatic-recovery-fallbacks" title="Link to this heading">#</a></h3>
+<p>Why wake up a human when the robot can fix itself? Components are configured with <a class="reference external" href="https://automatika-robotics.github.io/sugarcoat/design/fallbacks.html"><strong>Fallback</strong></a> behaviors. When a specific Health Status level is reported, the component automatically triggers user-defined Actions—such as re-initializing a driver, clearing a costmap, or switching to a recovery behavior—without manual intervention.</p>
+</section>
+</section>
+<section id="dynamic-orchestration-events-actions">
+<h2>4. Dynamic Orchestration: Events &amp; Actions<a class="headerlink" href="#dynamic-orchestration-events-actions" title="Link to this heading">#</a></h2>
+<p>Static navigation stacks are brittle. Kompass uses an Event-Driven Architecture to adapt to changing contexts in real-time.</p>
+<ul class="simple">
+<li><p><a class="reference external" href="https://automatika-robotics.github.io/sugarcoat/design/events.html"><strong>Events</strong></a> (Triggers): These monitor data streams for specific conditions. For example, <code class="docutils literal notranslate"><span class="pre">OnEqual</span></code> (Battery == Low), <code class="docutils literal notranslate"><span class="pre">OnChange</span></code> (Terrain changed), <code class="docutils literal notranslate"><span class="pre">OnGreater</span></code> (Velocity &gt; Limit).</p></li>
+<li><p><a class="reference external" href="https://automatika-robotics.github.io/sugarcoat/design/actions.html"><strong>Actions</strong></a> (Responses): Routines executed when an Event fires (or a Fallback is triggered). for example you can execute a an action to switch the control algorithm or to stop the robot.</p></li>
+</ul>
+<p>This decouples the “monitoring” logic from the “execution” logic, allowing you to compose complex behaviors (e.g., “If Terrain changes to Stairs, trigger SwitchGait action”) purely through configuration.</p>
+</section>
+<section id="flexible-execution-with-performance-in-mind">
+<h2>5. Flexible Execution with Performance in Mind<a class="headerlink" href="#flexible-execution-with-performance-in-mind" title="Link to this heading">#</a></h2>
+<p>Kompass respects that different robots have different compute constraints. The <a class="reference external" href="https://automatika-robotics.github.io/sugarcoat/design/launcher.html"><strong>Launcher</strong></a> allows you to orchestrate your entire stack with a simple Python API, choosing the execution model that fits your hardware:</p>
+<ul class="simple">
+<li><p>Multi-threaded: Components run as threads in a single process. Ideal for low-latency communication via shared memory.</p></li>
+<li><p>Multi-process: Components run in isolated processes. Ideal for stability (one crash doesn’t kill the system) and distributing load.</p></li>
+</ul>
+<p>An internal <a class="reference external" href="https://automatika-robotics.github.io/sugarcoat/design/monitor.html"><strong>Monitor</strong></a> runs alongside the stack, continuously supervising the state of components and the events being triggered—making the system self-aware and adaptable in real-time.</p>
+<figure class="align-center" id="id3">
+<img alt="Kompass Multi-threaded execution" class="only-dark" src="../_images/multi_threaded_dark.png" />
+<figcaption>
+<p><span class="caption-text">Multi-threaded execution</span><a class="headerlink" href="#id3" title="Link to this image">#</a></p>
+</figcaption>
+</figure>
+<figure class="align-center" id="id4">
+<img alt="Kompass Multi-threaded execution" class="only-light" src="../_images/multi_threaded_light.png" />
+<figcaption>
+<p><span class="caption-text">Multi-threaded execution</span><a class="headerlink" href="#id4" title="Link to this image">#</a></p>
+</figcaption>
+</figure>
+<figure class="align-center" id="id5">
+<img alt="Kompass Multi-process execution" class="only-dark" src="../_images/multi_process_dark.png" />
+<figcaption>
+<p><span class="caption-text">Multi-process execution</span><a class="headerlink" href="#id5" title="Link to this image">#</a></p>
+</figcaption>
+</figure>
+<figure class="align-center" id="id6">
+<img alt="Kompass Multi-process execution" class="only-light" src="../_images/multi_process_light.png" />
+<figcaption>
+<p><span class="caption-text">Multi-threaded execution</span><a class="headerlink" href="#id6" title="Link to this image">#</a></p>
+</figcaption>
+</figure>
+<div class="admonition seealso">
+<p class="admonition-title">See also</p>
+<p>Dive deeper into each of these architectural elements in <a class="reference external" href="https://automatika-robotics.github.io/sugarcoat">Sugarcoat🍬 documentation</a></p>
+</div>
+</section>
+</section>
+
+
+                </article>
+              
+
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="index.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">&lt;no title&gt;</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="advanced_conf/index.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">🛠️ Advanced Configurations</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <div class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+  <div class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> Contents
+  </div>
+  <nav class="bd-toc-nav page-toc">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#the-component-smart-execution-unit">1. The Component: Smart Execution unit</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#standardized-inputs-outputs">2. Standardized Inputs &amp; Outputs</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#active-resilience-health-fallbacks">3. Active Resilience: Health &amp; Fallbacks</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#self-monitoring-health-status">Self-Monitoring (Health Status)</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#automatic-recovery-fallbacks">Automatic Recovery (Fallbacks)</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#dynamic-orchestration-events-actions">4. Dynamic Orchestration: Events &amp; Actions</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#flexible-execution-with-performance-in-mind">5. Flexible Execution with Performance in Mind</a></li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+<div class="bd-footer-content__inner container">
+  
+  <div class="footer-item">
+    
+<p class="component-author">
+By Automatika Robotics
+</p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+
+  <p class="copyright">
+    
+      © Copyright 2026, Automatika Robotics.
+      <br/>
+    
+  </p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+</div>
+          </footer>
+        
+
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script src="../_static/scripts/bootstrap.js?digest=dfe6caa3a7d634c4db9b"></script>
+<script src="../_static/scripts/pydata-sphinx-theme.js?digest=dfe6caa3a7d634c4db9b"></script>
+
+  <footer class="bd-footer">
+  </footer>
+  </body>
+</html>

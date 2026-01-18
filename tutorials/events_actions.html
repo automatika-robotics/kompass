@@ -1,0 +1,942 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta content="cQVj-BaADcGVOGB7GOvfbkgJjxni10C2fYWCZ03jOeo" name="google-site-verification" />
+
+    <title>⚙️ Using Events/Actions in your application &#8212; Kompass 0.4.0 documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../_static/styles/theme.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+<link href="../_static/styles/bootstrap.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+<link href="../_static/styles/pydata-sphinx-theme.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+
+  
+  <link href="../_static/vendor/fontawesome/6.5.2/css/all.min.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+  <link rel="preload" as="font" type="font/woff2" crossorigin href="../_static/vendor/fontawesome/6.5.2/webfonts/fa-solid-900.woff2" />
+<link rel="preload" as="font" type="font/woff2" crossorigin href="../_static/vendor/fontawesome/6.5.2/webfonts/fa-brands-400.woff2" />
+<link rel="preload" as="font" type="font/woff2" crossorigin href="../_static/vendor/fontawesome/6.5.2/webfonts/fa-regular-400.woff2" />
+
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=a746c00c" />
+    <link rel="stylesheet" type="text/css" href="../_static/styles/sphinx-book-theme.css?v=eba8b062" />
+    <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../_static/custom.css?v=8eace815" />
+  
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=dfe6caa3a7d634c4db9b" />
+<link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=dfe6caa3a7d634c4db9b" />
+  <script src="../_static/vendor/fontawesome/6.5.2/js/all.min.js?digest=dfe6caa3a7d634c4db9b"></script>
+
+    <script src="../_static/documentation_options.js?v=183391d5"></script>
+    <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../_static/copybutton.js?v=f281be69"></script>
+    <script src="../_static/scripts/sphinx-book-theme.js?v=887ef09a"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'tutorials/events_actions';</script>
+    <link rel="canonical" href="https://automatika-robotics.github.io/kompass/tutorials/events_actions.html" />
+    <link rel="icon" href="../_static/favicon.png"/>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="📷 Following a moving target using RGB Image" href="vision_tracking.html" />
+    <link rel="prev" title="🎯 Point Navigation: Step-by-Step Tutorial" href="point_navigation.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <input type="checkbox"
+          class="sidebar-toggle"
+          id="pst-primary-sidebar-checkbox"/>
+  <label class="overlay overlay-primary" for="pst-primary-sidebar-checkbox"></label>
+  
+  <input type="checkbox"
+          class="sidebar-toggle"
+          id="pst-secondary-sidebar-checkbox"/>
+  <label class="overlay overlay-secondary" for="pst-secondary-sidebar-checkbox"></label>
+  
+  <div class="search-button__wrapper">
+    <div class="search-button__overlay"></div>
+    <div class="search-button__search-container">
+<form class="bd-search d-flex align-items-center"
+      action="../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         id="search-input"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form></div>
+  </div>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <div class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+    
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../_static/Kompass_light.png" class="logo__image only-light" alt="Kompass 0.4.0 documentation - Home"/>
+    <script>document.write(`<img src="../_static/Kompass_dark.png" class="logo__image only-dark" alt="Kompass 0.4.0 documentation - Home"/>`);</script>
+  
+  
+</a></div>
+        <div class="sidebar-primary-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://automatikarobotics.com/" title="Automatika" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="../_static/automatika-logo.png" class="icon-link-image" alt="Automatika"/></a>
+        </li>
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/automatika-robotics/kompass" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://discord.gg/B9ZU6qjzND" title="Discord" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-discord fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">Discord</span></a>
+        </li>
+</ul></div>
+        <div class="sidebar-primary-item">
+
+ <script>
+ document.write(`
+   <button class="btn search-button-field search-button__button" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass"></i>
+    <span class="search-button__default-text">Search</span>
+    <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+   </button>
+ `);
+ </script></div>
+        <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item navbar-nav active">
+        <p aria-level="2" class="caption" role="heading"><span class="caption-text">Overview</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../why.html">Why Kompass?</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../install.html">Installation</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="quick_start.html">Quick Start</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="quick_start_webots.html">Quick Start (Webots Simulator)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="quick_start_gazebo.html">Quick Start (Gazebo Simulator)</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../cli.html">Kompass CLI</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="index.html">Tutorials Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="point_navigation.html">🎯 Point Navigation: Step-by-Step Tutorial</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">⚙️ Using Events/Actions in your application</a></li>
+<li class="toctree-l1"><a class="reference internal" href="vision_tracking.html">📷 Following a moving target using RGB Image</a></li>
+<li class="toctree-l1"><a class="reference internal" href="vision_tracking_depth.html">🎥 Vision Tracking Using Depth Information</a></li>
+<li class="toctree-l1"><a class="reference internal" href="configuration.html">🔧 Configuring Components Your Way</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Navigation Components</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../navigation/index.html">Navigation Components Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../navigation/robot.html">Robot Configuration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../navigation/path_planning.html">Planner</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../navigation/control.html">Controller</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../navigation/driver.html">Drive Manager</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../navigation/mapper.html">Local Mapper</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../navigation/map_server.html">Map Server</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../navigation/motion_server.html">Motion Server</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../navigation/mapping_localization.html">Global Mapping and Localization</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Integrations</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../integrations/ompl.html">OMPL (Open Motion Planning Library)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../integrations/fcl.html">FCL (Flexible Collisions Library)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Advanced</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../advanced/design.html">🧩 Design Concepts</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../advanced/advanced_conf/index.html">🛠️ Advanced Configurations</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../advanced/advanced_conf/topics.html">Inputs and Outputs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../advanced/advanced_conf/qos.html">QoS Configuration</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../advanced/algorithms/index.html">🧠 Algorithms</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../advanced/algorithms/pure_pursuit.html">Pure Pursuit</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../advanced/algorithms/dwa.html">DWA (Dynamic Window Approach)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../advanced/algorithms/stanley.html">Stanley Steering</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../advanced/algorithms/dvz.html">DVZ (Deformable Virtual Zone)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../advanced/algorithms/vision_follower.html">Vision Follower</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../advanced/algorithms/cost_eval.html">Trajectory Cost Evaluation</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../advanced/types.html">📨 Supported ROS2 Messages</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../advanced/benchmark.html">Benchmarking Results</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">References</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../apidocs/index.html">API Reference</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../apidocs/kompass/kompass.html"><code class="xref py py-mod docutils literal notranslate"><span class="pre">kompass</span></code></a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l3 has-children"><a class="reference internal" href="../apidocs/kompass/kompass.components.html"><code class="xref py py-mod docutils literal notranslate"><span class="pre">kompass.components</span></code></a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l4"><a class="reference internal" href="../apidocs/kompass/kompass.components.defaults.html"><code class="xref py py-mod docutils literal notranslate"><span class="pre">kompass.components.defaults</span></code></a></li>
+</ul>
+</details></li>
+<li class="toctree-l3"><a class="reference internal" href="../apidocs/kompass/kompass.event.html"><code class="xref py py-mod docutils literal notranslate"><span class="pre">kompass.event</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../apidocs/kompass/kompass.launcher.html"><code class="xref py py-mod docutils literal notranslate"><span class="pre">kompass.launcher</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../apidocs/kompass/kompass.data_types.html"><code class="xref py py-mod docutils literal notranslate"><span class="pre">kompass.data_types</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../apidocs/kompass/kompass.callbacks.html"><code class="xref py py-mod docutils literal notranslate"><span class="pre">kompass.callbacks</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../apidocs/kompass/kompass.actions.html"><code class="xref py py-mod docutils literal notranslate"><span class="pre">kompass.actions</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../apidocs/kompass/kompass.ros.html"><code class="xref py py-mod docutils literal notranslate"><span class="pre">kompass.ros</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../apidocs/kompass/kompass.config.html"><code class="xref py py-mod docutils literal notranslate"><span class="pre">kompass.config</span></code></a></li>
+</ul>
+</details></li>
+</ul>
+</details></li>
+</ul>
+
+    </div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+  </div>
+  
+  <div id="rtd-footer-container"></div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+
+<div class="sbt-scroll-pixel-helper"></div>
+
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item"><button class="sidebar-toggle primary-toggle btn btn-sm" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <span class="fa-solid fa-bars"></span>
+</button></div>
+      
+    </div>
+  
+  
+    <div class="header-article-items__end">
+      
+        <div class="header-article-item">
+
+<div class="article-header-buttons">
+
+
+
+
+
+<div class="dropdown dropdown-source-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Source repositories">
+    <i class="fab fa-github"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="https://github.com/automatika-robotics/kompass/blob/main/docs/tutorials/events_actions.md?plain=1" target="_blank"
+   class="btn btn-sm btn-source-file-button dropdown-item"
+   title="Show source"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-code"></i>
+  </span>
+<span class="btn__text-container">Show source</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li><a href="https://github.com/automatika-robotics/kompass/edit/main/docs/tutorials/events_actions.md" target="_blank"
+   class="btn btn-sm btn-source-edit-button dropdown-item"
+   title="Suggest edit"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-pencil-alt"></i>
+  </span>
+<span class="btn__text-container">Suggest edit</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li><a href="https://github.com/automatika-robotics/kompass/issues/new?title=Issue%20on%20page%20%2Ftutorials/events_actions.html&body=Your%20issue%20content%20here." target="_blank"
+   class="btn btn-sm btn-source-issues-button dropdown-item"
+   title="Open an issue"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-lightbulb"></i>
+  </span>
+<span class="btn__text-container">Open issue</span>
+</a>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+
+
+<div class="dropdown dropdown-download-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Download this page">
+    <i class="fas fa-download"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="../_sources/tutorials/events_actions.md" target="_blank"
+   class="btn btn-sm btn-download-source-button dropdown-item"
+   title="Download source file"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file"></i>
+  </span>
+<span class="btn__text-container">.md</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li>
+<button onclick="window.print()"
+  class="btn btn-sm btn-download-pdf-button dropdown-item"
+  title="Print to PDF"
+  data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file-pdf"></i>
+  </span>
+<span class="btn__text-container">.pdf</span>
+</button>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+<button onclick="toggleFullScreen()"
+  class="btn btn-sm btn-fullscreen-button"
+  title="Fullscreen mode"
+  data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-expand"></i>
+  </span>
+
+</button>
+
+
+
+<script>
+document.write(`
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button" title="light/dark" aria-label="light/dark" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="theme-switch fa-solid fa-sun fa-lg" data-mode="light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg" data-mode="dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"></i>
+  </button>
+`);
+</script>
+
+
+<script>
+document.write(`
+  <button class="btn btn-sm pst-navbar-icon search-button search-button__button" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+  </button>
+`);
+</script>
+<button class="sidebar-toggle secondary-toggle btn btn-sm" title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <span class="fa-solid fa-list"></span>
+</button>
+</div></div>
+      
+    </div>
+  
+</div>
+</div>
+              
+              
+
+<div id="jb-print-docs-body" class="onlyprint">
+    <h1>⚙️ Using Events/Actions in your application</h1>
+    <!-- Table of contents -->
+    <div id="print-main-content">
+        <div id="jb-print-toc">
+            
+            <div>
+                <h2> Contents </h2>
+            </div>
+            <nav aria-label="Page">
+                <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#first-event-action-pair">First Event/Action Pair</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#tweak-the-system-using-events">Tweak the system using events</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#events-actions-to-interact-with-external-systems">Events/Actions to interact with external systems</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#complete-recipe">Complete Recipe</a></li>
+</ul>
+            </nav>
+        </div>
+    </div>
+</div>
+
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section class="tex2jax_ignore mathjax_ignore" id="using-events-actions-in-your-application">
+<h1>⚙️ Using Events/Actions in your application<a class="headerlink" href="#using-events-actions-in-your-application" title="Link to this heading">#</a></h1>
+<p>Events/Actions are a powerful tool to make your robot application adaptive to the changing working conditions (both internal and external to the robot), or to extend the operational scope of your application by adapting it to new spaces/usecases.</p>
+<p>In this tutorial we will extend the Turtlebot3 point navigation <a class="reference internal" href="point_navigation.html"><span class="std std-doc">recipe</span></a> by adding a few events/actions to the system.</p>
+<section id="first-event-action-pair">
+<h2>First Event/Action Pair<a class="headerlink" href="#first-event-action-pair" title="Link to this heading">#</a></h2>
+<p>First we define two events, the first is associated with the Controller internal algorithm failing to calculate a new control command by accessing the value of the Health Status broadcasted by the Controller on its own status topic. The second event is triggered when an emergency stop is detected by the DriveManager:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">kompass</span> <span class="kn">import</span> <span class="n">event</span>
+
+<span class="n">event_controller_fail</span> <span class="o">=</span> <span class="n">event</span><span class="o">.</span><span class="n">OnEqual</span><span class="p">(</span>
+    <span class="s2">&quot;controller_fail&quot;</span><span class="p">,</span>
+    <span class="n">Topic</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;controller_status&quot;</span><span class="p">,</span> <span class="n">msg_type</span><span class="o">=</span><span class="s2">&quot;ComponentStatus&quot;</span><span class="p">),</span>
+    <span class="n">ComponentStatus</span><span class="o">.</span><span class="n">STATUS_FAILURE_ALGORITHM_LEVEL</span><span class="p">,</span>
+    <span class="s2">&quot;status&quot;</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="n">event_emergency_stop</span> <span class="o">=</span> <span class="n">event</span><span class="o">.</span><span class="n">OnEqual</span><span class="p">(</span>
+        <span class="s2">&quot;emergency_stop&quot;</span><span class="p">,</span>
+        <span class="n">Topic</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;emergency_stop&quot;</span><span class="p">,</span> <span class="n">msg_type</span><span class="o">=</span><span class="s2">&quot;Bool&quot;</span><span class="p">),</span>
+        <span class="kc">True</span><span class="p">,</span>
+        <span class="s2">&quot;data&quot;</span><span class="p">,</span>
+    <span class="p">)</span>
+</pre></div>
+</div>
+<p>We will link both events with an Action provided by the <code class="docutils literal notranslate"><span class="pre">DriveManager</span></code> called <code class="docutils literal notranslate"><span class="pre">move_to_unblock</span></code>. This is to address two a problem that can occur during navigation when the robot is too close to obstacles or an obstacle is already touching the chassis which will lead many control algorithms to fail. In such cases <code class="docutils literal notranslate"><span class="pre">move_to_unblock</span></code> will help the robot to move a little and escape the clutter or collision area.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">kompass.actions</span> <span class="kn">import</span> <span class="n">Action</span>
+
+<span class="n">unblock_action</span> <span class="o">=</span> <span class="n">Action</span><span class="p">(</span><span class="n">method</span><span class="o">=</span><span class="n">driver</span><span class="o">.</span><span class="n">move_to_unblock</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>We can also define an event for the Planner algorithm failing to produce a new map. We can associate it with the same action for the case where the reference map of the space used by the robot is not accurate. If the map is not accurate the robot can be at a starting point that is marked occupied on the map where it’s in fact free. In this case the the Planner will fail to solve the navigation problem as an invalid start state is passed to the algorithm. In this case executing the <code class="docutils literal notranslate"><span class="pre">move_to_unblock</span></code> action can help escape the invalid space.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">event_planner_algo_fail</span> <span class="o">=</span> <span class="n">event</span><span class="o">.</span><span class="n">OnEqual</span><span class="p">(</span>
+    <span class="s2">&quot;planner_fail&quot;</span><span class="p">,</span>
+    <span class="n">Topic</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;planner_status&quot;</span><span class="p">,</span> <span class="n">msg_type</span><span class="o">=</span><span class="s2">&quot;ComponentStatus&quot;</span><span class="p">),</span>
+    <span class="n">ComponentStatus</span><span class="o">.</span><span class="n">STATUS_FAILURE_ALGORITHM_LEVEL</span><span class="p">,</span>
+    <span class="p">(</span><span class="s2">&quot;status&quot;</span><span class="p">),</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>If you are using Kompass with the <a class="reference external" href="https://docs.nav2.org/configuration/packages/configuring-costmaps.html">Costmap 2D</a> node: You can associate another Action to the Planner algorithm level fail event which is a ROS2 service call to the node <code class="docutils literal notranslate"><span class="pre">clear_costmap</span></code> service. (Keep reading to see how similar actions are executed!)</p>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>In the point navigation <a class="reference internal" href="point_navigation.html"><span class="std std-doc">recipe</span></a> we added a generic on_fail policy to restart the failed component. This policy will be applied whenever any type of failure is occurs, including the previously used algorithm failure. We can choose to keep this policy, meaning that while the driver is executing the <code class="docutils literal notranslate"><span class="pre">move_to_unblock</span></code> action, then the planner or controller will get restarted.</p>
+</div>
+</section>
+<section id="tweak-the-system-using-events">
+<h2>Tweak the system using events<a class="headerlink" href="#tweak-the-system-using-events" title="Link to this heading">#</a></h2>
+<p>In our <a class="reference internal" href="point_navigation.html"><span class="std std-doc"><em>point navigation</em></span></a> example we used the Planner with a <code class="docutils literal notranslate"><span class="pre">Timed</span></code> run type and used RVIZ clicked point as the goal point input. In this configuration, once a point is clicked on RVIZ (a message is published on the topic), the Planner will keep producing a new plan each loop step from the current position to the clicked point. To track the mission during execution and end the mission once the point is reached we can run the Planner as an <code class="docutils literal notranslate"><span class="pre">ActionServer</span></code>. In this case the Planner produces a new plan on an incoming action request and will no longer take goals directly from RVIZ topic.</p>
+<p>We will use events here to run the Planner as an <code class="docutils literal notranslate"><span class="pre">ActionServer</span></code> and accept the goal directly from RVIZ to get the best of both worlds.</p>
+<p>First, we define an event that is triggered on any clicked point on RVIZ:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">kompass</span> <span class="kn">import</span> <span class="n">event</span>
+<span class="kn">from</span> <span class="nn">kompass.ros</span> <span class="kn">import</span> <span class="n">Topic</span>
+
+<span class="c1"># On any clicked point</span>
+<span class="n">event_clicked_point</span> <span class="o">=</span> <span class="n">event</span><span class="o">.</span><span class="n">OnGreater</span><span class="p">(</span>
+    <span class="s2">&quot;rviz_goal&quot;</span><span class="p">,</span>
+    <span class="n">Topic</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;/clicked_point&quot;</span><span class="p">,</span> <span class="n">msg_type</span><span class="o">=</span><span class="s2">&quot;PointStamped&quot;</span><span class="p">),</span>
+    <span class="mi">0</span><span class="p">,</span>
+    <span class="p">[</span><span class="s2">&quot;header&quot;</span><span class="p">,</span> <span class="s2">&quot;stamp&quot;</span><span class="p">,</span> <span class="s2">&quot;sec&quot;</span><span class="p">],</span>
+<span class="p">)</span>
+
+<span class="c1"># Another way to define the same event</span>
+<span class="n">event_clicked_point_1</span> <span class="o">=</span> <span class="n">event</span><span class="o">.</span><span class="n">OnAny</span><span class="p">(</span>
+    <span class="s2">&quot;rviz_goal_any&quot;</span><span class="p">,</span>
+    <span class="n">Topic</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;/clicked_point&quot;</span><span class="p">,</span> <span class="n">msg_type</span><span class="o">=</span><span class="s2">&quot;PointStamped&quot;</span><span class="p">),</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+<p>Then we will add an Action that sends a goal to the Planner’s ActionServer:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">kompass.actions</span> <span class="kn">import</span> <span class="n">ComponentActions</span>
+<span class="kn">from</span> <span class="nn">kompass_interfaces.action</span> <span class="kn">import</span> <span class="n">PlanPath</span>
+
+<span class="c1"># Define an Action to send a goal to the planner ActionServer</span>
+<span class="n">send_goal</span><span class="p">:</span> <span class="n">Action</span> <span class="o">=</span> <span class="n">ComponentActions</span><span class="o">.</span><span class="n">send_action_goal</span><span class="p">(</span>
+    <span class="n">action_name</span><span class="o">=</span><span class="s2">&quot;/planner/plan_path&quot;</span><span class="p">,</span>
+    <span class="n">action_type</span><span class="o">=</span><span class="n">PlanPath</span><span class="p">,</span>
+    <span class="n">action_request_msg</span><span class="o">=</span><span class="n">PlanPath</span><span class="o">.</span><span class="n">Goal</span><span class="p">(),</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+<p>The only thing left is to parse the clicked point message published on the event topic into the <code class="docutils literal notranslate"><span class="pre">send_goal</span></code> action goal. For this we will write a small method that executes tha desired parsing and pass it to the action using the <code class="docutils literal notranslate"><span class="pre">event_parser</span></code> method available in the Action class:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">kompass_interfaces.msg</span> <span class="kn">import</span> <span class="n">PathTrackingError</span>
+<span class="kn">from</span> <span class="nn">geomerty_msgs.msg</span> <span class="kn">import</span> <span class="n">PointStamped</span>
+
+<span class="c1"># Define a method to parse a message of type PointStamped to the planner PlanPath Goal</span>
+<span class="k">def</span> <span class="nf">goal_point_parser</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">msg</span><span class="p">:</span> <span class="n">PointStamped</span><span class="p">,</span> <span class="o">**</span><span class="n">_</span><span class="p">):</span>
+    <span class="n">action_request</span> <span class="o">=</span> <span class="n">PlanPath</span><span class="o">.</span><span class="n">Goal</span><span class="p">()</span>
+    <span class="n">goal</span> <span class="o">=</span> <span class="n">Pose</span><span class="p">()</span>
+    <span class="n">goal</span><span class="o">.</span><span class="n">position</span><span class="o">.</span><span class="n">x</span> <span class="o">=</span> <span class="n">msg</span><span class="o">.</span><span class="n">point</span><span class="o">.</span><span class="n">x</span>
+    <span class="n">goal</span><span class="o">.</span><span class="n">position</span><span class="o">.</span><span class="n">y</span> <span class="o">=</span> <span class="n">msg</span><span class="o">.</span><span class="n">point</span><span class="o">.</span><span class="n">y</span>
+    <span class="n">action_request</span><span class="o">.</span><span class="n">goal</span> <span class="o">=</span> <span class="n">goal</span>
+    <span class="n">end_tolerance</span> <span class="o">=</span> <span class="n">PathTrackingError</span><span class="p">()</span>
+    <span class="n">end_tolerance</span><span class="o">.</span><span class="n">orientation_error</span> <span class="o">=</span> <span class="mf">0.2</span>
+    <span class="n">end_tolerance</span><span class="o">.</span><span class="n">lateral_distance_error</span> <span class="o">=</span> <span class="mf">0.05</span>
+    <span class="n">action_request</span><span class="o">.</span><span class="n">end_tolerance</span> <span class="o">=</span> <span class="n">end_tolerance</span>
+    <span class="k">return</span> <span class="n">action_request</span>
+
+<span class="c1"># Adds the parser method as an Event parser of the send_goal action</span>
+<span class="n">send_goal</span><span class="o">.</span><span class="n">event_parser</span><span class="p">(</span><span class="n">goal_point_parser</span><span class="p">,</span> <span class="n">output_mapping</span><span class="o">=</span><span class="s2">&quot;action_request_msg&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Now we can write a dictionary to link all our events with their respective actions:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">kompass.actions</span> <span class="kn">import</span> <span class="n">ComponentActions</span><span class="p">,</span> <span class="n">LogInfo</span>
+
+<span class="c1"># Define Events/Actions dictionary</span>
+<span class="n">events_actions</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="n">event_clicked_point</span><span class="p">:</span> <span class="p">[</span><span class="n">LogInfo</span><span class="p">(</span><span class="n">msg</span><span class="o">=</span><span class="s2">&quot;Got a new goal point from RVIZ&quot;</span><span class="p">),</span> <span class="n">send_goal</span><span class="p">],</span>
+    <span class="n">event_emergency_stop</span><span class="p">:</span> <span class="p">[</span>
+        <span class="n">ComponentActions</span><span class="o">.</span><span class="n">restart</span><span class="p">(</span><span class="n">component</span><span class="o">=</span><span class="n">planner</span><span class="p">),</span>
+        <span class="n">unblock_action</span><span class="p">,</span>
+    <span class="p">],</span>
+    <span class="n">event_controller_fail</span><span class="p">:</span> <span class="n">unblock_action</span><span class="p">,</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</section>
+<section id="events-actions-to-interact-with-external-systems">
+<h2>Events/Actions to interact with external systems<a class="headerlink" href="#events-actions-to-interact-with-external-systems" title="Link to this heading">#</a></h2>
+<p>We can also use events/actions to communicate with systems or ROS2 nodes external to Kompass. Here for example, we will add another event for a system-level failure in the planner and an Action to send a service request to the Map Server node to load our reference map from the file:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">from</span> <span class="nn">kompass.actions</span> <span class="kn">import</span> <span class="n">ComponentActions</span>
+<span class="kn">from</span> <span class="nn">nav2_msgs.srv</span> <span class="kn">import</span> <span class="n">LoadMap</span>
+<span class="kn">from</span> <span class="nn">ament_index_python.packages</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">get_package_share_directory</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="n">package_dir</span> <span class="o">=</span> <span class="n">get_package_share_directory</span><span class="p">(</span><span class="n">package_name</span><span class="o">=</span><span class="s2">&quot;kompass&quot;</span><span class="p">)</span>
+
+<span class="n">load_map_req</span> <span class="o">=</span> <span class="n">LoadMap</span><span class="p">()</span>
+<span class="n">load_map_req</span><span class="o">.</span><span class="n">map_url</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span>
+        <span class="n">package_dir</span><span class="p">,</span> <span class="s2">&quot;maps&quot;</span><span class="p">,</span> <span class="s2">&quot;turtlebot3_webots.yaml&quot;</span>
+    <span class="p">)</span>
+
+<span class="n">action_load_map</span> <span class="o">=</span> <span class="n">ComponentActions</span><span class="o">.</span><span class="n">send_srv_request</span><span class="p">(</span>
+    <span class="n">srv_name</span><span class="o">=</span><span class="s2">&quot;/map_server/load_map&quot;</span><span class="p">,</span>
+    <span class="n">srv_type</span><span class="o">=</span><span class="n">LoadMap</span><span class="p">,</span>
+    <span class="n">srv_request_msg</span><span class="o">=</span><span class="n">load_map_req</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="n">event_planner_system_fail</span> <span class="o">=</span> <span class="n">event</span><span class="o">.</span><span class="n">OnEqual</span><span class="p">(</span>
+    <span class="s2">&quot;planner_system_fail&quot;</span><span class="p">,</span>
+    <span class="n">Topic</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;planner_status&quot;</span><span class="p">,</span> <span class="n">msg_type</span><span class="o">=</span><span class="s2">&quot;ComponentStatus&quot;</span><span class="p">),</span>
+    <span class="n">ComponentStatus</span><span class="o">.</span><span class="n">STATUS_FAILURE_SYSTEM_LEVEL</span><span class="p">,</span>
+    <span class="s2">&quot;status&quot;</span><span class="p">,</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p><code class="docutils literal notranslate"><span class="pre">SYSTEM_LEVEL_FAILURE</span></code> occurs in a component when an external error occurs such as an unavailable input.</p>
+</div>
+</section>
+<section id="complete-recipe">
+<h2>Complete Recipe<a class="headerlink" href="#complete-recipe" title="Link to this heading">#</a></h2>
+<p>Et voila! We extended the robustness and adaptivity of our system by using events/actions and without modifying any of the used components and without introducing any new components.</p>
+<p>Finally the full recipe with the added events/actions will look as follows:</p>
+<div class="literal-block-wrapper docutils container" id="id1">
+<div class="code-block-caption"><span class="caption-text">turtlebot3 test</span><a class="headerlink" href="#id1" title="Link to this code">#</a></div>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="linenos">  1</span><span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="linenos">  2</span><span class="kn">import</span> <span class="nn">os</span>
+<span class="linenos">  3</span><span class="kn">from</span> <span class="nn">nav2_msgs.srv</span> <span class="kn">import</span> <span class="n">LoadMap</span>
+<span class="linenos">  4</span>
+<span class="linenos">  5</span><span class="kn">from</span> <span class="nn">kompass_core.models</span> <span class="kn">import</span> <span class="p">(</span>
+<span class="linenos">  6</span>    <span class="n">AngularCtrlLimits</span><span class="p">,</span>
+<span class="linenos">  7</span>    <span class="n">LinearCtrlLimits</span><span class="p">,</span>
+<span class="linenos">  8</span>    <span class="n">RobotGeometry</span><span class="p">,</span>
+<span class="linenos">  9</span>    <span class="n">RobotType</span><span class="p">,</span>
+<span class="linenos"> 10</span><span class="p">)</span>
+<span class="linenos"> 11</span><span class="kn">from</span> <span class="nn">kompass_core.control</span> <span class="kn">import</span> <span class="n">ControllersID</span>
+<span class="linenos"> 12</span>
+<span class="linenos"> 13</span><span class="kn">from</span> <span class="nn">sugar.msg</span> <span class="kn">import</span> <span class="n">ComponentStatus</span>
+<span class="linenos"> 14</span><span class="kn">from</span> <span class="nn">kompass_interfaces.action</span> <span class="kn">import</span> <span class="n">PlanPath</span>
+<span class="linenos"> 15</span><span class="kn">from</span> <span class="nn">kompass_interfaces.msg</span> <span class="kn">import</span> <span class="n">PathTrackingError</span>
+<span class="linenos"> 16</span><span class="kn">from</span> <span class="nn">geometry_msgs.msg</span> <span class="kn">import</span> <span class="n">Pose</span><span class="p">,</span> <span class="n">PointStamped</span>
+<span class="linenos"> 17</span>
+<span class="linenos"> 18</span><span class="kn">from</span> <span class="nn">kompass</span> <span class="kn">import</span> <span class="n">event</span>
+<span class="linenos"> 19</span><span class="kn">from</span> <span class="nn">kompass.actions</span> <span class="kn">import</span> <span class="n">Action</span>
+<span class="linenos"> 20</span>
+<span class="linenos"> 21</span><span class="kn">from</span> <span class="nn">kompass.components</span> <span class="kn">import</span> <span class="p">(</span>
+<span class="linenos"> 22</span>    <span class="n">Controller</span><span class="p">,</span>
+<span class="linenos"> 23</span>    <span class="n">DriveManager</span><span class="p">,</span>
+<span class="linenos"> 24</span>    <span class="n">Planner</span><span class="p">,</span>
+<span class="linenos"> 25</span>    <span class="n">PlannerConfig</span><span class="p">,</span>
+<span class="linenos"> 26</span>    <span class="n">LocalMapper</span><span class="p">,</span>
+<span class="linenos"> 27</span><span class="p">)</span>
+<span class="linenos"> 28</span><span class="kn">from</span> <span class="nn">kompass.actions</span> <span class="kn">import</span> <span class="n">ComponentActions</span><span class="p">,</span> <span class="n">LogInfo</span>
+<span class="linenos"> 29</span><span class="kn">from</span> <span class="nn">kompass.config</span> <span class="kn">import</span> <span class="n">RobotConfig</span>
+<span class="linenos"> 30</span><span class="kn">from</span> <span class="nn">kompass.ros</span> <span class="kn">import</span> <span class="n">Topic</span><span class="p">,</span> <span class="n">Launcher</span>
+<span class="linenos"> 31</span>
+<span class="linenos"> 32</span><span class="kn">from</span> <span class="nn">ament_index_python.packages</span> <span class="kn">import</span> <span class="n">get_package_share_directory</span>
+<span class="linenos"> 33</span>
+<span class="linenos"> 34</span>
+<span class="linenos"> 35</span><span class="n">package_dir</span> <span class="o">=</span> <span class="n">get_package_share_directory</span><span class="p">(</span><span class="n">package_name</span><span class="o">=</span><span class="s2">&quot;kompass&quot;</span><span class="p">)</span>
+<span class="linenos"> 36</span><span class="n">config_file</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">package_dir</span><span class="p">,</span> <span class="s2">&quot;params&quot;</span><span class="p">,</span> <span class="s2">&quot;turtlebot3.yaml&quot;</span><span class="p">)</span>
+<span class="linenos"> 37</span>
+<span class="linenos"> 38</span><span class="c1"># Setup your robot configuration</span>
+<span class="linenos"> 39</span><span class="n">my_robot</span> <span class="o">=</span> <span class="n">RobotConfig</span><span class="p">(</span>
+<span class="linenos"> 40</span>    <span class="n">model_type</span><span class="o">=</span><span class="n">RobotType</span><span class="o">.</span><span class="n">DIFFERENTIAL_DRIVE</span><span class="p">,</span>
+<span class="linenos"> 41</span>    <span class="n">geometry_type</span><span class="o">=</span><span class="n">RobotGeometry</span><span class="o">.</span><span class="n">Type</span><span class="o">.</span><span class="n">CYLINDER</span><span class="p">,</span>
+<span class="linenos"> 42</span>    <span class="n">geometry_params</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">0.1</span><span class="p">,</span> <span class="mf">0.3</span><span class="p">]),</span>
+<span class="linenos"> 43</span>    <span class="n">ctrl_vx_limits</span><span class="o">=</span><span class="n">LinearCtrlLimits</span><span class="p">(</span><span class="n">max_vel</span><span class="o">=</span><span class="mf">0.2</span><span class="p">,</span> <span class="n">max_acc</span><span class="o">=</span><span class="mf">1.5</span><span class="p">,</span> <span class="n">max_decel</span><span class="o">=</span><span class="mf">2.5</span><span class="p">),</span>
+<span class="linenos"> 44</span>    <span class="n">ctrl_omega_limits</span><span class="o">=</span><span class="n">AngularCtrlLimits</span><span class="p">(</span>
+<span class="linenos"> 45</span>        <span class="n">max_vel</span><span class="o">=</span><span class="mf">0.4</span><span class="p">,</span> <span class="n">max_acc</span><span class="o">=</span><span class="mf">2.0</span><span class="p">,</span> <span class="n">max_decel</span><span class="o">=</span><span class="mf">2.0</span><span class="p">,</span> <span class="n">max_steer</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">pi</span> <span class="o">/</span> <span class="mi">3</span><span class="p">)</span>
+<span class="linenos"> 46</span><span class="p">)</span>
+<span class="linenos"> 47</span>
+<span class="linenos"> 48</span><span class="n">config</span> <span class="o">=</span> <span class="n">PlannerConfig</span><span class="p">(</span><span class="n">robot</span><span class="o">=</span><span class="n">my_robot</span><span class="p">,</span> <span class="n">loop_rate</span><span class="o">=</span><span class="mf">1.0</span><span class="p">)</span>
+<span class="linenos"> 49</span><span class="n">planner</span> <span class="o">=</span> <span class="n">Planner</span><span class="p">(</span><span class="n">component_name</span><span class="o">=</span><span class="s2">&quot;planner&quot;</span><span class="p">,</span> <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span> <span class="n">config_file</span><span class="o">=</span><span class="n">config_file</span><span class="p">)</span>
+<span class="linenos"> 50</span>
+<span class="linenos"> 51</span><span class="n">controller</span> <span class="o">=</span> <span class="n">Controller</span><span class="p">(</span><span class="n">component_name</span><span class="o">=</span><span class="s2">&quot;controller&quot;</span><span class="p">)</span>
+<span class="linenos"> 52</span><span class="n">mapper</span> <span class="o">=</span> <span class="n">LocalMapper</span><span class="p">(</span><span class="n">component_name</span><span class="o">=</span><span class="s2">&quot;mapper&quot;</span><span class="p">)</span>
+<span class="linenos"> 53</span>
+<span class="linenos"> 54</span><span class="c1"># Get the default DriveManager</span>
+<span class="linenos"> 55</span><span class="n">driver</span> <span class="o">=</span> <span class="n">DriveManager</span><span class="p">(</span><span class="n">component_name</span><span class="o">=</span><span class="s2">&quot;drive_manager&quot;</span><span class="p">)</span>
+<span class="linenos"> 56</span>
+<span class="linenos"> 57</span><span class="c1"># Publish Twist or TwistStamped from the DriveManager based on the distribution</span>
+<span class="linenos"> 58</span><span class="k">if</span> <span class="s2">&quot;ROS_DISTRO&quot;</span> <span class="ow">in</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span> <span class="ow">and</span> <span class="p">(</span>
+<span class="linenos"> 59</span>    <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s2">&quot;ROS_DISTRO&quot;</span><span class="p">]</span> <span class="ow">in</span> <span class="p">[</span><span class="s2">&quot;rolling&quot;</span><span class="p">,</span> <span class="s2">&quot;jazzy&quot;</span><span class="p">,</span> <span class="s2">&quot;kilted&quot;</span><span class="p">]</span>
+<span class="linenos"> 60</span><span class="p">):</span>
+<span class="linenos"> 61</span>    <span class="n">cmd_msg_type</span> <span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;TwistStamped&quot;</span>
+<span class="linenos"> 62</span><span class="k">else</span><span class="p">:</span>
+<span class="linenos"> 63</span>    <span class="n">cmd_msg_type</span> <span class="o">=</span> <span class="s2">&quot;Twist&quot;</span>
+<span class="linenos"> 64</span>
+<span class="linenos"> 65</span><span class="n">driver</span><span class="o">.</span><span class="n">outputs</span><span class="p">(</span><span class="n">robot_command</span><span class="o">=</span><span class="n">Topic</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;/cmd_vel&quot;</span><span class="p">,</span> <span class="n">msg_type</span><span class="o">=</span><span class="n">cmd_msg_type</span><span class="p">))</span>
+<span class="linenos"> 66</span>
+<span class="linenos"> 67</span><span class="c1"># Configure Controller options</span>
+<span class="linenos"> 68</span><span class="n">controller</span><span class="o">.</span><span class="n">algorithm</span> <span class="o">=</span> <span class="n">ControllersID</span><span class="o">.</span><span class="n">STANLEY</span>
+<span class="linenos"> 69</span><span class="n">controller</span><span class="o">.</span><span class="n">direct_sensor</span> <span class="o">=</span> <span class="kc">False</span>
+<span class="linenos"> 70</span>
+<span class="linenos"> 71</span><span class="n">planner</span><span class="o">.</span><span class="n">run_type</span> <span class="o">=</span> <span class="s2">&quot;ActionServer&quot;</span>
+<span class="linenos"> 72</span>
+<span class="linenos"> 73</span><span class="n">driver</span><span class="o">.</span><span class="n">on_fail</span><span class="p">(</span><span class="n">action</span><span class="o">=</span><span class="n">Action</span><span class="p">(</span><span class="n">driver</span><span class="o">.</span><span class="n">restart</span><span class="p">))</span>
+<span class="linenos"> 74</span>
+<span class="linenos"> 75</span><span class="c1"># DEFINE EVENTS</span>
+<span class="linenos"> 76</span><span class="n">event_emergency_stop</span> <span class="o">=</span> <span class="n">event</span><span class="o">.</span><span class="n">OnEqual</span><span class="p">(</span>
+<span class="linenos"> 77</span>    <span class="s2">&quot;emergency_stop&quot;</span><span class="p">,</span>
+<span class="linenos"> 78</span>    <span class="n">Topic</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;emergency_stop&quot;</span><span class="p">,</span> <span class="n">msg_type</span><span class="o">=</span><span class="s2">&quot;Bool&quot;</span><span class="p">),</span>
+<span class="linenos"> 79</span>    <span class="kc">True</span><span class="p">,</span>
+<span class="linenos"> 80</span>    <span class="s2">&quot;data&quot;</span><span class="p">,</span>
+<span class="linenos"> 81</span><span class="p">)</span>
+<span class="linenos"> 82</span><span class="n">event_controller_fail</span> <span class="o">=</span> <span class="n">event</span><span class="o">.</span><span class="n">OnEqual</span><span class="p">(</span>
+<span class="linenos"> 83</span>    <span class="s2">&quot;controller_fail&quot;</span><span class="p">,</span>
+<span class="linenos"> 84</span>    <span class="n">Topic</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;controller_status&quot;</span><span class="p">,</span> <span class="n">msg_type</span><span class="o">=</span><span class="s2">&quot;ComponentStatus&quot;</span><span class="p">),</span>
+<span class="linenos"> 85</span>    <span class="n">ComponentStatus</span><span class="o">.</span><span class="n">STATUS_FAILURE_ALGORITHM_LEVEL</span><span class="p">,</span>
+<span class="linenos"> 86</span>    <span class="s2">&quot;status&quot;</span><span class="p">,</span>
+<span class="linenos"> 87</span><span class="p">)</span>
+<span class="linenos"> 88</span>
+<span class="linenos"> 89</span><span class="n">event_planner_system_fail</span> <span class="o">=</span> <span class="n">event</span><span class="o">.</span><span class="n">OnEqual</span><span class="p">(</span>
+<span class="linenos"> 90</span>    <span class="s2">&quot;planner_system_fail&quot;</span><span class="p">,</span>
+<span class="linenos"> 91</span>    <span class="n">Topic</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;planner_status&quot;</span><span class="p">,</span> <span class="n">msg_type</span><span class="o">=</span><span class="s2">&quot;ComponentStatus&quot;</span><span class="p">),</span>
+<span class="linenos"> 92</span>    <span class="n">ComponentStatus</span><span class="o">.</span><span class="n">STATUS_FAILURE_SYSTEM_LEVEL</span><span class="p">,</span>
+<span class="linenos"> 93</span>    <span class="s2">&quot;status&quot;</span><span class="p">,</span>
+<span class="linenos"> 94</span><span class="p">)</span>
+<span class="linenos"> 95</span>
+<span class="linenos"> 96</span><span class="c1"># Unblock action</span>
+<span class="linenos"> 97</span><span class="n">unblock_action</span> <span class="o">=</span> <span class="n">Action</span><span class="p">(</span><span class="n">method</span><span class="o">=</span><span class="n">driver</span><span class="o">.</span><span class="n">move_to_unblock</span><span class="p">)</span>
+<span class="linenos"> 98</span>
+<span class="linenos"> 99</span><span class="c1"># On any clicked point</span>
+<span class="linenos">100</span><span class="n">event_clicked_point</span> <span class="o">=</span> <span class="n">event</span><span class="o">.</span><span class="n">OnGreater</span><span class="p">(</span>
+<span class="linenos">101</span>    <span class="s2">&quot;rviz_goal&quot;</span><span class="p">,</span>
+<span class="linenos">102</span>    <span class="n">Topic</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;/clicked_point&quot;</span><span class="p">,</span> <span class="n">msg_type</span><span class="o">=</span><span class="s2">&quot;PointStamped&quot;</span><span class="p">),</span>
+<span class="linenos">103</span>    <span class="mi">0</span><span class="p">,</span>
+<span class="linenos">104</span>    <span class="p">[</span><span class="s2">&quot;header&quot;</span><span class="p">,</span> <span class="s2">&quot;stamp&quot;</span><span class="p">,</span> <span class="s2">&quot;sec&quot;</span><span class="p">],</span>
+<span class="linenos">105</span><span class="p">)</span>
+<span class="linenos">106</span>
+<span class="linenos">107</span><span class="c1"># Define an Action to send a goal to the planner ActionServer</span>
+<span class="linenos">108</span><span class="n">send_goal</span><span class="p">:</span> <span class="n">Action</span> <span class="o">=</span> <span class="n">ComponentActions</span><span class="o">.</span><span class="n">send_action_goal</span><span class="p">(</span>
+<span class="linenos">109</span>    <span class="n">action_name</span><span class="o">=</span><span class="s2">&quot;/planner/plan_path&quot;</span><span class="p">,</span>
+<span class="linenos">110</span>    <span class="n">action_type</span><span class="o">=</span><span class="n">PlanPath</span><span class="p">,</span>
+<span class="linenos">111</span>    <span class="n">action_request_msg</span><span class="o">=</span><span class="n">PlanPath</span><span class="o">.</span><span class="n">Goal</span><span class="p">(),</span>
+<span class="linenos">112</span><span class="p">)</span>
+<span class="linenos">113</span>
+<span class="linenos">114</span><span class="c1"># Define a method to parse a message of type PointStamped to the planner PlanPath Goal</span>
+<span class="linenos">115</span><span class="k">def</span> <span class="nf">goal_point_parser</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">msg</span><span class="p">:</span> <span class="n">PointStamped</span><span class="p">,</span> <span class="o">**</span><span class="n">_</span><span class="p">):</span>
+<span class="linenos">116</span>    <span class="n">action_request</span> <span class="o">=</span> <span class="n">PlanPath</span><span class="o">.</span><span class="n">Goal</span><span class="p">()</span>
+<span class="linenos">117</span>    <span class="n">goal</span> <span class="o">=</span> <span class="n">Pose</span><span class="p">()</span>
+<span class="linenos">118</span>    <span class="n">goal</span><span class="o">.</span><span class="n">position</span><span class="o">.</span><span class="n">x</span> <span class="o">=</span> <span class="n">msg</span><span class="o">.</span><span class="n">point</span><span class="o">.</span><span class="n">x</span>
+<span class="linenos">119</span>    <span class="n">goal</span><span class="o">.</span><span class="n">position</span><span class="o">.</span><span class="n">y</span> <span class="o">=</span> <span class="n">msg</span><span class="o">.</span><span class="n">point</span><span class="o">.</span><span class="n">y</span>
+<span class="linenos">120</span>    <span class="n">action_request</span><span class="o">.</span><span class="n">goal</span> <span class="o">=</span> <span class="n">goal</span>
+<span class="linenos">121</span>    <span class="n">end_tolerance</span> <span class="o">=</span> <span class="n">PathTrackingError</span><span class="p">()</span>
+<span class="linenos">122</span>    <span class="n">end_tolerance</span><span class="o">.</span><span class="n">orientation_error</span> <span class="o">=</span> <span class="mf">0.2</span>
+<span class="linenos">123</span>    <span class="n">end_tolerance</span><span class="o">.</span><span class="n">lateral_distance_error</span> <span class="o">=</span> <span class="mf">0.05</span>
+<span class="linenos">124</span>    <span class="n">action_request</span><span class="o">.</span><span class="n">end_tolerance</span> <span class="o">=</span> <span class="n">end_tolerance</span>
+<span class="linenos">125</span>    <span class="k">return</span> <span class="n">action_request</span>
+<span class="linenos">126</span>
+<span class="linenos">127</span><span class="c1"># Adds the parser method as an Event parser of the send_goal action</span>
+<span class="linenos">128</span><span class="n">send_goal</span><span class="o">.</span><span class="n">event_parser</span><span class="p">(</span><span class="n">goal_point_parser</span><span class="p">,</span> <span class="n">output_mapping</span><span class="o">=</span><span class="s2">&quot;action_request_msg&quot;</span><span class="p">)</span>
+<span class="linenos">129</span>
+<span class="linenos">130</span><span class="c1"># Load map action</span>
+<span class="linenos">131</span><span class="n">load_map_req</span> <span class="o">=</span> <span class="n">LoadMap</span><span class="p">()</span>
+<span class="linenos">132</span><span class="n">load_map_req</span><span class="o">.</span><span class="n">map_url</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">package_dir</span><span class="p">,</span> <span class="s2">&quot;maps&quot;</span><span class="p">,</span> <span class="s2">&quot;turtlebot3_webots.yaml&quot;</span><span class="p">)</span>
+<span class="linenos">133</span>
+<span class="linenos">134</span><span class="n">action_load_map</span> <span class="o">=</span> <span class="n">ComponentActions</span><span class="o">.</span><span class="n">send_srv_request</span><span class="p">(</span>
+<span class="linenos">135</span>    <span class="n">srv_name</span><span class="o">=</span><span class="s2">&quot;/map_server/load_map&quot;</span><span class="p">,</span>
+<span class="linenos">136</span>    <span class="n">srv_type</span><span class="o">=</span><span class="n">LoadMap</span><span class="p">,</span>
+<span class="linenos">137</span>    <span class="n">srv_request_msg</span><span class="o">=</span><span class="n">load_map_req</span><span class="p">)</span>
+<span class="linenos">138</span>
+<span class="linenos">139</span><span class="c1"># Define Events/Actions dictionary</span>
+<span class="linenos">140</span><span class="n">events_actions</span> <span class="o">=</span> <span class="p">{</span>
+<span class="linenos">141</span>    <span class="n">event_clicked_point</span><span class="p">:</span> <span class="p">[</span><span class="n">LogInfo</span><span class="p">(</span><span class="n">msg</span><span class="o">=</span><span class="s2">&quot;Got new goal point&quot;</span><span class="p">),</span> <span class="n">send_goal</span><span class="p">],</span>
+<span class="linenos">142</span>    <span class="n">event_emergency_stop</span><span class="p">:</span> <span class="p">[</span>
+<span class="linenos">143</span>        <span class="n">ComponentActions</span><span class="o">.</span><span class="n">restart</span><span class="p">(</span><span class="n">component</span><span class="o">=</span><span class="n">planner</span><span class="p">),</span>
+<span class="linenos">144</span>        <span class="n">unblock_action</span><span class="p">,</span>
+<span class="linenos">145</span>    <span class="p">],</span>
+<span class="linenos">146</span>    <span class="n">event_controller_fail</span><span class="p">:</span> <span class="n">unblock_action</span><span class="p">,</span>
+<span class="linenos">147</span>    <span class="n">event_planner_system_fail</span><span class="p">:</span> <span class="n">action_load_map</span>
+<span class="linenos">148</span><span class="p">}</span>
+<span class="linenos">149</span>
+<span class="linenos">150</span><span class="c1"># Setup the launcher</span>
+<span class="linenos">151</span><span class="n">launcher</span> <span class="o">=</span> <span class="n">Launcher</span><span class="p">(</span><span class="n">config_file</span><span class="o">=</span><span class="n">config_file</span><span class="p">)</span>
+<span class="linenos">152</span>
+<span class="linenos">153</span><span class="c1"># Add Kompass components</span>
+<span class="linenos">154</span><span class="n">launcher</span><span class="o">.</span><span class="n">kompass</span><span class="p">(</span>
+<span class="linenos">155</span>    <span class="n">components</span><span class="o">=</span><span class="p">[</span><span class="n">planner</span><span class="p">,</span> <span class="n">controller</span><span class="p">,</span> <span class="n">mapper</span><span class="p">,</span> <span class="n">driver</span><span class="p">],</span>
+<span class="linenos">156</span>    <span class="n">events_actions</span><span class="o">=</span><span class="n">events_actions</span><span class="p">,</span>
+<span class="linenos">157</span>    <span class="n">activate_all_components_on_start</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+<span class="linenos">158</span>    <span class="n">multi_processing</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="linenos">159</span>
+<span class="linenos">160</span><span class="c1"># Get odom from localizer filtered odom for all components</span>
+<span class="linenos">161</span><span class="n">odom_topic</span> <span class="o">=</span> <span class="n">Topic</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;/odometry/filtered&quot;</span><span class="p">,</span> <span class="n">msg_type</span><span class="o">=</span><span class="s2">&quot;Odometry&quot;</span><span class="p">)</span>
+<span class="linenos">162</span><span class="n">launcher</span><span class="o">.</span><span class="n">inputs</span><span class="p">(</span><span class="n">location</span><span class="o">=</span><span class="n">odom_topic</span><span class="p">)</span>
+<span class="linenos">163</span>
+<span class="linenos">164</span><span class="c1"># Set the robot config for all components</span>
+<span class="linenos">165</span><span class="n">launcher</span><span class="o">.</span><span class="n">robot</span> <span class="o">=</span> <span class="n">my_robot</span>
+<span class="linenos">166</span>
+<span class="linenos">167</span><span class="n">launcher</span><span class="o">.</span><span class="n">bringup</span><span class="p">()</span>
+</pre></div>
+</div>
+</div>
+</section>
+</section>
+
+
+                </article>
+              
+
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="point_navigation.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">🎯 Point Navigation: Step-by-Step Tutorial</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="vision_tracking.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">📷 Following a moving target using RGB Image</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <div class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+  <div class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> Contents
+  </div>
+  <nav class="bd-toc-nav page-toc">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#first-event-action-pair">First Event/Action Pair</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#tweak-the-system-using-events">Tweak the system using events</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#events-actions-to-interact-with-external-systems">Events/Actions to interact with external systems</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#complete-recipe">Complete Recipe</a></li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+<div class="bd-footer-content__inner container">
+  
+  <div class="footer-item">
+    
+<p class="component-author">
+By Automatika Robotics
+</p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+
+  <p class="copyright">
+    
+      © Copyright 2026, Automatika Robotics.
+      <br/>
+    
+  </p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+</div>
+          </footer>
+        
+
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script src="../_static/scripts/bootstrap.js?digest=dfe6caa3a7d634c4db9b"></script>
+<script src="../_static/scripts/pydata-sphinx-theme.js?digest=dfe6caa3a7d634c4db9b"></script>
+
+  <footer class="bd-footer">
+  </footer>
+  </body>
+</html>

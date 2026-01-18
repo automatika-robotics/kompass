@@ -1,0 +1,851 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta content="cQVj-BaADcGVOGB7GOvfbkgJjxni10C2fYWCZ03jOeo" name="google-site-verification" />
+
+    <title>🎯 Point Navigation: Step-by-Step Tutorial &#8212; Kompass 0.4.0 documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../_static/styles/theme.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+<link href="../_static/styles/bootstrap.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+<link href="../_static/styles/pydata-sphinx-theme.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+
+  
+  <link href="../_static/vendor/fontawesome/6.5.2/css/all.min.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+  <link rel="preload" as="font" type="font/woff2" crossorigin href="../_static/vendor/fontawesome/6.5.2/webfonts/fa-solid-900.woff2" />
+<link rel="preload" as="font" type="font/woff2" crossorigin href="../_static/vendor/fontawesome/6.5.2/webfonts/fa-brands-400.woff2" />
+<link rel="preload" as="font" type="font/woff2" crossorigin href="../_static/vendor/fontawesome/6.5.2/webfonts/fa-regular-400.woff2" />
+
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=a746c00c" />
+    <link rel="stylesheet" type="text/css" href="../_static/styles/sphinx-book-theme.css?v=eba8b062" />
+    <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../_static/custom.css?v=8eace815" />
+  
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=dfe6caa3a7d634c4db9b" />
+<link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=dfe6caa3a7d634c4db9b" />
+  <script src="../_static/vendor/fontawesome/6.5.2/js/all.min.js?digest=dfe6caa3a7d634c4db9b"></script>
+
+    <script src="../_static/documentation_options.js?v=183391d5"></script>
+    <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../_static/copybutton.js?v=f281be69"></script>
+    <script src="../_static/scripts/sphinx-book-theme.js?v=887ef09a"></script>
+    <script>window.MathJax = {"options": {"processHtmlClass": "tex2jax_process|mathjax_process|math|output_area"}}</script>
+    <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'tutorials/point_navigation';</script>
+    <link rel="canonical" href="https://automatika-robotics.github.io/kompass/tutorials/point_navigation.html" />
+    <link rel="icon" href="../_static/favicon.png"/>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="⚙️ Using Events/Actions in your application" href="events_actions.html" />
+    <link rel="prev" title="Tutorials Overview" href="index.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <input type="checkbox"
+          class="sidebar-toggle"
+          id="pst-primary-sidebar-checkbox"/>
+  <label class="overlay overlay-primary" for="pst-primary-sidebar-checkbox"></label>
+  
+  <input type="checkbox"
+          class="sidebar-toggle"
+          id="pst-secondary-sidebar-checkbox"/>
+  <label class="overlay overlay-secondary" for="pst-secondary-sidebar-checkbox"></label>
+  
+  <div class="search-button__wrapper">
+    <div class="search-button__overlay"></div>
+    <div class="search-button__search-container">
+<form class="bd-search d-flex align-items-center"
+      action="../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         id="search-input"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form></div>
+  </div>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <div class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+    
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../_static/Kompass_light.png" class="logo__image only-light" alt="Kompass 0.4.0 documentation - Home"/>
+    <script>document.write(`<img src="../_static/Kompass_dark.png" class="logo__image only-dark" alt="Kompass 0.4.0 documentation - Home"/>`);</script>
+  
+  
+</a></div>
+        <div class="sidebar-primary-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://automatikarobotics.com/" title="Automatika" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="../_static/automatika-logo.png" class="icon-link-image" alt="Automatika"/></a>
+        </li>
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/automatika-robotics/kompass" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://discord.gg/B9ZU6qjzND" title="Discord" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-discord fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">Discord</span></a>
+        </li>
+</ul></div>
+        <div class="sidebar-primary-item">
+
+ <script>
+ document.write(`
+   <button class="btn search-button-field search-button__button" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass"></i>
+    <span class="search-button__default-text">Search</span>
+    <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+   </button>
+ `);
+ </script></div>
+        <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item navbar-nav active">
+        <p aria-level="2" class="caption" role="heading"><span class="caption-text">Overview</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../why.html">Why Kompass?</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../install.html">Installation</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="quick_start.html">Quick Start</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="quick_start_webots.html">Quick Start (Webots Simulator)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="quick_start_gazebo.html">Quick Start (Gazebo Simulator)</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../cli.html">Kompass CLI</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="index.html">Tutorials Overview</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">🎯 Point Navigation: Step-by-Step Tutorial</a></li>
+<li class="toctree-l1"><a class="reference internal" href="events_actions.html">⚙️ Using Events/Actions in your application</a></li>
+<li class="toctree-l1"><a class="reference internal" href="vision_tracking.html">📷 Following a moving target using RGB Image</a></li>
+<li class="toctree-l1"><a class="reference internal" href="vision_tracking_depth.html">🎥 Vision Tracking Using Depth Information</a></li>
+<li class="toctree-l1"><a class="reference internal" href="configuration.html">🔧 Configuring Components Your Way</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Navigation Components</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../navigation/index.html">Navigation Components Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../navigation/robot.html">Robot Configuration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../navigation/path_planning.html">Planner</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../navigation/control.html">Controller</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../navigation/driver.html">Drive Manager</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../navigation/mapper.html">Local Mapper</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../navigation/map_server.html">Map Server</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../navigation/motion_server.html">Motion Server</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../navigation/mapping_localization.html">Global Mapping and Localization</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Integrations</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../integrations/ompl.html">OMPL (Open Motion Planning Library)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../integrations/fcl.html">FCL (Flexible Collisions Library)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Advanced</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../advanced/design.html">🧩 Design Concepts</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../advanced/advanced_conf/index.html">🛠️ Advanced Configurations</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../advanced/advanced_conf/topics.html">Inputs and Outputs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../advanced/advanced_conf/qos.html">QoS Configuration</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../advanced/algorithms/index.html">🧠 Algorithms</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../advanced/algorithms/pure_pursuit.html">Pure Pursuit</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../advanced/algorithms/dwa.html">DWA (Dynamic Window Approach)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../advanced/algorithms/stanley.html">Stanley Steering</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../advanced/algorithms/dvz.html">DVZ (Deformable Virtual Zone)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../advanced/algorithms/vision_follower.html">Vision Follower</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../advanced/algorithms/cost_eval.html">Trajectory Cost Evaluation</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../advanced/types.html">📨 Supported ROS2 Messages</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../advanced/benchmark.html">Benchmarking Results</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">References</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../apidocs/index.html">API Reference</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../apidocs/kompass/kompass.html"><code class="xref py py-mod docutils literal notranslate"><span class="pre">kompass</span></code></a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l3 has-children"><a class="reference internal" href="../apidocs/kompass/kompass.components.html"><code class="xref py py-mod docutils literal notranslate"><span class="pre">kompass.components</span></code></a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l4"><a class="reference internal" href="../apidocs/kompass/kompass.components.defaults.html"><code class="xref py py-mod docutils literal notranslate"><span class="pre">kompass.components.defaults</span></code></a></li>
+</ul>
+</details></li>
+<li class="toctree-l3"><a class="reference internal" href="../apidocs/kompass/kompass.event.html"><code class="xref py py-mod docutils literal notranslate"><span class="pre">kompass.event</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../apidocs/kompass/kompass.launcher.html"><code class="xref py py-mod docutils literal notranslate"><span class="pre">kompass.launcher</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../apidocs/kompass/kompass.data_types.html"><code class="xref py py-mod docutils literal notranslate"><span class="pre">kompass.data_types</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../apidocs/kompass/kompass.callbacks.html"><code class="xref py py-mod docutils literal notranslate"><span class="pre">kompass.callbacks</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../apidocs/kompass/kompass.actions.html"><code class="xref py py-mod docutils literal notranslate"><span class="pre">kompass.actions</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../apidocs/kompass/kompass.ros.html"><code class="xref py py-mod docutils literal notranslate"><span class="pre">kompass.ros</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../apidocs/kompass/kompass.config.html"><code class="xref py py-mod docutils literal notranslate"><span class="pre">kompass.config</span></code></a></li>
+</ul>
+</details></li>
+</ul>
+</details></li>
+</ul>
+
+    </div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+  </div>
+  
+  <div id="rtd-footer-container"></div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+
+<div class="sbt-scroll-pixel-helper"></div>
+
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item"><button class="sidebar-toggle primary-toggle btn btn-sm" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <span class="fa-solid fa-bars"></span>
+</button></div>
+      
+    </div>
+  
+  
+    <div class="header-article-items__end">
+      
+        <div class="header-article-item">
+
+<div class="article-header-buttons">
+
+
+
+
+
+<div class="dropdown dropdown-source-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Source repositories">
+    <i class="fab fa-github"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="https://github.com/automatika-robotics/kompass/blob/main/docs/tutorials/point_navigation.md?plain=1" target="_blank"
+   class="btn btn-sm btn-source-file-button dropdown-item"
+   title="Show source"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-code"></i>
+  </span>
+<span class="btn__text-container">Show source</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li><a href="https://github.com/automatika-robotics/kompass/edit/main/docs/tutorials/point_navigation.md" target="_blank"
+   class="btn btn-sm btn-source-edit-button dropdown-item"
+   title="Suggest edit"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-pencil-alt"></i>
+  </span>
+<span class="btn__text-container">Suggest edit</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li><a href="https://github.com/automatika-robotics/kompass/issues/new?title=Issue%20on%20page%20%2Ftutorials/point_navigation.html&body=Your%20issue%20content%20here." target="_blank"
+   class="btn btn-sm btn-source-issues-button dropdown-item"
+   title="Open an issue"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-lightbulb"></i>
+  </span>
+<span class="btn__text-container">Open issue</span>
+</a>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+
+
+<div class="dropdown dropdown-download-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Download this page">
+    <i class="fas fa-download"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="../_sources/tutorials/point_navigation.md" target="_blank"
+   class="btn btn-sm btn-download-source-button dropdown-item"
+   title="Download source file"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file"></i>
+  </span>
+<span class="btn__text-container">.md</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li>
+<button onclick="window.print()"
+  class="btn btn-sm btn-download-pdf-button dropdown-item"
+  title="Print to PDF"
+  data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file-pdf"></i>
+  </span>
+<span class="btn__text-container">.pdf</span>
+</button>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+<button onclick="toggleFullScreen()"
+  class="btn btn-sm btn-fullscreen-button"
+  title="Fullscreen mode"
+  data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-expand"></i>
+  </span>
+
+</button>
+
+
+
+<script>
+document.write(`
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button" title="light/dark" aria-label="light/dark" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="theme-switch fa-solid fa-sun fa-lg" data-mode="light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg" data-mode="dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"></i>
+  </button>
+`);
+</script>
+
+
+<script>
+document.write(`
+  <button class="btn btn-sm pst-navbar-icon search-button search-button__button" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+  </button>
+`);
+</script>
+<button class="sidebar-toggle secondary-toggle btn btn-sm" title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <span class="fa-solid fa-list"></span>
+</button>
+</div></div>
+      
+    </div>
+  
+</div>
+</div>
+              
+              
+
+<div id="jb-print-docs-body" class="onlyprint">
+    <h1>🎯 Point Navigation: Step-by-Step Tutorial</h1>
+    <!-- Table of contents -->
+    <div id="print-main-content">
+        <div id="jb-print-toc">
+            
+            <div>
+                <h2> Contents </h2>
+            </div>
+            <nav aria-label="Page">
+                <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#step-1-setup-your-robot">Step 1: Setup your robot</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#step-2-setup-your-stack-components">Step 2: Setup your stack components</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#step-4-optional-command-type-configuration">Step 4: (Optional) Command type configuration:</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#step-5-setup-your-launcher">Step 5: Setup your Launcher</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#step-6-add-your-first-event">Step 6: Add your first Event!</a></li>
+</ul>
+            </nav>
+        </div>
+    </div>
+</div>
+
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section class="tex2jax_ignore mathjax_ignore" id="point-navigation-step-by-step-tutorial">
+<h1>🎯 Point Navigation: Step-by-Step Tutorial<a class="headerlink" href="#point-navigation-step-by-step-tutorial" title="Link to this heading">#</a></h1>
+<section id="step-1-setup-your-robot">
+<h2>Step 1: Setup your robot<a class="headerlink" href="#step-1-setup-your-robot" title="Link to this heading">#</a></h2>
+<p>The first step to start navigating is to <a class="reference internal" href="../navigation/robot.html"><span class="std std-doc">configure the robot</span></a> that will use the navigation system. Kompass provides a <code class="docutils literal notranslate"><span class="pre">RobotConfig</span></code> primitive where you can add the robot motion model (ACKERMANN, OMNI, DIFFERENTIAL_DRIVE), the robot geometry parameters and the robot control limits. Lets see how that looks like in code.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">from</span> <span class="nn">kompass.robot</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">AngularCtrlLimits</span><span class="p">,</span>
+    <span class="n">LinearCtrlLimits</span><span class="p">,</span>
+    <span class="n">RobotGeometry</span><span class="p">,</span>
+    <span class="n">RobotType</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span> <span class="nn">kompass.config</span> <span class="kn">import</span> <span class="n">RobotConfig</span>
+
+<span class="c1"># Setup your robot configuration</span>
+<span class="n">my_robot</span> <span class="o">=</span> <span class="n">RobotConfig</span><span class="p">(</span>
+    <span class="n">model_type</span><span class="o">=</span><span class="n">RobotType</span><span class="o">.</span><span class="n">DIFFERENTIAL_DRIVE</span><span class="p">,</span>
+    <span class="n">geometry_type</span><span class="o">=</span><span class="n">RobotGeometry</span><span class="o">.</span><span class="n">Type</span><span class="o">.</span><span class="n">CYLINDER</span><span class="p">,</span>
+    <span class="n">geometry_params</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">0.1</span><span class="p">,</span> <span class="mf">0.3</span><span class="p">]),</span>
+    <span class="n">ctrl_vx_limits</span><span class="o">=</span><span class="n">LinearCtrlLimits</span><span class="p">(</span><span class="n">max_vel</span><span class="o">=</span><span class="mf">0.2</span><span class="p">,</span> <span class="n">max_acc</span><span class="o">=</span><span class="mf">1.5</span><span class="p">,</span> <span class="n">max_decel</span><span class="o">=</span><span class="mf">2.5</span><span class="p">),</span>
+    <span class="n">ctrl_omega_limits</span><span class="o">=</span><span class="n">AngularCtrlLimits</span><span class="p">(</span>
+        <span class="n">max_vel</span><span class="o">=</span><span class="mf">0.4</span><span class="p">,</span> <span class="n">max_acc</span><span class="o">=</span><span class="mf">2.0</span><span class="p">,</span> <span class="n">max_decel</span><span class="o">=</span><span class="mf">2.0</span><span class="p">,</span> <span class="n">max_steer</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">pi</span> <span class="o">/</span> <span class="mi">3</span>
+    <span class="p">),</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+<p>Above we have configured the robot to be a differential drive robot (which is the Turtlebot3 motion model) and approximated the geometry of the robot with a cylinder of dimensions <span class="math notranslate nohighlight">\((Radius = 0.1m, Height = 0.3m)\)</span>. The control limits are configured only for the linear (forward) velocity <span class="math notranslate nohighlight">\(v_x\)</span> and the angular velocity <span class="math notranslate nohighlight">\(\omega\)</span>, as the robot has no lateral <span class="math notranslate nohighlight">\(v_y\)</span> movement.</p>
+<p>Next we need to provide the robot <span class="math notranslate nohighlight">\(TF\)</span> frame names:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">kompass.config</span> <span class="kn">import</span> <span class="n">RobotFrames</span>
+
+<span class="n">robot_frames</span> <span class="o">=</span> <span class="n">RobotFrames</span><span class="p">(</span>
+    <span class="n">robot_base</span><span class="o">=</span><span class="s1">&#39;base_link&#39;</span><span class="p">,</span>
+    <span class="n">odom</span><span class="o">=</span><span class="s1">&#39;odom&#39;</span><span class="p">,</span>
+    <span class="n">world</span><span class="o">=</span><span class="s1">&#39;map&#39;</span><span class="p">,</span>
+    <span class="n">scan</span><span class="o">=</span><span class="s1">&#39;LDS-01&#39;</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+<div class="admonition seealso">
+<p class="admonition-title">See also</p>
+<p>You can learn more <a class="reference internal" href="../navigation/robot.html"><span class="std std-doc">here</span></a> about the available robot configurations in Kompass.</p>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>You can also pass the same previous configuration using a YAML file. See an example in <a class="reference external" href="https://github.com/automatika-robotics/kompass/blob/main/kompass/params/turtlebot3.yaml">turtulebot3.yaml</a></p>
+</div>
+</section>
+<section id="step-2-setup-your-stack-components">
+<h2>Step 2: Setup your stack components<a class="headerlink" href="#step-2-setup-your-stack-components" title="Link to this heading">#</a></h2>
+<p>Kompass components come with pre-configured default values for all the parameters, algorithms and inputs/outputs. To get the default configuration you simply need to provide a name to each component (the ROS2 node name). In this recipe, we will setup the minimal configuration required to run the stack with the Turtlebot3. We set the Planner goal_point input to the <code class="docutils literal notranslate"><span class="pre">clicked_point</span></code> topic on Rviz, and set the Driver output to the Turtlebot3 command.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">kompass.components</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">Controller</span><span class="p">,</span>
+    <span class="n">Planner</span><span class="p">,</span>
+    <span class="n">PlannerConfig</span><span class="p">,</span>
+    <span class="n">DriveManager</span><span class="p">,</span>
+    <span class="n">LocalMapper</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span> <span class="nn">kompass.ros</span> <span class="kn">import</span> <span class="n">Topic</span>
+
+<span class="c1"># Setup components with default config, inputs and outputs</span>
+<span class="n">planner_config</span> <span class="o">=</span> <span class="n">PlannerConfig</span><span class="p">(</span><span class="n">loop_rate</span><span class="o">=</span><span class="mf">1.0</span><span class="p">)</span>       <span class="c1"># 1 Hz</span>
+<span class="n">planner</span> <span class="o">=</span> <span class="n">Planner</span><span class="p">(</span><span class="n">component_name</span><span class="o">=</span><span class="s2">&quot;planner&quot;</span><span class="p">,</span> <span class="n">config</span><span class="o">=</span><span class="n">planner_config</span><span class="p">)</span>
+
+<span class="c1"># Set Planner goal input to Rviz Clicked point</span>
+<span class="n">goal_topic</span> <span class="o">=</span> <span class="n">Topic</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;/clicked_point&quot;</span><span class="p">,</span> <span class="n">msg_type</span><span class="o">=</span><span class="s2">&quot;PointStamped&quot;</span><span class="p">)</span>
+<span class="n">planner</span><span class="o">.</span><span class="n">inputs</span><span class="p">(</span><span class="n">goal_point</span><span class="o">=</span><span class="n">goal_topic</span><span class="p">)</span>
+
+<span class="c1"># Get a default controller component</span>
+<span class="n">controller</span> <span class="o">=</span> <span class="n">Controller</span><span class="p">(</span><span class="n">component_name</span><span class="o">=</span><span class="s2">&quot;controller&quot;</span><span class="p">)</span>
+
+<span class="c1"># Configure Controller to use local map instead of direct sensor information</span>
+<span class="n">controller</span><span class="o">.</span><span class="n">direct_sensor</span> <span class="o">=</span> <span class="kc">False</span>
+
+<span class="c1"># Set DriveManager velocity output to the turtlebot3 twist command</span>
+<span class="n">driver</span> <span class="o">=</span> <span class="n">DriveManager</span><span class="p">(</span><span class="n">component_name</span><span class="o">=</span><span class="s2">&quot;drive_manager&quot;</span><span class="p">)</span>
+<span class="n">driver</span><span class="o">.</span><span class="n">outputs</span><span class="p">(</span><span class="n">command</span><span class="o">=</span><span class="n">Topic</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;cmd_vel&quot;</span><span class="p">,</span> <span class="n">msg_type</span><span class="o">=</span><span class="s2">&quot;Twist&quot;</span><span class="p">))</span>
+
+<span class="c1"># Get a default Local Mapper component</span>
+<span class="n">mapper</span> <span class="o">=</span> <span class="n">LocalMapper</span><span class="p">(</span><span class="n">component_name</span><span class="o">=</span><span class="s2">&quot;mapper&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="admonition seealso">
+<p class="admonition-title">See also</p>
+<p>Several other configuration options are available for each component, refer to the <a class="reference internal" href="../navigation/path_planning.html"><span class="std std-doc">Planner</span></a> and <a class="reference internal" href="../navigation/control.html"><span class="std std-doc">Controller</span></a> dedicated pages for more details.</p>
+</div>
+</section>
+<section id="step-4-optional-command-type-configuration">
+<h2>Step 4: (Optional) Command type configuration:<a class="headerlink" href="#step-4-optional-command-type-configuration" title="Link to this heading">#</a></h2>
+<p>In more recent releases of ROS (starting <code class="docutils literal notranslate"><span class="pre">jazzy</span></code>), many systems and simulators have switched from the <code class="docutils literal notranslate"><span class="pre">Twist</span></code> command message which does not contain any time information to a stamped version of the same message: <code class="docutils literal notranslate"><span class="pre">TwistStamped</span></code>. Using Kompass, it is very straight forward to select one of these two by setting the output type of the <code class="docutils literal notranslate"><span class="pre">DriveManager</span></code> based on the desired output.
+To make this recipe more adaptive and ready to use with different simulations in different ROS2 versions out-of-the-box, let’s detect the <code class="docutils literal notranslate"><span class="pre">$ROS_VERSION</span></code> and set the output accordingly:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Publish Twist or TwistStamped from the DriveManager based on the distribution</span>
+<span class="k">if</span> <span class="s2">&quot;ROS_DISTRO&quot;</span> <span class="ow">in</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span> <span class="ow">and</span> <span class="p">(</span>
+    <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s2">&quot;ROS_DISTRO&quot;</span><span class="p">]</span> <span class="ow">in</span> <span class="p">[</span><span class="s2">&quot;rolling&quot;</span><span class="p">,</span> <span class="s2">&quot;jazzy&quot;</span><span class="p">,</span> <span class="s2">&quot;kilted&quot;</span><span class="p">]</span>
+<span class="p">):</span>
+    <span class="n">cmd_msg_type</span> <span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;TwistStamped&quot;</span>
+<span class="k">else</span><span class="p">:</span>
+    <span class="n">cmd_msg_type</span> <span class="o">=</span> <span class="s2">&quot;Twist&quot;</span>
+
+<span class="n">driver</span><span class="o">.</span><span class="n">outputs</span><span class="p">(</span><span class="n">robot_command</span><span class="o">=</span><span class="n">Topic</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;/cmd_vel&quot;</span><span class="p">,</span> <span class="n">msg_type</span><span class="o">=</span><span class="n">cmd_msg_type</span><span class="p">))</span>
+</pre></div>
+</div>
+</section>
+<section id="step-5-setup-your-launcher">
+<h2>Step 5: Setup your Launcher<a class="headerlink" href="#step-5-setup-your-launcher" title="Link to this heading">#</a></h2>
+<p>The launcher in Kompass is a wrapper for ROS2 launch tools. Launcher requires a Component or a set of Components to start. Launcher can also manage Events/Actions which we will leave out of this simple example (check a more advanced example <a class="reference internal" href="events_actions.html"><span class="std std-doc">here</span></a>).</p>
+<p>After initializing the Launcher with the required components, we also pass the robot configuration and frames to the launcher (which will be forwarded to all the components). We will also set two other parameters; we set ‘activate_all_components_on_start’ to <code class="docutils literal notranslate"><span class="pre">True</span></code> so all the components will transition to ‘active’ state after bringup. We also set ‘multi_processing’ to <code class="docutils literal notranslate"><span class="pre">True</span></code> to start each component in a separate process.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">kompass.ros</span> <span class="kn">import</span> <span class="n">Launcher</span>
+
+
+<span class="c1"># Init a launcher</span>
+<span class="n">launcher</span> <span class="o">=</span> <span class="n">Launcher</span><span class="p">()</span>
+
+<span class="c1"># Pass kompass components to the launcher</span>
+<span class="n">launcher</span><span class="o">.</span><span class="n">kompass</span><span class="p">(</span>
+    <span class="n">components</span><span class="o">=</span><span class="p">[</span><span class="n">planner</span><span class="p">,</span> <span class="n">controller</span><span class="p">,</span> <span class="n">driver</span><span class="p">,</span> <span class="n">mapper</span><span class="p">],</span>
+    <span class="n">activate_all_components_on_start</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="n">multi_processing</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="c1"># Set the robot configuration</span>
+<span class="n">launcher</span><span class="o">.</span><span class="n">robot</span> <span class="o">=</span> <span class="n">robot_config</span>
+
+<span class="c1"># Set the frames</span>
+<span class="n">launcher</span><span class="o">.</span><span class="n">frames</span> <span class="o">=</span> <span class="n">frames_config</span>
+
+<span class="c1"># Fallback Policy: If any component fails -&gt; restart it with unlimited retries</span>
+<span class="n">launcher</span><span class="o">.</span><span class="n">on_fail</span><span class="p">(</span><span class="n">action_name</span><span class="o">=</span><span class="s2">&quot;restart&quot;</span><span class="p">)</span>
+
+<span class="c1"># After all configuration is done bringup the stack</span>
+<span class="n">launcher</span><span class="o">.</span><span class="n">bringup</span><span class="p">()</span>
+</pre></div>
+</div>
+<p>Notice that in the above code we also set a generic fallback policy to restart any failed components.</p>
+<div class="admonition seealso">
+<p class="admonition-title">See also</p>
+<p>There are various fallback mechanisms available in Kompass. Learn more about them in <a class="reference external" href="https://automatika-robotics.github.io/sugarcoat/design/fallbacks.html">Sugarcoat🍬 docs</a>.</p>
+</div>
+<div class="admonition seealso">
+<p class="admonition-title">See also</p>
+<p>To pass other components to the launcher from packages other than Kompass, use the method <code class="docutils literal notranslate"><span class="pre">add_pkg</span></code>. See more details in <a class="reference external" href="https://automatika-robotics.github.io/sugarcoat/advanced/use.html">Sugarcoat🍬</a> about creating your own package and using it with the Launcher.</p>
+</div>
+<p>Finally, we bring up our stack and select the desired logging level.</p>
+<p>Et voila! we have a navigation system ready to run in less than 70 lines of code!</p>
+<div class="literal-block-wrapper docutils container" id="id1">
+<div class="code-block-caption"><span class="caption-text">turtlebot3 test</span><a class="headerlink" href="#id1" title="Link to this code">#</a></div>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="linenos"> 1</span><span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="linenos"> 2</span><span class="kn">from</span> <span class="nn">kompass.robot</span> <span class="kn">import</span> <span class="p">(</span>
+<span class="linenos"> 3</span>    <span class="n">AngularCtrlLimits</span><span class="p">,</span>
+<span class="linenos"> 4</span>    <span class="n">LinearCtrlLimits</span><span class="p">,</span>
+<span class="linenos"> 5</span>    <span class="n">RobotGeometry</span><span class="p">,</span>
+<span class="linenos"> 6</span>    <span class="n">RobotType</span><span class="p">,</span>
+<span class="linenos"> 7</span><span class="p">)</span>
+<span class="linenos"> 8</span><span class="kn">from</span> <span class="nn">kompass.config</span> <span class="kn">import</span> <span class="n">RobotConfig</span><span class="p">,</span> <span class="n">RobotFrames</span>
+<span class="linenos"> 9</span><span class="kn">from</span> <span class="nn">kompass.components</span> <span class="kn">import</span> <span class="p">(</span>
+<span class="linenos">10</span>    <span class="n">Controller</span><span class="p">,</span>
+<span class="linenos">11</span>    <span class="n">DriveManager</span><span class="p">,</span>
+<span class="linenos">12</span>    <span class="n">Planner</span><span class="p">,</span>
+<span class="linenos">13</span>    <span class="n">PlannerConfig</span><span class="p">,</span>
+<span class="linenos">14</span><span class="p">)</span>
+<span class="linenos">15</span><span class="kn">from</span> <span class="nn">kompass.ros</span> <span class="kn">import</span> <span class="n">Topic</span><span class="p">,</span> <span class="n">Launcher</span>
+<span class="linenos">16</span>
+<span class="linenos">17</span><span class="c1"># Setup your robot configuration</span>
+<span class="linenos">18</span><span class="n">my_robot</span> <span class="o">=</span> <span class="n">RobotConfig</span><span class="p">(</span>
+<span class="linenos">19</span>    <span class="n">model_type</span><span class="o">=</span><span class="n">RobotType</span><span class="o">.</span><span class="n">DIFFERENTIAL_DRIVE</span><span class="p">,</span>
+<span class="linenos">20</span>    <span class="n">geometry_type</span><span class="o">=</span><span class="n">RobotGeometry</span><span class="o">.</span><span class="n">Type</span><span class="o">.</span><span class="n">CYLINDER</span><span class="p">,</span>
+<span class="linenos">21</span>    <span class="n">geometry_params</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">0.1</span><span class="p">,</span> <span class="mf">0.3</span><span class="p">]),</span>
+<span class="linenos">22</span>    <span class="n">ctrl_vx_limits</span><span class="o">=</span><span class="n">LinearCtrlLimits</span><span class="p">(</span><span class="n">max_vel</span><span class="o">=</span><span class="mf">0.2</span><span class="p">,</span> <span class="n">max_acc</span><span class="o">=</span><span class="mf">1.5</span><span class="p">,</span> <span class="n">max_decel</span><span class="o">=</span><span class="mf">2.5</span><span class="p">),</span>
+<span class="linenos">23</span>    <span class="n">ctrl_omega_limits</span><span class="o">=</span><span class="n">AngularCtrlLimits</span><span class="p">(</span>
+<span class="linenos">24</span>        <span class="n">max_vel</span><span class="o">=</span><span class="mf">0.4</span><span class="p">,</span> <span class="n">max_acc</span><span class="o">=</span><span class="mf">2.0</span><span class="p">,</span> <span class="n">max_decel</span><span class="o">=</span><span class="mf">2.0</span><span class="p">,</span> <span class="n">max_steer</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">pi</span> <span class="o">/</span> <span class="mi">3</span><span class="p">)</span>
+<span class="linenos">25</span><span class="p">)</span>
+<span class="linenos">26</span>
+<span class="linenos">27</span><span class="c1"># Set the robot frames</span>
+<span class="linenos">28</span><span class="n">robot_frames</span> <span class="o">=</span> <span class="n">RobotFrames</span><span class="p">(</span>
+<span class="linenos">29</span>    <span class="n">robot_base</span><span class="o">=</span><span class="s1">&#39;base_link&#39;</span><span class="p">,</span>
+<span class="linenos">30</span>    <span class="n">odom</span><span class="o">=</span><span class="s1">&#39;odom&#39;</span><span class="p">,</span>
+<span class="linenos">31</span>    <span class="n">world</span><span class="o">=</span><span class="s1">&#39;map&#39;</span><span class="p">,</span>
+<span class="linenos">32</span>    <span class="n">scan</span><span class="o">=</span><span class="s1">&#39;LDS-01&#39;</span><span class="p">)</span>
+<span class="linenos">33</span>
+<span class="linenos">34</span><span class="c1"># Setup components with default config, inputs and outputs</span>
+<span class="linenos">35</span><span class="n">planner_config</span> <span class="o">=</span> <span class="n">PlannerConfig</span><span class="p">(</span><span class="n">loop_rate</span><span class="o">=</span><span class="mf">1.0</span><span class="p">)</span>       <span class="c1"># 1 Hz</span>
+<span class="linenos">36</span><span class="n">planner</span> <span class="o">=</span> <span class="n">Planner</span><span class="p">(</span><span class="n">component_name</span><span class="o">=</span><span class="s2">&quot;planner&quot;</span><span class="p">,</span> <span class="n">config</span><span class="o">=</span><span class="n">planner_config</span><span class="p">)</span>
+<span class="linenos">37</span>
+<span class="linenos">38</span><span class="c1"># Set Planner goal input to Rviz Clicked point</span>
+<span class="linenos">39</span><span class="n">goal_topic</span> <span class="o">=</span> <span class="n">Topic</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;/clicked_point&quot;</span><span class="p">,</span> <span class="n">msg_type</span><span class="o">=</span><span class="s2">&quot;PointStamped&quot;</span><span class="p">)</span>
+<span class="linenos">40</span><span class="n">planner</span><span class="o">.</span><span class="n">inputs</span><span class="p">(</span><span class="n">goal_point</span><span class="o">=</span><span class="n">goal_topic</span><span class="p">)</span>
+<span class="linenos">41</span>
+<span class="linenos">42</span><span class="c1"># Get a default controller component</span>
+<span class="linenos">43</span><span class="n">controller</span> <span class="o">=</span> <span class="n">Controller</span><span class="p">(</span><span class="n">component_name</span><span class="o">=</span><span class="s2">&quot;controller&quot;</span><span class="p">)</span>
+<span class="linenos">44</span>
+<span class="linenos">45</span><span class="c1"># Configure Controller to use local map instead of direct sensor information</span>
+<span class="linenos">46</span><span class="n">controller</span><span class="o">.</span><span class="n">direct_sensor</span> <span class="o">=</span> <span class="kc">False</span>
+<span class="linenos">47</span>
+<span class="linenos">48</span><span class="c1"># Get the default DriveManager</span>
+<span class="linenos">49</span><span class="n">driver</span> <span class="o">=</span> <span class="n">DriveManager</span><span class="p">(</span><span class="n">component_name</span><span class="o">=</span><span class="s2">&quot;drive_manager&quot;</span><span class="p">)</span>
+<span class="linenos">50</span>
+<span class="linenos">51</span><span class="c1"># Publish Twist or TwistStamped from the DriveManager based on the distribution</span>
+<span class="linenos">52</span><span class="k">if</span> <span class="s2">&quot;ROS_DISTRO&quot;</span> <span class="ow">in</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span> <span class="ow">and</span> <span class="p">(</span>
+<span class="linenos">53</span>    <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s2">&quot;ROS_DISTRO&quot;</span><span class="p">]</span> <span class="ow">in</span> <span class="p">[</span><span class="s2">&quot;rolling&quot;</span><span class="p">,</span> <span class="s2">&quot;jazzy&quot;</span><span class="p">,</span> <span class="s2">&quot;kilted&quot;</span><span class="p">]</span>
+<span class="linenos">54</span><span class="p">):</span>
+<span class="linenos">55</span>    <span class="n">cmd_msg_type</span> <span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;TwistStamped&quot;</span>
+<span class="linenos">56</span><span class="k">else</span><span class="p">:</span>
+<span class="linenos">57</span>    <span class="n">cmd_msg_type</span> <span class="o">=</span> <span class="s2">&quot;Twist&quot;</span>
+<span class="linenos">58</span>
+<span class="linenos">59</span><span class="n">driver</span><span class="o">.</span><span class="n">outputs</span><span class="p">(</span><span class="n">robot_command</span><span class="o">=</span><span class="n">Topic</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;/cmd_vel&quot;</span><span class="p">,</span> <span class="n">msg_type</span><span class="o">=</span><span class="n">cmd_msg_type</span><span class="p">))</span>
+<span class="linenos">60</span>
+<span class="linenos">61</span><span class="c1"># Get a default Local Mapper component</span>
+<span class="linenos">62</span><span class="n">mapper</span> <span class="o">=</span> <span class="n">LocalMapper</span><span class="p">(</span><span class="n">component_name</span><span class="o">=</span><span class="s2">&quot;mapper&quot;</span><span class="p">)</span>
+<span class="linenos">63</span>
+<span class="linenos">64</span><span class="c1"># Init a launcher</span>
+<span class="linenos">65</span><span class="n">launcher</span> <span class="o">=</span> <span class="n">Launcher</span><span class="p">()</span>
+<span class="linenos">66</span>
+<span class="linenos">67</span><span class="c1"># Pass kompass components to the launcher</span>
+<span class="linenos">68</span><span class="n">launcher</span><span class="o">.</span><span class="n">kompass</span><span class="p">(</span>
+<span class="linenos">69</span>    <span class="n">components</span><span class="o">=</span><span class="p">[</span><span class="n">planner</span><span class="p">,</span> <span class="n">controller</span><span class="p">,</span> <span class="n">driver</span><span class="p">,</span> <span class="n">mapper</span><span class="p">],</span>
+<span class="linenos">70</span>    <span class="n">activate_all_components_on_start</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+<span class="linenos">71</span>    <span class="n">multi_processing</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="linenos">72</span>
+<span class="linenos">73</span><span class="c1"># Set the robot</span>
+<span class="linenos">74</span><span class="n">launcher</span><span class="o">.</span><span class="n">robot</span> <span class="o">=</span> <span class="n">robot_config</span>
+<span class="linenos">75</span>
+<span class="linenos">76</span><span class="c1"># Set the frames</span>
+<span class="linenos">77</span><span class="n">launcher</span><span class="o">.</span><span class="n">frames</span> <span class="o">=</span> <span class="n">frames_config</span>
+<span class="linenos">78</span>
+<span class="linenos">79</span><span class="c1"># Fallback Policy: If any component fails -&gt; restart it with unlimited retries</span>
+<span class="linenos">80</span><span class="n">launcher</span><span class="o">.</span><span class="n">on_fail</span><span class="p">(</span><span class="n">action_name</span><span class="o">=</span><span class="s2">&quot;restart&quot;</span><span class="p">)</span>
+<span class="linenos">81</span>
+<span class="linenos">82</span><span class="c1"># After all configuration is done bringup the stack</span>
+<span class="linenos">83</span><span class="n">launcher</span><span class="o">.</span><span class="n">bringup</span><span class="p">()</span>
+</pre></div>
+</div>
+</div>
+</section>
+<section id="step-6-add-your-first-event">
+<h2>Step 6: Add your first Event!<a class="headerlink" href="#step-6-add-your-first-event" title="Link to this heading">#</a></h2>
+<p>To track the mission during execution and end the mission once the point is reached we want to run the Planner as an <code class="docutils literal notranslate"><span class="pre">ActionServer</span></code> and still set its navigation goals directly using Rviz. To do so we can configure an event/action pair with Kompass. Jump to the <a class="reference internal" href="events_actions.html"><span class="std std-doc">next tutorial</span></a> to learn how to extend the previous recipe.</p>
+<p>👉 <a class="reference internal" href="events_actions.html"><span class="std std-doc">Add Event/Action Pairs to the Recipe</span></a></p>
+</section>
+</section>
+
+
+                </article>
+              
+
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="index.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Tutorials Overview</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="events_actions.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">⚙️ Using Events/Actions in your application</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <div class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+  <div class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> Contents
+  </div>
+  <nav class="bd-toc-nav page-toc">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#step-1-setup-your-robot">Step 1: Setup your robot</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#step-2-setup-your-stack-components">Step 2: Setup your stack components</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#step-4-optional-command-type-configuration">Step 4: (Optional) Command type configuration:</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#step-5-setup-your-launcher">Step 5: Setup your Launcher</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#step-6-add-your-first-event">Step 6: Add your first Event!</a></li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+<div class="bd-footer-content__inner container">
+  
+  <div class="footer-item">
+    
+<p class="component-author">
+By Automatika Robotics
+</p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+
+  <p class="copyright">
+    
+      © Copyright 2026, Automatika Robotics.
+      <br/>
+    
+  </p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+</div>
+          </footer>
+        
+
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script src="../_static/scripts/bootstrap.js?digest=dfe6caa3a7d634c4db9b"></script>
+<script src="../_static/scripts/pydata-sphinx-theme.js?digest=dfe6caa3a7d634c4db9b"></script>
+
+  <footer class="bd-footer">
+  </footer>
+  </body>
+</html>

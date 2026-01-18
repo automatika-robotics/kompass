@@ -1,0 +1,929 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta content="cQVj-BaADcGVOGB7GOvfbkgJjxni10C2fYWCZ03jOeo" name="google-site-verification" />
+
+    <title>📷 Following a moving target using RGB Image &#8212; Kompass 0.4.0 documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../_static/styles/theme.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+<link href="../_static/styles/bootstrap.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+<link href="../_static/styles/pydata-sphinx-theme.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+
+  
+  <link href="../_static/vendor/fontawesome/6.5.2/css/all.min.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+  <link rel="preload" as="font" type="font/woff2" crossorigin href="../_static/vendor/fontawesome/6.5.2/webfonts/fa-solid-900.woff2" />
+<link rel="preload" as="font" type="font/woff2" crossorigin href="../_static/vendor/fontawesome/6.5.2/webfonts/fa-brands-400.woff2" />
+<link rel="preload" as="font" type="font/woff2" crossorigin href="../_static/vendor/fontawesome/6.5.2/webfonts/fa-regular-400.woff2" />
+
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=a746c00c" />
+    <link rel="stylesheet" type="text/css" href="../_static/styles/sphinx-book-theme.css?v=eba8b062" />
+    <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../_static/custom.css?v=8eace815" />
+  
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=dfe6caa3a7d634c4db9b" />
+<link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=dfe6caa3a7d634c4db9b" />
+  <script src="../_static/vendor/fontawesome/6.5.2/js/all.min.js?digest=dfe6caa3a7d634c4db9b"></script>
+
+    <script src="../_static/documentation_options.js?v=183391d5"></script>
+    <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../_static/copybutton.js?v=f281be69"></script>
+    <script src="../_static/scripts/sphinx-book-theme.js?v=887ef09a"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'tutorials/vision_tracking';</script>
+    <link rel="canonical" href="https://automatika-robotics.github.io/kompass/tutorials/vision_tracking.html" />
+    <link rel="icon" href="../_static/favicon.png"/>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="🎥 Vision Tracking Using Depth Information" href="vision_tracking_depth.html" />
+    <link rel="prev" title="⚙️ Using Events/Actions in your application" href="events_actions.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <input type="checkbox"
+          class="sidebar-toggle"
+          id="pst-primary-sidebar-checkbox"/>
+  <label class="overlay overlay-primary" for="pst-primary-sidebar-checkbox"></label>
+  
+  <input type="checkbox"
+          class="sidebar-toggle"
+          id="pst-secondary-sidebar-checkbox"/>
+  <label class="overlay overlay-secondary" for="pst-secondary-sidebar-checkbox"></label>
+  
+  <div class="search-button__wrapper">
+    <div class="search-button__overlay"></div>
+    <div class="search-button__search-container">
+<form class="bd-search d-flex align-items-center"
+      action="../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         id="search-input"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form></div>
+  </div>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <div class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+    
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../_static/Kompass_light.png" class="logo__image only-light" alt="Kompass 0.4.0 documentation - Home"/>
+    <script>document.write(`<img src="../_static/Kompass_dark.png" class="logo__image only-dark" alt="Kompass 0.4.0 documentation - Home"/>`);</script>
+  
+  
+</a></div>
+        <div class="sidebar-primary-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://automatikarobotics.com/" title="Automatika" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="../_static/automatika-logo.png" class="icon-link-image" alt="Automatika"/></a>
+        </li>
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/automatika-robotics/kompass" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://discord.gg/B9ZU6qjzND" title="Discord" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-discord fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">Discord</span></a>
+        </li>
+</ul></div>
+        <div class="sidebar-primary-item">
+
+ <script>
+ document.write(`
+   <button class="btn search-button-field search-button__button" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass"></i>
+    <span class="search-button__default-text">Search</span>
+    <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+   </button>
+ `);
+ </script></div>
+        <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item navbar-nav active">
+        <p aria-level="2" class="caption" role="heading"><span class="caption-text">Overview</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../why.html">Why Kompass?</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../install.html">Installation</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="quick_start.html">Quick Start</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="quick_start_webots.html">Quick Start (Webots Simulator)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="quick_start_gazebo.html">Quick Start (Gazebo Simulator)</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../cli.html">Kompass CLI</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="index.html">Tutorials Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="point_navigation.html">🎯 Point Navigation: Step-by-Step Tutorial</a></li>
+<li class="toctree-l1"><a class="reference internal" href="events_actions.html">⚙️ Using Events/Actions in your application</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">📷 Following a moving target using RGB Image</a></li>
+<li class="toctree-l1"><a class="reference internal" href="vision_tracking_depth.html">🎥 Vision Tracking Using Depth Information</a></li>
+<li class="toctree-l1"><a class="reference internal" href="configuration.html">🔧 Configuring Components Your Way</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Navigation Components</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../navigation/index.html">Navigation Components Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../navigation/robot.html">Robot Configuration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../navigation/path_planning.html">Planner</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../navigation/control.html">Controller</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../navigation/driver.html">Drive Manager</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../navigation/mapper.html">Local Mapper</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../navigation/map_server.html">Map Server</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../navigation/motion_server.html">Motion Server</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../navigation/mapping_localization.html">Global Mapping and Localization</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Integrations</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../integrations/ompl.html">OMPL (Open Motion Planning Library)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../integrations/fcl.html">FCL (Flexible Collisions Library)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Advanced</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../advanced/design.html">🧩 Design Concepts</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../advanced/advanced_conf/index.html">🛠️ Advanced Configurations</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../advanced/advanced_conf/topics.html">Inputs and Outputs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../advanced/advanced_conf/qos.html">QoS Configuration</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../advanced/algorithms/index.html">🧠 Algorithms</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../advanced/algorithms/pure_pursuit.html">Pure Pursuit</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../advanced/algorithms/dwa.html">DWA (Dynamic Window Approach)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../advanced/algorithms/stanley.html">Stanley Steering</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../advanced/algorithms/dvz.html">DVZ (Deformable Virtual Zone)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../advanced/algorithms/vision_follower.html">Vision Follower</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../advanced/algorithms/cost_eval.html">Trajectory Cost Evaluation</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../advanced/types.html">📨 Supported ROS2 Messages</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../advanced/benchmark.html">Benchmarking Results</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">References</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../apidocs/index.html">API Reference</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../apidocs/kompass/kompass.html"><code class="xref py py-mod docutils literal notranslate"><span class="pre">kompass</span></code></a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l3 has-children"><a class="reference internal" href="../apidocs/kompass/kompass.components.html"><code class="xref py py-mod docutils literal notranslate"><span class="pre">kompass.components</span></code></a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l4"><a class="reference internal" href="../apidocs/kompass/kompass.components.defaults.html"><code class="xref py py-mod docutils literal notranslate"><span class="pre">kompass.components.defaults</span></code></a></li>
+</ul>
+</details></li>
+<li class="toctree-l3"><a class="reference internal" href="../apidocs/kompass/kompass.event.html"><code class="xref py py-mod docutils literal notranslate"><span class="pre">kompass.event</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../apidocs/kompass/kompass.launcher.html"><code class="xref py py-mod docutils literal notranslate"><span class="pre">kompass.launcher</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../apidocs/kompass/kompass.data_types.html"><code class="xref py py-mod docutils literal notranslate"><span class="pre">kompass.data_types</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../apidocs/kompass/kompass.callbacks.html"><code class="xref py py-mod docutils literal notranslate"><span class="pre">kompass.callbacks</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../apidocs/kompass/kompass.actions.html"><code class="xref py py-mod docutils literal notranslate"><span class="pre">kompass.actions</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../apidocs/kompass/kompass.ros.html"><code class="xref py py-mod docutils literal notranslate"><span class="pre">kompass.ros</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../apidocs/kompass/kompass.config.html"><code class="xref py py-mod docutils literal notranslate"><span class="pre">kompass.config</span></code></a></li>
+</ul>
+</details></li>
+</ul>
+</details></li>
+</ul>
+
+    </div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+  </div>
+  
+  <div id="rtd-footer-container"></div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+
+<div class="sbt-scroll-pixel-helper"></div>
+
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item"><button class="sidebar-toggle primary-toggle btn btn-sm" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <span class="fa-solid fa-bars"></span>
+</button></div>
+      
+    </div>
+  
+  
+    <div class="header-article-items__end">
+      
+        <div class="header-article-item">
+
+<div class="article-header-buttons">
+
+
+
+
+
+<div class="dropdown dropdown-source-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Source repositories">
+    <i class="fab fa-github"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="https://github.com/automatika-robotics/kompass/blob/main/docs/tutorials/vision_tracking.md?plain=1" target="_blank"
+   class="btn btn-sm btn-source-file-button dropdown-item"
+   title="Show source"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-code"></i>
+  </span>
+<span class="btn__text-container">Show source</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li><a href="https://github.com/automatika-robotics/kompass/edit/main/docs/tutorials/vision_tracking.md" target="_blank"
+   class="btn btn-sm btn-source-edit-button dropdown-item"
+   title="Suggest edit"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-pencil-alt"></i>
+  </span>
+<span class="btn__text-container">Suggest edit</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li><a href="https://github.com/automatika-robotics/kompass/issues/new?title=Issue%20on%20page%20%2Ftutorials/vision_tracking.html&body=Your%20issue%20content%20here." target="_blank"
+   class="btn btn-sm btn-source-issues-button dropdown-item"
+   title="Open an issue"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-lightbulb"></i>
+  </span>
+<span class="btn__text-container">Open issue</span>
+</a>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+
+
+<div class="dropdown dropdown-download-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Download this page">
+    <i class="fas fa-download"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="../_sources/tutorials/vision_tracking.md" target="_blank"
+   class="btn btn-sm btn-download-source-button dropdown-item"
+   title="Download source file"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file"></i>
+  </span>
+<span class="btn__text-container">.md</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li>
+<button onclick="window.print()"
+  class="btn btn-sm btn-download-pdf-button dropdown-item"
+  title="Print to PDF"
+  data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file-pdf"></i>
+  </span>
+<span class="btn__text-container">.pdf</span>
+</button>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+<button onclick="toggleFullScreen()"
+  class="btn btn-sm btn-fullscreen-button"
+  title="Fullscreen mode"
+  data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-expand"></i>
+  </span>
+
+</button>
+
+
+
+<script>
+document.write(`
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button" title="light/dark" aria-label="light/dark" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="theme-switch fa-solid fa-sun fa-lg" data-mode="light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg" data-mode="dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"></i>
+  </button>
+`);
+</script>
+
+
+<script>
+document.write(`
+  <button class="btn btn-sm pst-navbar-icon search-button search-button__button" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+  </button>
+`);
+</script>
+<button class="sidebar-toggle secondary-toggle btn btn-sm" title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <span class="fa-solid fa-list"></span>
+</button>
+</div></div>
+      
+    </div>
+  
+</div>
+</div>
+              
+              
+
+<div id="jb-print-docs-body" class="onlyprint">
+    <h1>📷 Following a moving target using RGB Image</h1>
+    <!-- Table of contents -->
+    <div id="print-main-content">
+        <div id="jb-print-toc">
+            
+            <div>
+                <h2> Contents </h2>
+            </div>
+            <nav aria-label="Page">
+                <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#before-you-start">Before you start</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#get-and-start-your-camera-ros2-node">Get and start your camera ROS2 node</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#start-vision-detection-tracking-using-an-ml-model">Start vision detection/tracking using an ML model</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#setting-up-the-vision-model-client-in-embodiedagents">Setting up the vision model client in EmbodiedAgents</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#setting-up-the-vision-component">Setting up the Vision Component</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#setup-your-robot">Setup your robot</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#import-the-required-components-from-kompass">Import the required components from Kompass</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#configure-the-visionfollower-and-setup-the-components">Configure the VisionFollower and setup the components</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#add-all-the-components-to-the-launcher">Add all the components to the launcher</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#trigger-the-following-action">Trigger the following action</a></li>
+</ul>
+            </nav>
+        </div>
+    </div>
+</div>
+
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section class="tex2jax_ignore mathjax_ignore" id="following-a-moving-target-using-rgb-image">
+<h1>📷 Following a moving target using RGB Image<a class="headerlink" href="#following-a-moving-target-using-rgb-image" title="Link to this heading">#</a></h1>
+<p>In this tutorial we will create a vision-based target following navigation system to follow a moving target using an RGB camera input.</p>
+<section id="before-you-start">
+<h2>Before you start<a class="headerlink" href="#before-you-start" title="Link to this heading">#</a></h2>
+<p>Lets take care of some preliminary setup.</p>
+<section id="get-and-start-your-camera-ros2-node">
+<h3>Get and start your camera ROS2 node<a class="headerlink" href="#get-and-start-your-camera-ros2-node" title="Link to this heading">#</a></h3>
+<p>Based on the type of the camera used on your robot, you need to install and launch its respective ROS2 node provided by the manufacturer.</p>
+<p>To run and test this example on your development machine, you can use your webcam along with the <code class="docutils literal notranslate"><span class="pre">usb_cam</span></code> package:</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>sudo<span class="w"> </span>apt<span class="w"> </span>install<span class="w"> </span>ros-&lt;ros2-distro&gt;-usb-cam
+ros2<span class="w"> </span>run<span class="w"> </span>usb_cam<span class="w"> </span>usb_cam_node_exe
+</pre></div>
+</div>
+</section>
+<section id="start-vision-detection-tracking-using-an-ml-model">
+<h3>Start vision detection/tracking using an ML model<a class="headerlink" href="#start-vision-detection-tracking-using-an-ml-model" title="Link to this heading">#</a></h3>
+<p>To implement and run this example we will need a detection model processing the RGB camera images to provide the Detection or Tracking information. The most convenient way to obtain this is to use <a class="reference external" href="https://automatika-robotics.github.io/ros-agents/intro.html"><strong>EmbodiedAgents</strong></a> package and [RoboML] to deploy and serve the model locally. EmbodiedAgents provides a <a class="reference external" href="https://automatika-robotics.github.io/ros-agents/apidocs/agents/agents.components.vision.html">Vision Component</a>, which will allow us to easily deploy a ROS node in our system that interacts with vision models.</p>
+<p>Therefore, before starting with this tutorial you need to install both packages:</p>
+<ul class="simple">
+<li><p>Install <strong>EmbodiedAgents</strong>: check the instructions <a class="reference external" href="https://automatika-robotics.github.io/ros-agents/installation.html">here</a></p></li>
+<li><p>Install RoboML: <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">roboml</span></code></p></li>
+</ul>
+<div class="admonition seealso">
+<p class="admonition-title">See also</p>
+<p><a class="reference external" href="https://automatika-robotics.github.io/embodied-agents">EmbodiedAgents</a> is another <a class="reference external" href="https://automatika-robotics.github.io/sugarcoat">Sugarcoat🍬</a> based package used for creating interactive embodied agents that can understand, remember, and act upon contextual information from their environment.</p>
+</div>
+<p>After installing both packages, you can start <code class="docutils literal notranslate"><span class="pre">roboml</span></code> to serve the model later either on the robot (or your development machine), or on another machine in the local network or any server the cloud. To start a roboml RESP server, simply run:</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>roboml-resp
+</pre></div>
+</div>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>Save the IP of the machine running <code class="docutils literal notranslate"><span class="pre">roboml</span></code> as we will use it later in our model client</p>
+</div>
+</section>
+</section>
+<section id="setting-up-the-vision-model-client-in-embodiedagents">
+<h2>Setting up the vision model client in EmbodiedAgents<a class="headerlink" href="#setting-up-the-vision-model-client-in-embodiedagents" title="Link to this heading">#</a></h2>
+<p>First, we need to import the <code class="docutils literal notranslate"><span class="pre">VisionModel</span></code> class that defines the model used later in the component, and a <a class="reference external" href="https://automatika-robotics.github.io/ros-agents/basics.html#model-db-client">model client</a> to communicate with the model which can be running on the same hardware or in the cloud. Here we will use a <code class="docutils literal notranslate"><span class="pre">RESPModelClient</span></code> from <a class="reference external" href="https://github.com/automatika-robotics/roboml/">RoboML</a> as we activated the RESP based model server in roboml.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">agents.models</span> <span class="kn">import</span> <span class="n">VisionModel</span>
+<span class="kn">from</span> <span class="nn">agents.clients</span> <span class="kn">import</span> <span class="n">RoboMLRESPClient</span>
+</pre></div>
+</div>
+<p>Now let’s configure the model we want to use for detections/tracking and the model client:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">object_detection</span> <span class="o">=</span> <span class="n">VisionModel</span><span class="p">(</span>
+    <span class="n">name</span><span class="o">=</span><span class="s2">&quot;object_detection&quot;</span><span class="p">,</span>
+    <span class="n">checkpoint</span><span class="o">=</span><span class="s2">&quot;rtmdet_tiny_8xb32-300e_coco&quot;</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="n">roboml_detection</span> <span class="o">=</span> <span class="n">RoboMLRESPClient</span><span class="p">(</span><span class="n">object_detection</span><span class="p">,</span> <span class="n">host</span><span class="o">=</span><span class="s1">&#39;127.0.0.1&#39;</span><span class="p">,</span> <span class="n">logging_level</span><span class="o">=</span><span class="s2">&quot;warn&quot;</span><span class="p">)</span>
+  <span class="c1"># 127.0.0.1 should be replaced by the IP of the machine running roboml. In this case we assume that roboml is running on our robot.</span>
+</pre></div>
+</div>
+<p>The model is configured with a name and a checkpoint (any checkpoint from mmdetection framework can be used, see <a class="reference external" href="https://github.com/open-mmlab/mmdetection?tab=readme-ov-file#overview-of-benchmark-and-model-zoo">available checkpoints</a>). In this example, we have chosen a model checkpoint trained on the MS COCO dataset which has over 80 <a class="reference external" href="https://github.com/amikelive/coco-labels/blob/master/coco-labels-2014_2017.txt">classes</a> of commonly found objects. We also set the option <code class="docutils literal notranslate"><span class="pre">setup_trackers</span></code> to <code class="docutils literal notranslate"><span class="pre">True</span></code> to enable publishing tracking information.</p>
+<p>We load the <code class="docutils literal notranslate"><span class="pre">VisionModel</span></code> into the <code class="docutils literal notranslate"><span class="pre">RoboMLRESPClient</span></code> and configure the host to the IP of the machine running RoboML. In this code above, it is assumed that we are running RoboML on localhost.</p>
+<div class="admonition seealso">
+<p class="admonition-title">See also</p>
+<p>See all available VisionModel options <a class="reference external" href="https://automatika-robotics.github.io/ros-agents/apidocs/agents/agents.models.html">here</a>, and all available model clients in agents <a class="reference external" href="https://automatika-robotics.github.io/ros-agents/apidocs/agents/agents.clients.html">here</a></p>
+</div>
+</section>
+<section id="setting-up-the-vision-component">
+<h2>Setting up the Vision Component<a class="headerlink" href="#setting-up-the-vision-component" title="Link to this heading">#</a></h2>
+<p>We start by importing the required component along with its configuration class from <code class="docutils literal notranslate"><span class="pre">agents</span></code>:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">agents.components</span> <span class="kn">import</span> <span class="n">Vision</span>
+<span class="kn">from</span> <span class="nn">agents.config</span> <span class="kn">import</span> <span class="n">VisionConfig</span>
+</pre></div>
+</div>
+<p>After setting up the model client, we need to select the input/output topics to configure the vision component:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">agents.ros</span> <span class="kn">import</span> <span class="n">Topic</span>
+
+<span class="c1"># RGB camera input topic is set to the compressed image topic</span>
+<span class="n">image0</span> <span class="o">=</span> <span class="n">Topic</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;/image_raw/compressed&quot;</span><span class="p">,</span> <span class="n">msg_type</span><span class="o">=</span><span class="s2">&quot;CompressedImage&quot;</span><span class="p">)</span>
+
+<span class="c1"># Select the output topics: detections and trackings</span>
+<span class="n">detections_topic</span> <span class="o">=</span> <span class="n">Topic</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;detections&quot;</span><span class="p">,</span> <span class="n">msg_type</span><span class="o">=</span><span class="s2">&quot;Detections&quot;</span><span class="p">)</span>
+<span class="n">trackings_topic</span> <span class="o">=</span> <span class="n">Topic</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;trackings&quot;</span><span class="p">,</span> <span class="n">msg_type</span><span class="o">=</span><span class="s2">&quot;Trackings&quot;</span><span class="p">)</span>
+
+<span class="c1"># Select the vision component configuration</span>
+<span class="n">detection_config</span> <span class="o">=</span> <span class="n">VisionConfig</span><span class="p">(</span>
+    <span class="n">threshold</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span> <span class="n">enable_visualization</span><span class="o">=</span><span class="kc">True</span>
+<span class="p">)</span>
+
+<span class="c1"># Create the component</span>
+<span class="n">vision</span> <span class="o">=</span> <span class="n">Vision</span><span class="p">(</span>
+    <span class="n">inputs</span><span class="o">=</span><span class="p">[</span><span class="n">image0</span><span class="p">],</span>
+    <span class="n">outputs</span><span class="o">=</span><span class="p">[</span><span class="n">detections_topic</span><span class="p">,</span> <span class="n">trackings_topic</span><span class="p">],</span>
+    <span class="n">trigger</span><span class="o">=</span><span class="n">image0</span><span class="p">,</span>
+    <span class="n">config</span><span class="o">=</span><span class="n">detection_config</span><span class="p">,</span>
+    <span class="n">model_client</span><span class="o">=</span><span class="n">roboml_detection</span><span class="p">,</span>
+    <span class="n">component_name</span><span class="o">=</span><span class="s2">&quot;detection_component&quot;</span><span class="p">,</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+<p>The component inputs/outputs are defined to get the images from the camera topic and provide both detections and trackings. The component is provided theses inputs and outputs along with the model client that we configured in the previous step. The <code class="docutils literal notranslate"><span class="pre">trigger</span></code> of the component is set to the image input topic so the component would work in an Event-Based runtype and provide a new detection/tracking on each new image.</p>
+<p>In the component configuration, the parameter <code class="docutils literal notranslate"><span class="pre">enable_visualization</span></code> is set to <code class="docutils literal notranslate"><span class="pre">True</span></code> to get a visualization of the output on an additional pop-up window for debugging purposes. The <code class="docutils literal notranslate"><span class="pre">threshold</span></code> parameter (confidence threshold for object detection) is set to <code class="docutils literal notranslate"><span class="pre">0.5</span></code>.</p>
+<div class="admonition seealso">
+<p class="admonition-title">See also</p>
+<p>Discover the different configuration options of the Vision component in the <a class="reference external" href="https://automatika-robotics.github.io/ros-agents/apidocs/agents/agents.models.html#agents.models.VisionModel">docs</a></p>
+</div>
+<div class="admonition seealso">
+<p class="admonition-title">See also</p>
+<p>For detailed example for using the vision component check this <a class="reference external" href="https://automatika-robotics.github.io/ros-agents/examples/prompt_engineering.html">tutorial</a></p>
+</div>
+</section>
+<section id="setup-your-robot">
+<h2>Setup your robot<a class="headerlink" href="#setup-your-robot" title="Link to this heading">#</a></h2>
+<p>We can select the robot motion model, control limits and other geometry parameters using the <code class="docutils literal notranslate"><span class="pre">RobotConfig</span></code> class</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">kompass.robot</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">AngularCtrlLimits</span><span class="p">,</span>
+    <span class="n">LinearCtrlLimits</span><span class="p">,</span>
+    <span class="n">RobotGeometry</span><span class="p">,</span>
+    <span class="n">RobotType</span><span class="p">,</span>
+    <span class="n">RobotConfig</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+
+<span class="c1"># Setup your robot configuration</span>
+<span class="n">my_robot</span> <span class="o">=</span> <span class="n">RobotConfig</span><span class="p">(</span>
+    <span class="n">model_type</span><span class="o">=</span><span class="n">RobotType</span><span class="o">.</span><span class="n">DIFFERENTIAL_DRIVE</span><span class="p">,</span>
+    <span class="n">geometry_type</span><span class="o">=</span><span class="n">RobotGeometry</span><span class="o">.</span><span class="n">Type</span><span class="o">.</span><span class="n">CYLINDER</span><span class="p">,</span>
+    <span class="n">geometry_params</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">0.1</span><span class="p">,</span> <span class="mf">0.3</span><span class="p">]),</span>
+    <span class="n">ctrl_vx_limits</span><span class="o">=</span><span class="n">LinearCtrlLimits</span><span class="p">(</span><span class="n">max_vel</span><span class="o">=</span><span class="mf">0.4</span><span class="p">,</span> <span class="n">max_acc</span><span class="o">=</span><span class="mf">1.5</span><span class="p">,</span> <span class="n">max_decel</span><span class="o">=</span><span class="mf">2.5</span><span class="p">),</span>
+    <span class="n">ctrl_omega_limits</span><span class="o">=</span><span class="n">AngularCtrlLimits</span><span class="p">(</span>
+        <span class="n">max_vel</span><span class="o">=</span><span class="mf">0.2</span><span class="p">,</span> <span class="n">max_acc</span><span class="o">=</span><span class="mf">2.0</span><span class="p">,</span> <span class="n">max_decel</span><span class="o">=</span><span class="mf">2.0</span><span class="p">,</span> <span class="n">max_steer</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">pi</span> <span class="o">/</span> <span class="mi">3</span>
+    <span class="p">),</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+<div class="admonition seealso">
+<p class="admonition-title">See also</p>
+<p>See more details about the robot configuration in the point navigation <a class="reference internal" href="point_navigation.html#step-1-setup-your-robot"><span class="std std-ref">tutorial</span></a> and in the <code class="docutils literal notranslate"><span class="pre">RobotConfig</span></code> class <a class="reference internal" href="../navigation/robot.html"><span class="std std-doc">details</span></a></p>
+</div>
+</section>
+<section id="import-the-required-components-from-kompass">
+<h2>Import the required components from Kompass<a class="headerlink" href="#import-the-required-components-from-kompass" title="Link to this heading">#</a></h2>
+<p>To implement the target following system we will use the <code class="docutils literal notranslate"><span class="pre">Controller</span></code> component to generate the tracking commands and the <code class="docutils literal notranslate"><span class="pre">DriveManager</span></code> to handle the safe communication with the robot driver</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">kompass.components</span> <span class="kn">import</span> <span class="n">Controller</span><span class="p">,</span> <span class="n">ControllerConfig</span><span class="p">,</span> <span class="n">DriveManager</span>
+</pre></div>
+</div>
+</section>
+<section id="configure-the-visionfollower-and-setup-the-components">
+<h2>Configure the VisionFollower and setup the components<a class="headerlink" href="#configure-the-visionfollower-and-setup-the-components" title="Link to this heading">#</a></h2>
+<p>We select the vision follower method parameters by importing the config class <code class="docutils literal notranslate"><span class="pre">VisionFollowerConfig</span></code> (see default parameters <a class="reference internal" href="../advanced/algorithms/vision_follower.html"><span class="std std-doc">here</span></a>), then configure both our components:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">kompass.control</span> <span class="kn">import</span> <span class="n">VisionRGBFollowerConfig</span>
+
+<span class="c1"># Set the controller component configuration</span>
+<span class="n">config</span> <span class="o">=</span> <span class="n">ControllerConfig</span><span class="p">(</span><span class="n">loop_rate</span><span class="o">=</span><span class="mf">10.0</span><span class="p">,</span> <span class="n">ctrl_publish_type</span><span class="o">=</span><span class="s2">&quot;Sequence&quot;</span><span class="p">,</span> <span class="n">control_time_step</span><span class="o">=</span><span class="mf">0.3</span><span class="p">)</span>
+
+<span class="c1"># Init the controller</span>
+<span class="n">controller</span> <span class="o">=</span> <span class="n">Controller</span><span class="p">(</span>
+    <span class="n">component_name</span><span class="o">=</span><span class="s2">&quot;my_controller&quot;</span><span class="p">,</span> <span class="n">config</span><span class="o">=</span><span class="n">config</span>
+<span class="p">)</span>
+<span class="c1"># Set the vision tracking input to either the detections or trackings topic</span>
+<span class="n">controller</span><span class="o">.</span><span class="n">inputs</span><span class="p">(</span><span class="n">vision_tracking</span><span class="o">=</span><span class="n">detections_topic</span><span class="p">)</span>
+
+<span class="c1"># Set the vision follower configuration</span>
+<span class="n">vision_follower_config</span> <span class="o">=</span> <span class="n">VisionRGBFollowerConfig</span><span class="p">(</span>
+    <span class="n">control_horizon</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">enable_search</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">target_search_pause</span><span class="o">=</span><span class="mi">6</span><span class="p">,</span> <span class="n">tolerance</span><span class="o">=</span><span class="mf">0.2</span>
+<span class="p">)</span>
+<span class="n">controller</span><span class="o">.</span><span class="n">algorithms_config</span> <span class="o">=</span> <span class="n">vision_follower_config</span>  <span class="c1"># We can also configure other algorithms (DWA, DV etc.) and pass a list to the algorithms_config property</span>
+
+<span class="c1"># Init the drive manager with the default parameters</span>
+<span class="n">driver</span> <span class="o">=</span> <span class="n">DriveManager</span><span class="p">(</span><span class="n">component_name</span><span class="o">=</span><span class="s2">&quot;my_driver&quot;</span><span class="p">)</span>
+
+</pre></div>
+</div>
+<p>Here we selected a loop rate for the controller of <code class="docutils literal notranslate"><span class="pre">10Hz</span></code> and a control step for generating the commands of <code class="docutils literal notranslate"><span class="pre">0.3s</span></code>, and we selected to send the commands sequentially as they get computed. The vision follower is configured with a <code class="docutils literal notranslate"><span class="pre">control_horizon</span></code> equal to three future control time steps and a <code class="docutils literal notranslate"><span class="pre">target_search_pause</span></code> equal to 6 control time steps. We also chose to disable the search, meaning that the tracking action would end when the robot looses the target.</p>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p><code class="docutils literal notranslate"><span class="pre">target_search_pause</span></code> is implemented so the robot would pause and wait while tracking to avoid loosing the target due to quick movement and slow model response. It should be adjusted based on the inference time of the model.</p>
+</div>
+</section>
+<section id="add-all-the-components-to-the-launcher">
+<h2>Add all the components to the launcher<a class="headerlink" href="#add-all-the-components-to-the-launcher" title="Link to this heading">#</a></h2>
+<p>All that is left is to add all the three previous components to the launcher and bringup the system!</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">kompass.ros</span> <span class="kn">import</span> <span class="n">Launcher</span>
+
+<span class="n">launcher</span> <span class="o">=</span> <span class="n">Launcher</span><span class="p">()</span>
+
+<span class="c1"># setup agents as a package in the launcher and add the vision component</span>
+<span class="n">launcher</span><span class="o">.</span><span class="n">add_pkg</span><span class="p">(</span>
+    <span class="n">components</span><span class="o">=</span><span class="p">[</span><span class="n">vision</span><span class="p">],</span>
+    <span class="n">ros_log_level</span><span class="o">=</span><span class="s2">&quot;warn&quot;</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="c1"># setup the components for Kompass in the launcher</span>
+<span class="n">launcher</span><span class="o">.</span><span class="n">kompass</span><span class="p">(</span>
+    <span class="n">components</span><span class="o">=</span><span class="p">[</span><span class="n">controller</span><span class="p">,</span> <span class="n">driver</span><span class="p">],</span>
+<span class="p">)</span>
+<span class="c1"># Set the robot config for all components</span>
+<span class="n">launcher</span><span class="o">.</span><span class="n">robot</span> <span class="o">=</span> <span class="n">my_robot</span>
+
+<span class="c1"># Start all the components</span>
+<span class="n">launcher</span><span class="o">.</span><span class="n">bringup</span><span class="p">()</span>
+</pre></div>
+</div>
+<p>Et voila! our code for the full vision-based target follower is ready and here is the complete script</p>
+<div class="literal-block-wrapper docutils container" id="id1">
+<div class="code-block-caption"><span class="caption-text">vision_rgb_follower</span><a class="headerlink" href="#id1" title="Link to this code">#</a></div>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="linenos"> 1</span><span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="linenos"> 2</span><span class="kn">from</span> <span class="nn">agents.components</span> <span class="kn">import</span> <span class="n">Vision</span>
+<span class="linenos"> 3</span><span class="kn">from</span> <span class="nn">agents.models</span> <span class="kn">import</span> <span class="n">VisionModel</span>
+<span class="linenos"> 4</span><span class="kn">from</span> <span class="nn">agents.clients</span> <span class="kn">import</span> <span class="n">RoboMLRESPClient</span>
+<span class="linenos"> 5</span><span class="kn">from</span> <span class="nn">agents.config</span> <span class="kn">import</span> <span class="n">VisionConfig</span>
+<span class="linenos"> 6</span><span class="kn">from</span> <span class="nn">agents.ros</span> <span class="kn">import</span> <span class="n">Topic</span>
+<span class="linenos"> 7</span>
+<span class="linenos"> 8</span><span class="kn">from</span> <span class="nn">kompass.components</span> <span class="kn">import</span> <span class="n">Controller</span><span class="p">,</span> <span class="n">ControllerConfig</span><span class="p">,</span> <span class="n">DriveManager</span>
+<span class="linenos"> 9</span><span class="kn">from</span> <span class="nn">kompass.robot</span> <span class="kn">import</span> <span class="p">(</span>
+<span class="linenos">10</span>    <span class="n">AngularCtrlLimits</span><span class="p">,</span>
+<span class="linenos">11</span>    <span class="n">LinearCtrlLimits</span><span class="p">,</span>
+<span class="linenos">12</span>    <span class="n">RobotGeometry</span><span class="p">,</span>
+<span class="linenos">13</span>    <span class="n">RobotType</span><span class="p">,</span>
+<span class="linenos">14</span>    <span class="n">RobotConfig</span><span class="p">,</span>
+<span class="linenos">15</span><span class="p">)</span>
+<span class="linenos">16</span><span class="kn">from</span> <span class="nn">kompass.control</span> <span class="kn">import</span> <span class="n">VisionRGBFollowerConfig</span>
+<span class="linenos">17</span><span class="kn">from</span> <span class="nn">kompass.ros</span> <span class="kn">import</span> <span class="n">Launcher</span>
+<span class="linenos">18</span>
+<span class="linenos">19</span><span class="c1"># RGB camera input topic is set to the compressed image topic</span>
+<span class="linenos">20</span><span class="n">image0</span> <span class="o">=</span> <span class="n">Topic</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;/image_raw/compressed&quot;</span><span class="p">,</span> <span class="n">msg_type</span><span class="o">=</span><span class="s2">&quot;CompressedImage&quot;</span><span class="p">)</span>
+<span class="linenos">21</span>
+<span class="linenos">22</span><span class="c1"># Select the output topics: detections and trackings</span>
+<span class="linenos">23</span><span class="n">detections_topic</span> <span class="o">=</span> <span class="n">Topic</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;detections&quot;</span><span class="p">,</span> <span class="n">msg_type</span><span class="o">=</span><span class="s2">&quot;Detections&quot;</span><span class="p">)</span>
+<span class="linenos">24</span><span class="n">trackings_topic</span> <span class="o">=</span> <span class="n">Topic</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;trackings&quot;</span><span class="p">,</span> <span class="n">msg_type</span><span class="o">=</span><span class="s2">&quot;Trackings&quot;</span><span class="p">)</span>
+<span class="linenos">25</span>
+<span class="linenos">26</span><span class="n">object_detection</span> <span class="o">=</span> <span class="n">VisionModel</span><span class="p">(</span>
+<span class="linenos">27</span>    <span class="n">name</span><span class="o">=</span><span class="s2">&quot;object_detection&quot;</span><span class="p">,</span>
+<span class="linenos">28</span>    <span class="n">checkpoint</span><span class="o">=</span><span class="s2">&quot;rtmdet_tiny_8xb32-300e_coco&quot;</span><span class="p">,</span>
+<span class="linenos">29</span><span class="p">)</span>
+<span class="linenos">30</span><span class="n">roboml_detection</span> <span class="o">=</span> <span class="n">RoboMLRESPClient</span><span class="p">(</span><span class="n">object_detection</span><span class="p">,</span> <span class="n">host</span><span class="o">=</span><span class="s1">&#39;127.0.0.1&#39;</span><span class="p">,</span> <span class="n">logging_level</span><span class="o">=</span><span class="s2">&quot;warn&quot;</span><span class="p">)</span>
+<span class="linenos">31</span>
+<span class="linenos">32</span><span class="c1"># Select the vision component configuration</span>
+<span class="linenos">33</span><span class="n">detection_config</span> <span class="o">=</span> <span class="n">VisionConfig</span><span class="p">(</span><span class="n">threshold</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span> <span class="n">enable_visualization</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="linenos">34</span>
+<span class="linenos">35</span><span class="c1"># Create the component</span>
+<span class="linenos">36</span><span class="n">vision</span> <span class="o">=</span> <span class="n">Vision</span><span class="p">(</span>
+<span class="linenos">37</span>    <span class="n">inputs</span><span class="o">=</span><span class="p">[</span><span class="n">image0</span><span class="p">],</span>
+<span class="linenos">38</span>    <span class="n">outputs</span><span class="o">=</span><span class="p">[</span><span class="n">detections_topic</span><span class="p">,</span> <span class="n">trackings_topic</span><span class="p">],</span>
+<span class="linenos">39</span>    <span class="n">trigger</span><span class="o">=</span><span class="n">image0</span><span class="p">,</span>
+<span class="linenos">40</span>    <span class="n">config</span><span class="o">=</span><span class="n">detection_config</span><span class="p">,</span>
+<span class="linenos">41</span>    <span class="n">model_client</span><span class="o">=</span><span class="n">roboml_detection</span><span class="p">,</span>
+<span class="linenos">42</span>    <span class="n">component_name</span><span class="o">=</span><span class="s2">&quot;detection_component&quot;</span><span class="p">,</span>
+<span class="linenos">43</span><span class="p">)</span>
+<span class="linenos">44</span>
+<span class="linenos">45</span><span class="c1"># Setup your robot configuration</span>
+<span class="linenos">46</span><span class="n">my_robot</span> <span class="o">=</span> <span class="n">RobotConfig</span><span class="p">(</span>
+<span class="linenos">47</span>    <span class="n">model_type</span><span class="o">=</span><span class="n">RobotType</span><span class="o">.</span><span class="n">DIFFERENTIAL_DRIVE</span><span class="p">,</span>
+<span class="linenos">48</span>    <span class="n">geometry_type</span><span class="o">=</span><span class="n">RobotGeometry</span><span class="o">.</span><span class="n">Type</span><span class="o">.</span><span class="n">CYLINDER</span><span class="p">,</span>
+<span class="linenos">49</span>    <span class="n">geometry_params</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">0.1</span><span class="p">,</span> <span class="mf">0.3</span><span class="p">]),</span>
+<span class="linenos">50</span>    <span class="n">ctrl_vx_limits</span><span class="o">=</span><span class="n">LinearCtrlLimits</span><span class="p">(</span><span class="n">max_vel</span><span class="o">=</span><span class="mf">0.4</span><span class="p">,</span> <span class="n">max_acc</span><span class="o">=</span><span class="mf">1.5</span><span class="p">,</span> <span class="n">max_decel</span><span class="o">=</span><span class="mf">2.5</span><span class="p">),</span>
+<span class="linenos">51</span>    <span class="n">ctrl_omega_limits</span><span class="o">=</span><span class="n">AngularCtrlLimits</span><span class="p">(</span>
+<span class="linenos">52</span>        <span class="n">max_vel</span><span class="o">=</span><span class="mf">0.2</span><span class="p">,</span> <span class="n">max_acc</span><span class="o">=</span><span class="mf">2.0</span><span class="p">,</span> <span class="n">max_decel</span><span class="o">=</span><span class="mf">2.0</span><span class="p">,</span> <span class="n">max_steer</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">pi</span> <span class="o">/</span> <span class="mi">3</span>
+<span class="linenos">53</span>    <span class="p">),</span>
+<span class="linenos">54</span><span class="p">)</span>
+<span class="linenos">55</span><span class="c1"># Set the controller component configuration</span>
+<span class="linenos">56</span><span class="n">config</span> <span class="o">=</span> <span class="n">ControllerConfig</span><span class="p">(</span>
+<span class="linenos">57</span>    <span class="n">loop_rate</span><span class="o">=</span><span class="mf">10.0</span><span class="p">,</span> <span class="n">ctrl_publish_type</span><span class="o">=</span><span class="s2">&quot;Sequence&quot;</span><span class="p">,</span> <span class="n">control_time_step</span><span class="o">=</span><span class="mf">0.3</span>
+<span class="linenos">58</span><span class="p">)</span>
+<span class="linenos">59</span>
+<span class="linenos">60</span><span class="c1"># Init the controller</span>
+<span class="linenos">61</span><span class="n">controller</span> <span class="o">=</span> <span class="n">Controller</span><span class="p">(</span><span class="n">component_name</span><span class="o">=</span><span class="s2">&quot;my_controller&quot;</span><span class="p">,</span> <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">)</span>
+<span class="linenos">62</span><span class="c1"># Set the vision tracking input to either the detections or trackings topic</span>
+<span class="linenos">63</span><span class="n">controller</span><span class="o">.</span><span class="n">inputs</span><span class="p">(</span><span class="n">vision_tracking</span><span class="o">=</span><span class="n">detections_topic</span><span class="p">)</span>
+<span class="linenos">64</span>
+<span class="linenos">65</span><span class="c1"># Set the vision follower configuration</span>
+<span class="linenos">66</span><span class="n">vision_follower_config</span> <span class="o">=</span> <span class="n">VisionRGBFollowerConfig</span><span class="p">(</span>
+<span class="linenos">67</span>    <span class="n">control_horizon</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">enable_search</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">target_search_pause</span><span class="o">=</span><span class="mi">6</span><span class="p">,</span> <span class="n">tolerance</span><span class="o">=</span><span class="mf">0.2</span>
+<span class="linenos">68</span><span class="p">)</span>
+<span class="linenos">69</span><span class="n">controller</span><span class="o">.</span><span class="n">algorithms_config</span> <span class="o">=</span> <span class="n">vision_follower_config</span>  <span class="c1"># We can also configure other algorithms (DWA, DV etc.) and pass a list to the algorithms_config property</span>
+<span class="linenos">70</span>
+<span class="linenos">71</span><span class="c1"># Init the drive manager with the default parameters</span>
+<span class="linenos">72</span><span class="n">driver</span> <span class="o">=</span> <span class="n">DriveManager</span><span class="p">(</span><span class="n">component_name</span><span class="o">=</span><span class="s2">&quot;my_driver&quot;</span><span class="p">)</span>
+<span class="linenos">73</span>
+<span class="linenos">74</span><span class="n">launcher</span> <span class="o">=</span> <span class="n">Launcher</span><span class="p">()</span>
+<span class="linenos">75</span><span class="n">launcher</span><span class="o">.</span><span class="n">add_pkg</span><span class="p">(</span>
+<span class="linenos">76</span>    <span class="n">components</span><span class="o">=</span><span class="p">[</span><span class="n">vision</span><span class="p">],</span>
+<span class="linenos">77</span>    <span class="n">ros_log_level</span><span class="o">=</span><span class="s2">&quot;warn&quot;</span><span class="p">,</span>
+<span class="linenos">78</span><span class="p">)</span>
+<span class="linenos">79</span><span class="n">launcher</span><span class="o">.</span><span class="n">kompass</span><span class="p">(</span>
+<span class="linenos">80</span>    <span class="n">components</span><span class="o">=</span><span class="p">[</span><span class="n">controller</span><span class="p">,</span> <span class="n">driver</span><span class="p">],</span>
+<span class="linenos">81</span><span class="p">)</span>
+<span class="linenos">82</span><span class="c1"># # Set the robot config for all components</span>
+<span class="linenos">83</span><span class="n">launcher</span><span class="o">.</span><span class="n">robot</span> <span class="o">=</span> <span class="n">my_robot</span>
+<span class="linenos">84</span><span class="n">launcher</span><span class="o">.</span><span class="n">bringup</span><span class="p">()</span>
+</pre></div>
+</div>
+</div>
+</section>
+<section id="trigger-the-following-action">
+<h2>Trigger the following action<a class="headerlink" href="#trigger-the-following-action" title="Link to this heading">#</a></h2>
+<p>After running your complete system you can send a goal to the controller’s action server <code class="docutils literal notranslate"><span class="pre">/my_controller/track_vision_target</span></code> of type <a class="reference external" href="https://github.com/automatika-robotics/kompass/tree/main/kompass_interfaces/action"><code class="docutils literal notranslate"><span class="pre">kompass_interfaces.action.TrackVisionTarget</span></code></a> to start tracking a selected label (<code class="docutils literal notranslate"><span class="pre">person</span></code> for example):</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>ros2<span class="w"> </span>action<span class="w"> </span>send_goal<span class="w"> </span>/my_controller/track_vision_target<span class="w"> </span>kompass_interfaces/action/TrackVisionTarget<span class="w"> </span><span class="s2">&quot;{label: &#39;person&#39;}&quot;</span>
+</pre></div>
+</div>
+<p>You can also re-run the previous script and activate the target search by adding the following config or sending the config along with the action send_goal:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">vision_follower_config</span> <span class="o">=</span> <span class="n">VisionRGBFollowerConfig</span><span class="p">(</span>
+    <span class="n">control_horizon</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">enable_search</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">target_search_pause</span><span class="o">=</span><span class="mi">6</span><span class="p">,</span> <span class="n">tolerance</span><span class="o">=</span><span class="mf">0.2</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>ros2<span class="w"> </span>action<span class="w"> </span>send_goal<span class="w"> </span>/my_controller/track_vision_target<span class="w"> </span>kompass_interfaces/action/TrackVisionTarget<span class="w"> </span><span class="s2">&quot;{label: &#39;person&#39;, search_radius: 1.0, search_timeout: 30}&quot;</span>
+</pre></div>
+</div>
+</section>
+</section>
+
+
+                </article>
+              
+
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="events_actions.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">⚙️ Using Events/Actions in your application</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="vision_tracking_depth.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">🎥 Vision Tracking Using Depth Information</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <div class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+  <div class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> Contents
+  </div>
+  <nav class="bd-toc-nav page-toc">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#before-you-start">Before you start</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#get-and-start-your-camera-ros2-node">Get and start your camera ROS2 node</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#start-vision-detection-tracking-using-an-ml-model">Start vision detection/tracking using an ML model</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#setting-up-the-vision-model-client-in-embodiedagents">Setting up the vision model client in EmbodiedAgents</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#setting-up-the-vision-component">Setting up the Vision Component</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#setup-your-robot">Setup your robot</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#import-the-required-components-from-kompass">Import the required components from Kompass</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#configure-the-visionfollower-and-setup-the-components">Configure the VisionFollower and setup the components</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#add-all-the-components-to-the-launcher">Add all the components to the launcher</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#trigger-the-following-action">Trigger the following action</a></li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+<div class="bd-footer-content__inner container">
+  
+  <div class="footer-item">
+    
+<p class="component-author">
+By Automatika Robotics
+</p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+
+  <p class="copyright">
+    
+      © Copyright 2026, Automatika Robotics.
+      <br/>
+    
+  </p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+</div>
+          </footer>
+        
+
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script src="../_static/scripts/bootstrap.js?digest=dfe6caa3a7d634c4db9b"></script>
+<script src="../_static/scripts/pydata-sphinx-theme.js?digest=dfe6caa3a7d634c4db9b"></script>
+
+  <footer class="bd-footer">
+  </footer>
+  </body>
+</html>

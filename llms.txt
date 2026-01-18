@@ -1,0 +1,4233 @@
+# Kompass Documentation
+
+The following text contains the documentation for the Kompass framework by Automatika Robotics. It is optimized for context ingestion.
+
+## File: overview.md
+```markdown
+<div>
+</div>
+
+# Kompass
+
+Kompass is a framework for building **robust**, **event-driven** navigation stacks for autonomous mobile robots. Kompass is built to be customizable, extendable and hardware-agnostic. It provides an **intuitive Python API** designed to be easy to integrate, extend, and adapt to a wide range of use cases.
+
+Kompass includes **highly optimized, GPU powered, versions of the most cutting edge navigation algorithms in C++** that make full use of available hardware resources. It supports **multi-threaded execution on CPUs** and can run on <span class="text-red-strong">ANY GPU</span> (Nvidia, AMD, etc.) without vendor lock-in. This makes it suitable for both development and deployment across diverse hardware setups. And most importantly, Kompass makes it straightforward to create and deploy sophisticated navigation capabilities for any mobile robot within **a single Python script**, without sacrificing performance or flexibility.
+
+- Find out more about our [**motivation**](why.md) to create Kompass ✨
+- [**Install**](install.md) Kompass on your robot 🛠️
+- To get started with Kompass, check the [**quick start**](tutorials/quick_start.md) tutorial 🚀
+- Do a deep dive with one of the [**tutorials**](tutorials/index.md) 🤖
+- Check out the [**Benchmarking Results**](./advanced/benchmark.md) to see how Kompass performs across different hardware ⚡
+- Learn more about the [**design concepts**](advanced/design.md) of Kompass 📚
+- Use the automatically generated [**Dynamic Web UI**](https://automatika-robotics.github.io/sugarcoat/advanced/web_ui.html) for real-time system visualization and control 🖥️
+- (**!NEW**) [**Port KOMPASS automation recipes across different robots and hardware**](https://automatika-robotics.github.io/sugarcoat/advanced/robot_plugins.html) using **Robot Plugins** 🔌
+
+Kompass is divided into several interacting components each responsible for one of the navigation subtasks:
+
+
+```{figure} _static/images/diagrams/system_components_dark.png
+:class: only-dark
+:alt: Kompass Components and Main Tasks
+:align: center
+
+Kompass Components and Main Tasks
+```
+
+```{figure} _static/images/diagrams/system_components_light.png
+:class: only-light
+:alt: Kompass Components and Main Tasks
+:align: center
+
+Kompass Components and Main Tasks
+```
+
+Each of the previous components runs as a ROS2 lifecycle node and communicates with the other components using ROS2 topics, services or action servers:
+
+
+
+```{figure} /_static/images/diagrams/system_graph_dark.png
+:class: only-dark
+:alt: Kompass Full System
+:align: center
+
+System Diagram for Point Navigation
+```
+
+```{figure} /_static/images/diagrams/system_graph_light.png
+:class: only-light
+:alt: Kompass Full System
+:align: center
+
+System Diagram for Point Navigation
+```
+
+
+To learn more about the functionalities and configuration of each component check the component dedicated documentation page:
+
+- [Planner](navigation/path_planning.md)
+- [Controller](navigation/control.md)
+- [Drive Manager](navigation/driver.md)
+- [Motion Server](navigation/motion_server.md)
+```
+
+## File: why.md
+```markdown
+# Why Kompass?
+
+Designing robust robot behavior isn't just about perfecting individual components—it’s about architecting an integrated system. This is especially true for autonomous navigation, where multiple subsystems must work in harmony to handle complex, dynamic environments and real-world scenarios.
+
+<div style="text-align: center;">
+  <span class="text-blue">Getting each part right is important, but what really matters is how everything works together</span>
+</div>
+<br/>
+
+A capable navigation agent must adapt in real time, deploying different behaviors based on changing conditions. But even in static settings, this remains a nontrivial challenge—as highlighted by years of experience from the [BARN challenge](https://cs.gmu.edu/~xiao/Research/BARN_Challenge/BARN_Challenge23.html) at ICRA:
+
+
+```{epigraph}
+
+_"... while it is worthwhile to extend navigation research in directions orthogonal to metric navigation, the community should also not overlook the problems that still remain in this space, especially when robots are expected to be extensively and reliably deployed in the real world."_
+
+-- Lessons learned from The BARN Challenge at ICRA 2022, *[full article](https://www.researchgate.net/publication/362858861_Autonomous_Ground_Navigation_in_Highly_Constrained_Spaces_Lessons_learned_from_The_BARN_Challenge_at_ICRA_2022)*
+```
+
+```{epigraph}
+_"All teams adopted a hybrid paradigm in terms of a finite-state-machine setup, which requires different components to address different situations in the obstacle courses, ... Such a pragmatic practice suggests that a single stand-alone approach that is able to address all variety of obstacle configurations all together is still out of our reach."_
+
+-- Lessons learned from The 3rd BARN Challenge at ICRA 2024, *[full article](https://arxiv.org/html/2407.01862v1)*
+```
+
+**Currently, the only other full-system navigation solution in the open-source community is Nav2, so why did we decide to create Kompass?**
+
+## Adaptive event-driven design to the core
+
+Kompass is designed as per the specification of open event-driven software standard to dynamically respond to real-time changes in the environment, the robots internal state, or the task assigned. Mobile robots working in interaction with messy world dynamics require to adapt on the fly and ensure stable performance in unpredictably changing conditions. Handling external events is built in the core of Kompass so the user can easily design a complete system capable of reconfiguring itself on the fly when an event is perceived in the world or a task is issued to the robot, making it more adaptive and robust.
+
+For example, with Kompass the user can easily design a system that utilizes one planning system when the robot is out on the road or another controller when its inside the building or yet another when its close to its docking station, while easily configuring fallback conditions for each for those components. This approach of providing event driven control over the stack itself, makes it much more flexible to implement a comprehensive autonomous navigating agent which can operate in multiple scenarios. This is in contrast to other approaches like defining _behaviour trees_ where the changes in the stack are based on internal state of the robot alone (and that too with a rather complicated API).
+
+
+## Engineered for Speed: C++, Multi-Threading, and SYCL GPU Support
+
+Kompass core algorithms are implemented in modern C++ for maximum performance and efficiency. Designed with real-time robotics in mind, it makes full use of multi-threaded CPU execution and GPU acceleration to parallelize compute-heavy tasks like planning, control and map updates.
+
+The GPU support in Kompass is built using SYCL. Unlike other solutions that rely on vendor-specific GPU APIs (e.g. CUDA for Nvidia), Kompass is the <span class="text-red-strong" style="text-align: center;">first navigation framework to support cross-GPU acceleration</span>. This means it can target any SYCL-compliant GPU, including those from Nvidia, AMD, Intel, and others—without requiring device-specific modifications.
+
+While the performance-critical core runs in C++, Kompass offers a clean Python API combining the speed of native code with the ease of Python development.
+
+## Machine learning models as first class citizens
+
+The event driven stack control allows Kompass to utilize machine learning models unlike any other navigation stack. External events in Kompass can be driven by outputs of machine learning models interpreting sensor data or user commands, which means the entire stack becomes reconfigurable based on ML model outputs. This goes beyond well established scenarios of visual navigation.
+
+As an example consider the scenario where the robot observes a certain number of humans in its environment and switches from a path following controller like _Pure Pursuit_ to a predictive controller like _Timed Elastic Bands_ or even better a human-aware controller like _Human Aware TEB_. The same goes for utilizing outputs of VLMs, which can answer more abstract aggregate perception questions like 'Whether the robot is inside or outside?', to change control behaviour on the fly.
+
+To get more ideas about utilizing machine learning models with Kompass and create intelligent embodied agents, check out the example tutorial on using Kompass vision follower with **EmbodiedAgents**' Vision Component [here](./tutorials/vision_tracking.md).
+
+
+## Ease of use and intuitive API while remaining within the ROS ecosystem
+
+Kompass provides an approachable and intuitive interface for creating navigation systems. This is made possible with a pythonic API using [Sugarcoat🍬](https://www.github.com/automatika-robotics/sugarcoat). A fairly sophisticated navigation system can be configured in one simple python script where the user can configure the stack component by component and configure the system level behavior by defining all the required events, their consequent actions and per component fallback behaviors. The user also has a choice to provide component level parameters in YAML files. Furthermore, the project is structured so that core algorithms are implemented in the Kompass Core package, which provides a pure python interface while the underlying algorithms can be implemented in both python for quick prototyping and  in C/C++ for performance optimization in production environments.
+
+
+## Modular architecture and easy extensibility
+
+The architecture of Kompass to separate the core algorithms in Kompass Core package, away from its ROS primitives also serves to simplify upgrades and minimizes the risk of breaking changes between different ROS versions and distributions. It also allows for seamless integration of additional planning and control algorithms, as well as managing integration with specialized third party libraries. Most importantly, Kompass has been designed to be extendable by the community as a unified place to contribute additional plan and control algorithms that can be useful for mobile robots.
+```
+
+## File: install.md
+```markdown
+# Installation
+
+## Prerequisites
+
+Kompass is built to be used with ROS2. All ROS2 distributions starting from _Foxy_ upto _Rolling_ are supported. Install ROS2 version of your choice by following the instructions on the [official site](https://docs.ros.org/).
+
+## Install kompass-core
+
+kompass-core is a python package that provides highly optimized implementations of planning and control algorithms for Kompass. You can install it in the following ways:
+
+### With GPU support (Recommended):
+
+On any Ubuntu (including Jetpack) based machine, you can simply run the following:
+
+`curl https://raw.githubusercontent.com/automatika-robotics/kompass-core/refs/heads/main/build_dependencies/install_gpu.sh | bash`
+
+This script will install all relevant dependencies, including [AdaptiveCPP](https://github.com/AdaptiveCpp/AdaptiveCpp) and install the latest version of kompass-core from source. It is good practice to read the [script](https://github.com/automatika-robotics/kompass-core/blob/main/build_dependencies/install_gpu.sh) first.
+
+### Installing with pip
+
+Install kompass-core as follows:
+
+`pip install kompass-core`
+
+## Install Kompass
+
+Install pre-built Kompass binary as follows:
+
+`sudo apt install ros-$ROS_DISTRO-kompass`
+
+Alternatively, grab deb packages (for kompass_interfaces and kompass) for your favourite distro from the [release page](https://github.com/automatika-robotics/kompass/releases) and install them as follows:
+
+```bash
+sudo dpkg -i ros-$ROS_DISTRO-kompass-interfaces_$version$DISTRO_$ARCHITECTURE.deb
+sudo dpkg -i ros-$ROS_DISTRO-kompass_$version$DISTRO_$ARCHITECTURE.deb
+```
+
+### Build Kompass from source
+
+You can build Kompass from source as follows:
+
+```shell
+mkdir -p kompass_ws/src
+cd kompass_ws/src
+git clone https://github.com/automatika-robotics/sugarcoat
+git clone https://github.com/automatika-robotics/kompass
+rosdep update
+rosdep install -y --from-paths . --ignore-src
+cd ..
+colcon build
+```
+```
+
+## File: cli.md
+```markdown
+# Kompass CLI
+
+The Kompass CLI provides an easy way to quickly inspect Kompass core algorithms and configurations from ROS2 command-line.
+
+## CLI Commands
+
+| Command                         | Description                                            |
+| ------------------------------- | ------------------------------------------------------ |
+| `controller list`               | List all available control algorithms.                 |
+| `controller params <algorithm>` | Show default parameters for a control algorithm.       |
+| `planner list`                  | List all available planning algorithms.                |
+| `planner params <algorithm>`    | Show default parameters for a planning algorithm.      |
+| `accelerators_support`          | List SYCL-compatible GPU accelerators on the system.   |
+| `info`                          | Display CLI usage examples and links to documentation. |
+
+
+## Usage Examples
+
+```bash
+ros2 run kompass cli --help
+ros2 run kompass cli controller list
+ros2 run kompass cli controller params DWA
+ros2 run kompass cli planner list
+ros2 run kompass cli planner params AITstar
+ros2 run kompass cli accelerators_support
+ros2 run kompass cli info
+```
+```
+
+## File: tutorials/quick_start.md
+```markdown
+# Quick Start
+
+Write your first script and start using Kompass in simulation:
+
+- [Using Webots Simulator](./quick_start_webots.md)
+
+- [Using Gazebo Simulator](./quick_start_gazebo.md)
+
+
+```{toctree}
+:maxdepth: 1
+:caption: Quick Start
+
+quick_start_webots
+quick_start_gazebo
+```
+```
+
+## File: tutorials/quick_start_gazebo.md
+```markdown
+# Quick Start (Gazebo Simulator)
+
+Here we provide a quick recipe to get started with Kompass using [Gazebo](https://gazebosim.org/docs/latest/getstarted/) simulator. The recipe is a single python script to build a point navigation system. Lets first see how we can launch the simulation and run the recipe and then we will go through it step by step.
+
+## Install Gazebo
+
+The most recommended way to [install Gazebo](https://gazebosim.org/docs/latest/install/) is by installing its default version available from the ROS repository when installing `ros-gz`. To install `ros-gz` run the following command by replace ${ROS_DISTRO} with your ROS distribution (e.g. `humble`, `rolling`, etc).
+
+```shell
+sudo apt-get install ros-${ROS_DISTRO}-ros-gz
+```
+
+## Launch the simulation
+
+For an easy start with Kompass we created a separate simulation package ([kompass_sim](https://github.com/automatika-robotics/kompass-sim)) with ready-to-launch examples created to test 2D navigation using few popular robot simulators. In this example we will use a simulation of the [Turtlebot3](https://emanual.robotis.com/docs/en/platform/turtlebot3/overview/#notices) robot in a pre-built house environment in Gazebo.
+
+```{note}
+All the required simulation dependencies are found in `kompass-sim` and can be installed with `rosdep`
+```
+
+- Start by cloning and building `kompass_sim` from source, see the instructions [here](https://github.com/automatika-robotics/kompass-sim/blob/main/README.md)
+
+- Set the used Turtlebot3 model in Gazebo as an environment variable:
+
+```shell
+export TURTLEBOT3_MODEL=waffle_pi
+```
+
+- Now you can launch the simulation by simply running:
+
+```shell
+ros2 launch kompass_sim gazebo_turtlebot3_house.launch.py
+```
+
+This will start Gazebo simulator, Rviz, the robot localization node and the map server:
+
+:::{figure-md} fig-gz-sim
+
+
+Gazebo Tutrlebot3 Simulation
+:::
+
+:::{figure-md} fig-gz-rviz
+
+Gazebo Tutrlebot3 Simulation - Rviz
+:::
+
+
+## Run the recipe
+
+
+- Open a new terminal and launch our recipe:
+
+```shell
+ros2 run kompass turtlebot3_test
+```
+
+## Test sending Goals
+
+You can now send navigation goals to Kompass by using the `clicked_point` directly on Rviz.
+
+Now, lets keep going and break the `turtlebot3_test` [recipe step by step](point_navigation.md) 👇
+
+## 👉 [Point Navigation Recipe](point_navigation.md)
+```
+
+## File: tutorials/quick_start_webots.md
+```markdown
+# Quick Start (Webots Simulator)
+
+Here we provide a quick recipe to get started with Kompass using [Webots](https://github.com/cyberbotics/webots_ros2) simulator. The recipe is a single python script to build a point navigation system. Lets first see how we can launch the simulation and run the recipe and then we will go through it step by step.
+
+## Install the dependencies and launch the simulation
+
+For an easy start with Kompass we created a separate simulation package ([kompass_sim](https://github.com/automatika-robotics/kompass-sim)) with ready-to-launch examples created to test 2D navigation using few popular robot simulators. In this example we will use a simulation of the [Turtlebot3](https://emanual.robotis.com/docs/en/platform/turtlebot3/overview/#notices) robot in [Webots](https://github.com/cyberbotics/webots_ros2) simulator.
+
+```{note}
+All the required simulation dependencies are found in `kompass-sim` and can be installed with `rosdep`
+```
+
+- Start by cloning and building `kompass_sim` from source, see the instructions [here](https://github.com/automatika-robotics/kompass-sim/blob/main/README.md)
+
+- Now you can launch the simulation by simply running:
+
+```shell
+ros2 launch kompass_sim webots_turtlebot3.launch.py
+```
+
+This will start Webots simulator, Rviz, the robot localization node and the map server:
+
+:::{figure-md} fig-webots
+
+
+Webots Tutrlebot3 Simulation
+:::
+
+:::{figure-md} fig-rviz
+
+Rviz
+:::
+
+```{note}
+If Webots simulator is not already installed, an installation prompt will appear on the first run of the previous script
+```
+
+## Run the recipe
+
+
+- Open a new terminal and launch our recipe:
+
+```shell
+ros2 run kompass turtlebot3_test
+```
+
+## Test sending Goals
+
+You can now send navigation goals to Kompass by using the `clicked_point` directly on Rviz.
+
+Now, lets keep going and break the `turtlebot3_test` [recipe step by step](point_navigation.md) 👇
+
+## 👉 [Point Navigation Recipe](point_navigation.md)
+```
+
+## File: tutorials/configuration.md
+```markdown
+# 🔧 Configuring Components Your Way
+
+Kompass is built for flexibility — and that starts with how you configure your components.
+
+Whether you're scripting in Python, editing clean and readable YAML, crafting elegant TOML files, or piping in JSON from a toolchain, **Kompass lets you do it your way**.
+
+No more rigid formats or boilerplate structures. Just straightforward, expressive configuration — however you like to write it.
+
+👇 Here’s how to define your components using:
+- 🐍 [Python API](#-python-api)
+- 📄 [YAML](#-yaml)
+- 🍅 [TOML](#-toml)
+- 🟨 [JSON](#-json)
+
+Pick your flavor. Plug it in. Go.
+
+## 🐍 Python API
+
+Use the full power of the Pythonic API of Kompass to configure your components when you want dynamic logic, computation, or tighter control.
+
+```python
+from kompass.components import Planner, PlannerConfig
+from kompass.ros import Topic
+from kompass.robot import (
+    AngularCtrlLimits,
+    LinearCtrlLimits,
+    RobotGeometry,
+    RobotType,
+    RobotConfig,
+    RobotFrames
+)
+import numpy as np
+import math
+
+# Define your robot's physical and control characteristics
+my_robot = RobotConfig(
+    model_type=RobotType.DIFFERENTIAL_DRIVE,            # Type of robot motion model
+    geometry_type=RobotGeometry.Type.CYLINDER,          # Shape of the robot
+    geometry_params=np.array([0.1, 0.3]),                # Diameter and height of the cylinder
+    ctrl_vx_limits=LinearCtrlLimits(                     # Linear velocity constraints
+        max_vel=0.4,
+        max_acc=1.5,
+        max_decel=2.5
+    ),
+    ctrl_omega_limits=AngularCtrlLimits(                 # Angular velocity constraints
+        max_vel=0.4,
+        max_acc=2.0,
+        max_decel=2.0,
+        max_steer=math.pi / 3                            # Steering angle limit (radians)
+    ),
+)
+
+# Define the robot's coordinates frames
+my_frames = RobotFrames(
+    world="map",
+    odom="odom",
+    robot_base="body",
+    scan="lidar_link"
+)
+
+# Create the planner config using your robot setup
+config = PlannerConfig(
+    robot=my_robot,
+    loop_rate=1.0
+)
+
+# Instantiate the Planner component
+planner = Planner(
+    component_name="planner",
+    config=config
+)
+
+# Additionally configure the component's inputs or outputs
+planner.inputs(
+    map_layer=Topic(name="/map", msg_type="OccupancyGrid"),
+    goal_point=Topic(name="/clicked_point", msg_type="PointStamped")
+)
+```
+
+## 📄 YAML
+
+Similar to traditional ROS2 launch, you can still maintain all your configuration parameters in a YAML file.
+
+```yaml
+/**:
+  # Fames and Robot configuration can be passed under the component name
+  # They can also be kep here under 'common config' to be used for multiple components
+  frames:
+    robot_base: "body"
+    odom: "odom"
+    world: "map"
+    scan: "lidar_link"
+
+  robot:
+    model_type: "DIFFERENTIAL_DRIVE"
+    geometry_type: "CYLINDER"
+    geometry_params: [0.1, 0.3]
+
+    ctrl_vx_limits:
+      max_vel: 0.4
+      max_acc: 1.5
+      max_decel: 2.5
+
+    ctrl_omega_limits:
+      max_vel: 0.4
+      max_acc: 2.0
+      max_decel: 2.0
+      max_steer: 1.0472  # ≈ π / 3
+
+planner:
+  inputs:
+    map_layer:
+      name: "/map"
+      msg_type: "OccupancyGrid"
+    goal_point:
+      name: "/clicked_point"
+      msg_type: "PointStamped"
+  loop_rate: 1.0
+```
+
+## 🍅 TOML
+
+Not a fan of YAML? No worries — Kompass lets you configure your components using TOML too.
+TOML offers clear structure and excellent tooling support, making it perfect for clean, maintainable configs.
+
+```toml
+["/**".frames]
+robot_base = "body"
+odom = "odom"
+world = "map"
+scan = "lidar_link"
+
+["/**".robot]
+model_type = "DIFFERENTIAL_DRIVE"
+geometry_type = "CYLINDER"
+geometry_params = [0.1, 0.3]
+
+["/**".robot.ctrl_vx_limits]
+max_vel = 0.4
+max_acc = 1.5
+max_decel = 2.5
+
+["/**".robot.ctrl_omega_limits]
+max_vel = 0.4
+max_acc = 2.0
+max_decel = 2.0
+max_steer = 1.0472  # ≈ π / 3
+
+[planner]
+loop_rate = 1.0
+
+[planner.inputs.map_layer]
+name = "/map"
+msg_type = "OccupancyGrid"
+
+[planner.inputs.goal_point]
+name = "/clicked_point"
+msg_type = "PointStamped"
+```
+
+## 🟨 JSON
+
+Prefer curly braces? Or looking to pipe configs from an ML model or external toolchain?
+JSON is machine-friendly and widely supported — perfect for automating your Kompass configuration with generated files.
+
+```json
+{
+  "/**": {
+    "frames": {
+      "robot_base": "body",
+      "odom": "odom",
+      "world": "map",
+      "scan": "lidar_link"
+    },
+    "robot": {
+      "model_type": "DIFFERENTIAL_DRIVE",
+      "geometry_type": "CYLINDER",
+      "geometry_params": [0.1, 0.3],
+      "ctrl_vx_limits": {
+        "max_vel": 0.4,
+        "max_acc": 1.5,
+        "max_decel": 2.5
+      },
+      "ctrl_omega_limits": {
+        "max_vel": 0.4,
+        "max_acc": 2.0,
+        "max_decel": 2.0,
+        "max_steer": 1.0472
+      }
+    }
+  },
+  "planner": {
+    "loop_rate": 1.0,
+    "inputs": {
+      "map_layer": {
+        "name": "/map",
+        "msg_type": "OccupancyGrid"
+      },
+      "goal_point": {
+        "name": "/clicked_point",
+        "msg_type": "PointStamped"
+      }
+    }
+  }
+}
+```
+
+```{note}
+Make sure to pass your config file to the component on initialization or to the Launcher.
+```
+```
+
+## File: navigation/robot.md
+```markdown
+# Robot Configuration
+
+A robot can be configured using RobotConfig and RobotFrames Classes by specifying the robot:
+- [motion model](#motion-model)
+- [geometry](#geometry)
+- [control limits](#control-limits)
+- and [coordinates frames](#coordinate-frames).
+
+Example:
+
+```python
+import numpy as np
+from kompass_core.models import RobotConfig, RobotType, RobotGeometry
+
+robot_config = RobotConfig(
+    model_type=RobotType.ACKERMANN,
+    geometry_type=RobotGeometry.Type.BOX,
+    geometry_params=np.array([1.0, 1.0, 1.0])
+)
+```
+
+## Motion Model
+
+Kompass supports three types of robot motion models:
+
+- ACKERMANN: Non-holonomic (bicycle model) robots, like vehicles for example. ([more](https://en.wikipedia.org/wiki/Ackermann_steering_geometry) on this motion model)
+
+- DIFFERENTIAL_DRIVE: Two wheeled robots that can perform forward/backward and rotation in place. Turtlebot robots fall in this category. ([more](https://www.cs.columbia.edu/~allen/F17/NOTES/icckinematics.pdf) on this motion model)
+
+- OMNI: Omni-motion robots can perform lateral motion as well. Quadrupeds are usually from this category.
+
+
+## Geometry
+
+The robot geometry can be presented with one of the following 3D geometry:
+
+- BOX: Axis-aligned box with given side lengths.
+
+Parameters: (x, y, z)
+
+Example:
+
+```python
+import numpy as np
+from kompass_core.models import RobotConfig, RobotType, RobotGeometry
+
+robot_config = RobotConfig(
+    model_type=RobotType.ACKERMANN,
+    geometry_type=RobotGeometry.Type.BOX,
+    geometry_params=np.array([1.0, 1.0, 1.0])
+)
+```
+- CYLINDER: Cylinder with given radius and height along z-axis
+
+Parameters: (rad, lz)
+
+Example:
+
+```python
+import numpy as np
+from kompass_core.models import RobotConfig, RobotType, RobotGeometry
+
+robot_config = RobotConfig(
+    model_type=RobotType.ACKERMANN,
+    geometry_type=RobotGeometry.Type.CYLINDER,
+    geometry_params=np.array([0.5, 1.0])
+)
+```
+
+- SPHERE: Sphere with given radius
+
+Parameters: (rad)
+
+Example:
+
+```python
+import numpy as np
+from kompass_core.models import RobotConfig, RobotType, RobotGeometry
+
+robot_config = RobotConfig(
+    model_type=RobotType.ACKERMANN,
+    geometry_type=RobotGeometry.Type.SPHERE,
+    geometry_params=np.array([0.5])
+)
+```
+
+- ELLIPSOID: Axis-aligned ellipsoid with given radius
+
+Parameters: (x, y, z)
+
+Example:
+
+```python
+import numpy as np
+from kompass_core.models import RobotConfig, RobotType, RobotGeometry
+
+robot_config = RobotConfig(
+    model_type=RobotType.ACKERMANN,
+    geometry_type=RobotGeometry.Type.ELLIPSOID,
+    geometry_params=np.array([0.3, 0.2, 0.2])
+)
+```
+
+- CAPSULE: Capsule with given radius and height along z-axis
+
+Parameters: (rad, lz)
+
+Example:
+
+```python
+import numpy as np
+from kompass_core.models import RobotConfig, RobotType, RobotGeometry
+
+robot_config = RobotConfig(
+    model_type=RobotType.ACKERMANN,
+    geometry_type=RobotGeometry.Type.CAPSULE,
+    geometry_params=np.array([0.3, 1.0])
+)
+```
+
+- CONE: Cone with given radius and height along z-axis
+
+Parameters: (rad, lz)
+
+Example:
+
+```python
+import numpy as np
+from kompass_core.models import RobotConfig, RobotType, RobotGeometry
+
+robot_config = RobotConfig(
+    model_type=RobotType.ACKERMANN,
+    geometry_type=RobotGeometry.Type.CONE,
+    geometry_params=np.array([0.3, 1.0])
+)
+```
+
+## Control Limits
+
+It is essential to provide the right control limits for your robot as these limits will drive the computation of the control commands during the navigation. Two classes are provided to set the linear control limits and the angular control limits, as shown in the example below.
+
+For both linear and angular control limits we need to set:
+
+- Maximum velocity (m/s) or (rad/s)
+- Maximum acceleration (x/s^2) or (rad/s^2)
+- Maximum deceleration (x/s^2) or (rad/s^2)
+
+Additionally, for angular control limits we can set the maximum steering angle (rad)
+
+```python
+from kompass_core.models import LinearCtrlLimits, AngularCtrlLimits
+import numpy as np
+
+ctrl_vx_limits = LinearCtrlLimits(max_vel=1.0, max_acc=1.5, max_decel=2.5)
+ctrl_vy_limits = LinearCtrlLimits(max_vel=0.5, max_acc=0.7, max_decel=3.5)
+ctrl_omega_limits=AngularCtrlLimits(
+        max_vel=1.0, max_acc=2.0, max_decel=2.0, max_steer=np.pi / 3
+    ),
+
+```
+:::{tip} Deceleration limit is separated from the acceleration limit to allow the robot to decelerate faster thus ensuring safety.
+:::
+
+## Coordinate Frames
+
+KOMPASS currently supports the following coordinate frames, the user is required to configure the names of these frames so KOMPASS can internally lookup the transformations during navigation.
+
+- world: Reference world frame, usually 'map'
+- odom: Robot Odometry frame
+- robot_base: Frame attached to the robot body. The navigation considers this as the center of the robot geometry.
+- scan: Lasescan frame
+- rgb: RGB camera frame
+- depth: Depth camera frame
+
+```{note}
+It is important to configure your coordinate frames names correctly and pass it Kompass. Components in Kompass will subscribe automatically to the relevant `\tf` and '\tf_static` topics in ROS2 to get the necessary transformations.
+```
+
+```python
+from kompass.config import RobotFrames
+
+robot_frames = RobotFrames(
+    robot_base='base_link',
+    odom='odom',
+    world='map',
+    scan='scan',
+    rgb='camera/rgb',
+    depth='camera/depth',
+)
+
+```
+```
+
+## File: navigation/driver.md
+```markdown
+# Drive Manager
+
+The [DriveManager](../apidocs/kompass/kompass.components.drive_manager.md) component is responsible for direct control communication with the robot. It is used to perform last checks on any control command before passing it to the robot to ensure that the commands falls within the robot control limits, satisfies smoothness conditions and does not lead to a collision with a nearby obstacle.
+
+The DriveManager component can perform one or multiple of the following functionalities based on the desired config:
+
+```{list-table}
+:widths: 20 70
+* - **Emergency Stopping**
+  - Checks the direct sensor information from the configured proximity sensors and performs an emergency stop if an obstacle is within the conical emergency zone configured with a minimum safety distance (m) and and angle (rad) in the direction of the robot movement.
+
+* - **Emergency Slowdown**
+  - Similar to the emergency zone, a slowdown zone can be configured to reduce the robot's velocity if an obstacle is closer than the slowdown distance.
+
+* - **Control Limiting**
+  - Checks that the incoming control is within the robot control limits. If a control command is outside the robot control limits, the DriveManager limits the value to the maximum/minimum allowed value before passing the command to the robot
+
+* - **Control Smoothing (Filtering)**
+  - Performs smoothing filtering on the incoming control commands before sending the commands to the robot
+
+* - **Robot Unblocking**
+  - Moves the robot forward, backwards or rotates in place if the space is free to move the robot away from a blocking point. This action can be configured to be triggered with an external event
+```
+
+```{figure} ../_static/images/diagrams/drive_manager_dark.png
+:class: only-dark
+:alt: Emergency Zone & Slowdown Zone
+:align: center
+:width: 70%
+
+Emergency Zone & Slowdown Zone
+```
+
+```{figure} ../_static/images/diagrams/drive_manager_light.png
+:class: only-light
+:alt: Emergency Zone & Slowdown Zone
+:align: center
+:width: 70%
+
+Emergency Zone & Slowdown Zone
+```
+
+```{note}
+Critical and Slowdown Zone checking is implemented in C++ in [kompass-core](https://github.com/automatika-robotics/kompass-core) for fast emergency behaviors. The core implementation supports both **GPU** and **CPU** (**defaults to GPU if available**).
+```
+
+DriveManager also includes built-in movement actions used for directly control the robot or unblocking the robot in certain conditions:
+
+```{list-table}
+:widths: 20 70
+:header-rows: 1
+
+* - Action
+  - Function
+
+* - **[move_forward](../apidocs/kompass/kompass.components.drive_manager.md/#classes)**
+  - Moves the robot forward for `max_distance` meters, if the forward direction is clear of obstacles.
+
+* - **move_backward**
+  - Moves the robot backwards for `max_distance` meters, if the backward direction is clear of obstacles.
+
+* - **rotate_in_place**
+  - Rotates the robot in place for `max_rotation` radians, if the given safety margin around the robot is clear of obstacles.
+
+
+* - **move_to_unblock**
+  - Moves the robot forward, backwards or rotates in place if the space is free to move the robot away from a blocking point.
+```
+
+```{note}
+All the previous movement actions require `LaserScan` information to determine if the movement direction is collision-free
+```
+
+```{seealso}
+Check an example on configuring the robot unblocking functionality with an external event in [this tutorial](/tutorials/events_actions.md)
+```
+
+
+## Available Run Types
+
+```{list-table}
+:widths: 10 80
+* - **Timed**
+  - Sends incoming command periodically to the robot
+```
+
+## Inputs
+
+```{list-table}
+:widths: 10 40 10 40
+:header-rows: 1
+
+* - Key Name
+  - Allowed Types
+  - Number
+  - Default
+
+* - command
+  - [`geometry_msgs.msg.Twist`](http://docs.ros.org/en/noetic/api/geometry_msgs/html/msg/Twist.html)
+  - 1
+  - `Topic(name="/control", msg_type="Twist")`
+
+* - multi_command
+  - [`kompass_interfaces.msg.TwistArray`](https://github.com/automatika-robotics/kompass/tree/main/kompass_interfaces/msg)
+  - 1
+  - `Topic(name="/control_list", msg_type="TwistArray")`
+
+* - sensor_data
+  - [`sensor_msgs.msg.LaserScan`](https://docs.ros.org/en/noetic/api/sensor_msgs/html/msg/LaserScan.html), `std_msgs.msg.Float64`, `std_msgs.msg.Float32`
+  - 1 + (10 optional)
+  - `Topic(name="/scan", msg_type="LaserScan")`
+
+* - location
+  - [`nav_msgs.msg.Odometry`](https://docs.ros.org/en/noetic/api/nav_msgs/html/msg/Odometry.html), [`geometry_msgs.msg.PoseStamped`](http://docs.ros.org/en/jade/api/geometry_msgs/html/msg/PoseStamped.html), [`geometry_msgs.msg.Pose`](http://docs.ros.org/en/jade/api/geometry_msgs/html/msg/Pose.html)
+  - 1
+  - `Topic(name="/odom", msg_type="Odometry")`
+```
+
+
+## Outputs
+
+```{list-table}
+:widths: 10 40 10 40
+:header-rows: 1
+* - Key Name
+  - Allowed Types
+  - Number
+  - Default
+
+* - robot_command
+  - `geometry_msgs.msg.Twist`
+  - 1
+  - `Topic(name="/cmd_vel", msg_type="Twist")`
+* - emergency_stop
+  - `std_msgs.msg.Bool`
+  - 1
+  - `Topic(name="/emergency_stop", msg_type="Bool")`
+```
+
+## Configuration Parameters:
+
+See all available parameters in [DriveManagerConfig](../apidocs/kompass/kompass.components.drive_manager.md/#classes)
+
+## Usage Example:
+```python
+    from kompass.components import DriveManager, DriveManagerConfig
+    from kompass.ros import Topic
+
+    # Setup custom configuration
+    # closed_loop: send commands to the robot in closed loop (checks feedback from robot state)
+    # critical_zone_distance: for emergency stp (m)
+    my_config = DriveManagerConfig(closed_loop=True, critical_zone_distance=0.1, slowdown_zone_distance=0.3, critical_zone_angle=90.0)
+
+    driver = DriveManager(component_name="driver", config=my_config)
+
+    # Change the robot command output
+    driver.outputs(robot_command=Topic(name='/my_robot_cmd', msg_type='Twist'))
+```
+```
+
+## File: navigation/control.md
+```markdown
+# Controller
+
+Local planning and control is essential for any mobile robot in real-world applications to deal with unexpected situations while tracking the global trajectory.
+
+Controller is used for path tracking and control around dynamic obstacles during navigation.
+
+## Available Run Types
+Set directly from Controller 'run_type' property.
+
+```{list-table}
+:widths: 10 80
+* - **Timed**
+  - Compute a new control command periodically if all inputs are available
+
+* - **ActionServer**
+  - Offers a [ControlPath](https://github.com/automatika-robotics/kompass/blob/main/kompass_interfaces/action/ControlPath.action) ROS action and continuously computes a new control once an action request is received until goal point is reached
+```
+
+## Inputs:
+```{list-table}
+:widths: 10 40 10 40
+:header-rows: 1
+* - Key Name
+  - Allowed Types
+  - Number
+  - Default
+
+* - plan
+  - [`nav_msgs.msg.Path`](http://docs.ros.org/en/noetic/api/nav_msgs/html/msg/Path.html)
+  - 1
+  - `Topic(name="/plan", msg_type="Path")`
+
+* - location
+  - [`nav_msgs.msg.Odometry`](https://docs.ros.org/en/noetic/api/nav_msgs/html/msg/Odometry.html), [`geometry_msgs.msg.PoseStamped`](http://docs.ros.org/en/jade/api/geometry_msgs/html/msg/PoseStamped.html), [`geometry_msgs.msg.Pose`](http://docs.ros.org/en/jade/api/geometry_msgs/html/msg/Pose.html)
+  - 1
+  - `Topic(name="/odom", msg_type="Odometry")`
+
+* - sensor_data
+  - [`sensor_msgs.msg.LaserScan`](https://docs.ros.org/en/noetic/api/sensor_msgs/html/msg/LaserScan.html), [`sensor_msgs.msg.PointCloud2`](http://docs.ros.org/en/noetic/api/sensor_msgs/html/msg/PointCloud2.html)
+  - 1
+  - `Topic(name="/scan", msg_type="LaserScan")`
+
+* - local_map
+  - [`nav_msgs.msg.OccupancyGrid`](http://docs.ros.org/en/noetic/api/nav_msgs/html/msg/OccupancyGrid.html)
+  - 1
+  - `Topic(name="/local_map/occupancy_layer", msg_type="OccupancyGrid")`
+
+* - vision_tracking
+  - [`automatika_embodied_agents.msg.Trackings`](https://github.com/automatika-robotics/ros-agents/tree/main/agents_interfaces/msg), [`automatika_embodied_agents.msg.Detections2D`](https://github.com/automatika-robotics/ros-agents/tree/main/agents_interfaces/msg)
+  - 1
+  - None, Should be provided to use the vision target tracking
+```
+
+```{tip}
+Provide a 'vision_tracking' input topic to the controller to activate the creation of the a vision-based target following action server. See [this example](../tutorials/vision_tracking.md) for more details.
+```
+
+## Outputs:
+
+```{list-table}
+:widths: 10 40 10 40
+:header-rows: 1
+* - Key Name
+  - Allowed Types
+  - Number
+  - Default
+
+* - command
+  - [`geometry_msgs.msg.Twist`](http://docs.ros.org/en/noetic/api/geometry_msgs/html/msg/Twist.html)
+  - 1
+  - ```Topic(name="/control", msg_type="Twist")```
+* - multi_command
+  - [`kompass_interfaces.msg.TwistArray`](https://github.com/automatika-robotics/kompass/tree/main/kompass_interfaces/msg)
+  - 1
+  - ```Topic(name="/control_list", msg_type="TwistArray")```
+* - interpolation
+  - [`nav_msgs.msg.Path`](http://docs.ros.org/en/noetic/api/nav_msgs/html/msg/Path.html)
+  - 1
+  - ```Topic(name="/interpolated_path", msg_type="Path")```
+* - local_plan
+  - [`nav_msgs.msg.Path`](http://docs.ros.org/en/noetic/api/nav_msgs/html/msg/Path.html)
+  - 1
+  - ```Topic(name="/local_path", msg_type="Path")```
+* - tracked_point
+  - [`nav_msgs.msg.Odometry`](https://docs.ros.org/en/noetic/api/nav_msgs/html/msg/Odometry.html), [`geometry_msgs.msg.PoseStamped`](http://docs.ros.org/en/jade/api/geometry_msgs/html/msg/PoseStamped.html), [`geometry_msgs.msg.Pose`](http://docs.ros.org/en/jade/api/geometry_msgs/html/msg/Pose.html)[`automatika_embodied_agents.msg.Detection2D`](https://github.com/automatika-robotics/ros-agents/tree/main/agents_interfaces/msg)
+  - 1
+  - ```Topic(name="/tracked_point", msg_type="PoseStamped")```
+```
+
+## Available Algorithms:
+
+- [Stanley](../advanced/algorithms/stanley.md) (pure follower)
+- [DVZ](../advanced/algorithms/dvz.md) (Deformable Virtual Zone)
+- [DWA](../advanced/algorithms/dwa.md) (Dynamic Window Approach)
+- [VisionFollower](../advanced/algorithms/vision_follower.md) (Vision target following controller)
+
+## Configuration Parameters:
+
+See [ControllerConfig](../apidocs/kompass/kompass.components.controller.md/#classes)
+
+
+## Usage Example:
+```python
+    from kompass.components import ControllerConfig, Controller
+    from kompass.topic import Topic
+
+    # Setup custom configuration
+    my_config = ControllerConfig(loop_rate=10.0)
+
+    # Init a controller object
+    my_controller = Controller(component_name="controller", config=my_config)
+
+    # Change an input
+    my_controller.inputs(plan=Topic(name='/global_path', msg_type='Path'))
+
+    # Change run type (default "Timed")
+    my_controller.run_type = "ActionServer"
+
+    # Change plugin
+    my_controller.plugin = 'DWA'
+```
+```
+
+## File: navigation/path_planning.md
+```markdown
+# Planner
+
+Path planning consists of finding an 'optimal' or 'suboptimal' path from a start to a goal location given partial (local planning) or complete space information (global planning).
+In a 2D navigation system, path planning refers to the **global path planning** which seeks an optimal path given largely complete static environmental information that is perfectly known to the robot (i.e. the global or reference map).[^1]
+
+[^1]: More on path planning algorithms can be seen in recent surveys on the topic in [Qin et al., 2023](https://www.mdpi.com/2504-446X/7/3/211) and [Karur et al., 2021](https://www.mdpi.com/2624-8921/3/3/27)
+
+Path planning algorithms produce a complete path from the start point (robot location) to the final end point, then the robot can start following and locally modifying the planned path (see [Control](control.md)).
+
+
+[Planner](../apidocs/kompass/kompass.components.planner.md) Component is in charge of global path planning in Kompass. Planner uses the [Open Motion Planning Library (OMPL)](https://ompl.kavrakilab.org/) plugins to perform the path planning (more on [OMPL integration](../integrations/ompl.md) with Kompass)
+
+
+## Available Run Types
+Planner can be used with all four available RunTypes:
+
+```{list-table}
+:widths: 10 80
+* - **Timed**
+  - Compute a new plan periodically from current location (last message received on location input Topic) to the goal location (last message received on goal_point input Topic)
+
+* - **Event**
+  - Compute a new plan from current location on every new message received on [**goal_point**](#inputs) input Topic
+
+* - **Server**
+  - Offers a PlanPath ROS service and computes a new plan on every service request
+
+* - **ActionServer**
+  - Offers a PlanPath ROS action and continuously computes a plan once an action request is received until goal point is reached
+```
+
+## Inputs
+Planner requires configuring three inputs:
+
+```{list-table}
+:widths: 10 40 10 40
+:header-rows: 1
+* - Key Name
+  - Allowed Types
+  - Number
+  - Default
+
+* - map
+  - [`nav_msgs.msg.OccupancyGrid`](http://docs.ros.org/en/noetic/api/nav_msgs/html/msg/OccupancyGrid.html)
+  - 1
+  - `Topic(name="/map", msg_type="OccupancyGrid", qos_profile=QoSConfig(durability=TRANSIENT_LOCAL))`
+* - goal_point
+  - [`nav_msgs.msg.Odometry`](https://docs.ros.org/en/noetic/api/nav_msgs/html/msg/Odometry.html), [`geometry_msgs.msg.PoseStamped`](http://docs.ros.org/en/jade/api/geometry_msgs/html/msg/PoseStamped.html), [`geometry_msgs.msg.PointStamped`](http://docs.ros.org/en/jade/api/geometry_msgs/html/msg/PointStamped.html)
+  - 1
+  - `Topic(name="/goal", msg_type="PointStamped")`
+* - location
+  - [`nav_msgs.msg.Odometry`](https://docs.ros.org/en/noetic/api/nav_msgs/html/msg/Odometry.html), [`geometry_msgs.msg.PoseStamped`](http://docs.ros.org/en/jade/api/geometry_msgs/html/msg/PoseStamped.html), [`geometry_msgs.msg.Pose`](http://docs.ros.org/en/jade/api/geometry_msgs/html/msg/Pose.html)
+  - 1
+  - `Topic(name="/odom", msg_type="Odometry")`
+```
+
+:::{note} 'goal_point' input is only used if the Planner is running as TIMED or EVENT Component. In the other two types, the goal point is provided in the service request or the action goal.
+:::
+
+
+## Outputs
+Planner offers two outputs:
+
+```{list-table}
+:widths: 10 40 10 40
+:header-rows: 1
+
+* - Key Name
+  - Allowed Types
+  - Number
+  - Default
+
+
+* - plan
+  - [`nav_msgs.msg.Path`](http://docs.ros.org/en/noetic/api/nav_msgs/html/msg/Path.html)
+  - 1
+  - `Topic(name="/plan", msg_type="Path")`
+* - reached_end
+  - `std_msgs.msg.Bool`
+  - 1
+  - `Topic(name="/reached_end", msg_type="Bool")`
+```
+
+## Available Algorithms:
+
+OMPL geometric planners (see [available OMPL integrations](../integrations/ompl.md/#available-algorithms-from-ompl) for more details)
+
+## Usage Example
+```python
+    from kompass.components import Planner, PlannerConfig
+    from kompass.config import ComponentRunType
+    from kompass.topic import Topic
+    from kompass_core.models import RobotType, Robot, RobotGeometry, LinearCtrlLimits, AngularCtrlLimits
+    import numpy as np
+
+    # Configure your robot
+    my_robot = RobotConfig(
+            model_type=RobotType.DIFFERENTIAL_DRIVE,
+            geometry_type=RobotGeometry.Type.CYLINDER,
+            geometry_params=np.array([0.1, 0.3]),
+            ctrl_vx_limits=LinearCtrlLimits(max_vel=1.0, max_acc=1.5, max_decel=2.5),
+            ctrl_omega_limits=AngularCtrlLimits(
+                max_vel=1.0, max_acc=2.0, max_decel=2.0, max_steer=np.pi / 3
+            ),
+        )
+
+    # Setup the planner config
+    config = PlannerConfig(
+        robot=my_robot,
+        loop_rate=1.0 # 1Hz
+    )
+
+    planner = Planner(component_name="planner", config=config)
+
+    planner.run_type = ComponentRunType.EVENT   # Can also pass a string "Event"
+
+    # Add rviz clicked_point as input topic
+    goal_topic = Topic(name="/clicked_point", msg_type="PoseStamped")
+    planner.inputs(goal_point=goal_topic)
+```
+```
+
+## File: navigation/motion_server.md
+```markdown
+# Motion Server
+
+[MotionServer](../apidocs/kompass/kompass.components.motion_server.md) offers additional motion related services for testing and recording. Unlike the rest of the navigation components, the Motion Server does not perform a core navigation task but offers complementary functionalities essential for validating and calibrating a navigation system.
+
+Motion Server contains a set of basic motion tests. In each test, the MotionServer sends commands to the robot to perform the pre-configured motion and records both the sent command and the robot response (velocity and pose). This is used to test the motion response on new terrain or calibrate the robot motion model.
+
+```{note}
+The available motion tests include Step tests and Circle test and can be configured by adjusting the [MotionServerConfig](../apidocs/kompass/kompass.components.motion_server.md)
+```
+
+MotionServer offers a Motion Recording service as a ROS2 action which allows to record the control commands and the response of the robot during the navigation.
+
+```{tip}
+Launch the MotionServer as a **Timed** component to launch the basic motion tests automatically, or as a **Event** component to launch the tests when a trigger is received
+```
+
+```{tip}
+Launch the MotionServer as an **ActionServer** component and send a request to record your robot's motion at any time during the navigation.
+```
+
+```{tip}
+The Motion Recording action can also be configured to start based on an external event
+```
+
+## Available Run Types
+
+```{list-table}
+:widths: 10 80
+* - **Timed**
+  - Launches an automated test periodically after start
+
+* - **Event**
+  - Launches automated testing when a trigger is received on RUN input
+
+* - **ActionServer**
+  - Offers a MotionRecording ROS action to record motion for location and control commands topics for given recording period
+```
+
+
+## Inputs:
+
+```{list-table}
+:widths: 10 40 10 40
+:header-rows: 1
+
+* - Key Name
+  - Allowed Types
+  - Number
+  - Default
+
+* - run_tests
+  - `std_msgs.msg.Bool`
+  - 1
+  - `Topic(name="/run_tests", msg_type="Bool")`
+
+* - command
+  - `geometry_msgs.msg.Twist`
+  - 1
+  - `Topic(name="/cmd_vel", msg_type="Twist")`
+
+* - location
+  - [`nav_msgs.msg.Odometry`](https://docs.ros.org/en/noetic/api/nav_msgs/html/msg/Odometry.html), [`geometry_msgs.msg.PoseStamped`](http://docs.ros.org/en/jade/api/geometry_msgs/html/msg/PoseStamped.html), [`geometry_msgs.msg.Pose`](http://docs.ros.org/en/jade/api/geometry_msgs/html/msg/Pose.html)
+  - 1
+  - `Topic(name="/odom", msg_type="Odometry")`
+
+```
+
+## Outputs:
+
+```{list-table}
+:widths: 10 40 10 40
+:header-rows: 1
+
+* - Key Name
+  - Allowed Types
+  - Number
+  - Default
+
+* - robot_command
+  - `geometry_msgs.msg.Twist`
+  - 1
+  - `Topic(name="/cmd_vel", msg_type="Twist")`
+
+```
+
+```{note}
+Topic for _Control Command_ is both in MotionServer inputs and outputs:
+- The output is used when running automated testing (i.e. sending the commands directly from the MotionServer).
+- The input is used to purely record motion and control from external sources (example: recording output from Controller).
+- Different command topics can be configured for the input and the output. For example: to test the DriveManager, the control command from MotionServer output can be sent to the DriveManager, then the DriveManager output can be configured as the MotionServer input for recording.
+```
+```
+
+## File: navigation/mapper.md
+```markdown
+# Local Mapper
+
+A global map provides a static, large-scale view of the environment—useful for long-term planning. In contrast, the **local map** is a dynamic, ego-centric map that constantly updates around the robot based on **real-time sensor data**. It reflects immediate surroundings, including recent changes like moving obstacles or temporary features, and serves as the most relevant input for the [Controller](control.md) rather than getting the direct sensor information.
+
+The [LocalMapper](../apidocs/kompass/kompass.components.mapper.md) component in Kompass is responsible for generating this local occupancy map on the fly during navigation.
+
+## 🧠 Algorithm Details
+At its core, LocalMapper uses the Bresenham line drawing algorithm in C++ to efficiently update an occupancy grid from incoming LaserScan data. This approach ensures fast and accurate raycasting to determine free and occupied cells in the local grid.
+
+To maximize performance and adaptability, the implementation **supports both CPU and GPU execution**:
+
+- GPU acceleration is implemented using SYCL, making it vendor-agnostic—compatible with Nvidia, AMD, Intel, and any other GPGPU-capable devices.
+
+- On the CPU, the algorithm is multi-threaded for high-throughput processing, suitable even for dense scan rates or high-frequency updates.
+
+
+```{note}
+Current implementation supports LaserScan sensor data to create an Occupancy Grid local map. PointCloud and semantic information will be supported in an upcoming release
+```
+
+
+## Available Run Types
+Set directly from LocalMapper 'run_type' property.
+
+```{list-table}
+:widths: 10 80
+* - **Timed**
+  - Produces a local map periodically if all inputs are available
+```
+
+## Inputs
+
+```{list-table}
+:widths: 10 40 10 40
+:header-rows: 1
+* - Key Name
+  - Allowed Types
+  - Number
+  - Default
+
+* - sensor_data
+  - [`sensor_msgs.msg.LaserScan`](https://docs.ros.org/en/noetic/api/sensor_msgs/html/msg/LaserScan.html)
+  - 1
+  - ```Topic(name="/scan", msg_type="LaserScan")```
+
+* - location
+  - [`nav_msgs.msg.Odometry`](https://docs.ros.org/en/noetic/api/nav_msgs/html/msg/Odometry.html), [`geometry_msgs.msg.PoseStamped`](http://docs.ros.org/en/jade/api/geometry_msgs/html/msg/PoseStamped.html), [`geometry_msgs.msg.Pose`](http://docs.ros.org/en/jade/api/geometry_msgs/html/msg/Pose.html)
+  - 1
+  - ```Topic(name="/odom", msg_type="Odometry")```
+
+```
+
+## Outputs
+
+```{list-table}
+:widths: 10 40 10 40
+:header-rows: 1
+* - Key Name
+  - Allowed Types
+  - Number
+  - Default
+
+* - local_map
+  - `nav_msgs.msg.OccupancyGrid`
+  - 1
+  - ```Topic(name="/local_map/occupancy_layer", msg_type="OccupancyGrid")```
+```
+
+
+## Usage Example:
+```python
+    from kompass_core.mapping import LocalMapperConfig
+    from kompass.components import LocalMapper, MapperConfig
+
+    # Select map parameters
+    map_params = MapperConfig(width=5.0, height=5.0, resolution=0.2) # 5mX5m map with 0.2m/cell resolution
+
+    # Setup custom component configuration
+    my_config = LocalMapperConfig(loop_rate=10.0, map_params=map_params)
+
+    # Init a mapper
+    my_mapper = LocalMapper(component_name="mapper", config=my_config)
+```
+```
+
+## File: navigation/map_server.md
+```markdown
+# Map Server
+
+The [MapServer](../apidocs/kompass/kompass.components.map_server.md) component is responsible for serving the static global map data within the navigation system. It reads static map files, processes them, and serves global map data to other components in the system.
+
+The MapServer component can perform the following functionalities:
+
+```{list-table}
+:widths: 20 70
+
+* - **Map Data Conversion**
+  - Reads map files in either 2D (YAML) or 3D (PCD) format and converts the data into usable global map formats (OccupancyGrid).
+
+* - **Global Map Serving**
+  - Once map data is loaded and processed, the MapServer publishes the global map as an `OccupancyGrid` message. This map is continuously available for other components to access for tasks like path planning, localization, and obstacle detection.
+
+* - **Point Cloud to Grid Conversion**
+  - If the map data is provided in the form of point cloud data (PCD file), the MapServer can generate an occupancy grid from the point cloud. It uses the provided grid resolution and ground limits to classify points and create an accurate occupancy map.
+
+* - **Custom Frame Handling**
+  - The MapServer allows configuration of a custom frame for the map. This frame can be applied to the global map when published, ensuring compatibility with other components that may use a different reference frame for their operations.
+
+* - **Map Saving**
+  - The MapServer can save the generated or modified maps to files. It supports saving both 2D and 3D maps using the `Save2dMapToFile` and `Save3dMapToFile` services. This allows map data to be preserved for later use or shared between different systems.
+
+* - **Map Update Frequency Control**
+  - The MapServer can be configured to control how often map data is read and converted. The rate of map updates can be controlled by the `map_file_read_rate` parameter, ensuring that map data is refreshed periodically or only when necessary.
+
+```
+
+## Outputs:
+
+```{list-table}
+:widths: 10 40 10 40
+:header-rows: 1
+* - Key Name
+  - Allowed Types
+  - Number
+  - Default
+
+* - **global_map**
+  - [`nav_msgs.msg.OccupancyGrid`](http://docs.ros.org/en/noetic/api/nav_msgs/html/msg/OccupancyGrid.html)
+  - 1
+  - `Topic(name="/map", msg_type="OccupancyGrid")` - Global map generated from input data.
+
+* - **spatial_sensor**
+  - [`sensor_msgs.msg.PointCloud2`](http://docs.ros.org/en/noetic/api/sensor_msgs/html/msg/PointCloud2.html)
+  - 1, optional
+  - `Topic(name="/row_point_cloud", msg_type="PointCloud2")` - Row point cloud data for visualization or further processing.
+```
+
+## Configuration Parameters:
+
+See all available parameters in [MapServerConfig](../apidocs/kompass/kompass.components.map_server.md/#classes)
+
+## Usage Example:
+
+```python
+    from kompass.components import MapServerConfig, MapServer
+    from kompass.ros import Topic
+
+    # Setup custom configuration
+    my_config = MapServerConfig(
+            map_file_read_rate=5.0,
+            map_file_path="/path/to/your/map.pcd",      # Absolute path to the static map file
+            grid_resolution=0.1,                        # Map resolution used for converting from 3D
+            pc_publish_row=False,                       # Disable publishing point cloud data
+        )
+
+    # Init a MapServer object
+    my_map_server = MapServer(component_name="map_server", config=my_config)
+```
+```
+
+## File: navigation/mapping_localization.md
+```markdown
+# Global Mapping and Localization
+
+To use Kompass on your robot you can refer to one of the following open-source packages for implementing the global mapping and localization system:
+
+- [Robot Localization Package](https://github.com/automaticaddison/robot_localization)
+- [SLAM Toolbox](https://github.com/SteveMacenski/slam_toolbox)
+- [ROS2 Map Server](https://github.com/ros-navigation/navigation2/tree/main/nav2_map_server)
+```
+
+## File: tutorials/point_navigation.md
+```markdown
+# 🎯 Point Navigation: Step-by-Step Tutorial
+
+## Step 1: Setup your robot
+
+The first step to start navigating is to [configure the robot](../navigation/robot.md) that will use the navigation system. Kompass provides a `RobotConfig` primitive where you can add the robot motion model (ACKERMANN, OMNI, DIFFERENTIAL_DRIVE), the robot geometry parameters and the robot control limits. Lets see how that looks like in code.
+
+```python
+import numpy as np
+from kompass.robot import (
+    AngularCtrlLimits,
+    LinearCtrlLimits,
+    RobotGeometry,
+    RobotType,
+)
+from kompass.config import RobotConfig
+
+# Setup your robot configuration
+my_robot = RobotConfig(
+    model_type=RobotType.DIFFERENTIAL_DRIVE,
+    geometry_type=RobotGeometry.Type.CYLINDER,
+    geometry_params=np.array([0.1, 0.3]),
+    ctrl_vx_limits=LinearCtrlLimits(max_vel=0.2, max_acc=1.5, max_decel=2.5),
+    ctrl_omega_limits=AngularCtrlLimits(
+        max_vel=0.4, max_acc=2.0, max_decel=2.0, max_steer=np.pi / 3
+    ),
+)
+```
+
+Above we have configured the robot to be a differential drive robot (which is the Turtlebot3 motion model) and approximated the geometry of the robot with a cylinder of dimensions $(Radius = 0.1m, Height = 0.3m)$. The control limits are configured only for the linear (forward) velocity $v_x$ and the angular velocity $\omega$, as the robot has no lateral $v_y$ movement.
+
+Next we need to provide the robot $TF$ frame names:
+
+```python
+from kompass.config import RobotFrames
+
+robot_frames = RobotFrames(
+    robot_base='base_link',
+    odom='odom',
+    world='map',
+    scan='LDS-01'
+)
+```
+
+```{seealso}
+You can learn more [here](../navigation/robot.md) about the available robot configurations in Kompass.
+```
+
+```{note}
+You can also pass the same previous configuration using a YAML file. See an example in [turtulebot3.yaml](https://github.com/automatika-robotics/kompass/blob/main/kompass/params/turtlebot3.yaml)
+```
+
+## Step 2: Setup your stack components
+
+Kompass components come with pre-configured default values for all the parameters, algorithms and inputs/outputs. To get the default configuration you simply need to provide a name to each component (the ROS2 node name). In this recipe, we will setup the minimal configuration required to run the stack with the Turtlebot3. We set the Planner goal_point input to the `clicked_point` topic on Rviz, and set the Driver output to the Turtlebot3 command.
+
+```python
+from kompass.components import (
+    Controller,
+    Planner,
+    PlannerConfig,
+    DriveManager,
+    LocalMapper,
+)
+from kompass.ros import Topic
+
+# Setup components with default config, inputs and outputs
+planner_config = PlannerConfig(loop_rate=1.0)       # 1 Hz
+planner = Planner(component_name="planner", config=planner_config)
+
+# Set Planner goal input to Rviz Clicked point
+goal_topic = Topic(name="/clicked_point", msg_type="PointStamped")
+planner.inputs(goal_point=goal_topic)
+
+# Get a default controller component
+controller = Controller(component_name="controller")
+
+# Configure Controller to use local map instead of direct sensor information
+controller.direct_sensor = False
+
+# Set DriveManager velocity output to the turtlebot3 twist command
+driver = DriveManager(component_name="drive_manager")
+driver.outputs(command=Topic(name="cmd_vel", msg_type="Twist"))
+
+# Get a default Local Mapper component
+mapper = LocalMapper(component_name="mapper")
+```
+
+```{seealso}
+Several other configuration options are available for each component, refer to the [Planner](../navigation/path_planning.md) and [Controller](../navigation/control.md) dedicated pages for more details.
+```
+
+## Step 4: (Optional) Command type configuration:
+In more recent releases of ROS (starting `jazzy`), many systems and simulators have switched from the `Twist` command message which does not contain any time information to a stamped version of the same message: `TwistStamped`. Using Kompass, it is very straight forward to select one of these two by setting the output type of the `DriveManager` based on the desired output.
+To make this recipe more adaptive and ready to use with different simulations in different ROS2 versions out-of-the-box, let's detect the `$ROS_VERSION` and set the output accordingly:
+
+```python
+# Publish Twist or TwistStamped from the DriveManager based on the distribution
+if "ROS_DISTRO" in os.environ and (
+    os.environ["ROS_DISTRO"] in ["rolling", "jazzy", "kilted"]
+):
+    cmd_msg_type : str = "TwistStamped"
+else:
+    cmd_msg_type = "Twist"
+
+driver.outputs(robot_command=Topic(name="/cmd_vel", msg_type=cmd_msg_type))
+```
+
+## Step 5: Setup your Launcher
+
+The launcher in Kompass is a wrapper for ROS2 launch tools. Launcher requires a Component or a set of Components to start. Launcher can also manage Events/Actions which we will leave out of this simple example (check a more advanced example [here](events_actions.md)).
+
+After initializing the Launcher with the required components, we also pass the robot configuration and frames to the launcher (which will be forwarded to all the components). We will also set two other parameters; we set 'activate_all_components_on_start' to `True` so all the components will transition to 'active' state after bringup. We also set 'multi_processing' to `True` to start each component in a separate process.
+
+
+```python
+from kompass.ros import Launcher
+
+
+# Init a launcher
+launcher = Launcher()
+
+# Pass kompass components to the launcher
+launcher.kompass(
+    components=[planner, controller, driver, mapper],
+    activate_all_components_on_start=True,
+    multi_processing=True,
+)
+
+# Set the robot configuration
+launcher.robot = robot_config
+
+# Set the frames
+launcher.frames = frames_config
+
+# Fallback Policy: If any component fails -> restart it with unlimited retries
+launcher.on_fail(action_name="restart")
+
+# After all configuration is done bringup the stack
+launcher.bringup()
+```
+
+Notice that in the above code we also set a generic fallback policy to restart any failed components.
+
+```{seealso}
+There are various fallback mechanisms available in Kompass. Learn more about them in [Sugarcoat🍬 docs](https://automatika-robotics.github.io/sugarcoat/design/fallbacks.html).
+```
+
+```{seealso}
+To pass other components to the launcher from packages other than Kompass, use the method `add_pkg`. See more details in [Sugarcoat🍬](https://automatika-robotics.github.io/sugarcoat/advanced/use.html) about creating your own package and using it with the Launcher.
+```
+
+Finally, we bring up our stack and select the desired logging level.
+
+Et voila! we have a navigation system ready to run in less than 70 lines of code!
+
+```{code-block} python
+:caption: turtlebot3 test
+:linenos:
+
+import numpy as np
+from kompass.robot import (
+    AngularCtrlLimits,
+    LinearCtrlLimits,
+    RobotGeometry,
+    RobotType,
+)
+from kompass.config import RobotConfig, RobotFrames
+from kompass.components import (
+    Controller,
+    DriveManager,
+    Planner,
+    PlannerConfig,
+)
+from kompass.ros import Topic, Launcher
+
+# Setup your robot configuration
+my_robot = RobotConfig(
+    model_type=RobotType.DIFFERENTIAL_DRIVE,
+    geometry_type=RobotGeometry.Type.CYLINDER,
+    geometry_params=np.array([0.1, 0.3]),
+    ctrl_vx_limits=LinearCtrlLimits(max_vel=0.2, max_acc=1.5, max_decel=2.5),
+    ctrl_omega_limits=AngularCtrlLimits(
+        max_vel=0.4, max_acc=2.0, max_decel=2.0, max_steer=np.pi / 3)
+)
+
+# Set the robot frames
+robot_frames = RobotFrames(
+    robot_base='base_link',
+    odom='odom',
+    world='map',
+    scan='LDS-01')
+
+# Setup components with default config, inputs and outputs
+planner_config = PlannerConfig(loop_rate=1.0)       # 1 Hz
+planner = Planner(component_name="planner", config=planner_config)
+
+# Set Planner goal input to Rviz Clicked point
+goal_topic = Topic(name="/clicked_point", msg_type="PointStamped")
+planner.inputs(goal_point=goal_topic)
+
+# Get a default controller component
+controller = Controller(component_name="controller")
+
+# Configure Controller to use local map instead of direct sensor information
+controller.direct_sensor = False
+
+# Get the default DriveManager
+driver = DriveManager(component_name="drive_manager")
+
+# Publish Twist or TwistStamped from the DriveManager based on the distribution
+if "ROS_DISTRO" in os.environ and (
+    os.environ["ROS_DISTRO"] in ["rolling", "jazzy", "kilted"]
+):
+    cmd_msg_type : str = "TwistStamped"
+else:
+    cmd_msg_type = "Twist"
+
+driver.outputs(robot_command=Topic(name="/cmd_vel", msg_type=cmd_msg_type))
+
+# Get a default Local Mapper component
+mapper = LocalMapper(component_name="mapper")
+
+# Init a launcher
+launcher = Launcher()
+
+# Pass kompass components to the launcher
+launcher.kompass(
+    components=[planner, controller, driver, mapper],
+    activate_all_components_on_start=True,
+    multi_processing=True)
+
+# Set the robot
+launcher.robot = robot_config
+
+# Set the frames
+launcher.frames = frames_config
+
+# Fallback Policy: If any component fails -> restart it with unlimited retries
+launcher.on_fail(action_name="restart")
+
+# After all configuration is done bringup the stack
+launcher.bringup()
+```
+
+## Step 6: Add your first Event!
+
+ To track the mission during execution and end the mission once the point is reached we want to run the Planner as an `ActionServer` and still set its navigation goals directly using Rviz. To do so we can configure an event/action pair with Kompass. Jump to the [next tutorial](events_actions.md) to learn how to extend the previous recipe.
+
+ 👉 [Add Event/Action Pairs to the Recipe](events_actions.md)
+```
+
+## File: tutorials/events_actions.md
+```markdown
+# ⚙️ Using Events/Actions in your application
+
+Events/Actions are a powerful tool to make your robot application adaptive to the changing working conditions (both internal and external to the robot), or to extend the operational scope of your application by adapting it to new spaces/usecases.
+
+In this tutorial we will extend the Turtlebot3 point navigation [recipe](point_navigation.md) by adding a few events/actions to the system.
+
+## First Event/Action Pair
+
+First we define two events, the first is associated with the Controller internal algorithm failing to calculate a new control command by accessing the value of the Health Status broadcasted by the Controller on its own status topic. The second event is triggered when an emergency stop is detected by the DriveManager:
+
+```python
+from kompass import event
+
+event_controller_fail = event.OnEqual(
+    "controller_fail",
+    Topic(name="controller_status", msg_type="ComponentStatus"),
+    ComponentStatus.STATUS_FAILURE_ALGORITHM_LEVEL,
+    "status",
+)
+
+event_emergency_stop = event.OnEqual(
+        "emergency_stop",
+        Topic(name="emergency_stop", msg_type="Bool"),
+        True,
+        "data",
+    )
+```
+
+We will link both events with an Action provided by the `DriveManager` called `move_to_unblock`. This is to address two a problem that can occur during navigation when the robot is too close to obstacles or an obstacle is already touching the chassis which will lead many control algorithms to fail. In such cases `move_to_unblock` will help the robot to move a little and escape the clutter or collision area.
+
+```python
+from kompass.actions import Action
+
+unblock_action = Action(method=driver.move_to_unblock)
+```
+
+We can also define an event for the Planner algorithm failing to produce a new map. We can associate it with the same action for the case where the reference map of the space used by the robot is not accurate. If the map is not accurate the robot can be at a starting point that is marked occupied on the map where it's in fact free. In this case the the Planner will fail to solve the navigation problem as an invalid start state is passed to the algorithm. In this case executing the `move_to_unblock` action can help escape the invalid space.
+
+
+```python
+event_planner_algo_fail = event.OnEqual(
+    "planner_fail",
+    Topic(name="planner_status", msg_type="ComponentStatus"),
+    ComponentStatus.STATUS_FAILURE_ALGORITHM_LEVEL,
+    ("status"),
+)
+```
+
+```{tip}
+If you are using Kompass with the [Costmap 2D](https://docs.nav2.org/configuration/packages/configuring-costmaps.html) node: You can associate another Action to the Planner algorithm level fail event which is a ROS2 service call to the node `clear_costmap` service. (Keep reading to see how similar actions are executed!)
+```
+
+```{note}
+In the point navigation [recipe](point_navigation.md) we added a generic on_fail policy to restart the failed component. This policy will be applied whenever any type of failure is occurs, including the previously used algorithm failure. We can choose to keep this policy, meaning that while the driver is executing the `move_to_unblock` action, then the planner or controller will get restarted.
+```
+
+## Tweak the system using events
+
+In our [_point navigation_](point_navigation.md) example we used the Planner with a `Timed` run type and used RVIZ clicked point as the goal point input. In this configuration, once a point is clicked on RVIZ (a message is published on the topic), the Planner will keep producing a new plan each loop step from the current position to the clicked point. To track the mission during execution and end the mission once the point is reached we can run the Planner as an `ActionServer`. In this case the Planner produces a new plan on an incoming action request and will no longer take goals directly from RVIZ topic.
+
+We will use events here to run the Planner as an `ActionServer` and accept the goal directly from RVIZ to get the best of both worlds.
+
+First, we define an event that is triggered on any clicked point on RVIZ:
+
+```python
+from kompass import event
+from kompass.ros import Topic
+
+# On any clicked point
+event_clicked_point = event.OnGreater(
+    "rviz_goal",
+    Topic(name="/clicked_point", msg_type="PointStamped"),
+    0,
+    ["header", "stamp", "sec"],
+)
+
+# Another way to define the same event
+event_clicked_point_1 = event.OnAny(
+    "rviz_goal_any",
+    Topic(name="/clicked_point", msg_type="PointStamped"),
+)
+```
+
+Then we will add an Action that sends a goal to the Planner's ActionServer:
+
+```python
+from kompass.actions import ComponentActions
+from kompass_interfaces.action import PlanPath
+
+# Define an Action to send a goal to the planner ActionServer
+send_goal: Action = ComponentActions.send_action_goal(
+    action_name="/planner/plan_path",
+    action_type=PlanPath,
+    action_request_msg=PlanPath.Goal(),
+)
+```
+The only thing left is to parse the clicked point message published on the event topic into the `send_goal` action goal. For this we will write a small method that executes tha desired parsing and pass it to the action using the `event_parser` method available in the Action class:
+
+```python
+from kompass_interfaces.msg import PathTrackingError
+from geomerty_msgs.msg import PointStamped
+
+# Define a method to parse a message of type PointStamped to the planner PlanPath Goal
+def goal_point_parser(*, msg: PointStamped, **_):
+    action_request = PlanPath.Goal()
+    goal = Pose()
+    goal.position.x = msg.point.x
+    goal.position.y = msg.point.y
+    action_request.goal = goal
+    end_tolerance = PathTrackingError()
+    end_tolerance.orientation_error = 0.2
+    end_tolerance.lateral_distance_error = 0.05
+    action_request.end_tolerance = end_tolerance
+    return action_request
+
+# Adds the parser method as an Event parser of the send_goal action
+send_goal.event_parser(goal_point_parser, output_mapping="action_request_msg")
+```
+
+Now we can write a dictionary to link all our events with their respective actions:
+
+```python
+from kompass.actions import ComponentActions, LogInfo
+
+# Define Events/Actions dictionary
+events_actions = {
+    event_clicked_point: [LogInfo(msg="Got a new goal point from RVIZ"), send_goal],
+    event_emergency_stop: [
+        ComponentActions.restart(component=planner),
+        unblock_action,
+    ],
+    event_controller_fail: unblock_action,
+}
+```
+
+## Events/Actions to interact with external systems
+
+We can also use events/actions to communicate with systems or ROS2 nodes external to Kompass. Here for example, we will add another event for a system-level failure in the planner and an Action to send a service request to the Map Server node to load our reference map from the file:
+
+```python
+import os
+from kompass.actions import ComponentActions
+from nav2_msgs.srv import LoadMap
+from ament_index_python.packages import (
+    get_package_share_directory,
+)
+
+package_dir = get_package_share_directory(package_name="kompass")
+
+load_map_req = LoadMap()
+load_map_req.map_url = os.path.join(
+        package_dir, "maps", "turtlebot3_webots.yaml"
+    )
+
+action_load_map = ComponentActions.send_srv_request(
+    srv_name="/map_server/load_map",
+    srv_type=LoadMap,
+    srv_request_msg=load_map_req,
+)
+
+event_planner_system_fail = event.OnEqual(
+    "planner_system_fail",
+    Topic(name="planner_status", msg_type="ComponentStatus"),
+    ComponentStatus.STATUS_FAILURE_SYSTEM_LEVEL,
+    "status",
+)
+```
+
+```{tip}
+`SYSTEM_LEVEL_FAILURE` occurs in a component when an external error occurs such as an unavailable input.
+```
+
+## Complete Recipe
+
+Et voila! We extended the robustness and adaptivity of our system by using events/actions and without modifying any of the used components and without introducing any new components.
+
+Finally the full recipe with the added events/actions will look as follows:
+
+```{code-block} python
+:caption: turtlebot3 test
+:linenos:
+
+import numpy as np
+import os
+from nav2_msgs.srv import LoadMap
+
+from kompass_core.models import (
+    AngularCtrlLimits,
+    LinearCtrlLimits,
+    RobotGeometry,
+    RobotType,
+)
+from kompass_core.control import ControllersID
+
+from sugar.msg import ComponentStatus
+from kompass_interfaces.action import PlanPath
+from kompass_interfaces.msg import PathTrackingError
+from geometry_msgs.msg import Pose, PointStamped
+
+from kompass import event
+from kompass.actions import Action
+
+from kompass.components import (
+    Controller,
+    DriveManager,
+    Planner,
+    PlannerConfig,
+    LocalMapper,
+)
+from kompass.actions import ComponentActions, LogInfo
+from kompass.config import RobotConfig
+from kompass.ros import Topic, Launcher
+
+from ament_index_python.packages import get_package_share_directory
+
+
+package_dir = get_package_share_directory(package_name="kompass")
+config_file = os.path.join(package_dir, "params", "turtlebot3.yaml")
+
+# Setup your robot configuration
+my_robot = RobotConfig(
+    model_type=RobotType.DIFFERENTIAL_DRIVE,
+    geometry_type=RobotGeometry.Type.CYLINDER,
+    geometry_params=np.array([0.1, 0.3]),
+    ctrl_vx_limits=LinearCtrlLimits(max_vel=0.2, max_acc=1.5, max_decel=2.5),
+    ctrl_omega_limits=AngularCtrlLimits(
+        max_vel=0.4, max_acc=2.0, max_decel=2.0, max_steer=np.pi / 3)
+)
+
+config = PlannerConfig(robot=my_robot, loop_rate=1.0)
+planner = Planner(component_name="planner", config=config, config_file=config_file)
+
+controller = Controller(component_name="controller")
+mapper = LocalMapper(component_name="mapper")
+
+# Get the default DriveManager
+driver = DriveManager(component_name="drive_manager")
+
+# Publish Twist or TwistStamped from the DriveManager based on the distribution
+if "ROS_DISTRO" in os.environ and (
+    os.environ["ROS_DISTRO"] in ["rolling", "jazzy", "kilted"]
+):
+    cmd_msg_type : str = "TwistStamped"
+else:
+    cmd_msg_type = "Twist"
+
+driver.outputs(robot_command=Topic(name="/cmd_vel", msg_type=cmd_msg_type))
+
+# Configure Controller options
+controller.algorithm = ControllersID.STANLEY
+controller.direct_sensor = False
+
+planner.run_type = "ActionServer"
+
+driver.on_fail(action=Action(driver.restart))
+
+# DEFINE EVENTS
+event_emergency_stop = event.OnEqual(
+    "emergency_stop",
+    Topic(name="emergency_stop", msg_type="Bool"),
+    True,
+    "data",
+)
+event_controller_fail = event.OnEqual(
+    "controller_fail",
+    Topic(name="controller_status", msg_type="ComponentStatus"),
+    ComponentStatus.STATUS_FAILURE_ALGORITHM_LEVEL,
+    "status",
+)
+
+event_planner_system_fail = event.OnEqual(
+    "planner_system_fail",
+    Topic(name="planner_status", msg_type="ComponentStatus"),
+    ComponentStatus.STATUS_FAILURE_SYSTEM_LEVEL,
+    "status",
+)
+
+# Unblock action
+unblock_action = Action(method=driver.move_to_unblock)
+
+# On any clicked point
+event_clicked_point = event.OnGreater(
+    "rviz_goal",
+    Topic(name="/clicked_point", msg_type="PointStamped"),
+    0,
+    ["header", "stamp", "sec"],
+)
+
+# Define an Action to send a goal to the planner ActionServer
+send_goal: Action = ComponentActions.send_action_goal(
+    action_name="/planner/plan_path",
+    action_type=PlanPath,
+    action_request_msg=PlanPath.Goal(),
+)
+
+# Define a method to parse a message of type PointStamped to the planner PlanPath Goal
+def goal_point_parser(*, msg: PointStamped, **_):
+    action_request = PlanPath.Goal()
+    goal = Pose()
+    goal.position.x = msg.point.x
+    goal.position.y = msg.point.y
+    action_request.goal = goal
+    end_tolerance = PathTrackingError()
+    end_tolerance.orientation_error = 0.2
+    end_tolerance.lateral_distance_error = 0.05
+    action_request.end_tolerance = end_tolerance
+    return action_request
+
+# Adds the parser method as an Event parser of the send_goal action
+send_goal.event_parser(goal_point_parser, output_mapping="action_request_msg")
+
+# Load map action
+load_map_req = LoadMap()
+load_map_req.map_url = os.path.join(package_dir, "maps", "turtlebot3_webots.yaml")
+
+action_load_map = ComponentActions.send_srv_request(
+    srv_name="/map_server/load_map",
+    srv_type=LoadMap,
+    srv_request_msg=load_map_req)
+
+# Define Events/Actions dictionary
+events_actions = {
+    event_clicked_point: [LogInfo(msg="Got new goal point"), send_goal],
+    event_emergency_stop: [
+        ComponentActions.restart(component=planner),
+        unblock_action,
+    ],
+    event_controller_fail: unblock_action,
+    event_planner_system_fail: action_load_map
+}
+
+# Setup the launcher
+launcher = Launcher(config_file=config_file)
+
+# Add Kompass components
+launcher.kompass(
+    components=[planner, controller, mapper, driver],
+    events_actions=events_actions,
+    activate_all_components_on_start=True,
+    multi_processing=True)
+
+# Get odom from localizer filtered odom for all components
+odom_topic = Topic(name="/odometry/filtered", msg_type="Odometry")
+launcher.inputs(location=odom_topic)
+
+# Set the robot config for all components
+launcher.robot = my_robot
+
+launcher.bringup()
+```
+```
+
+## File: tutorials/vision_tracking.md
+```markdown
+# 📷 Following a moving target using RGB Image
+
+In this tutorial we will create a vision-based target following navigation system to follow a moving target using an RGB camera input.
+
+## Before you start
+
+Lets take care of some preliminary setup.
+
+### Get and start your camera ROS2 node
+
+Based on the type of the camera used on your robot, you need to install and launch its respective ROS2 node provided by the manufacturer.
+
+To run and test this example on your development machine, you can use your webcam along with the `usb_cam` package:
+```shell
+sudo apt install ros-<ros2-distro>-usb-cam
+ros2 run usb_cam usb_cam_node_exe
+```
+
+### Start vision detection/tracking using an ML model
+
+To implement and run this example we will need a detection model processing the RGB camera images to provide the Detection or Tracking information. The most convenient way to obtain this is to use [**EmbodiedAgents**](https://automatika-robotics.github.io/ros-agents/intro.html) package and [RoboML] to deploy and serve the model locally. EmbodiedAgents provides a [Vision Component](https://automatika-robotics.github.io/ros-agents/apidocs/agents/agents.components.vision.html), which will allow us to easily deploy a ROS node in our system that interacts with vision models.
+
+Therefore, before starting with this tutorial you need to install both packages:
+
+- Install **EmbodiedAgents**: check the instructions [here](https://automatika-robotics.github.io/ros-agents/installation.html)
+- Install RoboML: `pip install roboml`
+
+```{seealso}
+[EmbodiedAgents](https://automatika-robotics.github.io/embodied-agents) is another [Sugarcoat🍬](https://automatika-robotics.github.io/sugarcoat) based package used for creating interactive embodied agents that can understand, remember, and act upon contextual information from their environment.
+```
+
+After installing both packages, you can start `roboml` to serve the model later either on the robot (or your development machine), or on another machine in the local network or any server the cloud. To start a roboml RESP server, simply run:
+
+```shell
+roboml-resp
+```
+```{tip}
+Save the IP of the machine running `roboml` as we will use it later in our model client
+```
+
+
+## Setting up the vision model client in EmbodiedAgents
+
+First, we need to import the `VisionModel` class that defines the model used later in the component, and a [model client](https://automatika-robotics.github.io/ros-agents/basics.html#model-db-client) to communicate with the model which can be running on the same hardware or in the cloud. Here we will use a `RESPModelClient` from [RoboML](https://github.com/automatika-robotics/roboml/) as we activated the RESP based model server in roboml.
+
+```python
+from agents.models import VisionModel
+from agents.clients import RoboMLRESPClient
+```
+
+Now let's configure the model we want to use for detections/tracking and the model client:
+
+```python
+object_detection = VisionModel(
+    name="object_detection",
+    checkpoint="rtmdet_tiny_8xb32-300e_coco",
+)
+roboml_detection = RoboMLRESPClient(object_detection, host='127.0.0.1', logging_level="warn")
+  # 127.0.0.1 should be replaced by the IP of the machine running roboml. In this case we assume that roboml is running on our robot.
+```
+The model is configured with a name and a checkpoint (any checkpoint from mmdetection framework can be used, see [available checkpoints](https://github.com/open-mmlab/mmdetection?tab=readme-ov-file#overview-of-benchmark-and-model-zoo)). In this example, we have chosen a model checkpoint trained on the MS COCO dataset which has over 80 [classes](https://github.com/amikelive/coco-labels/blob/master/coco-labels-2014_2017.txt) of commonly found objects. We also set the option `setup_trackers` to `True` to enable publishing tracking information.
+
+We load the `VisionModel` into the `RoboMLRESPClient` and configure the host to the IP of the machine running RoboML. In this code above, it is assumed that we are running RoboML on localhost.
+
+```{seealso}
+See all available VisionModel options [here](https://automatika-robotics.github.io/ros-agents/apidocs/agents/agents.models.html), and all available model clients in agents [here](https://automatika-robotics.github.io/ros-agents/apidocs/agents/agents.clients.html)
+```
+
+## Setting up the Vision Component
+
+We start by importing the required component along with its configuration class from `agents`:
+
+```python
+from agents.components import Vision
+from agents.config import VisionConfig
+```
+
+After setting up the model client, we need to select the input/output topics to configure the vision component:
+
+```python
+from agents.ros import Topic
+
+# RGB camera input topic is set to the compressed image topic
+image0 = Topic(name="/image_raw/compressed", msg_type="CompressedImage")
+
+# Select the output topics: detections and trackings
+detections_topic = Topic(name="detections", msg_type="Detections")
+trackings_topic = Topic(name="trackings", msg_type="Trackings")
+
+# Select the vision component configuration
+detection_config = VisionConfig(
+    threshold=0.5, enable_visualization=True
+)
+
+# Create the component
+vision = Vision(
+    inputs=[image0],
+    outputs=[detections_topic, trackings_topic],
+    trigger=image0,
+    config=detection_config,
+    model_client=roboml_detection,
+    component_name="detection_component",
+)
+```
+The component inputs/outputs are defined to get the images from the camera topic and provide both detections and trackings. The component is provided theses inputs and outputs along with the model client that we configured in the previous step. The `trigger` of the component is set to the image input topic so the component would work in an Event-Based runtype and provide a new detection/tracking on each new image.
+
+In the component configuration, the parameter `enable_visualization` is set to `True` to get a visualization of the output on an additional pop-up window for debugging purposes. The `threshold` parameter (confidence threshold for object detection) is set to `0.5`.
+
+```{seealso}
+Discover the different configuration options of the Vision component in the [docs](https://automatika-robotics.github.io/ros-agents/apidocs/agents/agents.models.html#agents.models.VisionModel)
+```
+
+```{seealso}
+For detailed example for using the vision component check this [tutorial](https://automatika-robotics.github.io/ros-agents/examples/prompt_engineering.html)
+```
+
+## Setup your robot
+
+We can select the robot motion model, control limits and other geometry parameters using the `RobotConfig` class
+
+```python
+from kompass.robot import (
+    AngularCtrlLimits,
+    LinearCtrlLimits,
+    RobotGeometry,
+    RobotType,
+    RobotConfig,
+)
+import numpy as np
+
+# Setup your robot configuration
+my_robot = RobotConfig(
+    model_type=RobotType.DIFFERENTIAL_DRIVE,
+    geometry_type=RobotGeometry.Type.CYLINDER,
+    geometry_params=np.array([0.1, 0.3]),
+    ctrl_vx_limits=LinearCtrlLimits(max_vel=0.4, max_acc=1.5, max_decel=2.5),
+    ctrl_omega_limits=AngularCtrlLimits(
+        max_vel=0.2, max_acc=2.0, max_decel=2.0, max_steer=np.pi / 3
+    ),
+)
+```
+
+```{seealso}
+See more details about the robot configuration in the point navigation [tutorial](../tutorials/point_navigation.md#step-1-setup-your-robot) and in the `RobotConfig` class [details](../navigation/robot.md)
+```
+
+## Import the required components from Kompass
+
+To implement the target following system we will use the `Controller` component to generate the tracking commands and the `DriveManager` to handle the safe communication with the robot driver
+
+```python
+from kompass.components import Controller, ControllerConfig, DriveManager
+```
+
+## Configure the VisionFollower and setup the components
+
+We select the vision follower method parameters by importing the config class `VisionFollowerConfig` (see default parameters [here](../advanced/algorithms/vision_follower.md)), then configure both our components:
+
+```python
+from kompass.control import VisionRGBFollowerConfig
+
+# Set the controller component configuration
+config = ControllerConfig(loop_rate=10.0, ctrl_publish_type="Sequence", control_time_step=0.3)
+
+# Init the controller
+controller = Controller(
+    component_name="my_controller", config=config
+)
+# Set the vision tracking input to either the detections or trackings topic
+controller.inputs(vision_tracking=detections_topic)
+
+# Set the vision follower configuration
+vision_follower_config = VisionRGBFollowerConfig(
+    control_horizon=3, enable_search=False, target_search_pause=6, tolerance=0.2
+)
+controller.algorithms_config = vision_follower_config  # We can also configure other algorithms (DWA, DV etc.) and pass a list to the algorithms_config property
+
+# Init the drive manager with the default parameters
+driver = DriveManager(component_name="my_driver")
+
+```
+Here we selected a loop rate for the controller of `10Hz` and a control step for generating the commands of `0.3s`, and we selected to send the commands sequentially as they get computed. The vision follower is configured with a `control_horizon` equal to three future control time steps and a `target_search_pause` equal to 6 control time steps. We also chose to disable the search, meaning that the tracking action would end when the robot looses the target.
+
+```{tip}
+`target_search_pause` is implemented so the robot would pause and wait while tracking to avoid loosing the target due to quick movement and slow model response. It should be adjusted based on the inference time of the model.
+```
+
+## Add all the components to the launcher
+
+All that is left is to add all the three previous components to the launcher and bringup the system!
+```python
+from kompass.ros import Launcher
+
+launcher = Launcher()
+
+# setup agents as a package in the launcher and add the vision component
+launcher.add_pkg(
+    components=[vision],
+    ros_log_level="warn",
+)
+
+# setup the components for Kompass in the launcher
+launcher.kompass(
+    components=[controller, driver],
+)
+# Set the robot config for all components
+launcher.robot = my_robot
+
+# Start all the components
+launcher.bringup()
+```
+
+Et voila! our code for the full vision-based target follower is ready and here is the complete script
+
+```{code-block} python
+:caption: vision_rgb_follower
+:linenos:
+
+import numpy as np
+from agents.components import Vision
+from agents.models import VisionModel
+from agents.clients import RoboMLRESPClient
+from agents.config import VisionConfig
+from agents.ros import Topic
+
+from kompass.components import Controller, ControllerConfig, DriveManager
+from kompass.robot import (
+    AngularCtrlLimits,
+    LinearCtrlLimits,
+    RobotGeometry,
+    RobotType,
+    RobotConfig,
+)
+from kompass.control import VisionRGBFollowerConfig
+from kompass.ros import Launcher
+
+# RGB camera input topic is set to the compressed image topic
+image0 = Topic(name="/image_raw/compressed", msg_type="CompressedImage")
+
+# Select the output topics: detections and trackings
+detections_topic = Topic(name="detections", msg_type="Detections")
+trackings_topic = Topic(name="trackings", msg_type="Trackings")
+
+object_detection = VisionModel(
+    name="object_detection",
+    checkpoint="rtmdet_tiny_8xb32-300e_coco",
+)
+roboml_detection = RoboMLRESPClient(object_detection, host='127.0.0.1', logging_level="warn")
+
+# Select the vision component configuration
+detection_config = VisionConfig(threshold=0.5, enable_visualization=True)
+
+# Create the component
+vision = Vision(
+    inputs=[image0],
+    outputs=[detections_topic, trackings_topic],
+    trigger=image0,
+    config=detection_config,
+    model_client=roboml_detection,
+    component_name="detection_component",
+)
+
+# Setup your robot configuration
+my_robot = RobotConfig(
+    model_type=RobotType.DIFFERENTIAL_DRIVE,
+    geometry_type=RobotGeometry.Type.CYLINDER,
+    geometry_params=np.array([0.1, 0.3]),
+    ctrl_vx_limits=LinearCtrlLimits(max_vel=0.4, max_acc=1.5, max_decel=2.5),
+    ctrl_omega_limits=AngularCtrlLimits(
+        max_vel=0.2, max_acc=2.0, max_decel=2.0, max_steer=np.pi / 3
+    ),
+)
+# Set the controller component configuration
+config = ControllerConfig(
+    loop_rate=10.0, ctrl_publish_type="Sequence", control_time_step=0.3
+)
+
+# Init the controller
+controller = Controller(component_name="my_controller", config=config)
+# Set the vision tracking input to either the detections or trackings topic
+controller.inputs(vision_tracking=detections_topic)
+
+# Set the vision follower configuration
+vision_follower_config = VisionRGBFollowerConfig(
+    control_horizon=3, enable_search=False, target_search_pause=6, tolerance=0.2
+)
+controller.algorithms_config = vision_follower_config  # We can also configure other algorithms (DWA, DV etc.) and pass a list to the algorithms_config property
+
+# Init the drive manager with the default parameters
+driver = DriveManager(component_name="my_driver")
+
+launcher = Launcher()
+launcher.add_pkg(
+    components=[vision],
+    ros_log_level="warn",
+)
+launcher.kompass(
+    components=[controller, driver],
+)
+# # Set the robot config for all components
+launcher.robot = my_robot
+launcher.bringup()
+
+
+```
+
+## Trigger the following action
+
+After running your complete system you can send a goal to the controller's action server `/my_controller/track_vision_target` of type [`kompass_interfaces.action.TrackVisionTarget`](https://github.com/automatika-robotics/kompass/tree/main/kompass_interfaces/action) to start tracking a selected label (`person` for example):
+
+```shell
+ros2 action send_goal /my_controller/track_vision_target kompass_interfaces/action/TrackVisionTarget "{label: 'person'}"
+```
+
+You can also re-run the previous script and activate the target search by adding the following config or sending the config along with the action send_goal:
+
+```python
+vision_follower_config = VisionRGBFollowerConfig(
+    control_horizon=3, enable_search=True, target_search_pause=6, tolerance=0.2
+)
+```
+
+```shell
+ros2 action send_goal /my_controller/track_vision_target kompass_interfaces/action/TrackVisionTarget "{label: 'person', search_radius: 1.0, search_timeout: 30}"
+```
+```
+
+## File: tutorials/vision_tracking_depth.md
+```markdown
+# 🎥 Vision Tracking Using Depth Information
+
+This tutorial guides you through creating a vision tracking system using a depth camera. We'll leverage RGB-D with the `VisionRGBDFollower` in Kompass to detect and follow objects more robustly. With the depth information available, this will create more precise understanding of the environment and lead to more accurate and robust object following (as compared to [using RGB images](./vision_tracking.md)).
+
+## Before you start
+
+Lets take care of some preliminary setup.
+
+### Setup Your Depth Camera ROS2 Node
+
+First things first — your robot needs a depth camera to see in 3D and get the `RGBD` input. For this tutorial, we are using an **Intel RealSense** that is available on many mobile robots and well supported in ROS2 and in simulation.
+
+To get your RealSense camera running:
+
+```bash
+sudo apt install ros-<ros2-distro>-realsense2-camera
+
+# Launch the camera node to start streaming both color and depth images
+ros2 launch realsense2_camera rs_camera.launch.py
+```
+
+### Start vision detection using an ML model
+
+To implement and run this example we will need a detection model processing the RGBD camera images to provide the Detection information. Similarly to the [previous tutorial](vision_tracking.md), we will use [**EmbodiedAgents**](https://automatika-robotics.github.io/ros-agents/intro.html) package. EmbodiedAgents provides a [Vision Component](https://automatika-robotics.github.io/ros-agents/apidocs/agents/agents.components.vision.html), which will allow us to easily deploy a ROS node in our system that interacts with vision models.
+
+Therefore, before starting with this tutorial you need to install both packages:
+
+- Install **EmbodiedAgents**: check the instructions [here](https://automatika-robotics.github.io/ros-agents/installation.html)
+
+```{seealso}
+[EmbodiedAgents](https://automatika-robotics.github.io/embodied-agents) is another [Sugarcoat🍬](https://automatika-robotics.github.io/sugarcoat) based package used for creating interactive embodied agents that can understand, remember, and act upon contextual information from their environment.
+```
+
+## Setting up the vision component and model client in EmbodiedAgents
+
+In this example, we will set `enable_local_classifier` to `True` in the vision component so the model would be deployed directly on the robot. Additionally, we will set the input topic to be the `RGBD` camera topic. This setting will allow the `Vision` component to **publish both the depth and the rgb image data along with the detections**.
+
+```python
+from agents.components import Vision
+from agents.config import VisionConfig
+from agents.ros import Topic
+
+image0 = Topic(name="/camera/rgbd", msg_type="RGBD")
+detections_topic = Topic(name="detections", msg_type="Detections")
+
+detection_config = VisionConfig(threshold=0.5, enable_local_classifier=True)
+vision = Vision(
+    inputs=[image0],
+    outputs=[detections_topic],
+    trigger=image0,
+    config=detection_config,
+    component_name="detection_component",
+)
+```
+
+```{seealso}
+See all available VisionModel options [here](https://automatika-robotics.github.io/ros-agents/apidocs/agents/agents.models.html), and all available model clients in agents [here](https://automatika-robotics.github.io/ros-agents/apidocs/agents/agents.clients.html)
+```
+
+## Setup your robot and your Controller
+
+You can setup your robot in the same way we did in the [previous tutorial](./vision_tracking.md/#setup-your-robot).
+```python
+from kompass.actions import Action
+from kompass.event import OnAny, OnChangeEqual
+from kompass.robot import (
+    AngularCtrlLimits,
+    LinearCtrlLimits,
+    RobotGeometry,
+    RobotType,
+    RobotConfig,
+)
+import numpy as np
+
+# Setup your robot configuration
+my_robot = RobotConfig(
+    model_type=RobotType.ACKERMANN,
+    geometry_type=RobotGeometry.Type.CYLINDER,
+    geometry_params=np.array([0.1, 0.3]),
+    ctrl_vx_limits=LinearCtrlLimits(max_vel=1,0, max_acc=3.0, max_decel=2.5),
+    ctrl_omega_limits=AngularCtrlLimits(
+        max_vel=4.0, max_acc=6.0, max_decel=10.0, max_steer=np.pi / 3
+    ),
+)
+```
+
+Then we will setup the `Controller` component to use the `VisionRGBDFollower`. We will also need to provide two additional inputs:
+
+- The detections topic
+- The depth camera info topic
+
+```python
+from kompass.components import Controller, ControllerConfig
+
+depth_cam_info_topic = Topic(name="/camera/aligned_depth_to_color/camera_info", msg_type="CameraInfo")
+
+config = ControllerConfig(ctrl_publish_type="Parallel")
+controller = Controller(component_name="controller", config=config)  # Optionally a config file can be provided here config_file=path_to_config_file
+controller.inputs(vision_detections=detections_topic, depth_camera_info=depth_cam_info_topic)
+controller.algorithm = "VisionRGBDFollower"
+```
+
+## Complete your system with helper components
+
+To make the system more complete and robust, we will add:
+- `DriveManager` - to handle sending direct commands to the robot and ensure safety with its emergency stop
+- `LocalPlanner` - to provide the controller with more robust local perception, to do so we will also set the controller's `direct_sensor` property to `False`
+
+```python
+from kompass.components import DriveManager, LocalMapper
+
+controller.direct_sensor = False
+driver = DriveManager(component_name="driver")
+mapper = LocalMapper(component_name="local_mapper")
+```
+
+## Bring it all together!
+
+```{code-block} python
+:caption: vision_depth_follower
+:linenos:
+
+from agents.components import Vision
+from agents.config import VisionConfig
+from agents.ros import Topic
+from kompass.components import Controller, ControllerConfig, DriveManager, LocalMapper
+from kompass.robot import (
+    AngularCtrlLimits,
+    LinearCtrlLimits,
+    RobotGeometry,
+    RobotType,
+    RobotConfig,
+)
+from kompass.launcher import Launcher
+import numpy as np
+
+
+image0 = Topic(name="/camera/rgbd", msg_type="RGBD")
+detections_topic = Topic(name="detections", msg_type="Detections")
+
+detection_config = VisionConfig(threshold=0.5, enable_local_classifier=True)
+vision = Vision(
+    inputs=[image0],
+    outputs=[detections_topic],
+    trigger=image0,
+    config=detection_config,
+    component_name="detection_component",
+)
+
+# Setup your robot configuration
+my_robot = RobotConfig(
+    model_type=RobotType.ACKERMANN,
+    geometry_type=RobotGeometry.Type.CYLINDER,
+    geometry_params=np.array([0.1, 0.3]),
+    ctrl_vx_limits=LinearCtrlLimits(max_vel=1,0, max_acc=3.0, max_decel=2.5),
+    ctrl_omega_limits=AngularCtrlLimits(
+        max_vel=4.0, max_acc=6.0, max_decel=10.0, max_steer=np.pi / 3
+    ),
+)
+
+depth_cam_info_topic = Topic(name="/camera/aligned_depth_to_color/camera_info", msg_type="CameraInfo")
+
+# Setup the controller
+config = ControllerConfig(ctrl_publish_type="Parallel")
+controller = Controller(component_name="controller", config=config)
+controller.inputs(vision_detections=detections_topic, depth_camera_info=depth_cam_info_topic)
+controller.algorithm = "VisionRGBDFollower"
+controller.direct_sensor = False
+
+# Add additional helper components
+driver = DriveManager(component_name="driver")
+mapper = LocalMapper(component_name="local_mapper")
+
+# Bring it up with the launcher
+launcher = Launcher()
+launcher.add_pkg(components=[vision], ros_log_level="warn",
+                 package_name="automatika_embodied_agents",
+                 executable_entry_point="executable",
+                 multiprocessing=True)
+launcher.kompass(components=[controller, mapper, driver])
+# Set the robot config for all components
+launcher.robot = my_robot
+launcher.bringup()
+```
+
+```{tip}
+You can take your design to the next step and make your system more robust by adding some [events](events_actions.md) or defining some [fallbacks](https://automatika-robotics.github.io/sugarcoat/design/fallbacks.html)!
+```
+```
+
+## File: advanced/design.md
+```markdown
+# 🧩 Design Concepts
+
+Kompass is built on [**Sugarcoat🍬**](https://automatika-robotics.github.io/sugarcoat), inheriting a lightweight, expressive, and event-driven architecture for designing ROS2-based systems.
+
+At the core of Kompass is the **Component**—a "super-sweetened" version of the standard ROS2 lifecycle node. By standardizing execution, health monitoring, and data flow, Kompass allows you to build navigation stacks that are not just modular, but **reactive** and **self-healing**.
+
+
+The following sections outline the five pillars of the Kompass design.
+
+## 1. The Component: Smart Execution unit
+
+The Component is the atomic unit of logic in Kompass. Unlike a standard node, a Component manages its own lifecycle, validates its own configuration, and reports its own health.
+
+```{figure} ../_static/images/diagrams/component_dark.png
+:class: only-dark
+:alt: Kompass Component
+:align: center
+
+Component Structure
+```
+
+```{figure} ../_static/images/diagrams/component_light.png
+:class: only-light
+:alt: Kompass Component
+:align: center
+
+Component Structure
+```
+
+## 2. Standardized Inputs & Outputs
+
+Components communicate through defined [**Inputs/Outputs**](https://automatika-robotics.github.io/sugarcoat/design/topics.html), allowing you to easily specify the ROS2 topics that connect different parts of your system.
+
+To ensure that different navigation components (planners, controllers, mappers) snap together effortlessly, Kompass communicates through **Standardized I/O Keys**. Crucially, each key supports **multiple message types**, providing extra flexibility and out-of-the-box configuration for your data pipelines.
+
+Each Input/Output key is governed by:
+
+- **Allowed Types:** Ensures data compatibility by strictly defining which message classes are accepted (e.g., a map input only accepting `OccupancyGrid`, or a position input can accept both 'Pose' and `PoseStamped` messages).
+- **Cardinality:** Defines the topology of the connection—specifically, **if a stream is mandatory** and **how many sources are allowed** (e.g., "Requires exactly 1 Odometry source" or "Accepts up to 3 PointCloud sources").
+
+
+```{seealso}
+See a complete list of the Inputs/Outputs keys in Kompass stack along with configuration examples [here](./advanced_conf/topics.md)
+```
+
+## 3. Active Resilience: Health & Fallbacks
+
+Robots operate in unpredictable environments. Kompass components are designed to handle failures gracefully rather than crashing the whole stack.
+
+### Self-Monitoring (Health Status)
+Every component continuously introspects its state and broadcasts a [**Health Status**](https://automatika-robotics.github.io/sugarcoat/design/status.html). This allows the system to distinguish between a crashing driver and a path planning algorithm that simply can't find a route.
+
+The following health codes help diagnose issues at different layers—from algorithmic faults to systemic problems—allowing fine-grained fault handling and robust navigation behavior:
+
+| Status Code | Description              |
+|-------------|--------------------------|
+| 0           | Running - Healthy        |
+| 1           | Failure: Algorithm Level |
+| 2           | Failure: Component Level |
+| 3           | Failure: System Level    |
+| 4           | Failure: General         |
+
+### Automatic Recovery (Fallbacks)
+Why wake up a human when the robot can fix itself? Components are configured with [**Fallback**](https://automatika-robotics.github.io/sugarcoat/design/fallbacks.html) behaviors. When a specific Health Status level is reported, the component automatically triggers user-defined Actions—such as re-initializing a driver, clearing a costmap, or switching to a recovery behavior—without manual intervention.
+
+
+## 4. Dynamic Orchestration: Events & Actions
+
+Static navigation stacks are brittle. Kompass uses an Event-Driven Architecture to adapt to changing contexts in real-time.
+
+- [**Events**](https://automatika-robotics.github.io/sugarcoat/design/events.html) (Triggers): These monitor data streams for specific conditions. For example, `OnEqual` (Battery == Low), `OnChange` (Terrain changed), `OnGreater` (Velocity > Limit).
+
+- [**Actions**](https://automatika-robotics.github.io/sugarcoat/design/actions.html) (Responses): Routines executed when an Event fires (or a Fallback is triggered). for example you can execute a an action to switch the control algorithm or to stop the robot.
+
+This decouples the "monitoring" logic from the "execution" logic, allowing you to compose complex behaviors (e.g., "If Terrain changes to Stairs, trigger SwitchGait action") purely through configuration.
+
+
+## 5. Flexible Execution with Performance in Mind
+
+Kompass respects that different robots have different compute constraints. The [**Launcher**](https://automatika-robotics.github.io/sugarcoat/design/launcher.html) allows you to orchestrate your entire stack with a simple Python API, choosing the execution model that fits your hardware:
+
+- Multi-threaded: Components run as threads in a single process. Ideal for low-latency communication via shared memory.
+
+- Multi-process: Components run in isolated processes. Ideal for stability (one crash doesn't kill the system) and distributing load.
+
+An internal [**Monitor**](https://automatika-robotics.github.io/sugarcoat/design/monitor.html) runs alongside the stack, continuously supervising the state of components and the events being triggered—making the system self-aware and adaptable in real-time.
+
+```{figure} ../_static/images/diagrams/multi_threaded_dark.png
+:class: only-dark
+:alt: Kompass Multi-threaded execution
+:align: center
+
+Multi-threaded execution
+```
+
+```{figure} ../_static/images/diagrams/multi_threaded_light.png
+:class: only-light
+:alt: Kompass Multi-threaded execution
+:align: center
+
+Multi-threaded execution
+```
+
+
+```{figure} ../_static/images/diagrams/multi_process_dark.png
+:class: only-dark
+:alt: Kompass Multi-process execution
+:align: center
+
+Multi-process execution
+```
+
+```{figure} ../_static/images/diagrams/multi_process_light.png
+:class: only-light
+:alt: Kompass Multi-process execution
+:align: center
+
+Multi-threaded execution
+```
+
+```{seealso}
+Dive deeper into each of these architectural elements in [Sugarcoat🍬 documentation](https://automatika-robotics.github.io/sugarcoat)
+```
+```
+
+## File: advanced/types.md
+```markdown
+# 📨 Supported ROS2 Messages
+
+Kompass handles the ROS2 plumbing so you don't have to! Every component automatically initializes the necessary subscribers and publishers for its inputs and outputs, ensuring seamless data flow across your system.
+
+Below is the comprehensive list of ROS2 message types natively supported by the Kompass
+
+```{list-table}
+:widths: 40 40
+:header-rows: 1
+* - Message
+  - ROS2 package
+
+* - **[String](https://automatika-robotics.github.io/sugarcoat/apidocs/ros_sugar/ros_sugar.io.supported_types.md/#classes)**
+  - [std_msgs](https://docs.ros2.org/foxy/api/std_msgs/msg/String.html)
+
+
+* - **[Bool](https://automatika-robotics.github.io/sugarcoat/apidocs/ros_sugar/ros_sugar.io.supported_types.md/#classes)**
+  - [std_msgs](https://docs.ros2.org/foxy/api/std_msgs/msg/Bool.html)
+
+
+* - **[Float32](https://automatika-robotics.github.io/sugarcoat/apidocs/ros_sugar/ros_sugar.io.supported_types.md/#classes)**
+  - [std_msgs](https://docs.ros2.org/foxy/api/std_msgs/msg/Float32.html)
+
+
+* - **[Float32MultiArray](https://automatika-robotics.github.io/sugarcoat/apidocs/ros_sugar/ros_sugar.io.supported_types.md/#classes)**
+  - [std_msgs](https://docs.ros2.org/foxy/api/std_msgs/msg/Float32MultiArray.html)
+
+* - **[Float64](https://automatika-robotics.github.io/sugarcoat/apidocs/ros_sugar/ros_sugar.io.supported_types.md/#classes)**
+  - [std_msgs](https://docs.ros2.org/foxy/api/std_msgs/msg/Float64.html)
+
+
+* - **[Float64MultiArray](https://automatika-robotics.github.io/sugarcoat/apidocs/ros_sugar/ros_sugar.io.supported_types.md/#classes)**
+  - [std_msgs](https://docs.ros2.org/foxy/api/std_msgs/msg/Float64MultiArray.html)
+
+
+* - **[Point](../apidocs/kompass/kompass.data_types.md/#classes)**
+  - [geometry_msgs](https://docs.ros2.org/foxy/api/geometry_msgs/msg/Point.html)
+
+
+* - **[PointStamped](../apidocs/kompass/kompass.data_types.md/#classes)**
+  - [geometry_msgs](https://docs.ros2.org/foxy/api/geometry_msgs/msg/PointStamped.html)
+
+
+* - **[Pose](../apidocs/kompass/kompass.data_types.md/#classes)**
+  - [geometry_msgs](https://docs.ros2.org/foxy/api/geometry_msgs/msg/Pose.html)
+
+
+* - **[PoseStamped](../apidocs/kompass/kompass.data_types.md/#classes)**
+  - [geometry_msgs](https://docs.ros2.org/foxy/api/geometry_msgs/msg/PoseStamped.html)
+
+
+* - **[Twist](https://automatika-robotics.github.io/sugarcoat/apidocs/ros_sugar/ros_sugar.io.supported_types.html)**
+  - [geometry_msgs](https://docs.ros2.org/foxy/api/geometry_msgs/msg/Twist.html)
+
+
+* - **[TwistStamped](../apidocs/kompass/kompass.data_types.md/#classes)**
+  - [geometry_msgs](https://docs.ros2.org/foxy/api/geometry_msgs/msg/TwistStamped.html)
+
+
+* - **[TwistArray](../apidocs/kompass/kompass.data_types.md/#classes)**
+  - [kompass_interfaces](https://github.com/automatika-robotics/kompass/blob/main/kompass_interfaces/msg/motion/TwistArray.msg)
+
+
+* - **[Image](https://automatika-robotics.github.io/sugarcoat/apidocs/ros_sugar/ros_sugar.io.supported_types.html)**
+  - [sensor_msgs](https://docs.ros2.org/foxy/api/sensor_msgs/msg/Image.html)
+
+* - **[CompressedImage](https://automatika-robotics.github.io/sugarcoat/apidocs/ros_sugar/ros_sugar.io.supported_types.html)**
+  - [sensor_msgs](https://docs.ros2.org/foxy/api/sensor_msgs/msg/CompressedImage.html)
+
+
+* - **[Audio](https://automatika-robotics.github.io/sugarcoat/apidocs/ros_sugar/ros_sugar.io.supported_types.html)**
+  - [sensor_msgs](https://docs.ros2.org/foxy/api/sensor_msgs/msg/Audio.html)
+
+
+* - **[LaserScan](../apidocs/kompass/kompass.data_types.md/#classes)**
+  - [sensor_msgs](https://docs.ros2.org/foxy/api/sensor_msgs/msg/LaserScan.html)
+
+
+* - **[PointCloud2](../apidocs/kompass/kompass.data_types.md/#classes)**
+  - [sensor_msgs](https://docs.ros2.org/foxy/api/sensor_msgs/msg/PointCloud2.html)
+
+
+* - **[Odometry](../apidocs/kompass/kompass.data_types.md/#classes)**
+  - [nav_msgs](https://docs.ros2.org/foxy/api/nav_msgs/msg/Odometry.html)
+
+
+
+* - **[Path](https://automatika-robotics.github.io/sugarcoat/apidocs/ros_sugar/ros_sugar.io.supported_types.html)**
+  - [nav_msgs](https://docs.ros2.org/foxy/api/nav_msgs/msg/Path.html)
+
+
+* - **[OccupancyGrid](https://automatika-robotics.github.io/sugarcoat/apidocs/ros_sugar/ros_sugar.io.supported_types.html)**
+  - [nav_msgs](https://docs.ros2.org/foxy/api/nav_msgs/msg/OccupancyGrid.html)
+
+
+* - **[ComponentStatus](https://automatika-robotics.github.io/sugarcoat/apidocs/ros_sugar/ros_sugar.io.supported_types.html)**
+  - [automatika_ros_sugar](https://github.com/automatika-robotics/sugarcoat/blob/main/msg/ComponentStatus.msg)
+
+
+* - **Detections**
+  - [automatika_agents_interfaces](https://github.com/automatika-robotics/ros-agents/blob/main/agents/msg/Detections2D.msg)
+
+
+* - **Trackings**
+  - [automatika_agents_interfaces](https://github.com/automatika-robotics/ros-agents/blob/main/agents/msg/Trackings.msg)
+
+```
+```
+
+## File: advanced/extending.md
+```markdown
+# Extending the Components
+
+## Configure inputs/outputs for your custom component
+
+Inputs/Outputs in a Component are dictionaries with each key representing a unique input/output key name and the value equal to the [Topic](./advanced_conf/topics.md). Each component in Kompass stack is created with default inputs/outputs which can be modified, along with restrictions on the allowed message types for each input/output key and the number of obligatory/optional streams.
+
+```{seealso}
+All of Kompass stack inputs/outputs keys, default values and allowed values can be seen in detail in the [source code](https://github.com/automatika-robotics/kompass/blob/main/kompass/kompass/components/defaults.py).
+```
+
+Let's say you wish to extend the stack and create your own component that filters velocity commands from an autonomous controller, and at least one remote controller with up-to n connected remote controllers, you can design the component inputs/outputs and allowed values in a similar way as follows:
+
+
+
+```python
+    from typing import Union, List
+    from kompass.ros import Topic, AllowedTopic
+
+    # Import the parent component
+    from kompass.components.component import Component
+    # Import a helper method to safely update input/output values in a component
+    from kompass.components.ros import update_topics
+
+    # Default inputs: one autonomous command and 2 remote commands, all of type Twist
+    default_inputs = Dict[str, Union[Topic, List[Topic]]] = {
+    "autonomous_cmd": Topic(name="/cmd_autonom", msg_type="Twist"),
+    "remote_cmd": [Topic(name="/cmd_remote_0", msg_type="Twist"), Topic(name="/cmd_remote_1", msg_type="Twist")],
+    }
+
+    # Default outputs: one final Twist command
+    default_outputs = Dict[str, Topic] = {
+    "robot_cmd": Topic(name="/cmd_vel", msg_type="Twist")
+    }
+
+    allowed_inputs: Dict[str, AllowedTopics] = {
+    "autonomous_cmd": AllowedTopics(types=["Twist"]),
+    "remote_cmd": AllowedTopics(
+        types=["Twist"],
+        number_required=1,  # One required remote command topic
+        number_optional=10,     # Up to 10 optional topics for remote commands
+    ),
+    }
+
+    allowed_outputs: Dict[str, AllowedTopics] = {
+    "robot_cmd": AllowedTopics(types=["Twist"]),
+    }
+
+    # Write your custom component
+
+    class MyComponent(Component):
+        def __init__(
+            self,
+            component_name: str,
+            config_file: Optional[str] = None,
+            inputs: Optional[Dict[str, Topic]] = None,
+            outputs: Optional[Dict[str, Topic]] = None,
+            **kwargs,
+        ) -> None:
+            # Update defaults from custom topics if provided
+            in_topics = (
+                update_topics(driver_default_inputs, **inputs)
+                if inputs
+                else default_inputs
+            )
+            out_topics = (
+                update_topics(driver_default_outputs, **outputs)
+                if outputs
+                else default_outputs
+            )
+
+            super().__init__(
+                config_file=config_file,
+                inputs=in_topics,
+                outputs=out_topics,
+                allowed_inputs=allowed_inputs,  # Pass allowed inputs to the component
+                allowed_outputs=allowed_outputs,
+                component_name=component_name,
+                **kwargs,
+            )
+
+            # Write the rest of your functionalities ...
+```
+
+```{tip}
+If the number of required and optional streams is not specified for an `AllowedTopic`, then only one stream is required with no additional optional streams (default: `number_required=1, number_optional=0`)
+```
+```
+
+## File: advanced/advanced_conf/topics.md
+```markdown
+# Inputs and Outputs
+
+Components in Kompass are defined to accept only restricted types of inputs/outputs to help lock the functionality of a specific Component implementation. Each input/output is associated with a unique keyword name and is set to accept one or many of ROS2 message types. Additionally, the input/output keyword in the Component can define a category of Topics rather than a single one. To see an example of this check the [DriveManager](../../navigation/driver.md) Component. In this component the input [sensor_data](../../navigation/driver.md/#inputs) defines any proximity sensor input (LiDAR, Radar, etc.) and can optionally take up to 10 Topics of such types to fuse it internally during execution.
+
+Configuring an input/output of a Component is very straightforward and can be done in one line in your Python script. Below is an example for configuring the previously mentioned DriveManager:
+
+```python
+    from kompass.components import DriveManager
+    from kompass.ros import Topic
+
+    driver = DriveManager(component_name="driver")
+
+    # Configure an input
+    driver.inputs(sensor_data=[Topic(name='/scan', msg_type='LaserScan'),
+                               Topics(name='radar_data', msg_type='Float64')])
+
+    # Configure an output
+    driver.outputs(emergency_stop=Topic(name='alarm', msg_type='Bool'))
+```
+
+```{seealso}
+See the input/output configuration class `Topic` in detail [here](../../apidocs/kompass/kompass.components.ros.md)
+```
+
+All Inputs/Outputs in Kompass Components are defined with fixed **key names** across the stack, each containing:
+ - Set of allowed types for the stream (equivalent to ROS2 messages)
+ - The number of required streams for the key name
+ - The maximum number of additional streams that can be assigned.
+
+
+ Below is a list of all the streams (inputs and outputs) key names available in Kompass stack:
+
+```{list-table}
+:widths: 20 20 60
+:header-rows: 1
+* - Enum TopicsKeys
+  - Name Value
+  - Description
+
+* - GOAL_POINT
+  - `"goal_point"`
+  - Target destination point on the map for the robot point navigation
+
+* - GLOBAL_PLAN
+  - `"plan"`
+  - Global navigation plan (path) from start to goal
+
+* - GLOBAL_MAP
+  - `"map"`
+  - Global (reference) map used for navigation
+
+* - ROBOT_LOCATION
+  - `"location"`
+  - Current position and orientation of the robot
+
+* - SPATIAL_SENSOR
+  - `"sensor_data"`
+  - Raw data from robot's spatial sensors (e.g., LIDAR, depth sensors)
+
+* - VISION_TRACKINGS
+  - `"vision_tracking"`
+  - Visual tracking data from robot's cameras or vision systems
+
+* - DEPTH_CAM_INFO
+  - `"depth_camera_info"`
+  - Depth camera information which includes camera intrinsics parameters
+
+* - LOCAL_PLAN
+  - `"local_plan"`
+  - Short-term path plan considering immediate surroundings
+
+* - INTERMEDIATE_CMD
+  - `"command"`
+  - Robot velocity command produced by the control system
+
+* - INTERMEDIATE_CMD_LIST
+  - `"multi_command"`
+  - List of intermediate velocity commands
+
+* - LOCAL_MAP
+  - `"local_map"`
+  - Map of the immediate surroundings for local navigation (control)
+
+* - LOCAL_MAP_OCC
+  - `"local_map"`
+  - Occupancy grid representation of the local environment
+
+* - INTERPOLATED_PATH
+  - `"interpolation"`
+  - Interpolated global path
+
+* - TRACKED_POINT
+  - `"tracked_point"`
+  - Specific point being tracked by the robot's systems on the reference path of reference vision target
+
+* - FINAL_COMMAND
+  - `"robot_command"`
+  - Final control command sent to robot's driver
+
+* - EMERGENCY
+  - `"emergency_stop"`
+  - Emergency stop signal for immediate robot halt
+
+* - REACHED_END
+  - `"reached_end"`
+  - Flag indicating whether the goal point has been reached
+
+* - RUN_TESTS
+  - `"run_tests"`
+  - Flag to initiate system test procedures
+```
+
+```{tip}
+You can refer to each individual component in the stack to see its respective Inputs and Output keys, along with their allowed types and number of optional and required streams. (See [Planner Inputs](../../navigation/path_planning.md/#inputs) or example)
+```
+```
+
+## File: advanced/advanced_conf/qos.md
+```markdown
+# QoS Configuration
+
+KOMPASS wrapper for ROS2 QoS (Quality of Service) configuration.
+
+
+`````{py:class} QoSConfig
+:canonical: kompass.config.QoSConfig
+
+
+````{py:attribute} history
+:canonical: kompass.config.QoSConfig.history
+:type: int
+:value: >
+   Configuration of samples to store (qos.HistoryPolicy)<br/>
+   - Values:<br/>
+   KEEP_LAST: only store up to N samples, configurable via the queue depth option.<br/>
+   KEEP_ALL: store all samples, subject to the configured resource limits of the underlying middleware.
+   - Default: qos.HistoryPolicy.KEEP_LAST
+
+
+````
+
+````{py:attribute} queue_size
+:canonical: kompass.config.QoSConfig.queue_size
+:type: int
+:value: >
+    Only honored if the “history” policy was set to “KEEP_LAST”<br/>
+   - Values: in [5, 100]
+   - Default: 10
+
+````
+
+````{py:attribute} reliability
+:canonical: kompass.config.QoSConfig.reliability
+:type: int
+:value: >
+   Samples deliverance guarantee (qos.ReliabilityPolicy)<br/>
+   - Values:<br/>
+   BEST_EFFORT: attempt to deliver samples, but may lose them if the network is not robust<br/>
+   RELIABLE: guarantee that samples are delivered, may retry multiple time<br/>
+   - Default: qos.ReliabilityPolicy.RELIABLE
+
+
+````
+
+````{py:attribute} durability
+:canonical: kompass.config.QoSConfig.durability
+:type: int
+:value: >
+    Controls whether or not, and how, published DDS samples are stored (qos.DurabilityPolicy)<br/>
+   - Values:<br/>
+    TRANSIENT_LOCAL: <br/>
+    VOLATILE: <br/>
+    UNKNOWN: <br/>
+    SYSTEM_DEFAULT
+   - Default: qos.DurabilityPolicy.VOLATILE
+
+````
+
+`````
+
+:::{tip} Setup your QoSConfig and parse it into ROS2 by using 'setup_qos' method available in the Component
+:::
+
+## Usage Example
+
+```python
+from kompass.config import QoSConfig, Topic
+from rclpy import qos
+
+qos_conf = QoSConfig(
+    history=qos.HistoryPolicy.KEEP_LAST,
+    queue_size=20,
+    reliability=qos.ReliabilityPolicy.BEST_EFFORT,
+    durability=qos.DurabilityPolicy.TRANSIENT_LOCAL
+)
+topic = Topic(name='/local_map', msg_type='OccupancyGrid', qos_profile=qos_conf)
+```
+```
+
+## File: advanced/algorithms/dwa.md
+```markdown
+# DWA (Dynamic Window Approach)
+
+DWA is a popular local planning method developed since the 90s.[^1] DWA is a sampling-method that consists of sampling a set of constant velocity trajectories within a window of admissible reachable velocities. This window of reachable velocities will change based on the current velocity and the acceleration limits, i.e. a Dynamic Window.
+
+At each step, the reachable velocity range is computed based on the acceleration limits and the motion model of the robot. Then a set of constant velocity trajectories is [sampled](#trajectory-samples-generator) within the range after checking its [admissibility](#admissible-trajectory-criteria). Finally, the best trajectory is selected using the trajectory [cost evaluation](#trajectory-selection) functions.
+
+
+## Supported Sensory Inputs
+
+- LaserScan
+- PointCloud
+- OccupancyGrid
+
+
+## Parameters and Default Values
+
+```{list-table}
+:widths: 10 10 10 70
+:header-rows: 1
+* - Name
+  - Type
+  - Default
+  - Description
+
+* - control_time_step
+  - `float`
+  - `0.1`
+  - Time interval between control actions (sec). Must be between `1e-4` and `1e6`.
+
+* - prediction_horizon
+  - `float`
+  - `1.0`
+  - Duration over which predictions are made (sec). Must be between `1e-4` and `1e6`.
+
+* - control_horizon
+  - `float`
+  - `0.2`
+  - Duration over which control actions are planned (sec). Must be between `1e-4` and `1e6`.
+
+* - max_linear_samples
+  - `int`
+  - `20`
+  - Maximum number of linear control samples. Must be between `1` and `1e3`.
+
+* - max_angular_samples
+  - `int`
+  - `20`
+  - Maximum number of angular control samples. Must be between `1` and `1e3`.
+
+* - sensor_position_to_robot
+  - `List[float]`
+  - `[0.0, 0.0, 0.0]`
+  - Position of the sensor relative to the robot in 3D space (x, y, z) coordinates.
+
+* - sensor_rotation_to_robot
+  - `List[float]`
+  - `[0.0, 0.0, 0.0, 1.0]`
+  - Orientation of the sensor relative to the robot as a quaternion (x, y, z, w).
+
+* - octree_resolution
+  - `float`
+  - `0.1`
+  - Resolution of the Octree used for collision checking. Must be between `1e-9` and `1e3`.
+
+* - costs_weights
+  - `TrajectoryCostsWeights`
+  - see [defaults](cost_eval.md/#costs-weights)
+  - Weights for trajectory cost evaluation.
+
+* - max_num_threads
+  - `int`
+  - `1`
+  - Maximum number of threads used when running the controller. Must be between `1` and `1e2`.
+
+```
+
+```{note}
+All the previous parameters can be configured when using DWA algorithm using a YAML config file (as shown in the usage example)
+```
+
+## Usage Example:
+
+DWA algorithm can be used in the [Controller](../../navigation/control.md) component by setting 'algorithm' property or component config parameter. The Controller will configure DWA algorithm using the default values of all the previous configuration parameters. The specific algorithms parameters can be configured using a config file or the algorithm's configuration class.
+
+
+
+```{code-block} python
+:caption: dwa.py
+
+from kompass.components import Controller, ControllerConfig
+from kompass.robot import (
+    AngularCtrlLimits,
+    LinearCtrlLimits,
+    RobotCtrlLimits,
+    RobotGeometry,
+    RobotType,
+    RobotConfig
+)
+from kompass.control import ControllersID
+
+# Setup your robot configuration
+my_robot = RobotConfig(
+    model_type=RobotType.ACKERMANN,
+    geometry_type=RobotGeometry.Type.BOX,
+    geometry_params=np.array([0.3, 0.3, 0.3]),
+    ctrl_vx_limits=LinearCtrlLimits(max_vel=0.2, max_acc=1.5, max_decel=2.5),
+    ctrl_omega_limits=AngularCtrlLimits(
+        max_vel=0.4, max_acc=2.0, max_decel=2.0, max_steer=np.pi / 3)
+)
+
+# Set DWA algorithm using the config class
+controller_config = ControllerConfig(algorithm="DWA")
+
+# Set YAML config file
+config_file = "my_config.yaml"
+
+controller = Controller(component_name="my_controller",
+                        config=controller_config,
+                        config_file=config_file)
+
+# algorithm can also be set using a property
+controller.algorithm = ControllersID.DWA      # or "DWA"
+
+```
+
+```{code-block} yaml
+:caption: my_config.yaml
+
+my_controller:
+  # Component config parameters
+  loop_rate: 10.0
+  control_time_step: 0.1
+  prediction_horizon: 4.0
+  ctrl_publish_type: 'Array'
+
+  # Algorithm parameters under the algorithm name
+  DWA:
+    control_horizon: 0.6
+    octree_resolution: 0.1
+    max_linear_samples: 20
+    max_angular_samples: 20
+    max_num_threads: 3
+    costs_weights:
+      goal_distance_weight: 1.0
+      reference_path_distance_weight: 1.5
+      obstacles_distance_weight: 2.0
+      smoothness_weight: 1.0
+      jerk_weight: 0.0
+```
+
+## Trajectory Samples Generator:
+
+Trajectory samples are generated using a constant velocity generator for each velocity value within the reachable range to generate the configured maximum number of samples (see `max_linear_samples` and `max_angular_samples` in the [config parameters](#parameters-and-default-values)).
+
+:::{tip} The effective total number of generated samples will depend on the motion model of the robot, as non-holonomic robots will only sample along the forward and angular velocity, while holonomic robots (Omni) will also sample lateral velocities.
+:::
+
+:::{note} To maintain a natural movement For both Differential drive and Omni robots; rotation in place and linear movement at the same time are not supported. The trajectory sampler implements rotate-then-move policy.
+:::
+
+:::{figure-md} fig-acker
+:class: myclass
+
+
+Generated Trajectory Samples for an Ackermann Robot
+:::
+
+
+:::{figure-md} fig-diff
+:class: myclass
+
+
+Generated Trajectory Samples for a Differential Drive Robot
+:::
+
+:::{figure-md} fig-omni
+:class: myclass
+
+
+Generated Trajectory Samples for an Omni motion Robot
+:::
+
+### Admissible trajectory criteria:
+
+A collision-free admissibility criteria is implemented within the trajectory samples generator using [FCL](../../integrations/fcl.md) to check the collision between the simulated robot state and the reference sensor input.
+
+## Trajectory Selection
+
+The cost of each admissible sample is computed using [Cost Evaluator](cost_eval.md) and the sample with the lowest cost is selected for navigation. After calculating the cost using the cost evaluation function, the total cost is computed as the sum of all the costs weighed by each cost respective weight.
+
+:::{tip} Set the costs weights directly in the DWA config
+:::
+
+
+[^1]: [Dieter Foxy, Wolf Burgardy and Sebastian Thrun. The Dynamic Window Approach to Collision Avoidance. IEEE Robotics & Automation Magazine ( Volume: 4, Issue: 1, March 1997)](https://www.ri.cmu.edu/pub_files/pub1/fox_dieter_1997_1/fox_dieter_1997_1.pdf)
+```
+
+## File: advanced/algorithms/pure_pursuit.md
+```markdown
+# Pure Pursuit
+
+Pure Pursuit is a path-tracking algorithm that calculates the curvature required to move a robot from its current position to a specific "lookahead" point on a predefined path. By constantly moving the lookahead point forward as the robot progresses, the algorithm creates a smooth, continuous steering command.
+
+Kompass implementation builds upon the base algorithm (as described by [Purdue SIGBOTS](https://wiki.purduesigbots.com/software/control-algorithms/basic-pure-pursuit)) and adds an integrated **Simple Search Collision Avoidance** layer. This allows the robot to deviate slightly from the nominal path or stop if an obstacle is detected within its predicted future trajectory.
+
+---
+
+## Algorithm Overview
+
+1.  **Find Lookahead:** Locates the point on the path that is a distance $L$ (Lookahead Distance) away from the robot.
+2.  **Calculate Curvature:** Computes the arc required to reach that point using the robot's kinematics.
+3.  **Collision Check:** Projects the robot's motion forward using the `prediction_horizon`.
+4.  **Avoidance Search:** If a collision is imminent, the controller evaluates `max_search_candidates` to find a safe velocity offset that clears the obstacle.
+
+## Supported Sensory Inputs
+
+- Without any sensor input (pure following)
+- LaserScan
+- PointCloud
+- Occupancy Maps
+
+---
+
+## Parameters and Default Values
+
+```{list-table}
+:widths: 15 10 10 65
+:header-rows: 1
+* - Name
+  - Type
+  - Default
+  - Description
+
+* - lookahead_gain_forward
+  - `float`
+  - `0.8`
+  - Factor to scale lookahead distance by current velocity ($L = k \cdot v$).
+
+* - prediction_horizon
+  - `int`
+  - `10`
+  - Number of future steps used to check for potential collisions along the path.
+
+* - path_search_step
+  - `float`
+  - `0.2`
+  - Offset step used to search for alternative velocity commands when the nominal path is blocked.
+
+* - max_search_candidates
+  - `int`
+  - `10`
+  - Maximum number of search iterations to find a collision-free command.
+```
+
+## Usage Example:
+
+Pure Pursuit controller can be used in the [Controller](../../navigation/control.md) component by setting 'algorithm' property or component config parameter. The Controller will configure Pure Pursuit algorithm using the default values of all the previous configuration parameters. The specific algorithms parameters can be configured using a config file or the algorithm's configuration class.
+
+
+
+```{code-block} python
+:caption: pure_pursuit.py
+
+from kompass.components import Controller, ControllerConfig
+from kompass.robot import (
+    AngularCtrlLimits,
+    LinearCtrlLimits,
+    RobotCtrlLimits,
+    RobotGeometry,
+    RobotType,
+    RobotConfig
+)
+from kompass.control import ControllersID, PurePursuitConfig
+
+# Setup your robot configuration
+my_robot = RobotConfig(
+    model_type=RobotType.OMNI,
+    geometry_type=RobotGeometry.Type.BOX,
+    geometry_params=np.array([0.3, 0.3, 0.3]),
+    ctrl_vx_limits=LinearCtrlLimits(max_vel=0.2, max_acc=1.5, max_decel=2.5),
+    ctrl_omega_limits=AngularCtrlLimits(
+        max_vel=0.4, max_acc=2.0, max_decel=2.0, max_steer=np.pi / 3)
+)
+
+# Initialize the controller
+controller = Controller(component_name="my_controller")
+
+# Set the all algorithms desired configuration
+pure_pursuit_config = PurePursuitConfig(
+        lookahead_gain_forward=0.5, prediction_horizon=8, max_search_candidates=20
+    )
+
+controller.algorithms_config = pure_pursuit_config
+
+# NOTE: We can configure more than one algorithm to switch during runtime
+# other_algorithm_config = ....
+# controller.algorithms_config = [pure_pursuit_config, other_algorithm_config]
+
+# Set the algorithm to Pure Pursuit
+controller.algorithm = ControllersID.PURE_PURSUIT
+
+```
+
+## Testing and Results
+
+The following figures show the results of testing the Pure Pursuit implementation across the three primary motion models. The tests evaluate the controller's ability to track a reference path while handling unexpected obstacles along the path.
+
+The results visualize the resulting trajectory of the robot (**wide light blue**) against the reference path (**thin dark blue**) in the XY plane. Obstacles are marked with **red x**.
+
+### Tracking a Reference Path
+
+These tests demonstrate the nominal tracking performance on standard geometric paths (U-Turns and Circles) without environmental interference.
+
+| Ackermann (U-Turn) | Differential (Circle) | Omni (Circle) |
+| :---: | :---: | :---: |
+
+**Figure 1:** Nominal tracking results across different kinematic models.
+
+---
+
+### Tracking with Collision Avoidance
+
+In these scenarios, a set of static obstacles were placed directly on the global path. The controller utilizes the `prediction_horizon` to detect these obstacles and searches for a safe velocity command that deviates from the reference path.
+
+| Ackermann (Straight + Obstacles) | Differential (U-Turn + Obstacles) | Omni (Straight + Obstacles) |
+| :---: | :---: | :---: |
+
+**Figure 2:** Collision avoidance results showing local deviation to clear obstacles.
+
+
+### Observations
+
+* **Convergence:** All models show smooth convergence to the reference path.
+* **Obstacle Clearance:** The simple search algorithm successfully identifies clear paths around obstacles. The robot returns to the reference path after clearing the obstacle boundary.
+* **Stability:** The integration of the collision checker does not introduce oscillations in the steering command.
+```
+
+## File: advanced/algorithms/stanley.md
+```markdown
+# Stanley Steering
+
+Stanley is a pure path following method designed to track a reference by computing an orientation and cross-track errors [^1]
+
+:::{tip} Although Stanley is a pure path following method, it can be used in KOMPASS in the Controller component in combination with the Drive Manager Component to provide following + emergency stop.
+:::
+
+
+:::{note} Stanley is designed for ACKERMANN models, however, it is adjusted for all models in Kompass by adapting a rotate-then-move strategy for non ACKERMANN robot.
+:::
+
+## Supported Sensory Inputs
+
+Does not require sensory input for obstacles
+
+## Parameters and Default Values
+
+```{list-table}
+:widths: 10 10 10 70
+:header-rows: 1
+
+* - Name
+  - Type
+  - Default
+  - Description
+
+* - heading_gain
+  - `float`
+  - `0.7`
+  - Heading gain in the control law. Must be between `0.0` and `1e2`.
+
+* - cross_track_min_linear_vel
+  - `float`
+  - `0.05`
+  - Minimum linear velocity for cross-track control (m/s). Must be between `1e-4` and `1e2`.
+
+* - min_angular_vel
+  - `float`
+  - `0.01`
+  - Minimum allowable angular velocity (rad/s). Must be between `0.0` and `1e9`.
+
+* - cross_track_gain
+  - `float`
+   - `1.5`
+  - Gain for cross-track in the control law. Must be between `0.0` and `1e2`.
+
+* - max_angle_error
+  - `float`
+  - `np.pi / 16`
+  - Maximum allowable angular error (rad). Must be between `1e-9` and `π`.
+
+* - max_distance_error
+  - `float`
+  - `0.1`
+  - Maximum allowable distance error (m). Must be between `1e-9` and `1e9`.
+
+```
+
+## usage Example
+
+Stanley algorithm can be used in the [Controller](../../navigation/control.md) component by setting 'algorithm' property or component config parameter. The Controller will configure Stanley algorithm using the default values of all the previous configuration parameters. To configure custom values of the parameters, a YAML file is passed to the component.
+
+
+```{code-block} python
+:caption: stanley.py
+
+from kompass.components import Controller, ControllerConfig
+from kompass.robot import (
+    AngularCtrlLimits,
+    LinearCtrlLimits,
+    RobotCtrlLimits,
+    RobotGeometry,
+    RobotType,
+    RobotConfig
+)
+from kompass.control import ControllersID
+
+# Setup your robot configuration
+my_robot = RobotConfig(
+    model_type=RobotType.ACKERMANN,
+    geometry_type=RobotGeometry.Type.BOX,
+    geometry_params=np.array([0.3, 0.3, 0.3]),
+    ctrl_vx_limits=LinearCtrlLimits(max_vel=0.2, max_acc=1.5, max_decel=2.5),
+    ctrl_omega_limits=AngularCtrlLimits(
+        max_vel=0.4, max_acc=2.0, max_decel=2.0, max_steer=np.pi / 3)
+)
+
+# Set Stanley algorithm using the config class
+controller_config = ControllerConfig(algorithm="Stanley")  # or ControllersID.STANLEY
+
+# Set YAML config file
+config_file = "my_config.yaml"
+
+controller = Controller(component_name="my_controller",
+                        config=controller_config,
+                        config_file=config_file)
+
+# algorithm can also be set using a property
+controller.algorithm = ControllersID.STANLEY      # or "Stanley"
+
+```
+
+```{code-block} yaml
+:caption: my_config.yaml
+
+my_controller:
+  # Component config parameters
+  loop_rate: 10.0
+  control_time_step: 0.1
+  ctrl_publish_type: 'Sequence'
+
+  # Algorithm parameters under the algorithm name
+  Stanley:
+    cross_track_gain: 1.0
+    heading_gain: 2.0
+```
+
+
+[^1]:  [Hoffmann, Gabriel M., Claire J. Tomlin, Michael Montemerlo, and Sebastian Thrun. "Autonomous Automobile Trajectory Tracking for Off-Road Driving: Controller Design, Experimental Validation and Racing." American Control Conference. 2007, pp. 2296–2301](https://ieeexplore.ieee.org/document/4282788)
+```
+
+## File: advanced/algorithms/vision_follower.md
+```markdown
+# Vision Follower
+
+A vision based target following algorithm is available to be used in the [Controller](../../navigation/control.md) component. The method requires [Detections](../types.md/#-supported-ros2-messages) or [Trackings](../types.md/#-supported-ros2-messages) information from an external source, this can be provided using an object detection ML model. The [Controller](../../navigation/control.md) creates a VisionFollowing ROS `ActionServer` if a detection/tracking input is provided to the controller.
+
+The Vision Follower can operate in two modes based on the available information in the incoming `Detections` (or `Trackings`) message:
+
+  - Using 2D detections (or trackings) and Depth Image: This option is prioritized if a depth image is provided. In this case the controller will use the depth information to convert the 2D detected boxes into 3D boxes, track the target box and compute the tracking control.
+  - Using 2D detections (or trackings) and RGB Image: If no depth information is provided, the VisionFollower will use the RGB image directly to compute the tracking control based on the relative shift and size of the 2D detected box to keep it centered in the 2D image.
+
+```{note}
+Using Depth information will provide more robust tracking.
+```
+```{note}
+The `Controller` does not subscribe directly to the `Depth` or `RGB` Images. The component expects the relevant image to be sent within the same `Detections` (or `Trackings`) message to insure data synchronization. For more details, check the structure of the (Detections Message)[https://github.com/automatika-robotics/ros-agents/blob/main/agents/msg/Detection2D.msg] and (Trackings Message)[https://github.com/automatika-robotics/ros-agents/blob/main/agents/msg/Tracking.msg].
+```
+
+```{seealso}
+See a full example of using the RGB mode vision follower from the Controller component along with a `Vision` component from (**EmbodiedAgents**)[https://automatika-robotics.github.io/ros-agents/] [here](../../tutorials/vision_tracking.md).
+```
+
+## Supported Inputs
+
+- [Detections](../types.md/#-supported-ros2-messages)
+- [Trackings](../types.md/#-supported-ros2-messages)
+
+## Parameters and Default Values
+
+```{list-table}
+:widths: 10 10 10 70
+:header-rows: 1
+* - Name
+  - Type
+  - Default
+  - Description
+* - control_time_step
+  - `float`
+  - `0.1`
+  - Time interval between control actions. Must be between `1e-4` and `1e6`.
+* - control_horizon
+  - `int`
+  - `2`
+  - Number of future steps to consider in control. Must be between `1` and `1000`.
+* - tolerance
+  - `float`
+  - `0.1`
+  - Acceptable error margin for target tracking. Must be between `1e-6` and `1e3`.
+* - target_distance
+  - `Optional[float]`
+  - `None`
+  - Desired distance to maintain from target. No validation constraints.
+* - target_search_timeout
+  - `int`
+  - `30`
+  - Maximum number of steps allowed for target search before timeout. Must be between `0` and `1000`.
+* - target_search_pause
+  - `int`
+  - `2`
+  - Number of steps to pause between search actions. Must be between `0` and `1000`.
+* - target_search_radius
+  - `float`
+  - `0.5`
+  - Radius of the search area for target detection. Must be between `1e-4` and `1e4`.
+* - rotation_multiple
+  - `float`
+  - `1.0`
+  - Scaling factor for rotation commands. Must be between `1e-9` and `1.0`.
+* - speed_depth_multiple
+  - `float`
+  - `0.7`
+  - Scaling factor for speed based on depth information. Must be between `1e-9` and `1.0`.
+* - min_vel
+  - `float`
+  - `0.01`
+  - Minimum allowable velocity. Must be between `1e-9` and `1e9`.
+* - enable_search
+  - `bool`
+  - `True`
+  - Flag to enable or disable search behavior when the target is lost.
+```
+```
+
+## File: advanced/algorithms/dvz.md
+```markdown
+# DVZ (Deformable Virtual Zone)
+
+The DVZ is a reactive motion control method first introduced by R. Zapata in 1994 [^1]. It has been used since to model systems' maneuvers in both 2D and 3D spaces. The idea is to surround the system under study with a virtual zone, and any body entering that zone will cause a deformation. Then, the system can be driven in the direction minimizing this deformation or changing it in a desired way.
+
+[^1]: [Zapata, R., Lépinay, P., and Thompson, P. “Reactive behaviors of fast mobile robots”.
+In: Journal of Robotic Systems 11.1 (1994)](https://www.researchgate.net/publication/221787033_Reactive_Motion_Planning_for_Mobile_Robots)
+
+
+## Supported Sensory Inputs
+
+- LaserScan
+
+
+## Implementation
+
+- Define a circular zone around the robot with known undeformed radius ($$R$$)
+- Using LaserScan sensor data compute the deformed radius:
+$ d_h(\alpha) : \alpha in [0, 2\pi]$
+
+- Compute the zone deformation:
+
+$ I_D = \frac{1}{2\pi} \int_{0}^{2\pi}\frac{R - d_h(\alpha)}{R} d\alpha  \in [0, 1]$
+
+- Compute the zone deformation radius (if $I_D > 0$):
+
+$ \Theta_D = \frac{\int_{0}^{2\pi} (R - d_h(\alpha))\alpha d\alpha}{I_D}   \in [0, 2\pi]$
+
+- The control is calculated to minimize $I_D$ and stay close to the reference trajectory
+
+## Parameters and Default Values
+
+
+```{list-table}
+:widths: 10 10 10 70
+:header-rows: 1
+
+* - Name
+  - Type
+  - Default
+  - Description
+
+* - min_front_margin
+  - `float`
+  - `1.0`
+  - Minimum front margin distance. Must be between `0.0` and `1e2`.
+* - K_linear
+  - `float`
+  - `1.0`
+  - Proportional gain for linear control. Must be between `0.1` and `10.0`.
+
+* - K_angular
+  - `float`
+  - `1.0`
+  - Proportional gain for angular control. Must be between `0.1` and `10.0`.
+
+* - K_I
+  - `float`
+  - `5.0`
+  - Proportional deformation gain. Must be between `0.1` and `10.0`.
+
+* - side_margin_width_ratio
+  - `float`
+  - `1.0`
+  - Width ratio between the deformation zone front and side (circle if 1.0). Must be between `1e-2` and `1e2`.
+
+* - heading_gain
+  - `float`
+  - `0.7`
+  - Heading gain of the internal pure follower control law. Must be between `0.0` and `1e2`.
+
+* - cross_track_gain
+  - `float`
+   - `1.5`
+  - Gain for cross-track error of the internal pure follower control law. Must be between `0.0` and `1e2`.
+
+
+```
+
+## usage Example
+
+DVZ algorithm can be used in the [Controller](../../navigation/control.md) component by setting 'algorithm' property or component config parameter. The Controller will configure DVZ algorithm using the default values of all the previous configuration parameters. To configure custom values of the parameters, a YAML file is passed to the component.
+
+
+```{code-block} python
+:caption: dvz.py
+
+from kompass.components import Controller, ControllerConfig
+from kompass.robot import (
+    AngularCtrlLimits,
+    LinearCtrlLimits,
+    RobotCtrlLimits,
+    RobotGeometry,
+    RobotType,
+    RobotConfig
+)
+from kompass.control import LocalPlannersID
+
+# Setup your robot configuration
+my_robot = RobotConfig(
+    model_type=RobotType.ACKERMANN,
+    geometry_type=RobotGeometry.Type.BOX,
+    geometry_params=np.array([0.3, 0.3, 0.3]),
+    ctrl_vx_limits=LinearCtrlLimits(max_vel=0.2, max_acc=1.5, max_decel=2.5),
+    ctrl_omega_limits=AngularCtrlLimits(
+        max_vel=0.4, max_acc=2.0, max_decel=2.0, max_steer=np.pi / 3)
+)
+
+# Set DVZ algorithm using the config class
+controller_config = ControllerConfig(algorithm="DVZ")  # or LocalPlannersID.DVZ
+
+# Set YAML config file
+config_file = "my_config.yaml"
+
+controller = Controller(component_name="my_controller",
+                        config=controller_config,
+                        config_file=config_file)
+
+# algorithm can also be set using a property
+controller.algorithm = ControllersID.DVZ      # or "DVZ"
+
+```
+
+```{code-block} yaml
+:caption: my_config.yaml
+
+my_controller:
+  # Component config parameters
+  loop_rate: 10.0
+  control_time_step: 0.1
+  ctrl_publish_type: 'Sequence'
+
+  # Algorithm parameters under the algorithm name
+  DVZ:
+    cross_track_gain: 1.0
+    heading_gain: 2.0
+    K_angular: 1.0
+    K_linear: 1.0
+    min_front_margin: 1.0
+    side_margin_width_ratio: 1.0
+```
+```
+
+## File: advanced/algorithms/cost_eval.md
+```markdown
+# Trajectory Cost Evaluation
+
+Kompass includes built-in cost evaluation functions (implemented in [kompass_cpp](https://github.com/automatika-robotics/kompass-core/blob/main/src/kompass_cpp/kompass_cpp/include/utils/cost_evaluator.h)) and supports running custom cost evaluation functions to calculate the overall cost of a trajectory during navigation.
+
+```{list-table}
+:widths: 20 80
+:header-rows: 1
+* - Cost
+  - Description
+
+* - **Reference Path**
+  - Measured using the average distance between the trajectory under evaluation and the closest reference (global) path segment. Added for favoring trajectories that remain close to the reference
+
+* - **Goal Destination**
+  - Evaluated based on the distance between the end of the trajectory and the final destination point of the navigation. Added for favoring trajectories that lead the robot closer to the goal point
+
+* - **Obstacles Min-Distance**
+  - Evaluated using the minimum distance between the trajectory points and the surrounding obstacles. Supports information from direct sensor data (LaserScan and PointCloud). Added for favoring trajectories that keep the robot away from nearby obstacles
+
+* - **Smoothness**
+  - Based on the average change in velocity along the trajectory under evaluation
+
+* - **Jerk**
+  - Based on the average change in acceleration along the trajectory under evaluation
+```
+
+## Costs Weights
+
+The total cost of a trajectory is computed as the sum of all the default costs weighed by their respective cost weights.
+
+```{list-table}
+:widths: 10 10 10 70
+:header-rows: 1
+* - Name
+  - Type
+  - Default
+  - Description
+
+* - reference_path_distance_weight
+  - `float`
+  - `3.0`
+  - Weight of the reference path cost. Must be between `0.0` and `1e3`.
+
+* - goal_distance_weight
+  - `float`
+  - `3.0`
+  - Weight of the goal position cost. Must be between `0.0` and `1e3`.
+* - obstacles_distance_weight
+  - `float`
+  - `1.0`
+  - Weight of the obstacles distance cost. Must be between `0.0` and `1e3`.
+* - smoothness_weight
+  - `float`
+  - `0.0`
+  - Weight of the trajectory smoothness cost. Must be between `0.0` and `1e3`.
+* - jerk_weight
+  - `float`
+  - `0.0`
+  - Weight of the trajectory jerk cost. Must be between `0.0` and `1e3`.
+
+```
+
+:::{tip} Set a cost weight to 0.0 to exclude that cost and not take it into consideration
+:::
+```
+
+## File: integrations/ompl.md
+```markdown
+# OMPL (Open Motion Planning Library)
+
+[OMPL](https://github.com/ompl/ompl), the Open Motion Planning Library, is a generic C++ library for state-of-the-art motion planning algorithms. OMPL is compatible with different robot morphologies and planning spaces which make it widely used in robotics for motion planning problems both in 2D and 3D spaces. (for more details check the [official documentation of OMPL](https://ompl.kavrakilab.org/tutorials.html))
+
+## OMPL with Kompass
+
+Kompass provides Python bindings (Pybind11 bindings) for OMPL in its navigation core package (kompass_navigation). The bindings enable setting and solving a planning problem using:
+
+- '[SE2StateSpace](https://ompl.kavrakilab.org/classompl_1_1base_1_1SE2StateSpace_1_1StateType.html#details)' which is convient for 2D motion planning. It provides an 'SE2State' consisting of a 2D position and rotation in the plane: ```SE(2): (x, y, yaw)```
+- OMPL geometric planners (listed below)
+- Built-in '[StateValidityChecker](https://ompl.kavrakilab.org/classompl_1_1base_1_1StateValidityChecker.html)' which implements a collision checker (using [FCL](fcl.md)) to insure finding collision free paths.
+
+## Configuring OMPL in Kompass
+
+The following is an example YAML configuration of OMPL. In the section [below](#planners-default-parameters) we list all the available configuration parameters for each of the planners along with their default values.
+
+```yaml
+ompl:
+    log_level: 'WARN'
+    planning_timeout: 10.0  # (secs) Return and consider the planning to fail if solving takes more than planning_timeout
+    simplification_timeout: 0.01 # # (secs) abort path simplification if it takes more than simplification_timeout
+    goal_tolerance: 0.01        # (meters) Distance to consider that the robot is at goal point, i.e. no planning is performed
+    optimization_objective: 'PathLengthOptimizationObjective'
+    planner_id: 'ompl.geometric.KPIECE1'
+```
+
+## Available algorithms from OMPL
+
+The following geometric planners are supported in Kompass:
+
+- [ABITstar](#abitstar)
+- [AITstar](#aitstar)
+- [BFMT](#bfmt)
+- [BITstar](#bitstar)
+- [BKPIECE1](#bkpiece1)
+- [BiEST](#biest)
+- [EST](#est)
+- [FMT](#fmt)
+- [InformedRRTstar](#informedrrtstar)
+- [KPIECE1](#kpiece1)
+- [LBKPIECE1](#lbkpiece1)
+- [LBTRRT](#lbtrrt)
+- [LazyLBTRRT](#lazylbtrrt)
+- [LazyPRM](#lazyprm)
+- [LazyPRMstar](#lazyprmstar)
+- [LazyRRT](#lazyrrt)
+- [PDST](#pdst)
+- [PRM](#prm)
+- [PRMstar](#prmstar)
+- [ProjEST](#projest)
+- [RRT](#rrt)
+- [RRTConnect](#rrtconnect)
+- [RRTXstatic](#rrtxstatic)
+- [RRTsharp](#rrtsharp)
+- [RRTstar](#rrtstar)
+- [SBL](#sbl)
+- [SST](#sst)
+- [STRIDE](#stride)
+- [TRRT](#trrt)
+
+## Planners test results
+
+A planning problem is simulated using the [Turtlebot3 Gazebo simulation](https://emanual.robotis.com/docs/en/platform/turtlebot3/simulation/) Waffle map. The following table shows the planning results using each of the previous planners. The problem is simulated for 20 repetitions using each planners and the table below shows the average result values. 'solved' is set to False if in any repetition the method was unable to find a solution. The solution search timeout is set to 2seconds.
+
+
+:::{tip} To check/run the test script and the associated test resources refer to [kompass_navigation ompl test](https://github.com/automatika-robotics/kompass-navigation/tree/dev/tests)
+:::
+
+method | solved | solution time (s) | solution length (m) | simplification time (s) | Conversion/Publishing ROS2 (s)
+---|---|---|---|---|---
+ABITstar | True | 1.071 | 2.948 | 0.0075 | 0.00056
+BFMT | True | 0.1128 | 3.487 | 0.0066 | 0.00017
+BITstar | True | 1.0732 | 2.962 | 0.0061 | 0.00015
+BKPIECE1 | True | 0.0703 | 4.469 | 0.01777 | 0.00019
+BiEST | True | 0.06189 | 4.418 | 0.01078 | 0.00014
+EST | True | 0.0640 | 4.059 | 0.01074 | 0.00013
+FMT | True | 0.1330 | 3.6277 | 0.00630 | 0.00016
+InformedRRTstar | True | 1.0679 | 2.962 | 0.00457 | 0.00013
+KPIECE1 | True | 0.0676 | 5.439 | 0.0148 | 0.00017
+LBKPIECE1 | True | 0.07543 | 5.174 | 0.02 | 0.00017
+LBTRRT | True | 1.0696 | 3.221 | 0.005 | 0.00012
+LazyLBTRRT | True | 1.0672 | 3.305 | 0.0053 | 0.00013
+LazyPRM | False | 1.0811 | 0.0 | 0.0 | 0.0
+LazyPRMstar | True | 1.0701 | 3.03 | 0.0063 | 0.00012
+LazyRRT | True | 0.0982 | 4.5196 | 0.016 | 0.00013
+PDST | True | 0.06781 | 3.836 | 0.009 | 0.00013
+PRM | True | 1.0672 | 3.306 | 0.0068 | 0.00012
+PRMstar | True | 1.0740 | 3.72 | 0.0085 | 0.00012
+ProjEST | True | 0.0683 | 4.19 | 0.0082 | 0.00013
+RRT | True | 0.09062 | 4.86 | 0.019 | 0.00014
+RRTConnect | True | 0.07535 | 4.78 | 0.014 | 0.00014
+RRTXstatic | True | 1.0712 | 3.03 | 0.0041 | 0.00012
+RRTsharp | True | 1.0680 | 3.01 | 0.0052 | 0.00013
+RRTstar | True | 1.0672 | 2.96 | 0.0042 | 0.00013
+SBL | True | 0.0800 | 4.039 | 0.0121 | 0.00015
+SST | True | 1.0681 | 2.63 | 0.0012 | 0.00018
+STRIDE | True | 0.0679 | 4.12 | 0.0098 | 0.00015
+TRRT | True | 0.0798 | 4.11 | 0.01094 | 0.00015
+
+## Planners Default Parameters
+
+### ABITstar
+*ABITstar Default Parameters:*
+
+- delay_rewiring_to_first_solution: False
+- drop_unconnected_samples_on_prune: False
+- find_approximate_solutions: False
+- inflation_scaling_parameter: 10.0
+- initial_inflation_factor: 1000000.0
+- prune_threshold_as_fractional_cost_change: 0.05
+- rewire_factor: 1.1
+- samples_per_batch: 100
+- stop_on_each_solution_improvement: False
+- truncation_scaling_parameter: 5.0
+- use_graph_pruning: True
+- use_just_in_time_sampling: False
+- use_k_nearest: True
+- use_strict_queue_ordering: True
+
+### AITstar
+*AITstar Default Parameters:*
+
+- find_approximate_solutions: True
+- rewire_factor: 1.0
+- samples_per_batch: 100
+- use_graph_pruning: True
+- use_k_nearest: True
+
+### BFMT
+*BFMT Default Parameters:*
+
+- balanced: False
+- cache_cc: True
+- extended_fmt: True
+- heuristics: True
+- nearest_k: True
+- num_samples: 1000
+- optimality: True
+- radius_multiplier: 1.0
+
+### BITstar
+*BITstar Default Parameters:*
+
+- delay_rewiring_to_first_solution: False
+- drop_unconnected_samples_on_prune: False
+- find_approximate_solutions: False
+- prune_threshold_as_fractional_cost_change: 0.05
+- rewire_factor: 1.1
+- samples_per_batch: 100
+- stop_on_each_solution_improvement: False
+- use_graph_pruning: True
+- use_just_in_time_sampling: False
+- use_k_nearest: True
+- use_strict_queue_ordering: True
+
+### BKPIECE1
+*BKPIECE1 Default Parameters:*
+
+- border_fraction: 0.9
+- range: 0.0
+
+### BiEST
+*BiEST Default Parameters:*
+
+- range: 0.0
+
+### EST
+*EST Default Parameters:*
+
+- goal_bias: 0.5
+- range: 0.0
+
+### FMT
+*FMT Default Parameters:*
+
+- cache_cc: True
+- extended_fmt: True
+- heuristics: False
+- num_samples: 1000
+- radius_multiplier: 1.1
+- use_k_nearest: True
+
+### InformedRRTstar
+*InformedRRTstar Default Parameters:*
+
+- delay_collision_checking: True
+- goal_bias: 0.05
+- number_sampling_attempts: 100
+- ordered_sampling: False
+- ordering_batch_size: 1
+- prune_threshold: 0.05
+- range: 0.0
+- rewire_factor: 1.1
+- use_k_nearest: True
+
+### KPIECE1
+*KPIECE1 Default Parameters:*
+
+- border_fraction: 0.9
+- goal_bias: 0.05
+- range: 0.0
+
+### LBKPIECE1
+*LBKPIECE1 Default Parameters:*
+
+- border_fraction: 0.9
+- range: 0.0
+
+### LBTRRT
+*LBTRRT Default Parameters:*
+
+- epsilon: 0.4
+- goal_bias: 0.05
+- range: 0.0
+
+### LazyLBTRRT
+*LazyLBTRRT Default Parameters:*
+
+- epsilon: 0.4
+- goal_bias: 0.05
+- range: 0.0
+
+### LazyPRM
+*LazyPRM Default Parameters:*
+
+- max_nearest_neighbors: 8
+- range: 0.0
+
+### LazyPRMstar
+*LazyPRMstar Default Parameters:*
+
+
+### LazyRRT
+*LazyRRT Default Parameters:*
+
+- goal_bias: 0.05
+- range: 0.0
+
+### PDST
+*PDST Default Parameters:*
+
+- goal_bias: 0.05
+
+### PRM
+*PRM Default Parameters:*
+
+- max_nearest_neighbors: 8
+
+### PRMstar
+*PRMstar Default Parameters:*
+
+
+### ProjEST
+*ProjEST Default Parameters:*
+
+- goal_bias: 0.05
+- range: 0.0
+
+### RRT
+*RRT Default Parameters:*
+
+- goal_bias: 0.05
+- intermediate_states: False
+- range: 0.0
+
+### RRTConnect
+*RRTConnect Default Parameters:*
+
+- intermediate_states: False
+- range: 0.0
+
+### RRTXstatic
+*RRTXstatic Default Parameters:*
+
+- epsilon: 0.0
+- goal_bias: 0.05
+- informed_sampling: False
+- number_sampling_attempts: 100
+- range: 0.0
+- rejection_variant: 0
+- rejection_variant_alpha: 1.0
+- rewire_factor: 1.1
+- sample_rejection: False
+- update_children: True
+- use_k_nearest: True
+
+### RRTsharp
+*RRTsharp Default Parameters:*
+
+- goal_bias: 0.05
+- informed_sampling: False
+- number_sampling_attempts: 100
+- range: 0.0
+- rejection_variant: 0
+- rejection_variant_alpha: 1.0
+- rewire_factor: 1.1
+- sample_rejection: False
+- update_children: True
+- use_k_nearest: True
+
+### RRTstar
+*RRTstar Default Parameters:*
+
+- delay_collision_checking: True
+- focus_search: False
+- goal_bias: 0.05
+- informed_sampling: True
+- new_state_rejection: False
+- number_sampling_attempts: 100
+- ordered_sampling: False
+- ordering_batch_size: 1
+- prune_threshold: 0.05
+- pruned_measure: False
+- range: 0.0
+- rewire_factor: 1.1
+- sample_rejection: False
+- tree_pruning: False
+- use_admissible_heuristic: True
+- use_k_nearest: True
+
+### SBL
+*SBL Default Parameters:*
+
+- range: 0.0
+
+### SST
+*SST Default Parameters:*
+
+- goal_bias: 0.05
+- pruning_radius: 3.0
+- range: 5.0
+- selection_radius: 5.0
+
+### STRIDE
+*STRIDE Default Parameters:*
+
+- degree: 16
+- estimated_dimension: 3.0
+- goal_bias: 0.05
+- max_degree: 18
+- max_pts_per_leaf: 6
+- min_degree: 12
+- min_valid_path_fraction: 0.2
+- range: 0.0
+- use_projected_distance: False
+
+### TRRT
+*TRRT Default Parameters:*
+
+- goal_bias: 0.05
+- range: 0.0
+- temp_change_factor: 0.1
+```
+
+## File: integrations/fcl.md
+```markdown
+# FCL (Flexible Collisions Library)
+
+[FCL](https://github.com/flexible-collision-library/fcl) is generic library for geometric collision detection. Kompass provides FCL wrappers to detect collisions between the robot and static/dynamic obstacles during the navigation:
+- C++ wrapper in [kompass_cpp](https://github.com/automatika-robotics/kompass-core/tree/main/src/kompass_cpp)
+- Python wrapper in [kompass_core](https://github.com/automatika-robotics/kompass-core/tree/main/src/kompass_core)
+```
+

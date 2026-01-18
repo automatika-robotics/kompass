@@ -1,0 +1,1261 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta content="cQVj-BaADcGVOGB7GOvfbkgJjxni10C2fYWCZ03jOeo" name="google-site-verification" />
+
+    <title>OMPL (Open Motion Planning Library) &#8212; Kompass 0.4.0 documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../_static/styles/theme.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+<link href="../_static/styles/bootstrap.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+<link href="../_static/styles/pydata-sphinx-theme.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+
+  
+  <link href="../_static/vendor/fontawesome/6.5.2/css/all.min.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+  <link rel="preload" as="font" type="font/woff2" crossorigin href="../_static/vendor/fontawesome/6.5.2/webfonts/fa-solid-900.woff2" />
+<link rel="preload" as="font" type="font/woff2" crossorigin href="../_static/vendor/fontawesome/6.5.2/webfonts/fa-brands-400.woff2" />
+<link rel="preload" as="font" type="font/woff2" crossorigin href="../_static/vendor/fontawesome/6.5.2/webfonts/fa-regular-400.woff2" />
+
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=a746c00c" />
+    <link rel="stylesheet" type="text/css" href="../_static/styles/sphinx-book-theme.css?v=eba8b062" />
+    <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../_static/custom.css?v=8eace815" />
+  
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=dfe6caa3a7d634c4db9b" />
+<link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=dfe6caa3a7d634c4db9b" />
+  <script src="../_static/vendor/fontawesome/6.5.2/js/all.min.js?digest=dfe6caa3a7d634c4db9b"></script>
+
+    <script src="../_static/documentation_options.js?v=183391d5"></script>
+    <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../_static/copybutton.js?v=f281be69"></script>
+    <script src="../_static/scripts/sphinx-book-theme.js?v=887ef09a"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'integrations/ompl';</script>
+    <link rel="canonical" href="https://automatika-robotics.github.io/kompass/integrations/ompl.html" />
+    <link rel="icon" href="../_static/favicon.png"/>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="FCL (Flexible Collisions Library)" href="fcl.html" />
+    <link rel="prev" title="Global Mapping and Localization" href="../navigation/mapping_localization.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <input type="checkbox"
+          class="sidebar-toggle"
+          id="pst-primary-sidebar-checkbox"/>
+  <label class="overlay overlay-primary" for="pst-primary-sidebar-checkbox"></label>
+  
+  <input type="checkbox"
+          class="sidebar-toggle"
+          id="pst-secondary-sidebar-checkbox"/>
+  <label class="overlay overlay-secondary" for="pst-secondary-sidebar-checkbox"></label>
+  
+  <div class="search-button__wrapper">
+    <div class="search-button__overlay"></div>
+    <div class="search-button__search-container">
+<form class="bd-search d-flex align-items-center"
+      action="../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         id="search-input"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form></div>
+  </div>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <div class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+    
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../_static/Kompass_light.png" class="logo__image only-light" alt="Kompass 0.4.0 documentation - Home"/>
+    <script>document.write(`<img src="../_static/Kompass_dark.png" class="logo__image only-dark" alt="Kompass 0.4.0 documentation - Home"/>`);</script>
+  
+  
+</a></div>
+        <div class="sidebar-primary-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://automatikarobotics.com/" title="Automatika" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="../_static/automatika-logo.png" class="icon-link-image" alt="Automatika"/></a>
+        </li>
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/automatika-robotics/kompass" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://discord.gg/B9ZU6qjzND" title="Discord" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-discord fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">Discord</span></a>
+        </li>
+</ul></div>
+        <div class="sidebar-primary-item">
+
+ <script>
+ document.write(`
+   <button class="btn search-button-field search-button__button" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass"></i>
+    <span class="search-button__default-text">Search</span>
+    <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+   </button>
+ `);
+ </script></div>
+        <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item navbar-nav active">
+        <p aria-level="2" class="caption" role="heading"><span class="caption-text">Overview</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../why.html">Why Kompass?</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../install.html">Installation</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../tutorials/quick_start.html">Quick Start</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/quick_start_webots.html">Quick Start (Webots Simulator)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/quick_start_gazebo.html">Quick Start (Gazebo Simulator)</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../cli.html">Kompass CLI</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/index.html">Tutorials Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/point_navigation.html">🎯 Point Navigation: Step-by-Step Tutorial</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/events_actions.html">⚙️ Using Events/Actions in your application</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/vision_tracking.html">📷 Following a moving target using RGB Image</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/vision_tracking_depth.html">🎥 Vision Tracking Using Depth Information</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/configuration.html">🔧 Configuring Components Your Way</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Navigation Components</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../navigation/index.html">Navigation Components Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../navigation/robot.html">Robot Configuration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../navigation/path_planning.html">Planner</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../navigation/control.html">Controller</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../navigation/driver.html">Drive Manager</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../navigation/mapper.html">Local Mapper</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../navigation/map_server.html">Map Server</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../navigation/motion_server.html">Motion Server</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../navigation/mapping_localization.html">Global Mapping and Localization</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Integrations</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">OMPL (Open Motion Planning Library)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="fcl.html">FCL (Flexible Collisions Library)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Advanced</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../advanced/design.html">🧩 Design Concepts</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../advanced/advanced_conf/index.html">🛠️ Advanced Configurations</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../advanced/advanced_conf/topics.html">Inputs and Outputs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../advanced/advanced_conf/qos.html">QoS Configuration</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../advanced/algorithms/index.html">🧠 Algorithms</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../advanced/algorithms/pure_pursuit.html">Pure Pursuit</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../advanced/algorithms/dwa.html">DWA (Dynamic Window Approach)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../advanced/algorithms/stanley.html">Stanley Steering</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../advanced/algorithms/dvz.html">DVZ (Deformable Virtual Zone)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../advanced/algorithms/vision_follower.html">Vision Follower</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../advanced/algorithms/cost_eval.html">Trajectory Cost Evaluation</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../advanced/types.html">📨 Supported ROS2 Messages</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../advanced/benchmark.html">Benchmarking Results</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">References</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../apidocs/index.html">API Reference</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../apidocs/kompass/kompass.html"><code class="xref py py-mod docutils literal notranslate"><span class="pre">kompass</span></code></a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l3 has-children"><a class="reference internal" href="../apidocs/kompass/kompass.components.html"><code class="xref py py-mod docutils literal notranslate"><span class="pre">kompass.components</span></code></a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l4"><a class="reference internal" href="../apidocs/kompass/kompass.components.defaults.html"><code class="xref py py-mod docutils literal notranslate"><span class="pre">kompass.components.defaults</span></code></a></li>
+</ul>
+</details></li>
+<li class="toctree-l3"><a class="reference internal" href="../apidocs/kompass/kompass.event.html"><code class="xref py py-mod docutils literal notranslate"><span class="pre">kompass.event</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../apidocs/kompass/kompass.launcher.html"><code class="xref py py-mod docutils literal notranslate"><span class="pre">kompass.launcher</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../apidocs/kompass/kompass.data_types.html"><code class="xref py py-mod docutils literal notranslate"><span class="pre">kompass.data_types</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../apidocs/kompass/kompass.callbacks.html"><code class="xref py py-mod docutils literal notranslate"><span class="pre">kompass.callbacks</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../apidocs/kompass/kompass.actions.html"><code class="xref py py-mod docutils literal notranslate"><span class="pre">kompass.actions</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../apidocs/kompass/kompass.ros.html"><code class="xref py py-mod docutils literal notranslate"><span class="pre">kompass.ros</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../apidocs/kompass/kompass.config.html"><code class="xref py py-mod docutils literal notranslate"><span class="pre">kompass.config</span></code></a></li>
+</ul>
+</details></li>
+</ul>
+</details></li>
+</ul>
+
+    </div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+  </div>
+  
+  <div id="rtd-footer-container"></div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+
+<div class="sbt-scroll-pixel-helper"></div>
+
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item"><button class="sidebar-toggle primary-toggle btn btn-sm" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <span class="fa-solid fa-bars"></span>
+</button></div>
+      
+    </div>
+  
+  
+    <div class="header-article-items__end">
+      
+        <div class="header-article-item">
+
+<div class="article-header-buttons">
+
+
+
+
+
+<div class="dropdown dropdown-source-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Source repositories">
+    <i class="fab fa-github"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="https://github.com/automatika-robotics/kompass/blob/main/docs/integrations/ompl.md?plain=1" target="_blank"
+   class="btn btn-sm btn-source-file-button dropdown-item"
+   title="Show source"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-code"></i>
+  </span>
+<span class="btn__text-container">Show source</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li><a href="https://github.com/automatika-robotics/kompass/edit/main/docs/integrations/ompl.md" target="_blank"
+   class="btn btn-sm btn-source-edit-button dropdown-item"
+   title="Suggest edit"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-pencil-alt"></i>
+  </span>
+<span class="btn__text-container">Suggest edit</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li><a href="https://github.com/automatika-robotics/kompass/issues/new?title=Issue%20on%20page%20%2Fintegrations/ompl.html&body=Your%20issue%20content%20here." target="_blank"
+   class="btn btn-sm btn-source-issues-button dropdown-item"
+   title="Open an issue"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-lightbulb"></i>
+  </span>
+<span class="btn__text-container">Open issue</span>
+</a>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+
+
+<div class="dropdown dropdown-download-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Download this page">
+    <i class="fas fa-download"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="../_sources/integrations/ompl.md" target="_blank"
+   class="btn btn-sm btn-download-source-button dropdown-item"
+   title="Download source file"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file"></i>
+  </span>
+<span class="btn__text-container">.md</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li>
+<button onclick="window.print()"
+  class="btn btn-sm btn-download-pdf-button dropdown-item"
+  title="Print to PDF"
+  data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file-pdf"></i>
+  </span>
+<span class="btn__text-container">.pdf</span>
+</button>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+<button onclick="toggleFullScreen()"
+  class="btn btn-sm btn-fullscreen-button"
+  title="Fullscreen mode"
+  data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-expand"></i>
+  </span>
+
+</button>
+
+
+
+<script>
+document.write(`
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button" title="light/dark" aria-label="light/dark" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="theme-switch fa-solid fa-sun fa-lg" data-mode="light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg" data-mode="dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"></i>
+  </button>
+`);
+</script>
+
+
+<script>
+document.write(`
+  <button class="btn btn-sm pst-navbar-icon search-button search-button__button" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+  </button>
+`);
+</script>
+<button class="sidebar-toggle secondary-toggle btn btn-sm" title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <span class="fa-solid fa-list"></span>
+</button>
+</div></div>
+      
+    </div>
+  
+</div>
+</div>
+              
+              
+
+<div id="jb-print-docs-body" class="onlyprint">
+    <h1>OMPL (Open Motion Planning Library)</h1>
+    <!-- Table of contents -->
+    <div id="print-main-content">
+        <div id="jb-print-toc">
+            
+            <div>
+                <h2> Contents </h2>
+            </div>
+            <nav aria-label="Page">
+                <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#ompl-with-kompass">OMPL with Kompass</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#configuring-ompl-in-kompass">Configuring OMPL in Kompass</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#available-algorithms-from-ompl">Available algorithms from OMPL</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#planners-test-results">Planners test results</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#planners-default-parameters">Planners Default Parameters</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#abitstar">ABITstar</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#aitstar">AITstar</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#bfmt">BFMT</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#bitstar">BITstar</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#bkpiece1">BKPIECE1</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#biest">BiEST</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#est">EST</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#fmt">FMT</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#informedrrtstar">InformedRRTstar</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#kpiece1">KPIECE1</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#lbkpiece1">LBKPIECE1</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#lbtrrt">LBTRRT</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#lazylbtrrt">LazyLBTRRT</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#lazyprm">LazyPRM</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#lazyprmstar">LazyPRMstar</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#lazyrrt">LazyRRT</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#pdst">PDST</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prm">PRM</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prmstar">PRMstar</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#projest">ProjEST</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#rrt">RRT</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#rrtconnect">RRTConnect</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#rrtxstatic">RRTXstatic</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#rrtsharp">RRTsharp</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#rrtstar">RRTstar</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#sbl">SBL</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#sst">SST</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#stride">STRIDE</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#trrt">TRRT</a></li>
+</ul>
+</li>
+</ul>
+            </nav>
+        </div>
+    </div>
+</div>
+
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section class="tex2jax_ignore mathjax_ignore" id="ompl-open-motion-planning-library">
+<h1>OMPL (Open Motion Planning Library)<a class="headerlink" href="#ompl-open-motion-planning-library" title="Link to this heading">#</a></h1>
+<p><a class="reference external" href="https://github.com/ompl/ompl">OMPL</a>, the Open Motion Planning Library, is a generic C++ library for state-of-the-art motion planning algorithms. OMPL is compatible with different robot morphologies and planning spaces which make it widely used in robotics for motion planning problems both in 2D and 3D spaces. (for more details check the <a class="reference external" href="https://ompl.kavrakilab.org/tutorials.html">official documentation of OMPL</a>)</p>
+<section id="ompl-with-kompass">
+<h2>OMPL with Kompass<a class="headerlink" href="#ompl-with-kompass" title="Link to this heading">#</a></h2>
+<p>Kompass provides Python bindings (Pybind11 bindings) for OMPL in its navigation core package (kompass_navigation). The bindings enable setting and solving a planning problem using:</p>
+<ul class="simple">
+<li><p>‘<a class="reference external" href="https://ompl.kavrakilab.org/classompl_1_1base_1_1SE2StateSpace_1_1StateType.html#details">SE2StateSpace</a>’ which is convient for 2D motion planning. It provides an ‘SE2State’ consisting of a 2D position and rotation in the plane: <code class="docutils literal notranslate"><span class="pre">SE(2):</span> <span class="pre">(x,</span> <span class="pre">y,</span> <span class="pre">yaw)</span></code></p></li>
+<li><p>OMPL geometric planners (listed below)</p></li>
+<li><p>Built-in ‘<a class="reference external" href="https://ompl.kavrakilab.org/classompl_1_1base_1_1StateValidityChecker.html">StateValidityChecker</a>’ which implements a collision checker (using <a class="reference internal" href="fcl.html"><span class="std std-doc">FCL</span></a>) to insure finding collision free paths.</p></li>
+</ul>
+</section>
+<section id="configuring-ompl-in-kompass">
+<h2>Configuring OMPL in Kompass<a class="headerlink" href="#configuring-ompl-in-kompass" title="Link to this heading">#</a></h2>
+<p>The following is an example YAML configuration of OMPL. In the section <a class="reference internal" href="#planners-default-parameters">below</a> we list all the available configuration parameters for each of the planners along with their default values.</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">ompl</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">log_level</span><span class="p">:</span><span class="w"> </span><span class="s">&#39;WARN&#39;</span>
+<span class="w">    </span><span class="nt">planning_timeout</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10.0</span><span class="w">  </span><span class="c1"># (secs) Return and consider the planning to fail if solving takes more than planning_timeout</span>
+<span class="w">    </span><span class="nt">simplification_timeout</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.01</span><span class="w"> </span><span class="c1"># # (secs) abort path simplification if it takes more than simplification_timeout</span>
+<span class="w">    </span><span class="nt">goal_tolerance</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.01</span><span class="w">        </span><span class="c1"># (meters) Distance to consider that the robot is at goal point, i.e. no planning is performed</span>
+<span class="w">    </span><span class="nt">optimization_objective</span><span class="p">:</span><span class="w"> </span><span class="s">&#39;PathLengthOptimizationObjective&#39;</span>
+<span class="w">    </span><span class="nt">planner_id</span><span class="p">:</span><span class="w"> </span><span class="s">&#39;ompl.geometric.KPIECE1&#39;</span>
+</pre></div>
+</div>
+</section>
+<section id="available-algorithms-from-ompl">
+<h2>Available algorithms from OMPL<a class="headerlink" href="#available-algorithms-from-ompl" title="Link to this heading">#</a></h2>
+<p>The following geometric planners are supported in Kompass:</p>
+<ul class="simple">
+<li><p><a class="reference internal" href="#abitstar">ABITstar</a></p></li>
+<li><p><a class="reference internal" href="#aitstar">AITstar</a></p></li>
+<li><p><a class="reference internal" href="#bfmt">BFMT</a></p></li>
+<li><p><a class="reference internal" href="#bitstar">BITstar</a></p></li>
+<li><p><a class="reference internal" href="#bkpiece1">BKPIECE1</a></p></li>
+<li><p><a class="reference internal" href="#biest">BiEST</a></p></li>
+<li><p><a class="reference internal" href="#est">EST</a></p></li>
+<li><p><a class="reference internal" href="#fmt">FMT</a></p></li>
+<li><p><a class="reference internal" href="#informedrrtstar">InformedRRTstar</a></p></li>
+<li><p><a class="reference internal" href="#kpiece1">KPIECE1</a></p></li>
+<li><p><a class="reference internal" href="#lbkpiece1">LBKPIECE1</a></p></li>
+<li><p><a class="reference internal" href="#lbtrrt">LBTRRT</a></p></li>
+<li><p><a class="reference internal" href="#lazylbtrrt">LazyLBTRRT</a></p></li>
+<li><p><a class="reference internal" href="#lazyprm">LazyPRM</a></p></li>
+<li><p><a class="reference internal" href="#lazyprmstar">LazyPRMstar</a></p></li>
+<li><p><a class="reference internal" href="#lazyrrt">LazyRRT</a></p></li>
+<li><p><a class="reference internal" href="#pdst">PDST</a></p></li>
+<li><p><a class="reference internal" href="#prm">PRM</a></p></li>
+<li><p><a class="reference internal" href="#prmstar">PRMstar</a></p></li>
+<li><p><a class="reference internal" href="#projest">ProjEST</a></p></li>
+<li><p><a class="reference internal" href="#rrt">RRT</a></p></li>
+<li><p><a class="reference internal" href="#rrtconnect">RRTConnect</a></p></li>
+<li><p><a class="reference internal" href="#rrtxstatic">RRTXstatic</a></p></li>
+<li><p><a class="reference internal" href="#rrtsharp">RRTsharp</a></p></li>
+<li><p><a class="reference internal" href="#rrtstar">RRTstar</a></p></li>
+<li><p><a class="reference internal" href="#sbl">SBL</a></p></li>
+<li><p><a class="reference internal" href="#sst">SST</a></p></li>
+<li><p><a class="reference internal" href="#stride">STRIDE</a></p></li>
+<li><p><a class="reference internal" href="#trrt">TRRT</a></p></li>
+</ul>
+</section>
+<section id="planners-test-results">
+<h2>Planners test results<a class="headerlink" href="#planners-test-results" title="Link to this heading">#</a></h2>
+<p>A planning problem is simulated using the <a class="reference external" href="https://emanual.robotis.com/docs/en/platform/turtlebot3/simulation/">Turtlebot3 Gazebo simulation</a> Waffle map. The following table shows the planning results using each of the previous planners. The problem is simulated for 20 repetitions using each planners and the table below shows the average result values. ‘solved’ is set to False if in any repetition the method was unable to find a solution. The solution search timeout is set to 2seconds.</p>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>To check/run the test script and the associated test resources refer to <a class="reference external" href="https://github.com/automatika-robotics/kompass-navigation/tree/dev/tests">kompass_navigation ompl test</a></p>
+</div>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>method</p></th>
+<th class="head"><p>solved</p></th>
+<th class="head"><p>solution time (s)</p></th>
+<th class="head"><p>solution length (m)</p></th>
+<th class="head"><p>simplification time (s)</p></th>
+<th class="head"><p>Conversion/Publishing ROS2 (s)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>ABITstar</p></td>
+<td><p>True</p></td>
+<td><p>1.071</p></td>
+<td><p>2.948</p></td>
+<td><p>0.0075</p></td>
+<td><p>0.00056</p></td>
+</tr>
+<tr class="row-odd"><td><p>BFMT</p></td>
+<td><p>True</p></td>
+<td><p>0.1128</p></td>
+<td><p>3.487</p></td>
+<td><p>0.0066</p></td>
+<td><p>0.00017</p></td>
+</tr>
+<tr class="row-even"><td><p>BITstar</p></td>
+<td><p>True</p></td>
+<td><p>1.0732</p></td>
+<td><p>2.962</p></td>
+<td><p>0.0061</p></td>
+<td><p>0.00015</p></td>
+</tr>
+<tr class="row-odd"><td><p>BKPIECE1</p></td>
+<td><p>True</p></td>
+<td><p>0.0703</p></td>
+<td><p>4.469</p></td>
+<td><p>0.01777</p></td>
+<td><p>0.00019</p></td>
+</tr>
+<tr class="row-even"><td><p>BiEST</p></td>
+<td><p>True</p></td>
+<td><p>0.06189</p></td>
+<td><p>4.418</p></td>
+<td><p>0.01078</p></td>
+<td><p>0.00014</p></td>
+</tr>
+<tr class="row-odd"><td><p>EST</p></td>
+<td><p>True</p></td>
+<td><p>0.0640</p></td>
+<td><p>4.059</p></td>
+<td><p>0.01074</p></td>
+<td><p>0.00013</p></td>
+</tr>
+<tr class="row-even"><td><p>FMT</p></td>
+<td><p>True</p></td>
+<td><p>0.1330</p></td>
+<td><p>3.6277</p></td>
+<td><p>0.00630</p></td>
+<td><p>0.00016</p></td>
+</tr>
+<tr class="row-odd"><td><p>InformedRRTstar</p></td>
+<td><p>True</p></td>
+<td><p>1.0679</p></td>
+<td><p>2.962</p></td>
+<td><p>0.00457</p></td>
+<td><p>0.00013</p></td>
+</tr>
+<tr class="row-even"><td><p>KPIECE1</p></td>
+<td><p>True</p></td>
+<td><p>0.0676</p></td>
+<td><p>5.439</p></td>
+<td><p>0.0148</p></td>
+<td><p>0.00017</p></td>
+</tr>
+<tr class="row-odd"><td><p>LBKPIECE1</p></td>
+<td><p>True</p></td>
+<td><p>0.07543</p></td>
+<td><p>5.174</p></td>
+<td><p>0.02</p></td>
+<td><p>0.00017</p></td>
+</tr>
+<tr class="row-even"><td><p>LBTRRT</p></td>
+<td><p>True</p></td>
+<td><p>1.0696</p></td>
+<td><p>3.221</p></td>
+<td><p>0.005</p></td>
+<td><p>0.00012</p></td>
+</tr>
+<tr class="row-odd"><td><p>LazyLBTRRT</p></td>
+<td><p>True</p></td>
+<td><p>1.0672</p></td>
+<td><p>3.305</p></td>
+<td><p>0.0053</p></td>
+<td><p>0.00013</p></td>
+</tr>
+<tr class="row-even"><td><p>LazyPRM</p></td>
+<td><p>False</p></td>
+<td><p>1.0811</p></td>
+<td><p>0.0</p></td>
+<td><p>0.0</p></td>
+<td><p>0.0</p></td>
+</tr>
+<tr class="row-odd"><td><p>LazyPRMstar</p></td>
+<td><p>True</p></td>
+<td><p>1.0701</p></td>
+<td><p>3.03</p></td>
+<td><p>0.0063</p></td>
+<td><p>0.00012</p></td>
+</tr>
+<tr class="row-even"><td><p>LazyRRT</p></td>
+<td><p>True</p></td>
+<td><p>0.0982</p></td>
+<td><p>4.5196</p></td>
+<td><p>0.016</p></td>
+<td><p>0.00013</p></td>
+</tr>
+<tr class="row-odd"><td><p>PDST</p></td>
+<td><p>True</p></td>
+<td><p>0.06781</p></td>
+<td><p>3.836</p></td>
+<td><p>0.009</p></td>
+<td><p>0.00013</p></td>
+</tr>
+<tr class="row-even"><td><p>PRM</p></td>
+<td><p>True</p></td>
+<td><p>1.0672</p></td>
+<td><p>3.306</p></td>
+<td><p>0.0068</p></td>
+<td><p>0.00012</p></td>
+</tr>
+<tr class="row-odd"><td><p>PRMstar</p></td>
+<td><p>True</p></td>
+<td><p>1.0740</p></td>
+<td><p>3.72</p></td>
+<td><p>0.0085</p></td>
+<td><p>0.00012</p></td>
+</tr>
+<tr class="row-even"><td><p>ProjEST</p></td>
+<td><p>True</p></td>
+<td><p>0.0683</p></td>
+<td><p>4.19</p></td>
+<td><p>0.0082</p></td>
+<td><p>0.00013</p></td>
+</tr>
+<tr class="row-odd"><td><p>RRT</p></td>
+<td><p>True</p></td>
+<td><p>0.09062</p></td>
+<td><p>4.86</p></td>
+<td><p>0.019</p></td>
+<td><p>0.00014</p></td>
+</tr>
+<tr class="row-even"><td><p>RRTConnect</p></td>
+<td><p>True</p></td>
+<td><p>0.07535</p></td>
+<td><p>4.78</p></td>
+<td><p>0.014</p></td>
+<td><p>0.00014</p></td>
+</tr>
+<tr class="row-odd"><td><p>RRTXstatic</p></td>
+<td><p>True</p></td>
+<td><p>1.0712</p></td>
+<td><p>3.03</p></td>
+<td><p>0.0041</p></td>
+<td><p>0.00012</p></td>
+</tr>
+<tr class="row-even"><td><p>RRTsharp</p></td>
+<td><p>True</p></td>
+<td><p>1.0680</p></td>
+<td><p>3.01</p></td>
+<td><p>0.0052</p></td>
+<td><p>0.00013</p></td>
+</tr>
+<tr class="row-odd"><td><p>RRTstar</p></td>
+<td><p>True</p></td>
+<td><p>1.0672</p></td>
+<td><p>2.96</p></td>
+<td><p>0.0042</p></td>
+<td><p>0.00013</p></td>
+</tr>
+<tr class="row-even"><td><p>SBL</p></td>
+<td><p>True</p></td>
+<td><p>0.0800</p></td>
+<td><p>4.039</p></td>
+<td><p>0.0121</p></td>
+<td><p>0.00015</p></td>
+</tr>
+<tr class="row-odd"><td><p>SST</p></td>
+<td><p>True</p></td>
+<td><p>1.0681</p></td>
+<td><p>2.63</p></td>
+<td><p>0.0012</p></td>
+<td><p>0.00018</p></td>
+</tr>
+<tr class="row-even"><td><p>STRIDE</p></td>
+<td><p>True</p></td>
+<td><p>0.0679</p></td>
+<td><p>4.12</p></td>
+<td><p>0.0098</p></td>
+<td><p>0.00015</p></td>
+</tr>
+<tr class="row-odd"><td><p>TRRT</p></td>
+<td><p>True</p></td>
+<td><p>0.0798</p></td>
+<td><p>4.11</p></td>
+<td><p>0.01094</p></td>
+<td><p>0.00015</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="planners-default-parameters">
+<h2>Planners Default Parameters<a class="headerlink" href="#planners-default-parameters" title="Link to this heading">#</a></h2>
+<section id="abitstar">
+<h3>ABITstar<a class="headerlink" href="#abitstar" title="Link to this heading">#</a></h3>
+<p><em>ABITstar Default Parameters:</em></p>
+<ul class="simple">
+<li><p>delay_rewiring_to_first_solution: False</p></li>
+<li><p>drop_unconnected_samples_on_prune: False</p></li>
+<li><p>find_approximate_solutions: False</p></li>
+<li><p>inflation_scaling_parameter: 10.0</p></li>
+<li><p>initial_inflation_factor: 1000000.0</p></li>
+<li><p>prune_threshold_as_fractional_cost_change: 0.05</p></li>
+<li><p>rewire_factor: 1.1</p></li>
+<li><p>samples_per_batch: 100</p></li>
+<li><p>stop_on_each_solution_improvement: False</p></li>
+<li><p>truncation_scaling_parameter: 5.0</p></li>
+<li><p>use_graph_pruning: True</p></li>
+<li><p>use_just_in_time_sampling: False</p></li>
+<li><p>use_k_nearest: True</p></li>
+<li><p>use_strict_queue_ordering: True</p></li>
+</ul>
+</section>
+<section id="aitstar">
+<h3>AITstar<a class="headerlink" href="#aitstar" title="Link to this heading">#</a></h3>
+<p><em>AITstar Default Parameters:</em></p>
+<ul class="simple">
+<li><p>find_approximate_solutions: True</p></li>
+<li><p>rewire_factor: 1.0</p></li>
+<li><p>samples_per_batch: 100</p></li>
+<li><p>use_graph_pruning: True</p></li>
+<li><p>use_k_nearest: True</p></li>
+</ul>
+</section>
+<section id="bfmt">
+<h3>BFMT<a class="headerlink" href="#bfmt" title="Link to this heading">#</a></h3>
+<p><em>BFMT Default Parameters:</em></p>
+<ul class="simple">
+<li><p>balanced: False</p></li>
+<li><p>cache_cc: True</p></li>
+<li><p>extended_fmt: True</p></li>
+<li><p>heuristics: True</p></li>
+<li><p>nearest_k: True</p></li>
+<li><p>num_samples: 1000</p></li>
+<li><p>optimality: True</p></li>
+<li><p>radius_multiplier: 1.0</p></li>
+</ul>
+</section>
+<section id="bitstar">
+<h3>BITstar<a class="headerlink" href="#bitstar" title="Link to this heading">#</a></h3>
+<p><em>BITstar Default Parameters:</em></p>
+<ul class="simple">
+<li><p>delay_rewiring_to_first_solution: False</p></li>
+<li><p>drop_unconnected_samples_on_prune: False</p></li>
+<li><p>find_approximate_solutions: False</p></li>
+<li><p>prune_threshold_as_fractional_cost_change: 0.05</p></li>
+<li><p>rewire_factor: 1.1</p></li>
+<li><p>samples_per_batch: 100</p></li>
+<li><p>stop_on_each_solution_improvement: False</p></li>
+<li><p>use_graph_pruning: True</p></li>
+<li><p>use_just_in_time_sampling: False</p></li>
+<li><p>use_k_nearest: True</p></li>
+<li><p>use_strict_queue_ordering: True</p></li>
+</ul>
+</section>
+<section id="bkpiece1">
+<h3>BKPIECE1<a class="headerlink" href="#bkpiece1" title="Link to this heading">#</a></h3>
+<p><em>BKPIECE1 Default Parameters:</em></p>
+<ul class="simple">
+<li><p>border_fraction: 0.9</p></li>
+<li><p>range: 0.0</p></li>
+</ul>
+</section>
+<section id="biest">
+<h3>BiEST<a class="headerlink" href="#biest" title="Link to this heading">#</a></h3>
+<p><em>BiEST Default Parameters:</em></p>
+<ul class="simple">
+<li><p>range: 0.0</p></li>
+</ul>
+</section>
+<section id="est">
+<h3>EST<a class="headerlink" href="#est" title="Link to this heading">#</a></h3>
+<p><em>EST Default Parameters:</em></p>
+<ul class="simple">
+<li><p>goal_bias: 0.5</p></li>
+<li><p>range: 0.0</p></li>
+</ul>
+</section>
+<section id="fmt">
+<h3>FMT<a class="headerlink" href="#fmt" title="Link to this heading">#</a></h3>
+<p><em>FMT Default Parameters:</em></p>
+<ul class="simple">
+<li><p>cache_cc: True</p></li>
+<li><p>extended_fmt: True</p></li>
+<li><p>heuristics: False</p></li>
+<li><p>num_samples: 1000</p></li>
+<li><p>radius_multiplier: 1.1</p></li>
+<li><p>use_k_nearest: True</p></li>
+</ul>
+</section>
+<section id="informedrrtstar">
+<h3>InformedRRTstar<a class="headerlink" href="#informedrrtstar" title="Link to this heading">#</a></h3>
+<p><em>InformedRRTstar Default Parameters:</em></p>
+<ul class="simple">
+<li><p>delay_collision_checking: True</p></li>
+<li><p>goal_bias: 0.05</p></li>
+<li><p>number_sampling_attempts: 100</p></li>
+<li><p>ordered_sampling: False</p></li>
+<li><p>ordering_batch_size: 1</p></li>
+<li><p>prune_threshold: 0.05</p></li>
+<li><p>range: 0.0</p></li>
+<li><p>rewire_factor: 1.1</p></li>
+<li><p>use_k_nearest: True</p></li>
+</ul>
+</section>
+<section id="kpiece1">
+<h3>KPIECE1<a class="headerlink" href="#kpiece1" title="Link to this heading">#</a></h3>
+<p><em>KPIECE1 Default Parameters:</em></p>
+<ul class="simple">
+<li><p>border_fraction: 0.9</p></li>
+<li><p>goal_bias: 0.05</p></li>
+<li><p>range: 0.0</p></li>
+</ul>
+</section>
+<section id="lbkpiece1">
+<h3>LBKPIECE1<a class="headerlink" href="#lbkpiece1" title="Link to this heading">#</a></h3>
+<p><em>LBKPIECE1 Default Parameters:</em></p>
+<ul class="simple">
+<li><p>border_fraction: 0.9</p></li>
+<li><p>range: 0.0</p></li>
+</ul>
+</section>
+<section id="lbtrrt">
+<h3>LBTRRT<a class="headerlink" href="#lbtrrt" title="Link to this heading">#</a></h3>
+<p><em>LBTRRT Default Parameters:</em></p>
+<ul class="simple">
+<li><p>epsilon: 0.4</p></li>
+<li><p>goal_bias: 0.05</p></li>
+<li><p>range: 0.0</p></li>
+</ul>
+</section>
+<section id="lazylbtrrt">
+<h3>LazyLBTRRT<a class="headerlink" href="#lazylbtrrt" title="Link to this heading">#</a></h3>
+<p><em>LazyLBTRRT Default Parameters:</em></p>
+<ul class="simple">
+<li><p>epsilon: 0.4</p></li>
+<li><p>goal_bias: 0.05</p></li>
+<li><p>range: 0.0</p></li>
+</ul>
+</section>
+<section id="lazyprm">
+<h3>LazyPRM<a class="headerlink" href="#lazyprm" title="Link to this heading">#</a></h3>
+<p><em>LazyPRM Default Parameters:</em></p>
+<ul class="simple">
+<li><p>max_nearest_neighbors: 8</p></li>
+<li><p>range: 0.0</p></li>
+</ul>
+</section>
+<section id="lazyprmstar">
+<h3>LazyPRMstar<a class="headerlink" href="#lazyprmstar" title="Link to this heading">#</a></h3>
+<p><em>LazyPRMstar Default Parameters:</em></p>
+</section>
+<section id="lazyrrt">
+<h3>LazyRRT<a class="headerlink" href="#lazyrrt" title="Link to this heading">#</a></h3>
+<p><em>LazyRRT Default Parameters:</em></p>
+<ul class="simple">
+<li><p>goal_bias: 0.05</p></li>
+<li><p>range: 0.0</p></li>
+</ul>
+</section>
+<section id="pdst">
+<h3>PDST<a class="headerlink" href="#pdst" title="Link to this heading">#</a></h3>
+<p><em>PDST Default Parameters:</em></p>
+<ul class="simple">
+<li><p>goal_bias: 0.05</p></li>
+</ul>
+</section>
+<section id="prm">
+<h3>PRM<a class="headerlink" href="#prm" title="Link to this heading">#</a></h3>
+<p><em>PRM Default Parameters:</em></p>
+<ul class="simple">
+<li><p>max_nearest_neighbors: 8</p></li>
+</ul>
+</section>
+<section id="prmstar">
+<h3>PRMstar<a class="headerlink" href="#prmstar" title="Link to this heading">#</a></h3>
+<p><em>PRMstar Default Parameters:</em></p>
+</section>
+<section id="projest">
+<h3>ProjEST<a class="headerlink" href="#projest" title="Link to this heading">#</a></h3>
+<p><em>ProjEST Default Parameters:</em></p>
+<ul class="simple">
+<li><p>goal_bias: 0.05</p></li>
+<li><p>range: 0.0</p></li>
+</ul>
+</section>
+<section id="rrt">
+<h3>RRT<a class="headerlink" href="#rrt" title="Link to this heading">#</a></h3>
+<p><em>RRT Default Parameters:</em></p>
+<ul class="simple">
+<li><p>goal_bias: 0.05</p></li>
+<li><p>intermediate_states: False</p></li>
+<li><p>range: 0.0</p></li>
+</ul>
+</section>
+<section id="rrtconnect">
+<h3>RRTConnect<a class="headerlink" href="#rrtconnect" title="Link to this heading">#</a></h3>
+<p><em>RRTConnect Default Parameters:</em></p>
+<ul class="simple">
+<li><p>intermediate_states: False</p></li>
+<li><p>range: 0.0</p></li>
+</ul>
+</section>
+<section id="rrtxstatic">
+<h3>RRTXstatic<a class="headerlink" href="#rrtxstatic" title="Link to this heading">#</a></h3>
+<p><em>RRTXstatic Default Parameters:</em></p>
+<ul class="simple">
+<li><p>epsilon: 0.0</p></li>
+<li><p>goal_bias: 0.05</p></li>
+<li><p>informed_sampling: False</p></li>
+<li><p>number_sampling_attempts: 100</p></li>
+<li><p>range: 0.0</p></li>
+<li><p>rejection_variant: 0</p></li>
+<li><p>rejection_variant_alpha: 1.0</p></li>
+<li><p>rewire_factor: 1.1</p></li>
+<li><p>sample_rejection: False</p></li>
+<li><p>update_children: True</p></li>
+<li><p>use_k_nearest: True</p></li>
+</ul>
+</section>
+<section id="rrtsharp">
+<h3>RRTsharp<a class="headerlink" href="#rrtsharp" title="Link to this heading">#</a></h3>
+<p><em>RRTsharp Default Parameters:</em></p>
+<ul class="simple">
+<li><p>goal_bias: 0.05</p></li>
+<li><p>informed_sampling: False</p></li>
+<li><p>number_sampling_attempts: 100</p></li>
+<li><p>range: 0.0</p></li>
+<li><p>rejection_variant: 0</p></li>
+<li><p>rejection_variant_alpha: 1.0</p></li>
+<li><p>rewire_factor: 1.1</p></li>
+<li><p>sample_rejection: False</p></li>
+<li><p>update_children: True</p></li>
+<li><p>use_k_nearest: True</p></li>
+</ul>
+</section>
+<section id="rrtstar">
+<h3>RRTstar<a class="headerlink" href="#rrtstar" title="Link to this heading">#</a></h3>
+<p><em>RRTstar Default Parameters:</em></p>
+<ul class="simple">
+<li><p>delay_collision_checking: True</p></li>
+<li><p>focus_search: False</p></li>
+<li><p>goal_bias: 0.05</p></li>
+<li><p>informed_sampling: True</p></li>
+<li><p>new_state_rejection: False</p></li>
+<li><p>number_sampling_attempts: 100</p></li>
+<li><p>ordered_sampling: False</p></li>
+<li><p>ordering_batch_size: 1</p></li>
+<li><p>prune_threshold: 0.05</p></li>
+<li><p>pruned_measure: False</p></li>
+<li><p>range: 0.0</p></li>
+<li><p>rewire_factor: 1.1</p></li>
+<li><p>sample_rejection: False</p></li>
+<li><p>tree_pruning: False</p></li>
+<li><p>use_admissible_heuristic: True</p></li>
+<li><p>use_k_nearest: True</p></li>
+</ul>
+</section>
+<section id="sbl">
+<h3>SBL<a class="headerlink" href="#sbl" title="Link to this heading">#</a></h3>
+<p><em>SBL Default Parameters:</em></p>
+<ul class="simple">
+<li><p>range: 0.0</p></li>
+</ul>
+</section>
+<section id="sst">
+<h3>SST<a class="headerlink" href="#sst" title="Link to this heading">#</a></h3>
+<p><em>SST Default Parameters:</em></p>
+<ul class="simple">
+<li><p>goal_bias: 0.05</p></li>
+<li><p>pruning_radius: 3.0</p></li>
+<li><p>range: 5.0</p></li>
+<li><p>selection_radius: 5.0</p></li>
+</ul>
+</section>
+<section id="stride">
+<h3>STRIDE<a class="headerlink" href="#stride" title="Link to this heading">#</a></h3>
+<p><em>STRIDE Default Parameters:</em></p>
+<ul class="simple">
+<li><p>degree: 16</p></li>
+<li><p>estimated_dimension: 3.0</p></li>
+<li><p>goal_bias: 0.05</p></li>
+<li><p>max_degree: 18</p></li>
+<li><p>max_pts_per_leaf: 6</p></li>
+<li><p>min_degree: 12</p></li>
+<li><p>min_valid_path_fraction: 0.2</p></li>
+<li><p>range: 0.0</p></li>
+<li><p>use_projected_distance: False</p></li>
+</ul>
+</section>
+<section id="trrt">
+<h3>TRRT<a class="headerlink" href="#trrt" title="Link to this heading">#</a></h3>
+<p><em>TRRT Default Parameters:</em></p>
+<ul class="simple">
+<li><p>goal_bias: 0.05</p></li>
+<li><p>range: 0.0</p></li>
+<li><p>temp_change_factor: 0.1</p></li>
+</ul>
+</section>
+</section>
+</section>
+
+
+                </article>
+              
+
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="../navigation/mapping_localization.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Global Mapping and Localization</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="fcl.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">FCL (Flexible Collisions Library)</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <div class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+  <div class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> Contents
+  </div>
+  <nav class="bd-toc-nav page-toc">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#ompl-with-kompass">OMPL with Kompass</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#configuring-ompl-in-kompass">Configuring OMPL in Kompass</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#available-algorithms-from-ompl">Available algorithms from OMPL</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#planners-test-results">Planners test results</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#planners-default-parameters">Planners Default Parameters</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#abitstar">ABITstar</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#aitstar">AITstar</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#bfmt">BFMT</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#bitstar">BITstar</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#bkpiece1">BKPIECE1</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#biest">BiEST</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#est">EST</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#fmt">FMT</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#informedrrtstar">InformedRRTstar</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#kpiece1">KPIECE1</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#lbkpiece1">LBKPIECE1</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#lbtrrt">LBTRRT</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#lazylbtrrt">LazyLBTRRT</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#lazyprm">LazyPRM</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#lazyprmstar">LazyPRMstar</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#lazyrrt">LazyRRT</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#pdst">PDST</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prm">PRM</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prmstar">PRMstar</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#projest">ProjEST</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#rrt">RRT</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#rrtconnect">RRTConnect</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#rrtxstatic">RRTXstatic</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#rrtsharp">RRTsharp</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#rrtstar">RRTstar</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#sbl">SBL</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#sst">SST</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#stride">STRIDE</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#trrt">TRRT</a></li>
+</ul>
+</li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+<div class="bd-footer-content__inner container">
+  
+  <div class="footer-item">
+    
+<p class="component-author">
+By Automatika Robotics
+</p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+
+  <p class="copyright">
+    
+      © Copyright 2026, Automatika Robotics.
+      <br/>
+    
+  </p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+</div>
+          </footer>
+        
+
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script src="../_static/scripts/bootstrap.js?digest=dfe6caa3a7d634c4db9b"></script>
+<script src="../_static/scripts/pydata-sphinx-theme.js?digest=dfe6caa3a7d634c4db9b"></script>
+
+  <footer class="bd-footer">
+  </footer>
+  </body>
+</html>
