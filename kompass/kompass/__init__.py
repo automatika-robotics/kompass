@@ -1,6 +1,7 @@
 """Kompass navigation stack"""
 
 import sys
+import os
 from importlib.metadata import version, PackageNotFoundError
 from packaging import version as pkg_version
 
@@ -106,28 +107,40 @@ def check_sugarcoat_version():
 # Dependency Checks
 # -----------------------------------------------------------------------------
 
-# Check Sugarcoat (External dependency)
-check_sugarcoat_version()
+# Check if we are running inside a documentation build
+_IS_DOCS_BUILD = os.environ.get("KOMPASS_DOCS_BUILD") == "1"
 
-# Check and Import Kompass Core (Primary dependency)
-try:
-    import kompass_core
-except ImportError:
-    _print_kompass_core_error(current_version=None)
+if not _IS_DOCS_BUILD:
+    # Check Sugarcoat
+    check_sugarcoat_version()
 
-# 3. Check Kompass Core Version
-try:
-    installed_ver_str = version("kompass-core")
+    # Check and Import Kompass Core
+    try:
+        import kompass_core
+    except ImportError:
+        _print_kompass_core_error(current_version=None)
 
-    if pkg_version.parse(installed_ver_str) < pkg_version.parse(
-        MIN_KOMPASS_CORE_VERSION
-    ):
-        _print_kompass_core_error(current_version=installed_ver_str)
+    # Check Kompass Core Version
+    try:
+        installed_ver_str = version("kompass-core")
 
-except PackageNotFoundError:
-    # Fallback if package metadata is missing but import succeeded
-    print(
-        "Warning: Could not determine `kompass-core` version. Proceeding with caution."
-    )
+        if pkg_version.parse(installed_ver_str) < pkg_version.parse(
+            MIN_KOMPASS_CORE_VERSION
+        ):
+            _print_kompass_core_error(current_version=installed_ver_str)
+
+    except PackageNotFoundError:
+        # Fallback if package metadata is missing but import succeeded
+        print(
+            "Warning: Could not determine `kompass-core` version. Proceeding with caution."
+        )
+
+else:
+    # DOCS BUILD MODE
+    try:
+        import kompass_core
+    except ImportError:
+        kompass_core = None
+
 
 __all__ = ["kompass_core"]
