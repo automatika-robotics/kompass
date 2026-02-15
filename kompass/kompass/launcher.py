@@ -3,10 +3,10 @@
 from typing import Dict, List, Optional, Union
 from launch.action import Action as ROSLaunchAction
 
-from .actions import Action
-from .event import Event
-from ros_sugar import Launcher as BaseLauncher
+from ros_sugar.core import Event, Action
+from ros_sugar.launch.launcher import Launcher as BaseLauncher
 from ros_sugar import logger
+
 
 from .components.component import Component
 from .components.defaults import TopicsKeys
@@ -22,7 +22,6 @@ class Launcher(BaseLauncher):
         self,
         namespace: str = "",
         config_file: Optional[str] = None,
-        enable_monitoring: bool = True,
         activation_timeout: Optional[float] = None,
         robot_plugin: Optional[str] = None,
         **kwargs,
@@ -33,8 +32,6 @@ class Launcher(BaseLauncher):
         :type namespace: str, optional
         :param config_file: Path to configuration file, defaults to None
         :type config_file: str | None, optional
-        :param enable_monitoring: Enable components health status monitoring, defaults to True
-        :type enable_monitoring: bool, optional
         :param activation_timeout: Timeout (seconds) for waiting on ROS2 nodes to come up for activation, defaults to None
         :type activation_timeout: float, optional
         :param robot_plugin: Name of the robot plugin package for compatibility handling, defaults to None
@@ -43,7 +40,6 @@ class Launcher(BaseLauncher):
         super().__init__(
             namespace=namespace,
             config_file=config_file,
-            enable_monitoring=enable_monitoring,
             activation_timeout=activation_timeout,
             robot_plugin=robot_plugin,
             **kwargs,
@@ -164,9 +160,9 @@ class Launcher(BaseLauncher):
                     component.inputs(**{key: value})
                     components_updated_for_key.append(component.node_name)
             components_keys_updated[key] = components_updated_for_key
-        logger.info(
-            f"The following components got updated for each provided input key: {components_keys_updated}"
-        )
+
+        for key, items in components_keys_updated.items():
+            logger.info(f"Input '{key}' updated for components: {items}")
 
     def outputs(self, **kwargs):
         """
@@ -187,6 +183,5 @@ class Launcher(BaseLauncher):
                     component.outputs(**{key: value})
                     components_updated_for_key.append(component.node_name)
             components_keys_updated[key] = components_updated_for_key
-        logger.info(
-            f"The following components got updated for each provided output key: {components_keys_updated}"
-        )
+        for key, items in components_keys_updated.items():
+            logger.info(f"Output '{key}' updated for components: {items}")
