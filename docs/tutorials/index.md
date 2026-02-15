@@ -1,44 +1,79 @@
+# Basic Navigation Patterns
 
-# Tutorials Overview
+The following tutorials provide hands-on recipes for implementing common robotic navigation behaviors. These patterns are production-ready and designed to be adapted to your specific robot platform.
 
-The following tutorials provide a hands-on guide to help you get started with Kompass navigation framework. These tutorials are designed to walk you through real-world examples that showcase core features like event-driven control, image-based tracking, and more.
+## Navigation Recipes
 
-Whether you're just getting started or looking to build more advanced robotic behavior, these examples provide a strong foundation.
+Choose a pattern to start building your robot's capabilities.
 
----
+::::{grid} 1 2 2 3
+:gutter: 3
 
-## Point Navigation: Step-by-Step Tutorial
+:::{grid-item-card} {material-regular}`map;1.5em;sd-text-primary` Point-to-Point
+:link: point_navigation
+:link-type: doc
+:class-card: sugar-card
 
-Learn how to set up and run basic point-to-point navigation using Kompass. This tutorial walks you through defining a goal, launching the navigation stack, and observing robot behavior in simulation (or on hardware).
+**Core Navigation**
 
-👉 [**Start the tutorial**](point_navigation.md)
+The "Hello World" of robotics. Define goal coordinates, launch the planner, and execute a path on a static map.
+:::
 
----
+:::{grid-item-card} {material-regular}`videocam;1.5em;sd-text-primary` RGB Tracking
+:link: vision_tracking
+:link-type: doc
+:class-card: sugar-card
 
-## Using Events/Actions in Your Application
+**Visual Servoing**
 
-Discover how Kompass handles dynamic decision-making using its **event driven** system. This tutorial explains how to define event-action pairs. We we will extend our previous system (Point Navigation) by adding a clicked point event and a Planner action.
+Use standard computer vision (color blobs or ML object detection) to steer the robot toward a moving target.
+:::
 
-👉 [**Explore event-driven design**](events_actions.md)
+:::{grid-item-card} {material-regular}`sensors;1.5em;sd-text-primary` Depth Tracking
+:link: vision_tracking_depth
+:link-type: doc
+:class-card: sugar-card
 
----
+**RGB-D Following**
 
-## Following a Moving Target using RGB Image
+Upgrade your logic to maintain a specific distance from the target, enabling robust "stop-and-go" behavior.
+:::
+::::
 
-Implement a visual servoing pipeline to follow a moving target using an RGB camera. You'll learn how to integrate vision-based tracking into your navigation logic.
+<br>
 
-👉 [**Track targets with RGB**](vision_tracking.md)
+## Advanced Topics
 
----
+Ready to customize your stack or make it adaptive?
 
-## Following a Moving Target using Depth
+::::{grid} 1 2 2 2
+:gutter: 3
 
-Extend the previous example using **depth sensing** to gain more robust tracking.
+:::{grid-item-card} {material-regular}`tune;1.5em;sd-text-primary` Component Configuration
+:link: configuration
+:link-type: doc
+:class-card: sugar-card
 
-👉 [**Track with depth data**](vision_tracking_depth.md)
+Configure your navigation components using Python, YAML, TOML, or JSON to match your specific hardware.
+:::
 
----
+:::{grid-item-card} {material-regular}`flash_on;1.5em;sd-text-primary` Event-Driven Navigation
+:link: events_index
+:link-type: doc
+:class-card: sugar-card
 
-## Dive Deeper Into Components Configuration Options
+Learn how to make your robot adapt to changing environments dynamically without writing custom code or complex state machines.
+:::
+::::
 
-Want full control over how you define your components? Check out the [Component Configuration Guide](./configuration.md) to see how to set things up using Python, YAML, TOML, or JSON — your config, your rules.
+
+```{toctree}
+:maxdepth: 1
+:caption: Basic Navigation Patterns
+:hidden:
+
+point_navigation
+vision_tracking
+vision_tracking_depth
+configuration
+```

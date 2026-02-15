@@ -1,14 +1,8 @@
 # Why Kompass?
 
-Designing robust robot behavior isn't just about perfecting individual components—it’s about architecting an integrated system. This is especially true for autonomous navigation, where multiple subsystems must work in harmony to handle complex, dynamic environments and real-world scenarios.
+Designing robust robot behavior isn't just about perfecting individual components, it's about architecting an integrated system. This is especially true for autonomous navigation, where multiple subsystems must work in harmony to handle complex, dynamic environments and real-world scenarios.
 
-<div style="text-align: center;">
-  <span class="text-blue">Getting each part right is important, but what really matters is how everything works together</span>
-</div>
-<br/>
-
-A capable navigation agent must adapt in real time, deploying different behaviors based on changing conditions. But even in static settings, this remains a nontrivial challenge—as highlighted by years of experience from the [BARN challenge](https://cs.gmu.edu/~xiao/Research/BARN_Challenge/BARN_Challenge23.html) at ICRA:
-
+<span class="sd-text-primary" style="font-weight: bold; font-size: 1em;">Getting each part right is important, but what really matters is how everything works together.</span> A capable navigation agent must adapt in real time, deploying different behaviors based on changing conditions. But even in static settings, this remains a nontrivial challenge, as highlighted by years of experience from the [BARN challenge](https://cs.gmu.edu/~xiao/Research/BARN_Challenge/BARN_Challenge23.html) at ICRA:
 
 ```{epigraph}
 

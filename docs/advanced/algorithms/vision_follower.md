@@ -1,6 +1,6 @@
 # Vision Follower
 
-A vision based target following algorithm is available to be used in the [Controller](../../navigation/control.md) component. The method requires [Detections](../types.md/#-supported-ros2-messages) or [Trackings](../types.md/#-supported-ros2-messages) information from an external source, this can be provided using an object detection ML model. The [Controller](../../navigation/control.md) creates a VisionFollowing ROS `ActionServer` if a detection/tracking input is provided to the controller.
+A vision based target following algorithm is available to be used in the [Controller](../../navigation/control.md) component. The method requires [Detections](../types.md/#supported-ros2-messages) or [Trackings](../types.md/#supported-ros2-messages) information from an external source, this can be provided using an object detection ML model. The [Controller](../../navigation/control.md) creates a VisionFollowing ROS `ActionServer` if a detection/tracking input is provided to the controller.
 
 The Vision Follower can operate in two modes based on the available information in the incoming `Detections` (or `Trackings`) message:
 

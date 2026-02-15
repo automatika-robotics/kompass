@@ -1,43 +1,49 @@
 # Motion Server
 
-[MotionServer](../apidocs/kompass/kompass.components.motion_server.md) offers additional motion related services for testing and recording. Unlike the rest of the navigation components, the Motion Server does not perform a core navigation task but offers complementary functionalities essential for validating and calibrating a navigation system.
+**System validation, calibration, and motion data recording.**
 
-Motion Server contains a set of basic motion tests. In each test, the MotionServer sends commands to the robot to perform the pre-configured motion and records both the sent command and the robot response (velocity and pose). This is used to test the motion response on new terrain or calibrate the robot motion model.
+Unlike the core navigation components, the [MotionServer](../apidocs/kompass/kompass.components.motion_server.md) does not plan paths or avoid obstacles. Instead, it provides essential utilities for validating your robot's physical performance and tuning its control parameters.
+
+It serves two primary purposes:
+1.  **Automated Motion Tests:** Executing pre-defined maneuvers (Step response, Circles) to calibrate the robot's motion model on new terrain.
+2.  **Black Box Recording:** capturing synchronized control commands and robot responses (Pose/Velocity) during operation for post-analysis.
+
+## Key Capabilities
+
+The Motion Server is a versatile tool for system identification.
+
+- <span class="sd-text-primary" style="font-weight: bold; font-size: 1.1em;">{material-regular}`science` Motion Calibration</span> - **Automated Tests.** Execute step inputs or circular paths automatically to measure the robot's real-world response vs. the theoretical model.
+
+- <span class="sd-text-primary" style="font-weight: bold; font-size: 1.1em;">{material-regular}`radio_button_checked` Data Recording</span> - **"Black Box" Logging.** Record exact control inputs and odometry outputs synchronized in time. Essential for tuning controller gains or debugging tracking errors.
+
+- <span class="sd-text-primary" style="font-weight: bold; font-size: 1.1em;">{material-regular}`loop` Closed-Loop Validation</span> - **Input/Output Compare.** Can act as both the *source* of commands (during tests) and the *sink* for recording, allowing you to validate the entire control pipeline (e.g., passing commands through the Drive Manager).
+
+- <span class="sd-text-primary" style="font-weight: bold; font-size: 1.1em;">{material-regular}`event` Event-Triggered</span> - **Dynamic Execution.** Start recording or launch a calibration sequence automatically based on external events (e.g., "Terrain Changed" or "Slip Detected").
+
+## Run Types
+
+Choose how you want to utilize the server:
+
+```{list-table}
+:widths: 20 80
+* - **{material-regular}`schedule;1.2em;sd-text-primary` Timed**
+  - **Auto-Start Tests.** Automatically launches the configured motion tests periodically after the component starts.
+
+* - **{material-regular}`touch_app;1.2em;sd-text-primary` Event**
+  - **Triggered Tests.** Waits for a `True` signal on the `run_tests` input topic to launch the calibration sequence.
+
+* - **{material-regular}`hourglass_top;1.2em;sd-text-primary` Action Server**
+  - **On-Demand Recording.** Offers a `MotionRecording` ROS2 Action. Allows you to start/stop recording specific topics for a set duration via an Action Goal.
+
+```
 
 ```{note}
 The available motion tests include Step tests and Circle test and can be configured by adjusting the [MotionServerConfig](../apidocs/kompass/kompass.components.motion_server.md)
 ```
 
-MotionServer offers a Motion Recording service as a ROS2 action which allows to record the control commands and the response of the robot during the navigation.
+## Interface
 
-```{tip}
-Launch the MotionServer as a **Timed** component to launch the basic motion tests automatically, or as a **Event** component to launch the tests when a trigger is received
-```
-
-```{tip}
-Launch the MotionServer as an **ActionServer** component and send a request to record your robot's motion at any time during the navigation.
-```
-
-```{tip}
-The Motion Recording action can also be configured to start based on an external event
-```
-
-## Available Run Types
-
-```{list-table}
-:widths: 10 80
-* - **Timed**
-  - Launches an automated test periodically after start
-
-* - **Event**
-  - Launches automated testing when a trigger is received on RUN input
-
-* - **ActionServer**
-  - Offers a MotionRecording ROS action to record motion for location and control commands topics for given recording period
-```
-
-
-## Inputs:
+### Inputs
 
 ```{list-table}
 :widths: 10 40 10 40
@@ -48,24 +54,24 @@ The Motion Recording action can also be configured to start based on an external
   - Number
   - Default
 
-* - run_tests
+* - <span class="sd-text-primary" style="font-weight: bold; font-size: 1.1em;">run_tests</span>
   - `std_msgs.msg.Bool`
   - 1
-  - `Topic(name="/run_tests", msg_type="Bool")`
+  - `/run_tests`
 
-* - command
-  - `geometry_msgs.msg.Twist`
+* - <span class="sd-text-primary" style="font-weight: bold; font-size: 1.1em;">command</span>
+  - [`geometry_msgs.msg.Twist`](http://docs.ros.org/en/noetic/api/geometry_msgs/html/msg/Twist.html), [`geometry_msgs.msg.TwistStamped`](https://docs.ros2.org/foxy/api/geometry_msgs/msg/TwistStamped.html)
   - 1
-  - `Topic(name="/cmd_vel", msg_type="Twist")`
+  - `/cmd_vel` (`Twist`)
 
 * - location
   - [`nav_msgs.msg.Odometry`](https://docs.ros.org/en/noetic/api/nav_msgs/html/msg/Odometry.html), [`geometry_msgs.msg.PoseStamped`](http://docs.ros.org/en/jade/api/geometry_msgs/html/msg/PoseStamped.html), [`geometry_msgs.msg.Pose`](http://docs.ros.org/en/jade/api/geometry_msgs/html/msg/Pose.html)
   - 1
-  - `Topic(name="/odom", msg_type="Odometry")`
+  - `/odom` (`Odometry`)
 
 ```
 
-## Outputs:
+### Outputs
 
 ```{list-table}
 :widths: 10 40 10 40
@@ -76,16 +82,52 @@ The Motion Recording action can also be configured to start based on an external
   - Number
   - Default
 
-* - robot_command
-  - `geometry_msgs.msg.Twist`
+* - <span class="sd-text-primary" style="font-weight: bold; font-size: 1.1em;">robot_command</span>
+  - [`geometry_msgs.msg.Twist`](http://docs.ros.org/en/noetic/api/geometry_msgs/html/msg/Twist.html), [`geometry_msgs.msg.TwistStamped`](https://docs.ros2.org/foxy/api/geometry_msgs/msg/TwistStamped.html)
   - 1
-  - `Topic(name="/cmd_vel", msg_type="Twist")`
+  - `/cmd_vel` (`Twist`)
 
 ```
 
-```{note}
-Topic for _Control Command_ is both in MotionServer inputs and outputs:
-- The output is used when running automated testing (i.e. sending the commands directly from the MotionServer).
-- The input is used to purely record motion and control from external sources (example: recording output from Controller).
-- Different command topics can be configured for the input and the output. For example: to test the DriveManager, the control command from MotionServer output can be sent to the DriveManager, then the DriveManager output can be configured as the MotionServer input for recording.
+:::{admonition} Dual Command Topics
+:class: note
+The **Command** topic appears in both Inputs and Outputs, but serves different roles:
+
+1. **Output (`robot_command`):** Used when the Motion Server is *generating* commands (Running Tests).
+2. **Input (`command`):** Used when the Motion Server is *listening* (Recording).
+
+*Power User Tip:* You can wire these differently to test specific components. For example, connect the Motion Server **Output** to the Drive Manager's input, and connect the Drive Manager's output back to the Motion Server **Input**. This records exactly how the Drive Manager modifies your commands (e.g., smoothing or limiting).
+:::
+
+## Usage Example
+
+```python
+from kompass.components import MotionServer, MotionServerConfig
+from kompass.ros import Topic
+
+# 1. Configuration
+# Define the test parameters (e.g., a 1.0m/s step input)
+my_config = MotionServerConfig(
+    step_test_velocity=1.0,
+    step_test_duration=5.0
+)
+
+# 2. Instantiate
+motion_server = MotionServer(component_name="motion_server", config=my_config)
+
+# 3. Setup for Event-Based Testing
+motion_server.run_type = "Event"
+motion_server.inputs(run_tests=Topic(name="/start_calibration", msg_type="Bool"))
+
 ```
+
+## See Next
+
+Once validated, use the Controller to execute complex paths.
+
+:::{button-link} control.html
+:color: primary
+:ref-type: url
+:outline:
+Configure the Controller →
+:::

@@ -1,4 +1,4 @@
-# 🎯 Point Navigation: Step-by-Step Tutorial
+# Hello World: Point Navigation System
 
 ## Step 1: Setup your robot
 
@@ -235,15 +235,16 @@ launcher.robot = robot_config
 # Set the frames
 launcher.frames = frames_config
 
-# Fallback Policy: If any component fails -> restart it with unlimited retries
-launcher.on_fail(action_name="restart")
-
 # After all configuration is done bringup the stack
 launcher.bringup()
 ```
 
-## Step 6: Add your first Event!
+## Step 6: Next Steps
 
- To track the mission during execution and end the mission once the point is reached we want to run the Planner as an `ActionServer` and still set its navigation goals directly using Rviz. To do so we can configure an event/action pair with Kompass. Jump to the [next tutorial](events_actions.md) to learn how to extend the previous recipe.
+Congratulations! You have a standard navigation stack running.
 
- 👉 [Add Event/Action Pairs to the Recipe](events_actions.md)
+👉 You can continue to explode more basic navigation patterns in the next [Vision Follower Tutorial](vision_tracking.md)
+
+👉 Lean how to make your recipe robust and production-ready by [adding Fallbacks to you system](./fallbacks_simple.md).
+
+👉 Or proceed to making your current point navigation system adaptive and robust. Real robots need to be reactive, monitoring their state, handling low battery, or recovering when they get stuck. See how you can achieve that by [adding events to you system](./events_index.md).

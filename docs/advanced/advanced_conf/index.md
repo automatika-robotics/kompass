@@ -1,4 +1,4 @@
-# 🛠️ Advanced Configurations
+# Advanced Configurations
 
 
 Kompass provides advanced fine-tuning options for developers who need more control over how components behave, connect, and communicate. Whether you're working with custom hardware, distributed systems, or tight real-time loops, this section helps you go beyond the defaults.
@@ -14,6 +14,7 @@ Kompass provides advanced fine-tuning options for developers who need more contr
 ```{toctree}
 :maxdepth: 2
 :caption: Advanced Configurations
+:hidden:
 
 topics
 qos

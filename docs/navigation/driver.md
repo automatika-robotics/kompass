@@ -1,38 +1,41 @@
 # Drive Manager
 
-The [DriveManager](../apidocs/kompass/kompass.components.drive_manager.md) component is responsible for direct control communication with the robot. It is used to perform last checks on any control command before passing it to the robot to ensure that the commands falls within the robot control limits, satisfies smoothness conditions and does not lead to a collision with a nearby obstacle.
+**Safety enforcement and command smoothing.**
 
-The DriveManager component can perform one or multiple of the following functionalities based on the desired config:
+The [DriveManager](../apidocs/kompass/kompass.components.drive_manager.md) is the final gatekeeper before commands reach your robot's low-level interfaces. Its primary job is to ensure that every command falls within the robot's physical limits, satisfies smoothness constraints, and does not lead to a collision.
+
+It acts as a safety shield, intercepting velocity commands from the Controller and applying **Emergency Stops** or **Slowdowns** based on immediate sensor data.
+
+
+## Safety Layers
+
+The Drive Manager implements a multi-stage safety pipeline.
 
 ```{list-table}
-:widths: 20 70
-* - **Emergency Stopping**
-  - Checks the direct sensor information from the configured proximity sensors and performs an emergency stop if an obstacle is within the conical emergency zone configured with a minimum safety distance (m) and and angle (rad) in the direction of the robot movement.
+:widths: 30 70
+* - <span class="sd-text-primary" style="font-weight: bold; font-size: 1.1em;">{material-regular}`pan_tool;1.5em;sd-text-primary` Emergency Stop</span>
+  - **Critical Zone**. Checks proximity sensors directly. If an obstacle enters the configured **Safety Distance** (m) and **Angle** (rad), the robot stops immediately to prevent collision.
 
-* - **Emergency Slowdown**
-  - Similar to the emergency zone, a slowdown zone can be configured to reduce the robot's velocity if an obstacle is closer than the slowdown distance.
+* - <span class="sd-text-primary" style="font-weight: bold; font-size: 1.1em;">{material-regular}`speed;1.5em;sd-text-primary` Dynamic Slowdown</span>
+  - **Warning Zone**. If an obstacle enters the **Slowdown Zone**, the robot's velocity is proportionally reduced, allowing for smoother reactions than a hard stop.
 
-* - **Control Limiting**
-  - Checks that the incoming control is within the robot control limits. If a control command is outside the robot control limits, the DriveManager limits the value to the maximum/minimum allowed value before passing the command to the robot
+* - <span class="sd-text-primary" style="font-weight: bold; font-size: 1.1em;">{material-regular}`equalizer;1.5em;sd-text-primary` Control Limiting</span>
+  - **Kinematic Constraints**. Clamps incoming velocity and acceleration commands to the robot's physical limits (max vel, max acc) to prevent hardware stress.
 
-* - **Control Smoothing (Filtering)**
-  - Performs smoothing filtering on the incoming control commands before sending the commands to the robot
-
-* - **Robot Unblocking**
-  - Moves the robot forward, backwards or rotates in place if the space is free to move the robot away from a blocking point. This action can be configured to be triggered with an external event
+* - <span class="sd-text-primary" style="font-weight: bold; font-size: 1.1em;">{material-regular}`waves;1.5em;sd-text-primary` Smoothing</span>
+  - **Jerk Control**. Applies smoothing filters (e.g., low-pass) to incoming commands to prevent jerky movements and wheel slip.
 ```
 
 ```{figure} ../_static/images/diagrams/drive_manager_dark.png
-:class: only-dark
+:class: dark-only
 :alt: Emergency Zone & Slowdown Zone
 :align: center
 :width: 70%
 
-Emergency Zone & Slowdown Zone
 ```
 
 ```{figure} ../_static/images/diagrams/drive_manager_light.png
-:class: only-light
+:class: light-only
 :alt: Emergency Zone & Slowdown Zone
 :align: center
 :width: 70%
@@ -40,119 +43,123 @@ Emergency Zone & Slowdown Zone
 Emergency Zone & Slowdown Zone
 ```
 
-```{note}
-Critical and Slowdown Zone checking is implemented in C++ in [kompass-core](https://github.com/automatika-robotics/kompass-core) for fast emergency behaviors. The core implementation supports both **GPU** and **CPU** (**defaults to GPU if available**).
-```
+:::{admonition} High-Performance Core
+:class: tip
+Critical and Slowdown Zone checking is implemented in C++ via [kompass-core](https://github.com/automatika-robotics/kompass-core). The implementation supports both **GPU** and **CPU** acceleration (defaults to GPU if available) for minimal latency.
+:::
 
-DriveManager also includes built-in movement actions used for directly control the robot or unblocking the robot in certain conditions:
+
+## Built-in Actions
+
+The Drive Manager provides built-in behaviors for direct control and recovery. These can be triggered via [Events](../tutorials/events_actions.md).
+
+- <span class="sd-text-primary" style="font-weight: bold; font-size: 1.1em;">{material-regular}`arrow_upward` move_forward</span> - Moves the robot forward for `max_distance` meters, if the path is clear.
+
+- <span class="sd-text-primary" style="font-weight: bold; font-size: 1.1em;">{material-regular}`arrow_downward` move_backward</span> - Moves the robot backward for `max_distance` meters, if the path is clear.
+
+- <span class="sd-text-primary" style="font-weight: bold; font-size: 1.1em;">{material-regular}`rotate_right` rotate_in_place</span> - Rotates the robot for `max_rotation` radians, checking the safety margin.
+
+- <span class="sd-text-primary" style="font-weight: bold; font-size: 1.1em;">{material-regular}`lock_open` move_to_unblock</span> - **Recovery Behavior.** Automatically attempts to move forward, backward, or rotate to free the robot from a collision state or blockage.
+
+:::{admonition} Sensor Requirement
+:class: warning
+All movement actions require active $360^o$ sensor data (`LaserScan` or `PointCloud2`) data to verify that the movement direction is collision-free.
+:::
+
+
+
+## Interface
+
+### Inputs
+
+The Drive Manager subscribes to commands and raw sensor data.
 
 ```{list-table}
-:widths: 20 70
+:widths: 15 35 15 35
 :header-rows: 1
-
-* - Action
-  - Function
-
-* - **[move_forward](../apidocs/kompass/kompass.components.drive_manager.md/#classes)**
-  - Moves the robot forward for `max_distance` meters, if the forward direction is clear of obstacles.
-
-* - **move_backward**
-  - Moves the robot backwards for `max_distance` meters, if the backward direction is clear of obstacles.
-
-* - **rotate_in_place**
-  - Rotates the robot in place for `max_rotation` radians, if the given safety margin around the robot is clear of obstacles.
-
-
-* - **move_to_unblock**
-  - Moves the robot forward, backwards or rotates in place if the space is free to move the robot away from a blocking point.
-```
-
-```{note}
-All the previous movement actions require `LaserScan` information to determine if the movement direction is collision-free
-```
-
-```{seealso}
-Check an example on configuring the robot unblocking functionality with an external event in [this tutorial](/tutorials/events_actions.md)
-```
-
-
-## Available Run Types
-
-```{list-table}
-:widths: 10 80
-* - **Timed**
-  - Sends incoming command periodically to the robot
-```
-
-## Inputs
-
-```{list-table}
-:widths: 10 40 10 40
-:header-rows: 1
-
 * - Key Name
   - Allowed Types
   - Number
   - Default
 
-* - command
-  - [`geometry_msgs.msg.Twist`](http://docs.ros.org/en/noetic/api/geometry_msgs/html/msg/Twist.html)
+* - <span class="sd-text-primary" style="font-weight: bold; font-size: 1.1em;">command</span>
+  - [`geometry_msgs.msg.Twist`](http://docs.ros.org/en/noetic/api/geometry_msgs/html/msg/Twist.html), [`geometry_msgs.msg.TwistStamped`](https://docs.ros2.org/foxy/api/geometry_msgs/msg/TwistStamped.html)
   - 1
-  - `Topic(name="/control", msg_type="Twist")`
+  - `/control` (`Twist`)
 
-* - multi_command
-  - [`kompass_interfaces.msg.TwistArray`](https://github.com/automatika-robotics/kompass/tree/main/kompass_interfaces/msg)
+* - <span class="sd-text-primary" style="font-weight: bold; font-size: 1.1em;">multi_command</span>
+  - `TwistArray`
   - 1
-  - `Topic(name="/control_list", msg_type="TwistArray")`
+  - `/control_list`
 
-* - sensor_data
-  - [`sensor_msgs.msg.LaserScan`](https://docs.ros.org/en/noetic/api/sensor_msgs/html/msg/LaserScan.html), `std_msgs.msg.Float64`, `std_msgs.msg.Float32`
-  - 1 + (10 optional)
-  - `Topic(name="/scan", msg_type="LaserScan")`
+* - <span class="sd-text-primary" style="font-weight: bold; font-size: 1.1em;">sensor_data</span>
+  - [`sensor_msgs.msg.LaserScan`](https://docs.ros.org/en/noetic/api/sensor_msgs/html/msg/LaserScan.html), `std_msgs.msg.Float64`, `std_msgs.msg.Float32`, [`sensor_msgs.msg.PointCloud2`](https://docs.ros.org/en/noetic/api/sensor_msgs/html/msg/PointCloud2.html)
+  - 1+ (Up to 10)
+  - `/scan` (`LaserScan`)
 
-* - location
+* - <span class="sd-text-primary" style="font-weight: bold; font-size: 1.1em;">location</span>
   - [`nav_msgs.msg.Odometry`](https://docs.ros.org/en/noetic/api/nav_msgs/html/msg/Odometry.html), [`geometry_msgs.msg.PoseStamped`](http://docs.ros.org/en/jade/api/geometry_msgs/html/msg/PoseStamped.html), [`geometry_msgs.msg.Pose`](http://docs.ros.org/en/jade/api/geometry_msgs/html/msg/Pose.html)
   - 1
-  - `Topic(name="/odom", msg_type="Odometry")`
+  - `/odom` (`Odometry`)
+
 ```
 
+### Outputs
 
-## Outputs
+The processed commands sent to the hardware.
 
 ```{list-table}
-:widths: 10 40 10 40
+:widths: 15 35 15 35
 :header-rows: 1
+
 * - Key Name
   - Allowed Types
   - Number
   - Default
 
-* - robot_command
-  - `geometry_msgs.msg.Twist`
+* - <span class="sd-text-primary" style="font-weight: bold; font-size: 1.1em;">robot_command</span>
+  - [`geometry_msgs.msg.Twist`](http://docs.ros.org/en/noetic/api/geometry_msgs/html/msg/Twist.html), [`geometry_msgs.msg.TwistStamped`](https://docs.ros2.org/foxy/api/geometry_msgs/msg/TwistStamped.html)
   - 1
-  - `Topic(name="/cmd_vel", msg_type="Twist")`
-* - emergency_stop
-  - `std_msgs.msg.Bool`
+  - `/cmd_vel` (`Twist`)
+
+* - <span class="sd-text-primary" style="font-weight: bold; font-size: 1.1em;">emergency_stop</span>
+  - `Bool`
   - 1
-  - `Topic(name="/emergency_stop", msg_type="Bool")`
+  - `/emergency_stop`
+
 ```
 
-## Configuration Parameters:
+## Usage Example
 
-See all available parameters in [DriveManagerConfig](../apidocs/kompass/kompass.components.drive_manager.md/#classes)
-
-## Usage Example:
 ```python
-    from kompass.components import DriveManager, DriveManagerConfig
-    from kompass.ros import Topic
+from kompass.components import DriveManager, DriveManagerConfig
+from kompass.ros import Topic
 
-    # Setup custom configuration
-    # closed_loop: send commands to the robot in closed loop (checks feedback from robot state)
-    # critical_zone_distance: for emergency stp (m)
-    my_config = DriveManagerConfig(closed_loop=True, critical_zone_distance=0.1, slowdown_zone_distance=0.3, critical_zone_angle=90.0)
+# 1. Configuration
+# Define safety zones and loop behavior
+my_config = DriveManagerConfig(
+    closed_loop=True,              # Check robot state feedback
+    critical_zone_distance=0.1,    # Stop if obstacle < 10cm
+    slowdown_zone_distance=0.3,    # Slow down if obstacle < 30cm
+    critical_zone_angle=90.0       # Check 90 degrees cone in front
+)
 
-    driver = DriveManager(component_name="driver", config=my_config)
+# 2. Instantiate
+driver = DriveManager(component_name="driver", config=my_config)
 
-    # Change the robot command output
-    driver.outputs(robot_command=Topic(name='/my_robot_cmd', msg_type='Twist'))
+# 3. Remap Outputs
+# Send safe commands to your specific robot topic
+driver.outputs(robot_command=Topic(name='/my_robot_cmd', msg_type='TwistStamped'))
+
 ```
+
+## See Next
+
+Learn how to trigger the unblocking behaviors automatically using Events.
+
+:::{button-link} ../tutorials/events_index.html
+:color: primary
+:ref-type: doc
+:outline:
+Event-Driven Recovery Tutorial →
+:::

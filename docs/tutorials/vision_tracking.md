@@ -1,4 +1,4 @@
-# 📷 Following a moving target using RGB Image
+# Following a moving target using RGB Image
 
 In this tutorial we will create a vision-based target following navigation system to follow a moving target using an RGB camera input.
 

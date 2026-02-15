@@ -1,4 +1,4 @@
-# 🧠 Algorithms
+# Control Algorithms
 
 Kompass includes a set of modular navigation algorithms designed to work across a wide range of robotic platforms and environments:
 
@@ -24,7 +24,8 @@ Each algorithm is **easily parameterized**, allowing developers to tune behavior
 
 ```{toctree}
 :maxdepth: 1
-:caption: Algorithms
+:caption: Control Algorithms
+:hidden:
 
 pure_pursuit
 dwa

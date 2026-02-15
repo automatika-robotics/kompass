@@ -1,36 +1,40 @@
 # Planner
 
-Path planning consists of finding an 'optimal' or 'suboptimal' path from a start to a goal location given partial (local planning) or complete space information (global planning).
-In a 2D navigation system, path planning refers to the **global path planning** which seeks an optimal path given largely complete static environmental information that is perfectly known to the robot (i.e. the global or reference map).[^1]
+**Global path planning and trajectory generation.**
+
+The Planner component is responsible for finding an 'optimal' or 'suboptimal' path from a start to a goal location using complete map information.(i.e. the global or reference map).[^1]
+
+It leverages the **[Open Motion Planning Library (OMPL)](https://ompl.kavrakilab.org/)** backend to support various sampling-based algorithms (RRT*, PRM, etc.), capable of handling complex kinematic constraints.
+
 
 [^1]: More on path planning algorithms can be seen in recent surveys on the topic in [Qin et al., 2023](https://www.mdpi.com/2504-446X/7/3/211) and [Karur et al., 2021](https://www.mdpi.com/2624-8921/3/3/27)
 
-Path planning algorithms produce a complete path from the start point (robot location) to the final end point, then the robot can start following and locally modifying the planned path (see [Control](control.md)).
 
+## Run Types
 
-[Planner](../apidocs/kompass/kompass.components.planner.md) Component is in charge of global path planning in Kompass. Planner uses the [Open Motion Planning Library (OMPL)](https://ompl.kavrakilab.org/) plugins to perform the path planning (more on [OMPL integration](../integrations/ompl.md) with Kompass)
-
-
-## Available Run Types
-Planner can be used with all four available RunTypes:
+The Planner is flexible and can be executed in four different modes depending on your architecture:
 
 ```{list-table}
-:widths: 10 80
-* - **Timed**
-  - Compute a new plan periodically from current location (last message received on location input Topic) to the goal location (last message received on goal_point input Topic)
+:widths: 20 80
+* - **{material-regular}`schedule;1.2em;sd-text-primary` Timed**
+  - **Periodic Re-planning.** Compute a new plan periodically (e.g., at 1Hz) from the robot's current location to the last received goal.
 
-* - **Event**
-  - Compute a new plan from current location on every new message received on [**goal_point**](#inputs) input Topic
+* - **{material-regular}`touch_app;1.2em;sd-text-primary` Event**
+  - **Reactive Planning.** Trigger a new plan computation *only* when a new message is received on the `goal_point` topic.
 
-* - **Server**
-  - Offers a PlanPath ROS service and computes a new plan on every service request
+* - **{material-regular}`dns;1.2em;sd-text-primary` Service**
+  - **Request/Response.** Offers a standard ROS2 Service (`PlanPath`). Computes a single plan per request and returns it immediately.
 
-* - **ActionServer**
-  - Offers a PlanPath ROS action and continuously computes a plan once an action request is received until goal point is reached
+* - **{material-regular}`hourglass_top;1.2em;sd-text-primary` Action Server**
+  - **Long-Running Goal.** Offers a standard ROS2 Action. continuously computes and updates the plan until the goal is reached or canceled.
 ```
 
-## Inputs
-Planner requires configuring three inputs:
+
+## Interface
+
+### Inputs
+
+The Planner subscribes to the following topics to understand the world state:
 
 ```{list-table}
 :widths: 10 40 10 40
@@ -40,26 +44,29 @@ Planner requires configuring three inputs:
   - Number
   - Default
 
-* - map
+* - <span class="sd-text-primary" style="font-weight: bold; font-size: 1.1em;">map</span>
   - [`nav_msgs.msg.OccupancyGrid`](http://docs.ros.org/en/noetic/api/nav_msgs/html/msg/OccupancyGrid.html)
   - 1
-  - `Topic(name="/map", msg_type="OccupancyGrid", qos_profile=QoSConfig(durability=TRANSIENT_LOCAL))`
-* - goal_point
+  - `/map`, `QoSConfig(durability=TRANSIENT_LOCAL)`
+
+* - <span class="sd-text-primary" style="font-weight: bold; font-size: 1.1em;">goal_point</span>
   - [`nav_msgs.msg.Odometry`](https://docs.ros.org/en/noetic/api/nav_msgs/html/msg/Odometry.html), [`geometry_msgs.msg.PoseStamped`](http://docs.ros.org/en/jade/api/geometry_msgs/html/msg/PoseStamped.html), [`geometry_msgs.msg.PointStamped`](http://docs.ros.org/en/jade/api/geometry_msgs/html/msg/PointStamped.html)
   - 1
-  - `Topic(name="/goal", msg_type="PointStamped")`
-* - location
+  - `/goal` (`PointStamped`)
+
+* - <span class="sd-text-primary" style="font-weight: bold; font-size: 1.1em;">location</span>
   - [`nav_msgs.msg.Odometry`](https://docs.ros.org/en/noetic/api/nav_msgs/html/msg/Odometry.html), [`geometry_msgs.msg.PoseStamped`](http://docs.ros.org/en/jade/api/geometry_msgs/html/msg/PoseStamped.html), [`geometry_msgs.msg.Pose`](http://docs.ros.org/en/jade/api/geometry_msgs/html/msg/Pose.html)
   - 1
-  - `Topic(name="/odom", msg_type="Odometry")`
+  - `/odom` (`Odometry`)
 ```
 
 :::{note} 'goal_point' input is only used if the Planner is running as TIMED or EVENT Component. In the other two types, the goal point is provided in the service request or the action goal.
 :::
 
 
-## Outputs
-Planner offers two outputs:
+### Outputs
+
+The Planner publishes the resulting trajectory and motion state:
 
 ```{list-table}
 :widths: 10 40 10 40
@@ -71,50 +78,74 @@ Planner offers two outputs:
   - Default
 
 
-* - plan
+* - <span class="sd-text-primary" style="font-weight: bold; font-size: 1.1em;">plan</span>
   - [`nav_msgs.msg.Path`](http://docs.ros.org/en/noetic/api/nav_msgs/html/msg/Path.html)
   - 1
-  - `Topic(name="/plan", msg_type="Path")`
-* - reached_end
+  - `/plan`
+
+* - <span class="sd-text-primary" style="font-weight: bold; font-size: 1.1em;">reached_end</span>
   - `std_msgs.msg.Bool`
   - 1
-  - `Topic(name="/reached_end", msg_type="Bool")`
+  - `/reached_end`
 ```
 
-## Available Algorithms:
 
-OMPL geometric planners (see [available OMPL integrations](../integrations/ompl.md/#available-algorithms-from-ompl) for more details)
+## Algorithms
+
+Kompass integrates OMPL to provide state-of-the-art geometric planners.
+
+:::{card} Available Planners →
+:link: ../integrations/ompl.html#available-algorithms-from-ompl
+:link-type: url
+
+Click here to view the full list of supported OMPL algorithms (RRT, PRM, EST, etc.)
+:::
+
+<br>
 
 ## Usage Example
+
 ```python
-    from kompass.components import Planner, PlannerConfig
-    from kompass.config import ComponentRunType
-    from kompass.topic import Topic
-    from kompass_core.models import RobotType, Robot, RobotGeometry, LinearCtrlLimits, AngularCtrlLimits
-    import numpy as np
+import numpy as np
+from kompass.components import Planner, PlannerConfig
+from kompass.config import ComponentRunType
+from kompass.ros import Topic
+from kompass.control import RobotType, RobotConfig, RobotGeometry, LinearCtrlLimits, AngularCtrlLimits
 
-    # Configure your robot
-    my_robot = RobotConfig(
-            model_type=RobotType.DIFFERENTIAL_DRIVE,
-            geometry_type=RobotGeometry.Type.CYLINDER,
-            geometry_params=np.array([0.1, 0.3]),
-            ctrl_vx_limits=LinearCtrlLimits(max_vel=1.0, max_acc=1.5, max_decel=2.5),
-            ctrl_omega_limits=AngularCtrlLimits(
-                max_vel=1.0, max_acc=2.0, max_decel=2.0, max_steer=np.pi / 3
-            ),
-        )
 
-    # Setup the planner config
-    config = PlannerConfig(
-        robot=my_robot,
-        loop_rate=1.0 # 1Hz
-    )
+# 1. Configure your Robot Constraints
+my_robot = RobotConfig(
+    model_type=RobotType.DIFFERENTIAL_DRIVE,
+    geometry_type=RobotGeometry.Type.CYLINDER,
+    geometry_params=np.array([0.1, 0.3]), # Radius, Height
+    ctrl_vx_limits=LinearCtrlLimits(max_vel=1.0, max_acc=1.5, max_decel=2.5),
+    ctrl_omega_limits=AngularCtrlLimits(max_vel=1.0, max_acc=2.0)
+)
 
-    planner = Planner(component_name="planner", config=config)
+# 2. Configure the Planner
+config = PlannerConfig(
+    robot=my_robot,
+    loop_rate=1.0  # Re-plan at 1Hz (if Timed)
+)
 
-    planner.run_type = ComponentRunType.EVENT   # Can also pass a string "Event"
+# 3. Instantiate
+planner = Planner(component_name="planner", config=config)
 
-    # Add rviz clicked_point as input topic
-    goal_topic = Topic(name="/clicked_point", msg_type="PoseStamped")
-    planner.inputs(goal_point=goal_topic)
+# 4. Set Run Type & Remap Topics
+planner.run_type = ComponentRunType.EVENT
+
+# Example: Remap input to listen to Rviz clicks
+planner.inputs(goal_point=Topic(name="/clicked_point", msg_type="PoseStamped"))
+
 ```
+
+## See Next
+
+The Planner produces a complete path from the start point (robot location) to the final end point, then the robot can start following and locally modifying the planned path using the Controller components.
+
+:::{button-link} control.html
+:color: primary
+:ref-type: url
+:outline:
+Discover the Controller Component →
+:::

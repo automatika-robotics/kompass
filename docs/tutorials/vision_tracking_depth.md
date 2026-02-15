@@ -1,4 +1,4 @@
-# 🎥 Vision Tracking Using Depth Information
+# Vision Tracking Using Depth Information
 
 This tutorial guides you through creating a vision tracking system using a depth camera. We'll leverage RGB-D with the `VisionRGBDFollower` in Kompass to detect and follow objects more robustly. With the depth information available, this will create more precise understanding of the environment and lead to more accurate and robust object following (as compared to [using RGB images](./vision_tracking.md)).
 
@@ -117,7 +117,7 @@ mapper = LocalMapper(component_name="local_mapper")
 ## Bring it all together!
 
 ```{code-block} python
-:caption: vision_depth_follower
+:caption: vision_depth_follower.py
 :linenos:
 
 from agents.components import Vision

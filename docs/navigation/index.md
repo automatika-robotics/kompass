@@ -4,15 +4,14 @@ Kompass is designed to make autonomous navigation **easy to set up, flexible to 
 Think of it as a collection of building blocks: you choose the ones you need, configure them for your robot, and you're good to go!
 
 ```{figure} ../_static/images/diagrams/system_components_dark.png
-:class: only-dark
+:class: dark-only
 :alt: Kompass Components and Main Tasks
 :align: center
 
-Kompass Components and Main Tasks
 ```
 
 ```{figure} ../_static/images/diagrams/system_components_light.png
-:class: only-light
+:class: light-only
 :alt: Kompass Components and Main Tasks
 :align: center
 
@@ -24,15 +23,14 @@ Each component runs as a ROS2 lifecycle node and communicates with the other com
 
 
 ```{figure} ../_static/images/diagrams/system_graph_dark.png
-:class: only-dark
+:class: dark-only
 :alt: Kompass Full System
 :align: center
 
-System Diagram for Point Navigation
 ```
 
 ```{figure} ../_static/images/diagrams/system_graph_light.png
-:class: only-light
+:class: light-only
 :alt: Kompass Full System
 :align: center
 

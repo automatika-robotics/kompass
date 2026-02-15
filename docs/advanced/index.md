@@ -8,6 +8,7 @@ title: Advanced
 ```{toctree}
 :maxdepth: 1
 :caption: Advanced
+:hidden:
 
 design
 advanced_conf/index

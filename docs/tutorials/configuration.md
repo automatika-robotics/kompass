@@ -1,4 +1,4 @@
-# 🔧 Configuring Components Your Way
+# Configuring Components Your Way
 
 Kompass is built for flexibility — and that starts with how you configure your components.
 
@@ -6,7 +6,7 @@ Whether you're scripting in Python, editing clean and readable YAML, crafting el
 
 No more rigid formats or boilerplate structures. Just straightforward, expressive configuration — however you like to write it.
 
-👇 Here’s how to define your components using:
+Here's how to define your components using:
 - 🐍 [Python API](#-python-api)
 - 📄 [YAML](#-yaml)
 - 🍅 [TOML](#-toml)

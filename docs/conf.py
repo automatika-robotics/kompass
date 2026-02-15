@@ -23,6 +23,7 @@ extensions = [
     "autodoc2",  # install with `pip install sphinx-autodoc2`
     "myst_parser",  # install with `pip install myst-parser`
     "sphinx_sitemap",  # install with `pip install sphinx-sitemap`
+    "sphinx_design",
 ]
 
 autodoc2_packages = [
@@ -70,7 +71,7 @@ myst_html_meta = {
 myst_heading_anchors = 7  # to remove cross reference errors with md
 
 html_baseurl = "https://automatika-robotics.github.io/kompass/"
-html_theme = "sphinx_book_theme"  # install with `pip install sphinx-book-theme`
+html_theme = "shibuya"  # install with `pip install shibuya`
 html_static_path = ["_static"]
 html_css_files = [
     "custom.css",
@@ -78,34 +79,19 @@ html_css_files = [
 html_favicon = "_static/favicon.png"
 
 html_theme_options = {
-    "logo": {
-        "image_light": "_static/Kompass_light.png",
-        "image_dark": "_static/Kompass_dark.png",
-    },
-    "icon_links": [
-        {
-            "name": "Automatika",
-            "url": "https://automatikarobotics.com/",
-            "icon": "_static/automatika-logo.png",
-            "type": "local",
-        },
-        {
-            "name": "GitHub",
-            "url": "https://github.com/automatika-robotics/kompass",
-            "icon": "fa-brands fa-github",
-        },
-        {
-            "name": "Discord",
-            "url": "https://discord.gg/B9ZU6qjzND",
-            "icon": "fa-brands fa-discord",
-        },
+    "light_logo": "_static/Kompass_light.png",
+    "dark_logo": "_static/Kompass_dark.png",
+    "accent_color": "indigo",
+    "twitter_url": "https://x.com/__automatika__",
+    "github_url": "https://github.com/automatika-robotics/kompass",
+    "discord_url": "https://discord.gg/B9ZU6qjzND",
+    "globaltoc_expand_depth": 1,
+    "open_in_chatgpt": True,
+    "open_in_claude": True,
+    # Navigation Links (Top bar)
+    "nav_links": [
+        {"title": "Automatika Robotics", "url": "https://automatikarobotics.com/"},
     ],
-    "path_to_docs": "docs",
-    "repository_url": "https://github.com/automatika-robotics/kompass",
-    "repository_branch": "main",
-    "use_source_button": True,
-    "use_issues_button": True,
-    "use_edit_page_button": True,
 }
 
 # --- LLMS.TXT CONFIGURATION ---
