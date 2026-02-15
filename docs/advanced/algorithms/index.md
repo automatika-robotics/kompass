@@ -1,26 +1,90 @@
 # Control Algorithms
 
-Kompass includes a set of modular navigation algorithms designed to work across a wide range of robotic platforms and environments:
+**Modular controllers for precise movement, tracking, and avoidance.**
 
-- [Pure Pursuit](pure_pursuit.md) – A classic geometric path-tracking controller that calculates curvature to reach a lookahead point, featuring an integrated simple search layer for collision avoidance.
+Kompass provides a suite of battle-tested control algorithms. These range from classic geometric path-followers to modern, GPU-accelerated planners that handle dynamic obstacle avoidance or vision target following in real-time.
 
-- [DWA (Dynamic Window Approach)](dwa.md) – A real-time velocity-space planner that dynamically adapts to changing environments while balancing a set of defined [cost goals](cost_eval.md) like goal-seeking, reference path following and obstacle avoidance.
 
-- [Stanley Steering](stanley.md) – A robust path-tracking controller with smooth convergence, ideal for structured environments.
+## Algorithm Suite
 
-- [DVZ (Deformable Virtual Zone)](dvz.md) – A reactive local planner that dynamically adapts to nearby obstacles.
+::::{grid} 1 2 2 2
+:gutter: 3
 
-- [Vision Follower](vision_follower.md) – A vision-based object follower that enables robots to follow moving targets using onboard images (RGB or RGBD).
+:::{grid-item-card} {material-regular}`grid_on;1.5em;sd-text-primary` DWA
+:link: dwa
+:link-type: doc
+:class-card: sugar-card
 
-All algorithms are fully compatible with the the three primary robot motion models:
+**Velocity Space Planning**
+A real-time, GPU-accelerated planner that samples reachable velocities to balance goal progress and obstacle clearance.
+:::
 
-- ACKERMANN (e.g. car-like platforms)
+:::{grid-item-card} {material-regular}`timeline;1.5em;sd-text-primary` Pure Pursuit
+:link: pure_pursuit
+:link-type: doc
+:class-card: sugar-card
 
-- DIFFERENTIAL_DRIVE (e.g. skid-steer or two-wheeled robots)
+**Geometric Path Tracking**
+Calculates curvature to reach a lookahead point. Includes a reactive search layer to deviate for obstacles.
+:::
 
-- OMNI (e.g. holonomic systems)
+:::{grid-item-card} {material-regular}`call_split;1.5em;sd-text-primary` Stanley Steering
+:link: stanley
+:link-type: doc
+:class-card: sugar-card
 
-Each algorithm is **easily parameterized**, allowing developers to tune behaviors such as lookahead distance, velocity limits, obstacle sensitivity, and control gains directly through configuration in the Python API. This makes it easy to adapt planning and control logic to the specific dynamics and operational goals of any robot—whether you're running in simulation or on real hardware.
+**Axle-Based Feedback**
+Optimized for Ackermann platforms, providing smooth exponential convergence to a reference path.
+:::
+
+:::{grid-item-card} {material-regular}`bubble_chart;1.5em;sd-text-primary` DVZ
+:link: dvz
+:link-type: doc
+:class-card: sugar-card
+
+**Reactive "Bubble" Control**
+A highly efficient method that models safety zones as deformable perimeters for rapid avoidance.
+:::
+
+:::{grid-item-card} {material-regular}`videocam;1.5em;sd-text-primary` Vision Follower (RGB)
+:link: vision_follower_rgb
+:link-type: doc
+:class-card: sugar-card
+
+**2D Visual Servoing**
+Maintains target centering and relative scale using standard monocular cameras.
+:::
+
+:::{grid-item-card} {material-regular}`blur_on;1.5em;sd-text-primary` Vision Follower (RGB-D)
+:link: vision_follower_rgbd
+:link-type: doc
+:class-card: sugar-card
+
+**3D Target Tracking**
+Uses depth data and DWA-style planning to follow targets while actively avoiding obstacles.
+:::
+::::
+
+
+
+## Kinematic Compatibility
+
+Every algorithm in the Kompass stack is natively compatible with the three primary motion models. The internal logic automatically adapts to the specific constraints of your platform:
+
+
+
+- **{material-regular}`directions_car` ACKERMANN**: Car-like platforms with steering constraints.
+- **{material-regular}`adjust` DIFFERENTIAL_DRIVE**: Two-wheeled or skid-steer robots.
+- **{material-regular}`open_with` OMNI**: Holonomic systems capable of lateral movement.
+
+
+
+## Flexible Parameterization
+
+Each algorithm is **fully parameterized**. Developers can tune behaviors such as lookahead gains, safety margins, and obstacle sensitivity directly through the Python API or YAML configuration. This modularity ensures the same code can run on a small indoor lab robot or a heavy-duty outdoor platform.
+
+
+
 
 ```{toctree}
 :maxdepth: 1
@@ -31,6 +95,8 @@ pure_pursuit
 dwa
 stanley
 dvz
-vision_follower
+vision_follower_rgb
+vision_follower_rgbd
 cost_eval
+
 ```

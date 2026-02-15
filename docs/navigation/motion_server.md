@@ -127,7 +127,7 @@ Once validated, use the Controller to execute complex paths.
 
 :::{button-link} control.html
 :color: primary
-:ref-type: url
+:ref-type: doc
 :outline:
 Configure the Controller →
 :::

@@ -1,32 +1,52 @@
 # Trajectory Cost Evaluation
 
-Kompass includes built-in cost evaluation functions (implemented in [kompass_cpp](https://github.com/automatika-robotics/kompass-core/blob/main/src/kompass_cpp/kompass_cpp/include/utils/cost_evaluator.h)) and supports running custom cost evaluation functions to calculate the overall cost of a trajectory during navigation.
+**Scoring candidate paths for optimal selection.**
 
-```{list-table}
-:widths: 20 80
-:header-rows: 1
-* - Cost
-  - Description
+In sampling-based controllers like [DWA](dwa.md), dozens of candidate trajectories are generated at every time step. To choose the best one, Kompass uses a weighted sum of several cost functions.
 
-* - **Reference Path**
-  - Measured using the average distance between the trajectory under evaluation and the closest reference (global) path segment. Added for favoring trajectories that remain close to the reference
+The total cost $J$ for a given trajectory is calculated as:
 
-* - **Goal Destination**
-  - Evaluated based on the distance between the end of the trajectory and the final destination point of the navigation. Added for favoring trajectories that lead the robot closer to the goal point
+$$
+J = \sum (w_i \cdot C_i)
+$$
 
-* - **Obstacles Min-Distance**
-  - Evaluated using the minimum distance between the trajectory points and the surrounding obstacles. Supports information from direct sensor data (LaserScan and PointCloud). Added for favoring trajectories that keep the robot away from nearby obstacles
+Where $w_i$ is the configured weight and $C_i$ is the normalized cost value.
 
-* - **Smoothness**
-  - Based on the average change in velocity along the trajectory under evaluation
+## Hardware Acceleration
 
-* - **Jerk**
-  - Based on the average change in acceleration along the trajectory under evaluation
-```
+To handle high-frequency control loops with large sample sets, Kompass leverages **SYCL** for massive parallelism.
 
-## Costs Weights
+::::{grid} 1 1 1 1
+:gutter: 3
 
-The total cost of a trajectory is computed as the sum of all the default costs weighed by their respective cost weights.
+:::{grid-item-card} {material-regular}`speed;1.5em;sd-text-primary` SYCL Kernels
+:link: ../benchmark
+:link-type: doc
+:class-card: sugar-card
+
+**Vendor-Agnostic GPU Support**
+Each cost function below is implemented as a specialized **SYCL kernel**. This allows the controller to evaluate thousands of trajectory points in parallel on **Nvidia, AMD, or Intel** GPUs, significantly reducing latency compared to CPU-only implementations.
+
+See the performance gains in our Benchmarks →
+:::
+::::
+
+## Built-in Cost Functions
+
+Kompass includes optimized implementations for the following cost components:
+
+| Cost Component | Description | Goal |
+| :--- | :--- | :--- |
+| **Reference Path** | Average distance between the candidate trajectory and the global reference path. | **Stay on track.** Keep the robot from drifting away from the global plan. |
+| **Goal Destination** | Euclidean distance from the end of the trajectory to the final goal point. | **Make progress.** Favor trajectories that actually move the robot closer to the destination. |
+| **Obstacle Distance**  | Inverse of the minimum distance to the nearest obstacle (from LaserScan/PointCloud). | **Stay safe.** Heavily penalize trajectories that come too close to walls or objects. |
+| **Smoothness**| Average change in velocity (acceleration) along the trajectory. | **Drive smoothly.** Prevent jerky velocity changes. |
+| **Jerk** | Average change in acceleration along the trajectory. | **Protect hardware.** Minimize mechanical stress and wheel slip. |
+
+
+## Configuration Weights
+
+You can tune the behavior of the robot by adjusting the weights ($w_i$) in your configuration.
 
 ```{list-table}
 :widths: 10 10 10 70
@@ -60,5 +80,6 @@ The total cost of a trajectory is computed as the sum of all the default costs w
 
 ```
 
-:::{tip} Set a cost weight to 0.0 to exclude that cost and not take it into consideration
+:::{tip}
+Setting a weight to `0.0` completely disables that specific cost calculation kernel, saving computational resources.
 :::

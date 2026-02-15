@@ -145,7 +145,7 @@ The Planner produces a complete path from the start point (robot location) to th
 
 :::{button-link} control.html
 :color: primary
-:ref-type: url
+:ref-type: doc
 :outline:
 Discover the Controller Component →
 :::

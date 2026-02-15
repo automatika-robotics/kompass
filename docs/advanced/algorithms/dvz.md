@@ -1,34 +1,45 @@
-# DVZ (Deformable Virtual Zone)
+# DVZ
 
-The DVZ is a reactive motion control method first introduced by R. Zapata in 1994 [^1]. It has been used since to model systems' maneuvers in both 2D and 3D spaces. The idea is to surround the system under study with a virtual zone, and any body entering that zone will cause a deformation. Then, the system can be driven in the direction minimizing this deformation or changing it in a desired way.
+**Fast, reactive collision avoidance for dynamic environments.**
+
+The DVZ (Deformable Virtual Zone) is a reactive control method introduced by R. Zapata in 1994.[^1] It models the robot's safety perimeter as a "virtual bubble" (zone) that deforms when obstacles intrude.
+
+Unlike sampling methods (like DWA) that simulate future trajectories, DVZ calculates a reaction vector based directly on how the bubble is being "squished" by the environment. This makes it **extremely computationally efficient** and ideal for crowded, fast-changing environments where rapid reactivity is more important than global optimality.
 
 [^1]: [Zapata, R., Lépinay, P., and Thompson, P. “Reactive behaviors of fast mobile robots”.
 In: Journal of Robotic Systems 11.1 (1994)](https://www.researchgate.net/publication/221787033_Reactive_Motion_Planning_for_Mobile_Robots)
 
 
+## How it Works
+
+The algorithm continuously computes a deformation vector to steer the robot away from intrusion.
+
+- <span class="sd-text-primary" style="font-weight: bold; font-size: 1.1em;">{material-regular}`radio_button_unchecked` 1. Define Zone</span> - **Create Bubble.**
+  <br>Define a circular (or elliptical) protection zone around the robot with a nominal undeformed radius $R$.
+
+- <span class="sd-text-primary" style="font-weight: bold; font-size: 1.1em;">{material-regular}`radar` 2. Sense</span> - **Measure Intrusion.**
+  <br>Using LaserScan data, compute the *deformed radius* $d_h(\alpha)$ for every angle $\alpha \in [0, 2\pi]$ around the robot.
+
+- <span class="sd-text-primary" style="font-weight: bold; font-size: 1.1em;">{material-regular}`compress` 3. Compute Deformation</span> - **Calculate Metrics.**
+  <br>
+  * **Intrusion Intensity ($I_D$):** How much total "stuff" is inside the zone.
+    $I_D = \frac{1}{2\pi} \int_{0}^{2\pi}\frac{R - d_h(\alpha)}{R} d\alpha$
+  * **Deformation Angle ($\Theta_D$):** The primary direction of the intrusion.
+    $\Theta_D = \frac{\int_{0}^{2\pi} (R - d_h(\alpha))\alpha d\alpha}{I_D}$
+
+- <span class="sd-text-primary" style="font-weight: bold; font-size: 1.1em;">{material-regular}`shortcut` 4. React</span> - **Control Law.**
+  <br>The final control command minimizes $I_D$ (pushing away from the deformation) while trying to maintain the robot's original heading towards the goal.
+
 ## Supported Sensory Inputs
 
-- LaserScan
+DVZ relies on dense 2D range data to compute the deformation integral.
+
+* <span class="sd-text-primary" style="font-weight: bold; font-size: 1.1em;">{material-regular}`radar` LaserScan</span>
 
 
-## Implementation
+## Configuration Parameters
 
-- Define a circular zone around the robot with known undeformed radius ($$R$$)
-- Using LaserScan sensor data compute the deformed radius:
-$ d_h(\alpha) : \alpha in [0, 2\pi]$
-
-- Compute the zone deformation:
-
-$ I_D = \frac{1}{2\pi} \int_{0}^{2\pi}\frac{R - d_h(\alpha)}{R} d\alpha  \in [0, 1]$
-
-- Compute the zone deformation radius (if $I_D > 0$):
-
-$ \Theta_D = \frac{\int_{0}^{2\pi} (R - d_h(\alpha))\alpha d\alpha}{I_D}   \in [0, 2\pi]$
-
-- The control is calculated to minimize $I_D$ and stay close to the reference trajectory
-
-## Parameters and Default Values
-
+DVZ balances two competing forces: **Path Following** (Geometric) vs. **Obstacle Repulsion** (Reactive).
 
 ```{list-table}
 :widths: 10 10 10 70

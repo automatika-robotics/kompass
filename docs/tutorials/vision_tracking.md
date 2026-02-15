@@ -154,7 +154,7 @@ from kompass.components import Controller, ControllerConfig, DriveManager
 
 ## Configure the VisionFollower and setup the components
 
-We select the vision follower method parameters by importing the config class `VisionFollowerConfig` (see default parameters [here](../advanced/algorithms/vision_follower.md)), then configure both our components:
+We select the vision follower method parameters by importing the config class `VisionFollowerConfig` (see default parameters [here](../advanced/algorithms/vision_follower_rgb.md)), then configure both our components:
 
 ```python
 from kompass.control import VisionRGBFollowerConfig

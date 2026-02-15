@@ -1,352 +1,519 @@
 # OMPL (Open Motion Planning Library)
 
-[OMPL](https://github.com/ompl/ompl), the Open Motion Planning Library, is a generic C++ library for state-of-the-art motion planning algorithms. OMPL is compatible with different robot morphologies and planning spaces which make it widely used in robotics for motion planning problems both in 2D and 3D spaces. (for more details check the [official documentation of OMPL](https://ompl.kavrakilab.org/tutorials.html))
+**State-of-the-art sampling-based motion planning.**
 
-## OMPL with Kompass
+[OMPL (Open Motion Planning Library)](https://github.com/ompl/ompl) is the industry standard for generic motion planning algorithms. Kompass integrates OMPL to solve complex planning problems in 2D and 3D spaces for various robot morphologies.
 
-Kompass provides Python bindings (Pybind11 bindings) for OMPL in its navigation core package (kompass_navigation). The bindings enable setting and solving a planning problem using:
 
-- '[SE2StateSpace](https://ompl.kavrakilab.org/classompl_1_1base_1_1SE2StateSpace_1_1StateType.html#details)' which is convient for 2D motion planning. It provides an 'SE2State' consisting of a 2D position and rotation in the plane: ```SE(2): (x, y, yaw)```
-- OMPL geometric planners (listed below)
-- Built-in '[StateValidityChecker](https://ompl.kavrakilab.org/classompl_1_1base_1_1StateValidityChecker.html)' which implements a collision checker (using [FCL](fcl.md)) to insure finding collision free paths.
+## Kompass Bindings
 
-## Configuring OMPL in Kompass
+Kompass provides efficient Nanobind bindings in the `kompass_navigation` package, bridging your Python components with OMPL's C++ core.
 
-The following is an example YAML configuration of OMPL. In the section [below](#planners-default-parameters) we list all the available configuration parameters for each of the planners along with their default values.
+- <span class="sd-text-primary" style="font-weight: bold; font-size: 1.1em;">{material-regular}`architecture;1.5em;sd-text-primary` Geometric Planners - </span> **Algorithm Suite**. Direct access to over 20 geometric planners (RRT*, PRM, EST, etc.) configurable in your recipe or via a configuration file (YAML, TOML, JSON).
+
+- <span class="sd-text-primary" style="font-weight: bold; font-size: 1.1em;">{material-regular}`rotate_90_degrees_ccw;1.5em;sd-text-primary` SE2 State Space</span> **2D Navigation**. It provides an ['SE2State'](https://ompl.kavrakilab.org/classompl_1_1base_1_1SE2StateSpace.html) consisting of a 2D position and rotation in the plane: ```SE(2): (x, y, yaw)```
+
+- <span class="sd-text-primary" style="font-weight: bold; font-size: 1.1em;">{material-regular}`check_box;1.5em;sd-text-primary` Validity Checker - </span> **Collision Checking**. Built-in '[StateValidityChecker](https://ompl.kavrakilab.org/classompl_1_1base_1_1StateValidityChecker.html)' which implements a collision checker (using [FCL](fcl.md)) to insure finding collision free paths.
+
+
+
+## Configuration
+
+Configure OMPL behavior via your configuration file.
 
 ```yaml
 ompl:
+    # Verbosity
     log_level: 'WARN'
-    planning_timeout: 10.0  # (secs) Return and consider the planning to fail if solving takes more than planning_timeout
-    simplification_timeout: 0.01 # # (secs) abort path simplification if it takes more than simplification_timeout
-    goal_tolerance: 0.01        # (meters) Distance to consider that the robot is at goal point, i.e. no planning is performed
+
+    # Timeouts
+    planning_timeout: 10.0      # (s) Max time to search for a solution
+    simplification_timeout: 0.01 # (s) Max time to optimize the path
+
+    # Constraints
+    goal_tolerance: 0.01        # (m) Goal reached threshold
+
+    # Optimization
     optimization_objective: 'PathLengthOptimizationObjective'
+
+    # Active Algorithm
     planner_id: 'ompl.geometric.KPIECE1'
+
 ```
 
-## Available algorithms from OMPL
+## Planner Benchmarks
 
-The following geometric planners are supported in Kompass:
+Planning performance simulated on a **Turtlebot3 Waffle** in Gazebo.
 
-- [ABITstar](#abitstar)
-- [AITstar](#aitstar)
-- [BFMT](#bfmt)
-- [BITstar](#bitstar)
-- [BKPIECE1](#bkpiece1)
-- [BiEST](#biest)
-- [EST](#est)
-- [FMT](#fmt)
-- [InformedRRTstar](#informedrrtstar)
-- [KPIECE1](#kpiece1)
-- [LBKPIECE1](#lbkpiece1)
-- [LBTRRT](#lbtrrt)
-- [LazyLBTRRT](#lazylbtrrt)
-- [LazyPRM](#lazyprm)
-- [LazyPRMstar](#lazyprmstar)
-- [LazyRRT](#lazyrrt)
-- [PDST](#pdst)
-- [PRM](#prm)
-- [PRMstar](#prmstar)
-- [ProjEST](#projest)
-- [RRT](#rrt)
-- [RRTConnect](#rrtconnect)
-- [RRTXstatic](#rrtxstatic)
-- [RRTsharp](#rrtsharp)
-- [RRTstar](#rrtstar)
-- [SBL](#sbl)
-- [SST](#sst)
-- [STRIDE](#stride)
-- [TRRT](#trrt)
+* **Repetitions:** 20 per planner
+* **Timeout:** 2.0 seconds
+* **Metric:** Average values
 
-## Planners test results
-
-A planning problem is simulated using the [Turtlebot3 Gazebo simulation](https://emanual.robotis.com/docs/en/platform/turtlebot3/simulation/) Waffle map. The following table shows the planning results using each of the previous planners. The problem is simulated for 20 repetitions using each planners and the table below shows the average result values. 'solved' is set to False if in any repetition the method was unable to find a solution. The solution search timeout is set to 2seconds.
-
-
-:::{tip} To check/run the test script and the associated test resources refer to [kompass_navigation ompl test](https://github.com/automatika-robotics/kompass-navigation/tree/dev/tests)
+:::{tip}
+To run this benchmark yourself, refer to the [kompass_navigation tests](https://github.com/automatika-robotics/kompass-navigation/tree/dev/tests).
 :::
 
-method | solved | solution time (s) | solution length (m) | simplification time (s) | Conversion/Publishing ROS2 (s)
----|---|---|---|---|---
-ABITstar | True | 1.071 | 2.948 | 0.0075 | 0.00056
-BFMT | True | 0.1128 | 3.487 | 0.0066 | 0.00017
-BITstar | True | 1.0732 | 2.962 | 0.0061 | 0.00015
-BKPIECE1 | True | 0.0703 | 4.469 | 0.01777 | 0.00019
-BiEST | True | 0.06189 | 4.418 | 0.01078 | 0.00014
-EST | True | 0.0640 | 4.059 | 0.01074 | 0.00013
-FMT | True | 0.1330 | 3.6277 | 0.00630 | 0.00016
-InformedRRTstar | True | 1.0679 | 2.962 | 0.00457 | 0.00013
-KPIECE1 | True | 0.0676 | 5.439 | 0.0148 | 0.00017
-LBKPIECE1 | True | 0.07543 | 5.174 | 0.02 | 0.00017
-LBTRRT | True | 1.0696 | 3.221 | 0.005 | 0.00012
-LazyLBTRRT | True | 1.0672 | 3.305 | 0.0053 | 0.00013
-LazyPRM | False | 1.0811 | 0.0 | 0.0 | 0.0
-LazyPRMstar | True | 1.0701 | 3.03 | 0.0063 | 0.00012
-LazyRRT | True | 0.0982 | 4.5196 | 0.016 | 0.00013
-PDST | True | 0.06781 | 3.836 | 0.009 | 0.00013
-PRM | True | 1.0672 | 3.306 | 0.0068 | 0.00012
-PRMstar | True | 1.0740 | 3.72 | 0.0085 | 0.00012
-ProjEST | True | 0.0683 | 4.19 | 0.0082 | 0.00013
-RRT | True | 0.09062 | 4.86 | 0.019 | 0.00014
-RRTConnect | True | 0.07535 | 4.78 | 0.014 | 0.00014
-RRTXstatic | True | 1.0712 | 3.03 | 0.0041 | 0.00012
-RRTsharp | True | 1.0680 | 3.01 | 0.0052 | 0.00013
-RRTstar | True | 1.0672 | 2.96 | 0.0042 | 0.00013
-SBL | True | 0.0800 | 4.039 | 0.0121 | 0.00015
-SST | True | 1.0681 | 2.63 | 0.0012 | 0.00018
-STRIDE | True | 0.0679 | 4.12 | 0.0098 | 0.00015
-TRRT | True | 0.0798 | 4.11 | 0.01094 | 0.00015
+```{list-table}
+:header-rows: 1
+:widths: 15 10 15 15 15 20
 
-## Planners Default Parameters
+* - Method
+  - Solved
+  - Time (s)
+  - Length (m)
+  - Simplify (s)
+  - ROS 2 Pub (s)
 
-### ABITstar
-*ABITstar Default Parameters:*
+* - **ABITstar**
+  - ✅
+  - 1.071
+  - 2.948
+  - 0.0075
+  - 0.00056
 
-- delay_rewiring_to_first_solution: False
-- drop_unconnected_samples_on_prune: False
-- find_approximate_solutions: False
-- inflation_scaling_parameter: 10.0
-- initial_inflation_factor: 1000000.0
-- prune_threshold_as_fractional_cost_change: 0.05
-- rewire_factor: 1.1
-- samples_per_batch: 100
-- stop_on_each_solution_improvement: False
-- truncation_scaling_parameter: 5.0
-- use_graph_pruning: True
-- use_just_in_time_sampling: False
-- use_k_nearest: True
-- use_strict_queue_ordering: True
+* - **BFMT**
+  - ✅
+  - 0.1128
+  - 3.487
+  - 0.0066
+  - 0.00017
 
-### AITstar
-*AITstar Default Parameters:*
+* - **BITstar**
+  - ✅
+  - 1.0732
+  - 2.962
+  - 0.0061
+  - 0.00015
 
-- find_approximate_solutions: True
-- rewire_factor: 1.0
-- samples_per_batch: 100
-- use_graph_pruning: True
-- use_k_nearest: True
+* - **BKPIECE1**
+  - ✅
+  - 0.0703
+  - 4.469
+  - 0.0178
+  - 0.00019
 
-### BFMT
-*BFMT Default Parameters:*
+* - **BiEST**
+  - ✅
+  - 0.0619
+  - 4.418
+  - 0.0108
+  - 0.00014
 
-- balanced: False
-- cache_cc: True
-- extended_fmt: True
-- heuristics: True
-- nearest_k: True
-- num_samples: 1000
-- optimality: True
-- radius_multiplier: 1.0
+* - **EST**
+  - ✅
+  - 0.0640
+  - 4.059
+  - 0.0107
+  - 0.00013
 
-### BITstar
-*BITstar Default Parameters:*
+* - **FMT**
+  - ✅
+  - 0.1330
+  - 3.628
+  - 0.0063
+  - 0.00016
 
-- delay_rewiring_to_first_solution: False
-- drop_unconnected_samples_on_prune: False
-- find_approximate_solutions: False
-- prune_threshold_as_fractional_cost_change: 0.05
-- rewire_factor: 1.1
-- samples_per_batch: 100
-- stop_on_each_solution_improvement: False
-- use_graph_pruning: True
-- use_just_in_time_sampling: False
-- use_k_nearest: True
-- use_strict_queue_ordering: True
+* - **InformedRRT***
+  - ✅
+  - 1.0679
+  - 2.962
+  - 0.0046
+  - 0.00013
 
-### BKPIECE1
-*BKPIECE1 Default Parameters:*
+* - **KPIECE1**
+  - ✅
+  - 0.0676
+  - 5.439
+  - 0.0148
+  - 0.00017
 
-- border_fraction: 0.9
-- range: 0.0
+* - **LBKPIECE1**
+  - ✅
+  - 0.0754
+  - 5.174
+  - 0.0200
+  - 0.00017
 
-### BiEST
-*BiEST Default Parameters:*
+* - **LBTRRT**
+  - ✅
+  - 1.0696
+  - 3.221
+  - 0.0050
+  - 0.00012
 
-- range: 0.0
+* - **LazyLBTRRT**
+  - ✅
+  - 1.0672
+  - 3.305
+  - 0.0053
+  - 0.00013
 
-### EST
-*EST Default Parameters:*
+* - **LazyPRM**
+  - ❌
+  - 1.0811
+  - 0.0
+  - 0.0
+  - 0.0
 
-- goal_bias: 0.5
-- range: 0.0
+* - **LazyPRMstar**
+  - ✅
+  - 1.0701
+  - 3.030
+  - 0.0063
+  - 0.00012
 
-### FMT
-*FMT Default Parameters:*
+* - **LazyRRT**
+  - ✅
+  - 0.0982
+  - 4.520
+  - 0.0160
+  - 0.00013
 
-- cache_cc: True
-- extended_fmt: True
-- heuristics: False
-- num_samples: 1000
-- radius_multiplier: 1.1
-- use_k_nearest: True
+* - **PDST**
+  - ✅
+  - 0.0678
+  - 3.836
+  - 0.0090
+  - 0.00013
 
-### InformedRRTstar
-*InformedRRTstar Default Parameters:*
+* - **PRM**
+  - ✅
+  - 1.0672
+  - 3.306
+  - 0.0068
+  - 0.00012
 
-- delay_collision_checking: True
-- goal_bias: 0.05
-- number_sampling_attempts: 100
-- ordered_sampling: False
-- ordering_batch_size: 1
-- prune_threshold: 0.05
-- range: 0.0
-- rewire_factor: 1.1
-- use_k_nearest: True
+* - **PRMstar**
+  - ✅
+  - 1.0740
+  - 3.720
+  - 0.0085
+  - 0.00012
 
-### KPIECE1
-*KPIECE1 Default Parameters:*
+* - **ProjEST**
+  - ✅
+  - 0.0683
+  - 4.190
+  - 0.0082
+  - 0.00013
 
-- border_fraction: 0.9
-- goal_bias: 0.05
-- range: 0.0
+* - **RRT**
+  - ✅
+  - 0.0906
+  - 4.860
+  - 0.0190
+  - 0.00014
 
-### LBKPIECE1
-*LBKPIECE1 Default Parameters:*
+* - **RRTConnect**
+  - ✅
+  - 0.0754
+  - 4.780
+  - 0.0140
+  - 0.00014
 
-- border_fraction: 0.9
-- range: 0.0
+* - **RRTXstatic**
+  - ✅
+  - 1.0712
+  - 3.030
+  - 0.0041
+  - 0.00012
 
-### LBTRRT
-*LBTRRT Default Parameters:*
+* - **RRTsharp**
+  - ✅
+  - 1.0680
+  - 3.010
+  - 0.0052
+  - 0.00013
 
-- epsilon: 0.4
-- goal_bias: 0.05
-- range: 0.0
+* - **RRTstar**
+  - ✅
+  - 1.0672
+  - 2.960
+  - 0.0042
+  - 0.00013
 
-### LazyLBTRRT
-*LazyLBTRRT Default Parameters:*
+* - **SBL**
+  - ✅
+  - 0.0800
+  - 4.039
+  - 0.0121
+  - 0.00015
 
-- epsilon: 0.4
-- goal_bias: 0.05
-- range: 0.0
+* - **SST**
+  - ✅
+  - 1.0681
+  - 2.630
+  - 0.0012
+  - 0.00018
 
-### LazyPRM
-*LazyPRM Default Parameters:*
+* - **STRIDE**
+  - ✅
+  - 0.0679
+  - 4.120
+  - 0.0098
+  - 0.00015
 
-- max_nearest_neighbors: 8
-- range: 0.0
+* - **TRRT**
+  - ✅
+  - 0.0798
+  - 4.110
+  - 0.0109
+  - 0.00015
 
-### LazyPRMstar
-*LazyPRMstar Default Parameters:*
+```
 
+## Supported Planners & Parameters
 
-### LazyRRT
-*LazyRRT Default Parameters:*
+Click on a planner to view its default configuration parameters.
 
-- goal_bias: 0.05
-- range: 0.0
+:::{dropdown} ABITstar
 
-### PDST
-*PDST Default Parameters:*
+* `delay_rewiring_to_first_solution`: False
+* `drop_unconnected_samples_on_prune`: False
+* `find_approximate_solutions`: False
+* `inflation_scaling_parameter`: 10.0
+* `initial_inflation_factor`: 1000000.0
+* `prune_threshold_as_fractional_cost_change`: 0.05
+* `rewire_factor`: 1.1
+* `samples_per_batch`: 100
+* `stop_on_each_solution_improvement`: False
+* `truncation_scaling_parameter`: 5.0
+* `use_graph_pruning`: True
+* `use_just_in_time_sampling`: False
+* `use_k_nearest`: True
+* `use_strict_queue_ordering`: True
+:::
 
-- goal_bias: 0.05
+:::{dropdown} AITstar
 
-### PRM
-*PRM Default Parameters:*
+* `find_approximate_solutions`: True
+* `rewire_factor`: 1.0
+* `samples_per_batch`: 100
+* `use_graph_pruning`: True
+* `use_k_nearest`: True
+:::
 
-- max_nearest_neighbors: 8
+:::{dropdown} BFMT
 
-### PRMstar
-*PRMstar Default Parameters:*
+* `balanced`: False
+* `cache_cc`: True
+* `extended_fmt`: True
+* `heuristics`: True
+* `nearest_k`: True
+* `num_samples`: 1000
+* `optimality`: True
+* `radius_multiplier`: 1.0
+:::
 
+:::{dropdown} BITstar
 
-### ProjEST
-*ProjEST Default Parameters:*
+* `delay_rewiring_to_first_solution`: False
+* `drop_unconnected_samples_on_prune`: False
+* `find_approximate_solutions`: False
+* `prune_threshold_as_fractional_cost_change`: 0.05
+* `rewire_factor`: 1.1
+* `samples_per_batch`: 100
+* `stop_on_each_solution_improvement`: False
+* `use_graph_pruning`: True
+* `use_just_in_time_sampling`: False
+* `use_k_nearest`: True
+* `use_strict_queue_ordering`: True
+:::
 
-- goal_bias: 0.05
-- range: 0.0
+:::{dropdown} BKPIECE1
 
-### RRT
-*RRT Default Parameters:*
+* `border_fraction`: 0.9
+* `range`: 0.0
+:::
 
-- goal_bias: 0.05
-- intermediate_states: False
-- range: 0.0
+:::{dropdown} BiEST
 
-### RRTConnect
-*RRTConnect Default Parameters:*
+* `range`: 0.0
+:::
 
-- intermediate_states: False
-- range: 0.0
+:::{dropdown} EST
 
-### RRTXstatic
-*RRTXstatic Default Parameters:*
+* `goal_bias`: 0.5
+* `range`: 0.0
+:::
 
-- epsilon: 0.0
-- goal_bias: 0.05
-- informed_sampling: False
-- number_sampling_attempts: 100
-- range: 0.0
-- rejection_variant: 0
-- rejection_variant_alpha: 1.0
-- rewire_factor: 1.1
-- sample_rejection: False
-- update_children: True
-- use_k_nearest: True
+:::{dropdown} FMT
 
-### RRTsharp
-*RRTsharp Default Parameters:*
+* `cache_cc`: True
+* `extended_fmt`: True
+* `heuristics`: False
+* `num_samples`: 1000
+* `radius_multiplier`: 1.1
+* `use_k_nearest`: True
+:::
 
-- goal_bias: 0.05
-- informed_sampling: False
-- number_sampling_attempts: 100
-- range: 0.0
-- rejection_variant: 0
-- rejection_variant_alpha: 1.0
-- rewire_factor: 1.1
-- sample_rejection: False
-- update_children: True
-- use_k_nearest: True
+:::{dropdown} InformedRRTstar
 
-### RRTstar
-*RRTstar Default Parameters:*
+* `delay_collision_checking`: True
+* `goal_bias`: 0.05
+* `number_sampling_attempts`: 100
+* `ordered_sampling`: False
+* `ordering_batch_size`: 1
+* `prune_threshold`: 0.05
+* `range`: 0.0
+* `rewire_factor`: 1.1
+* `use_k_nearest`: True
+:::
 
-- delay_collision_checking: True
-- focus_search: False
-- goal_bias: 0.05
-- informed_sampling: True
-- new_state_rejection: False
-- number_sampling_attempts: 100
-- ordered_sampling: False
-- ordering_batch_size: 1
-- prune_threshold: 0.05
-- pruned_measure: False
-- range: 0.0
-- rewire_factor: 1.1
-- sample_rejection: False
-- tree_pruning: False
-- use_admissible_heuristic: True
-- use_k_nearest: True
+:::{dropdown} KPIECE1
 
-### SBL
-*SBL Default Parameters:*
+* `border_fraction`: 0.9
+* `goal_bias`: 0.05
+* `range`: 0.0
+:::
 
-- range: 0.0
+:::{dropdown} LBKPIECE1
 
-### SST
-*SST Default Parameters:*
+* `border_fraction`: 0.9
+* `range`: 0.0
+:::
 
-- goal_bias: 0.05
-- pruning_radius: 3.0
-- range: 5.0
-- selection_radius: 5.0
+:::{dropdown} LBTRRT
 
-### STRIDE
-*STRIDE Default Parameters:*
+* `epsilon`: 0.4
+* `goal_bias`: 0.05
+* `range`: 0.0
+:::
 
-- degree: 16
-- estimated_dimension: 3.0
-- goal_bias: 0.05
-- max_degree: 18
-- max_pts_per_leaf: 6
-- min_degree: 12
-- min_valid_path_fraction: 0.2
-- range: 0.0
-- use_projected_distance: False
+:::{dropdown} LazyLBTRRT
 
-### TRRT
-*TRRT Default Parameters:*
+* `epsilon`: 0.4
+* `goal_bias`: 0.05
+* `range`: 0.0
+:::
 
-- goal_bias: 0.05
-- range: 0.0
-- temp_change_factor: 0.1
+:::{dropdown} LazyPRM
+
+* `max_nearest_neighbors`: 8
+* `range`: 0.0
+:::
+
+:::{dropdown} LazyPRMstar
+*(No specific default parameters listed)*
+:::
+
+:::{dropdown} LazyRRT
+
+* `goal_bias`: 0.05
+* `range`: 0.0
+:::
+
+:::{dropdown} PDST
+
+* `goal_bias`: 0.05
+:::
+
+:::{dropdown} PRM
+
+* `max_nearest_neighbors`: 8
+:::
+
+:::{dropdown} PRMstar
+*(No specific default parameters listed)*
+:::
+
+:::{dropdown} ProjEST
+
+* `goal_bias`: 0.05
+* `range`: 0.0
+:::
+
+:::{dropdown} RRT
+
+* `goal_bias`: 0.05
+* `intermediate_states`: False
+* `range`: 0.0
+:::
+
+:::{dropdown} RRTConnect
+
+* `intermediate_states`: False
+* `range`: 0.0
+:::
+
+:::{dropdown} RRTXstatic
+
+* `epsilon`: 0.0
+* `goal_bias`: 0.05
+* `informed_sampling`: False
+* `number_sampling_attempts`: 100
+* `range`: 0.0
+* `rejection_variant`: 0
+* `rejection_variant_alpha`: 1.0
+* `rewire_factor`: 1.1
+* `sample_rejection`: False
+* `update_children`: True
+* `use_k_nearest`: True
+:::
+
+:::{dropdown} RRTsharp
+
+* `goal_bias`: 0.05
+* `informed_sampling`: False
+* `number_sampling_attempts`: 100
+* `range`: 0.0
+* `rejection_variant`: 0
+* `rejection_variant_alpha`: 1.0
+* `rewire_factor`: 1.1
+* `sample_rejection`: False
+* `update_children`: True
+* `use_k_nearest`: True
+:::
+
+:::{dropdown} RRTstar
+
+* `delay_collision_checking`: True
+* `focus_search`: False
+* `goal_bias`: 0.05
+* `informed_sampling`: True
+* `new_state_rejection`: False
+* `number_sampling_attempts`: 100
+* `ordered_sampling`: False
+* `ordering_batch_size`: 1
+* `prune_threshold`: 0.05
+* `pruned_measure`: False
+* `range`: 0.0
+* `rewire_factor`: 1.1
+* `sample_rejection`: False
+* `tree_pruning`: False
+* `use_admissible_heuristic`: True
+* `use_k_nearest`: True
+:::
+
+:::{dropdown} SBL
+
+* `range`: 0.0
+:::
+
+:::{dropdown} SST
+
+* `goal_bias`: 0.05
+* `pruning_radius`: 3.0
+* `range`: 5.0
+* `selection_radius`: 5.0
+:::
+
+:::{dropdown} STRIDE
+
+* `degree`: 16
+* `estimated_dimension`: 3.0
+* `goal_bias`: 0.05
+* `max_degree`: 18
+* `max_pts_per_leaf`: 6
+* `min_degree`: 12
+* `min_valid_path_fraction`: 0.2
+* `range`: 0.0
+* `use_projected_distance`: False
+:::
+
+:::{dropdown} TRRT
+
+* `goal_bias`: 0.05
+* `range`: 0.0
+* `temp_change_factor`: 0.1
+:::

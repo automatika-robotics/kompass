@@ -1,28 +1,39 @@
 # Pure Pursuit
 
-Pure Pursuit is a path-tracking algorithm that calculates the curvature required to move a robot from its current position to a specific "lookahead" point on a predefined path. By constantly moving the lookahead point forward as the robot progresses, the algorithm creates a smooth, continuous steering command.
+**Geometric path tracking with reactive collision avoidance.**
 
-Kompass implementation builds upon the base algorithm (as described by [Purdue SIGBOTS](https://wiki.purduesigbots.com/software/control-algorithms/basic-pure-pursuit)) and adds an integrated **Simple Search Collision Avoidance** layer. This allows the robot to deviate slightly from the nominal path or stop if an obstacle is detected within its predicted future trajectory.
+Pure Pursuit is a fundamental path-tracking algorithm. It calculates the curvature required to move the robot from its current position to a specific "lookahead" point on the path, simulating how a human driver looks forward to steer a vehicle.
 
----
+Kompass enhances the standard implementation (based on [Purdue SIGBOTS](https://wiki.purduesigbots.com/software/control-algorithms/basic-pure-pursuit)) by adding an integrated **Simple Search Collision Avoidance** layer. This allows the robot to deviate locally from the path to avoid unexpected obstacles without needing a full replan.
 
-## Algorithm Overview
+## How it Works
 
-1.  **Find Lookahead:** Locates the point on the path that is a distance $L$ (Lookahead Distance) away from the robot.
-2.  **Calculate Curvature:** Computes the arc required to reach that point using the robot's kinematics.
-3.  **Collision Check:** Projects the robot's motion forward using the `prediction_horizon`.
-4.  **Avoidance Search:** If a collision is imminent, the controller evaluates `max_search_candidates` to find a safe velocity offset that clears the obstacle.
+The controller executes a four-step cycle:
+
+- <span class="sd-text-primary" style="font-weight: bold; font-size: 1.1em;">{material-regular}`ads_click` 1. Find Target</span> - **Locate Lookahead.**
+  <br>Find the point on the path that is distance $L$ away from the robot. $L$ scales with speed ($L = k \cdot v$).
+
+- <span class="sd-text-primary" style="font-weight: bold; font-size: 1.1em;">{material-regular}`gesture` 2. Steering</span> - **Compute Curvature.**
+  <br>Calculate the arc required to reach that target point based on the robot's kinematic constraints.
+
+- <span class="sd-text-primary" style="font-weight: bold; font-size: 1.1em;">{material-regular}`verified_user` 3. Safety</span> - **Collision Check.**
+  <br>Project the robot's motion forward using the `prediction_horizon` to check for immediate collisions.
+
+- <span class="sd-text-primary" style="font-weight: bold; font-size: 1.1em;">{material-regular}`alt_route` 4. Avoidance</span> - **Local Search.**
+  <br>If the nominal arc is blocked, the controller searches through `max_search_candidates` to find a safe velocity offset that clears the obstacle while maintaining progress.
+
 
 ## Supported Sensory Inputs
 
-- Without any sensor input (pure following)
-- LaserScan
-- PointCloud
-- Occupancy Maps
+To enable the collision avoidance layer, spatial data is required.
 
----
+* <span class="sd-text-primary" style="font-weight: bold; font-size: 1.1em;">{material-regular}`radar` LaserScan</span>
+* <span class="sd-text-primary" style="font-weight: bold; font-size: 1.1em;">{material-regular}`grain` PointCloud</span>
+* <span class="sd-text-primary" style="font-weight: bold; font-size: 1.1em;">{material-regular}`grid_on` OccupancyGrid</span>
 
-## Parameters and Default Values
+*(Note: The controller can run in "blind" tracking mode without these inputs, but collision avoidance will be disabled.)*
+
+## Configuration Parameters
 
 ```{list-table}
 :widths: 15 10 10 65
@@ -56,7 +67,6 @@ Kompass implementation builds upon the base algorithm (as described by [Purdue S
 ## Usage Example:
 
 Pure Pursuit controller can be used in the [Controller](../../navigation/control.md) component by setting 'algorithm' property or component config parameter. The Controller will configure Pure Pursuit algorithm using the default values of all the previous configuration parameters. The specific algorithms parameters can be configured using a config file or the algorithm's configuration class.
-
 
 
 ```{code-block} python
@@ -102,37 +112,81 @@ controller.algorithm = ControllersID.PURE_PURSUIT
 
 ```
 
-## Testing and Results
+## Performance & Results
 
-The following figures show the results of testing the Pure Pursuit implementation across the three primary motion models. The tests evaluate the controller's ability to track a reference path while handling unexpected obstacles along the path.
+The following tests demonstrate the controller's ability to track reference paths (**thin dark blue**) and avoid obstacles (**red x**).
 
-The results visualize the resulting trajectory of the robot (**wide light blue**) against the reference path (**thin dark blue**) in the XY plane. Obstacles are marked with **red x**.
+### 1. Nominal Tracking
+Performance on standard geometric paths (U-Turns and Circles) without interference.
 
-### Tracking a Reference Path
+::::{grid} 1 3 3 3
+:gutter: 2
 
-These tests demonstrate the nominal tracking performance on standard geometric paths (U-Turns and Circles) without environmental interference.
+:::{grid-item-card} Ackermann
+:class-card: sugar-card
+<a href="../../_static/images/pure_pursuit_Ackermann_UTurn_traj.png" target="_blank">
+  <img src="../../_static/images/pure_pursuit_Ackermann_UTurn_traj.png" alt="Ackermann U-Turn" style="width: 100%; border-radius: 4px;">
+</a>
 
-| Ackermann (U-Turn) | Differential (Circle) | Omni (Circle) |
-| :---: | :---: | :---: |
-| <img src="../../_static/images/pure_pursuit_Ackermann_UTurn_traj.png" alt="Ackermann U-Turn" width="230px"> | <img src="../../_static/images/pure_pursuit_DiffDrive_Circle_traj.png" alt="Differential Circle" width="230px"> | <img src="../../_static/images/pure_pursuit_Omni_Circle_traj.png" alt="Omni Circle" width="230px"> |
+**U-Turn**
+:::
 
-**Figure 1:** Nominal tracking results across different kinematic models.
+:::{grid-item-card} Differential
+:class-card: sugar-card
+<a href="../../_static/images/pure_pursuit_DiffDrive_Circle_traj.png" target="_blank">
+  <img src="../../_static/images/pure_pursuit_DiffDrive_Circle_traj.png" alt="Differential Circle" style="width: 100%; border-radius: 4px;">
+</a>
 
----
+**Circle**
+:::
 
-### Tracking with Collision Avoidance
+:::{grid-item-card} Omni
+:class-card: sugar-card
+<a href="../../_static/images/pure_pursuit_Omni_Circle_traj.png" target="_blank">
+  <img src="../../_static/images/pure_pursuit_Omni_Circle_traj.png" alt="Omni Circle" style="width: 100%; border-radius: 4px;">
+</a>
 
-In these scenarios, a set of static obstacles were placed directly on the global path. The controller utilizes the `prediction_horizon` to detect these obstacles and searches for a safe velocity command that deviates from the reference path.
+**Circle**
+:::
+::::
 
-| Ackermann (Straight + Obstacles) | Differential (U-Turn + Obstacles) | Omni (Straight + Obstacles) |
-| :---: | :---: | :---: |
-| <img src="../../_static/images/pure_pursuit_Ackermann_Straight_traj_with_obstacles.png" alt="Ackermann Obstacles" width="230px"> | <img src="../../_static/images/pure_pursuit_DiffDrive_UTurn_traj_with_obstacles.png" alt="Differential Obstacles" width="230px"> | <img src="../../_static/images/pure_pursuit_Omni_Straight_traj_with_obstacles.png" alt="Omni Obstacles" width="230px"> |
+### 2. Collision Avoidance
+Scenarios where static obstacles are placed directly on the global path. The controller successfully identifies the blockage and deviates to finding a safe path around it.
 
-**Figure 2:** Collision avoidance results showing local deviation to clear obstacles.
+::::{grid} 1 3 3 3
+:gutter: 2
 
+:::{grid-item-card} Ackermann
+:class-card: sugar-card
+<a href="../../_static/images/pure_pursuit_Ackermann_Straight_traj_with_obstacles.png" target="_blank">
+  <img src="../../_static/images/pure_pursuit_Ackermann_Straight_traj_with_obstacles.png" alt="Ackermann Obstacles" style="width: 100%; border-radius: 4px;">
+</a>
 
-### Observations
+**Straight + Obstacles**
+:::
 
-* **Convergence:** All models show smooth convergence to the reference path.
-* **Obstacle Clearance:** The simple search algorithm successfully identifies clear paths around obstacles. The robot returns to the reference path after clearing the obstacle boundary.
-* **Stability:** The integration of the collision checker does not introduce oscillations in the steering command.
+:::{grid-item-card} Differential
+:class-card: sugar-card
+<a href="../../_static/images/pure_pursuit_DiffDrive_UTurn_traj_with_obstacles.png" target="_blank">
+  <img src="../../_static/images/pure_pursuit_DiffDrive_UTurn_traj_with_obstacles.png" alt="Differential Obstacles" style="width: 100%; border-radius: 4px;">
+</a>
+
+**U-Turn + Obstacles**
+:::
+
+:::{grid-item-card} Omni
+:class-card: sugar-card
+<a href="../../_static/images/pure_pursuit_Omni_Straight_traj_with_obstacles.png" target="_blank">
+  <img src="../../_static/images/pure_pursuit_Omni_Straight_traj_with_obstacles.png" alt="Omni Obstacles" style="width: 100%; border-radius: 4px;">
+</a>
+
+**Straight + Obstacles**
+:::
+::::
+
+:::{admonition} Observations
+:class: note
+* **Convergence:** Smooth convergence to the reference path across all kinematic models.
+* **Clearance:** The simple search algorithm successfully clears obstacle boundaries before returning to the path.
+* **Stability:** No significant oscillation observed during avoidance maneuvers.
+:::
