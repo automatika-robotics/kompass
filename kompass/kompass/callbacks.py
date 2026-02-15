@@ -566,11 +566,10 @@ class PointCloudCallback(GenericCallback):
             elif field.name == "z":
                 pc.z_offset = field.offset
 
-        if (pc.x_offset is None
-        or pc.y_offset is None
-        or pc.z_offset is None
-            ):
-            get_logger(self.node_name).warning("Offsets for x, y, z are not found, point cloud data is null")
+        if pc.x_offset is None or pc.y_offset is None or pc.z_offset is None:
+            get_logger(self.node_name).warning(
+                "Offsets for x, y, z are not found, point cloud data is null"
+            )
             return None
 
         return pc

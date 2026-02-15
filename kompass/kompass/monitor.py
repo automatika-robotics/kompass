@@ -4,10 +4,9 @@ from typing import Dict, List, Optional, Union
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup, ReentrantCallbackGroup
 from ros_sugar.core import Monitor as BaseMonitor
 
-from .actions import Action
 from .components.component import Component
 from .config import BaseConfig
-from .event import Event
+from .ros import Event, Action
 
 
 class MotionStatus(Enum):

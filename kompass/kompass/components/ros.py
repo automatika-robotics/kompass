@@ -2,7 +2,15 @@ from typing import Optional, Dict, Union, List
 
 from ros_sugar.io import AllowedTopics
 from ros_sugar.io import Topic
+from ros_sugar.base_clients import ActionClientHandler
+from ros_sugar.utils import component_action
 from .defaults import TopicsKeys
+
+
+__all__ = [
+    "ActionClientHandler",
+    "component_action",
+]
 
 
 def _check_value_type_allowed_config(

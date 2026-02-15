@@ -228,12 +228,12 @@ mapper_default_outputs: Dict[TopicsKeys, Topic] = {
 # MOTION SERVER
 motion_server_allowed_inputs: Dict[TopicsKeys, AllowedTopics] = {
     TopicsKeys.RUN_TESTS: AllowedTopics(types=["Bool"]),
-    TopicsKeys.INTERMEDIATE_CMD: AllowedTopics(types=["Twist"]),
+    TopicsKeys.INTERMEDIATE_CMD: AllowedTopics(types=["Twist", "TwistStamped"]),
     TopicsKeys.ROBOT_LOCATION: AllowedTopics(types=["Odometry"]),
 }
 
 motion_server_allowed_outputs: Dict[TopicsKeys, AllowedTopics] = {
-    TopicsKeys.FINAL_COMMAND: AllowedTopics(types=["Twist"]),
+    TopicsKeys.FINAL_COMMAND: AllowedTopics(types=["Twist", "TwistStamped"]),
 }
 
 motion_server_default_outputs: Dict[TopicsKeys, Topic] = {

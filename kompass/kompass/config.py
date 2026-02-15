@@ -28,8 +28,6 @@ __all__ = [
     "BaseValidators",
     "BaseConfig",
     "ComponentRunType",
-    "RobotFrames",
-    "RobotConfig",
     "BaseComponentConfig",
 ]
 
@@ -217,7 +215,7 @@ class ComponentConfig(BaseComponentConfig):
         default=LoggingSeverity.WARN, converter=_convert_logging_severity_to_str
     )
 
-    # Ovvride to Disable handling the robot plugin in the component
+    # Override to Disable handling the robot plugin in the component
     _enable_plugin_feedbacks_handling: bool = field(
         default=True, alias="_enable_plugin_feedback_handling"
     )
