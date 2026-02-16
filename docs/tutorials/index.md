@@ -19,6 +19,26 @@ Choose a pattern to start building your robot's capabilities.
 The "Hello World" of robotics. Define goal coordinates, launch the planner, and execute a path on a static map.
 :::
 
+:::{grid-item-card} {material-regular}`history;1.5em;sd-text-primary` Path Following
+:link: record_load_path
+:link-type: doc
+:class-card: sugar-card
+
+**Record & Replay**
+
+Save successful paths (either planned or manually driven) to a file and execute them on demand for repeatable patrols.
+:::
+
+:::{grid-item-card} {material-regular}`auto_graph;1.5em;sd-text-primary` Motion Testing
+:link: automated_motion_test
+:link-type: doc
+:class-card: sugar-card
+
+**System Identification**
+
+Run automated open-loop tests (steps, circles) and record response data to tune your controller or identify kinematic models.
+:::
+
 :::{grid-item-card} {material-regular}`videocam;1.5em;sd-text-primary` RGB Tracking
 :link: vision_tracking
 :link-type: doc
@@ -73,6 +93,8 @@ Learn how to make your robot adapt to changing environments dynamically without 
 :hidden:
 
 point_navigation
+record_load_path
+automated_motion_test
 vision_tracking
 vision_tracking_depth
 configuration

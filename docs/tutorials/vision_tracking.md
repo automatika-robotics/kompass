@@ -141,7 +141,7 @@ my_robot = RobotConfig(
 ```
 
 ```{seealso}
-See more details about the robot configuration in the point navigation [tutorial](../tutorials/point_navigation.md#step-1-setup-your-robot) and in the `RobotConfig` class [details](../navigation/robot.md)
+See more details about the robot configuration in the point navigation [tutorial](./point_navigation.md/#step-1-robot-configuration) and in the `RobotConfig` class [details](../navigation/robot.md)
 ```
 
 ## Import the required components from Kompass

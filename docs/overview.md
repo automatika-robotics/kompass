@@ -110,17 +110,22 @@ Learn more on Kompass [design concepts](advanced/design.md)
 Kompass has a dynamic orchestration layer that monitors data streams in real-time. Using the Pythonic API you can define Events to injects logic into the components without changing their code, allowing you to define complex and dynamic behaviors directly in your recipes.
 
 
-```{image} _static/images/diagrams/events_examples_dark.png
-:class: dark-only align-center
+```{figure} _static/images/diagrams/events_examples_dark.png
+:class: dark-only
+:alt: Events Examples
+:align: center
 :width: 80%
 
 ```
 
-```{image} _static/images/diagrams/events_examples_light.png
-:class: light-only align-center
+```{figure} _static/images/diagrams/events_examples_light.png
+:class: light-only
+:alt: Events Examples
+:align: center
 :width: 80%
 
 ```
+
 :::
 
 
@@ -129,18 +134,21 @@ Kompass has a dynamic orchestration layer that monitors data streams in real-tim
 <br/>
 Each component in Kompass is responsible of one of the main navigation sub-tasks. Unlike a standard ROS2 node, a Component manages its own lifecycle, validates its own configuration, and reports its own health status to the central system monitor.
 
-```{image} _static/images/diagrams/system_components_dark.png
-:class: dark-only align-center
-
-
-```
-
-```{image} _static/images/diagrams/system_components_light.png
-:class: light-only align-center
+```{figure} _static/images/diagrams/system_components_dark.png
+:class: dark-only
+:alt: Components
+:align: center
 
 ```
 
-*The main pillars of Kompass navigation stack.*
+```{figure} _static/images/diagrams/system_components_light.png
+:class: light-only
+:alt: Components
+:align: center
+
+The main pillars of Kompass navigation stack.
+```
+
 :::
 
 :::{tab-item} System Graph (ROS2)
@@ -148,17 +156,21 @@ Each component in Kompass is responsible of one of the main navigation sub-tasks
 <br/>
 Each of the previous components runs as a ROS2 lifecycle node and communicates with the other components using ROS2 topics, services or action servers
 
-```{image} /_static/images/diagrams/system_graph_dark.png
-:class: dark-only align-center
+```{figure} /_static/images/diagrams/system_graph_dark.png
+:class: dark-only
+:alt: Components in a point-navigation system
+:align: center
 
 ```
 
-```{image} /_static/images/diagrams/system_graph_light.png
-:class: light-only align-center
+```{figure} /_static/images/diagrams/system_graph_light.png
+:class: light-only
+:alt: Components in a point-navigation system
+:align: center
 
+Components in a point-navigation system
 ```
 
-*Components in a point-navigation system*
 :::
 
 ::::

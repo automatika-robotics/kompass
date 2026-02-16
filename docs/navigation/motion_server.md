@@ -123,11 +123,11 @@ motion_server.inputs(run_tests=Topic(name="/start_calibration", msg_type="Bool")
 
 ## See Next
 
-Once validated, use the Controller to execute complex paths.
+Explore how you can use the MotionServer to run automated motions testing and recording with you navigation system.
 
-:::{button-link} control.html
+:::{button-link} ../tutorials/automated_motion_test.html
 :color: primary
 :ref-type: doc
 :outline:
-Configure the Controller →
+Check the Automated Motion Tests Tutorial →
 :::
