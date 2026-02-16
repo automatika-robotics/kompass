@@ -2,8 +2,8 @@
 Changelog for package kompass
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+0.4.1 (2026-02-16)
+------------------
 * (fix) Fixes TwistStamped callback
 * (fix) Updates turtlebot3 recipe
 * (chore) Adds missing config imports from kompass core
