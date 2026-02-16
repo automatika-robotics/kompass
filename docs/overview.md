@@ -5,7 +5,7 @@
 **Robust, event-driven navigation stacks for autonomous mobile robots.**
 
 <p style="font-size: 1.1em; opacity: 0.8; max-width: 800px; margin: 0 auto;">
-  Built to be customizable, extendable, and hardware-agnostic. Create sophisticated navigation capabilities within a <b>single Python script</b> without sacrificing performance.
+  Built to be customizable, extendable, and hardware-agnostic. Create sophisticated navigation capabilities within a <b>single Python script</b> with blazzingly fast performance.
 </p>
 
 [Get Started](tutorials/quick_start.md) • [Why Kompass?](./why.md) • [View on GitHub](https://github.com/automatika-robotics/kompass)
