@@ -121,9 +121,9 @@ class ControllerConfig(ComponentConfig):
 
     algorithm: Union[ControllersID, str] = field(
         default=ControllersID.DWA,
-        converter=lambda value: ControllersID(value)
-        if isinstance(value, str)
-        else value,
+        converter=lambda value: (
+            ControllersID(value) if isinstance(value, str) else value
+        ),
     )
     control_time_step: float = field(
         default=0.1, validator=BaseValidators.in_range(min_value=1e-9, max_value=1e9)
@@ -134,15 +134,15 @@ class ControllerConfig(ComponentConfig):
     use_direct_sensor: bool = field(default=False)
     ctrl_publish_type: Union[str, CmdPublishType] = field(
         default=CmdPublishType.TWIST_ARRAY,
-        converter=lambda value: CmdPublishType(value)
-        if isinstance(value, str)
-        else value,
+        converter=lambda value: (
+            CmdPublishType(value) if isinstance(value, str) else value
+        ),
     )
     _mode: Union[str, ControllerMode] = field(
         default=ControllerMode.PATH_FOLLOWER,
-        converter=lambda value: ControllerMode(value)
-        if isinstance(value, str)
-        else value,
+        converter=lambda value: (
+            ControllerMode(value) if isinstance(value, str) else value
+        ),
     )
 
 
@@ -757,12 +757,23 @@ class Controller(Component):
                 else None
             )
         else:
-            while not self.odom_tf_listener.transform:
+            timeout = 0.0
+            while (
+                not self.odom_tf_listener.transform
+                and timeout < self.config.topic_subscription_timeout
+            ):
                 # Blocking loop until transform is collected
                 self.get_logger().warn(
                     f"Waiting to get TF from {self.config.frames.odom} frame to {self.config.frames.world} frame...",
                     once=True,
                 )
+                timeout += 1 / self.config.loop_rate
+                time.sleep(1 / self.config.loop_rate)
+            if not self.odom_tf_listener.transform:
+                self.get_logger().error(
+                    f"Could not get TF from {self.config.frames.odom} frame to {self.config.frames.world} frame after {self.config.topic_subscription_timeout} seconds"
+                )
+                self.robot_state = None
             self.robot_state = (
                 state_callback.get_output(
                     transformation=self.odom_tf_listener.transform,
@@ -1205,7 +1216,8 @@ class Controller(Component):
         if label != "":
             target_2d = None
             vision_callback = self.get_callback(TopicsKeys.VISION_DETECTIONS)
-            while not target_2d:
+            timeout = 0.0
+            while not target_2d and timeout < self.config.topic_subscription_timeout:
                 target_2d = (
                     vision_callback.get_output(label=label) if vision_callback else None
                 )
@@ -1213,18 +1225,34 @@ class Controller(Component):
                     f"Waiting to get target {label} from vision detections...",
                     once=True,
                 )
+                timeout += 1 / self.config.loop_rate
+                time.sleep(1 / self.config.loop_rate)
+            if not target_2d:
+                self.get_logger().error(
+                    f"Could not find target {label} in vision detections"
+                )
+                return False
             self.get_logger().info(
                 f"Got initial target {label}, setting to controller..."
             )
             self._update_state()
+            if not self.robot_state or not self.depth_image:
+                return False
             found_target = controller.set_initial_tracking_2d_target(
                 target_box=target_2d[0],
                 current_state=self.robot_state,
                 aligned_depth_image=self.depth_image,
             )
         else:
+            if self.algorithm == ControllersID.VISION_IMG:
+                self.get_logger().error("Cannot use Vision RGB Follower without providing a target label")
+                self.health_status.set_fail_algorithm(algorithm_names=["VisionRGBFollower"])
+                return False
+
             self._update_state()
-            # If no label is provided, use the provided pixel coordinates
+            if not self.robot_state or not self.vision_detections:
+                return False
+            # If no label is provided, use the provided pixel coordinates (Only works with depth)
             found_target = controller.set_initial_tracking_image(
                 self.robot_state,
                 pose_x,
@@ -1255,7 +1283,9 @@ class Controller(Component):
             self.__vision_controller = self.__setup_vision_controller()
 
         if not self.__vision_controller:
-            self.get_logger().error("Could not intialize controller -> ABORTING ACTION")
+            self.get_logger().error(
+                "Could not initialize controller -> ABORTING ACTION"
+            )
             with self._main_goal_lock:
                 goal_handle.abort()
             return result
@@ -1550,6 +1580,9 @@ class Controller(Component):
             # If vision mode is activated -> do nothing
             return
 
-        # Check if all inputs are available
-        if not self.__reached_end:
-            self._path_control()
+        try:
+            # Check if all inputs are available
+            if not self.__reached_end:
+                self._path_control()
+        except Exception:
+            self.health_status.set_fail_algorithm(algorithm_names=[self.algorithm])

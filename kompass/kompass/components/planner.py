@@ -21,10 +21,7 @@ from kompass_interfaces.srv import PlanPath as PlanPathSrv
 # KOMPASS ROS
 from ..config import BaseValidators, ComponentConfig, ComponentRunType
 from ..data_types import Path as KompassPath
-from .ros import (
-    Topic,
-    update_topics,
-)
+from .ros import Topic, update_topics, ActionClientHandler, component_action
 from .component import Component
 from .defaults import (
     TopicsKeys,
@@ -221,6 +218,55 @@ class Planner(Component):
         self.destroy_service(self.__record_motion_srv)
         # Call component service destruction (for main service if running as a server)
         super().destroy_all_services()
+
+    @component_action
+    def trigger_main_action_server(
+        self,
+        goal_x: float = 0.0,
+        goal_y: float = 0.0,
+        goal_orientation: float = 0.0,
+        tolerance_dist: float = 0.1,
+        tolerance_ori: float = 0.1,
+        algorithm_name: Optional[str] = None,
+        **_,
+    ) -> None:
+        """A component action to trigger the main planner action (Plan path to point until reached)
+
+        :param goal_x: _description_, defaults to 0.0
+        :type goal_x: float, optional
+        :param goal_y: _description_, defaults to 0.0
+        :type goal_y: float, optional
+        :param tolerance_dist: _description_, defaults to 0.1
+        :type tolerance_dist: float, optional
+        :param tolerance_ori: _description_, defaults to 0.1
+        :type tolerance_ori: float, optional
+        :param algorithm_name: _description_, defaults to None
+        :type algorithm_name: Optional[str], optional
+        """
+        if self.run_type != ComponentRunType.ACTION_SERVER:
+            self.get_logger().error(
+                f"Cannot trigger main action server for component '{self.node_name}' that is running in '{self.run_type}' execution"
+            )
+            return
+        try:
+            action_client = ActionClientHandler(
+                client_node=self,
+                action_name=self.main_action_name,
+                action_type=self.action_type,
+            )
+            goal = self.action_type.Goal()
+            goal.goal.position.x = goal_x
+            goal.goal.position.y = goal_y
+            # TODO
+            goal.goal.orientation.z = goal_orientation
+            goal.goal.orientation.w = goal_orientation
+            goal.end_tolerance.lateral_distance_error = tolerance_dist
+            goal.end_tolerance.orientation_error = tolerance_ori
+            if algorithm_name:
+                goal.algorithm_name = algorithm_name
+            action_client.send_request(goal)
+        except Exception:
+            self.health_status.set_fail_component()
 
     def _clear_path(self, *_, **__):
         """

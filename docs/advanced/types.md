@@ -1,4 +1,4 @@
-# 📨 Supported ROS2 Messages
+# Supported ROS2 Messages
 
 Kompass handles the ROS2 plumbing so you don't have to! Every component automatically initializes the necessary subscribers and publishers for its inputs and outputs, ensuring seamless data flow across your system.
 

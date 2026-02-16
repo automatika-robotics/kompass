@@ -1,78 +1,75 @@
-# QoS Configuration
+# Topic QoS Configuration
 
-KOMPASS wrapper for ROS2 QoS (Quality of Service) configuration.
+**Fine-tune communication reliability and persistence.**
 
-
-`````{py:class} QoSConfig
-:canonical: kompass.config.QoSConfig
+Quality of Service (QoS) profiles allow you to tune how data is handled between nodes. You can configure whether to prioritize speed (Best Effort) or data integrity (Reliable), and whether late-joining nodes should receive past data (Transient Local).
 
 
-````{py:attribute} history
-:canonical: kompass.config.QoSConfig.history
-:type: int
-:value: >
-   Configuration of samples to store (qos.HistoryPolicy)<br/>
-   - Values:<br/>
-   KEEP_LAST: only store up to N samples, configurable via the queue depth option.<br/>
-   KEEP_ALL: store all samples, subject to the configured resource limits of the underlying middleware.
-   - Default: qos.HistoryPolicy.KEEP_LAST
+## Core Concepts
 
+Understanding the trade-offs in ROS2 communication.
 
-````
+- <span class="sd-text-primary" style="font-weight: bold; font-size: 1.1em;">{material-regular}`verified` Reliability</span> - **Reliable vs. Best Effort.**
+  <br>
+  * **Reliable:** Guarantees delivery. Retries if packets are lost. (Good for services/control).
+  * **Best Effort:** Fire and forget. Fast, but drops data if network is bad. (Good for sensor streams).
 
-````{py:attribute} queue_size
-:canonical: kompass.config.QoSConfig.queue_size
-:type: int
-:value: >
-    Only honored if the “history” policy was set to “KEEP_LAST”<br/>
-   - Values: in [5, 100]
-   - Default: 10
+- <span class="sd-text-primary" style="font-weight: bold; font-size: 1.1em;">{material-regular}`save` Durability</span> - **Volatile vs. Transient Local.**
+  <br>
+  * **Volatile:** No history. Late joiners only see *new* data.
+  * **Transient Local:** The publisher "saves" the last $N$ messages. Late joiners get the last known value immediately. (Good for maps/configuration).
 
-````
+- <span class="sd-text-primary" style="font-weight: bold; font-size: 1.1em;">{material-regular}`history` History</span> - **Keep Last vs. Keep All.**
+  <br>
+  * **Keep Last:** Only store a fixed queue of $N$ samples. Oldest are dropped.
+  * **Keep All:** Store everything (subject to resource limits).
 
-````{py:attribute} reliability
-:canonical: kompass.config.QoSConfig.reliability
-:type: int
-:value: >
-   Samples deliverance guarantee (qos.ReliabilityPolicy)<br/>
-   - Values:<br/>
-   BEST_EFFORT: attempt to deliver samples, but may lose them if the network is not robust<br/>
-   RELIABLE: guarantee that samples are delivered, may retry multiple time<br/>
-   - Default: qos.ReliabilityPolicy.RELIABLE
+<br>
 
+## Configuration Parameters
 
-````
+The `QoSConfig` class provides a wrapper to easily set these policies in Kompass.
 
-````{py:attribute} durability
-:canonical: kompass.config.QoSConfig.durability
-:type: int
-:value: >
-    Controls whether or not, and how, published DDS samples are stored (qos.DurabilityPolicy)<br/>
-   - Values:<br/>
-    TRANSIENT_LOCAL: <br/>
-    VOLATILE: <br/>
-    UNKNOWN: <br/>
-    SYSTEM_DEFAULT
-   - Default: qos.DurabilityPolicy.VOLATILE
+- <span class="sd-text-primary" style="font-weight: bold; font-size: 1.1em;">{material-regular}`history` history</span> - **`qos.HistoryPolicy`**
+  <br>Configuration of samples to store.
+  <br>*Default:* `KEEP_LAST`
 
-````
+- <span class="sd-text-primary" style="font-weight: bold; font-size: 1.1em;">{material-regular}`layers` queue_size</span> - **`int`**
+  <br>The depth of the queue. Only honored if `history` is set to `KEEP_LAST`.
+  <br>*Range:* [5, 100]
+  <br>*Default:* `10`
 
-`````
+- <span class="sd-text-primary" style="font-weight: bold; font-size: 1.1em;">{material-regular}`verified_user` reliability</span> - **`qos.ReliabilityPolicy`**
+  <br>Samples deliverance guarantee.
+  <br>*Default:* `RELIABLE`
 
-:::{tip} Setup your QoSConfig and parse it into ROS2 by using 'setup_qos' method available in the Component
-:::
+- <span class="sd-text-primary" style="font-weight: bold; font-size: 1.1em;">{material-regular}`inventory_2` durability</span> - **`qos.DurabilityPolicy`**
+  <br>Controls whether published samples are stored for late-joiners.
+  <br>*Default:* `VOLATILE`
+
 
 ## Usage Example
 
 ```python
-from kompass.config import QoSConfig, Topic
+from kompass.ros import Topic, QoSConfig
 from rclpy import qos
 
-qos_conf = QoSConfig(
+# 1. Define the Profile
+# Example: A profile for a Map topic (Needs to be reliable and available to late joiners)
+qos_map_profile = QoSConfig(
     history=qos.HistoryPolicy.KEEP_LAST,
-    queue_size=20,
-    reliability=qos.ReliabilityPolicy.BEST_EFFORT,
+    queue_size=1,
+    reliability=qos.ReliabilityPolicy.RELIABLE,
     durability=qos.DurabilityPolicy.TRANSIENT_LOCAL
 )
-topic = Topic(name='/local_map', msg_type='OccupancyGrid', qos_profile=qos_conf)
+
+# 2. Apply to Topic
+topic = Topic(
+    name='/local_map',
+    msg_type='OccupancyGrid',
+    qos_profile=qos_map_profile
+)
+
 ```
+
+

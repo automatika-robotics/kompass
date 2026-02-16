@@ -1,115 +1,85 @@
 # Inputs and Outputs
 
-Components in Kompass are defined to accept only restricted types of inputs/outputs to help lock the functionality of a specific Component implementation. Each input/output is associated with a unique keyword name and is set to accept one or many of ROS2 message types. Additionally, the input/output keyword in the Component can define a category of Topics rather than a single one. To see an example of this check the [DriveManager](../../navigation/driver.md) Component. In this component the input [sensor_data](../../navigation/driver.md/#inputs) defines any proximity sensor input (LiDAR, Radar, etc.) and can optionally take up to 10 Topics of such types to fuse it internally during execution.
+**Strict typing and standardized data streams**
 
-Configuring an input/output of a Component is very straightforward and can be done in one line in your Python script. Below is an example for configuring the previously mentioned DriveManager:
+In Kompass, Components are designed with strict interfaces to "lock" their functionality. Each input and output is associated with a **unique keyword name** and restricted to a set of specific ROS2 message types.
+
+A single keyword (e.g., `sensor_data`) can accept:
+1.  **A Single Topic:** One laser scan.
+2.  **Multiple Topics:** A list of topics (e.g., LiDAR + Radar) which are then fused internally by the component.
+
+## Configuration
+
+Configuring inputs and outputs is done via the `.inputs()` and `.outputs()` methods on any Component instance.
 
 ```python
-    from kompass.components import DriveManager
-    from kompass.ros import Topic
+from kompass.components import DriveManager
+from kompass.ros import Topic
 
-    driver = DriveManager(component_name="driver")
+driver = DriveManager(component_name="driver")
 
-    # Configure an input
-    driver.inputs(sensor_data=[Topic(name='/scan', msg_type='LaserScan'),
-                               Topics(name='radar_data', msg_type='Float64')])
+# 1. Configure Inputs
+# The 'sensor_data' key accepts a list of topics (fusion)
+driver.inputs(
+    sensor_data=[
+        Topic(name='/scan', msg_type='LaserScan'),
+        Topic(name='/radar_data', msg_type='Float64')
+    ]
+)
 
-    # Configure an output
-    driver.outputs(emergency_stop=Topic(name='alarm', msg_type='Bool'))
+# 2. Configure Outputs
+# Remap the 'emergency_stop' signal to a custom topic name
+driver.outputs(
+    emergency_stop=Topic(name='/system/alarm', msg_type='Bool')
+)
+
 ```
 
-```{seealso}
-See the input/output configuration class `Topic` in detail [here](../../apidocs/kompass/kompass.components.ros.md)
-```
+:::{seealso}
+See the `Topic` configuration class details in the [API Documentation](https://www.google.com/search?q=../../apidocs/kompass/kompass.components.ros.md).
+:::
 
-All Inputs/Outputs in Kompass Components are defined with fixed **key names** across the stack, each containing:
- - Set of allowed types for the stream (equivalent to ROS2 messages)
- - The number of required streams for the key name
- - The maximum number of additional streams that can be assigned.
+## Standard Stream Keys
 
+Kompass uses a standardized set of keys across the entire stack.
 
- Below is a list of all the streams (inputs and outputs) key names available in Kompass stack:
+### {material-regular}`explore` Navigation & Planning
 
-```{list-table}
-:widths: 20 20 60
-:header-rows: 1
-* - Enum TopicsKeys
-  - Name Value
-  - Description
+| Enum Key | Keyword String | Description |
+| --- | --- | --- |
+| **GOAL_POINT** | `"goal_point"` | Target destination for the global planner. |
+| **GLOBAL_PLAN** | `"plan"` | The computed path from start to goal. |
+| **LOCAL_PLAN** | `"local_plan"` | Short-term path plan output by the Controller. |
+| **INTERPOLATED_PATH** | `"interpolation"` | Smoothed or interpolated global path. |
+| **REACHED_END** | `"reached_end"` | Flag indicating the goal has been reached. |
 
-* - GOAL_POINT
-  - `"goal_point"`
-  - Target destination point on the map for the robot point navigation
+### {material-regular}`map` Mapping & Perception
 
-* - GLOBAL_PLAN
-  - `"plan"`
-  - Global navigation plan (path) from start to goal
+| Enum Key | Keyword String | Description |
+| --- | --- | --- |
+| **GLOBAL_MAP** | `"map"` | The static global reference map. |
+| **LOCAL_MAP** | `"local_map"` | Dynamic occupancy grid of immediate surroundings. |
+| **SPATIAL_SENSOR** | `"sensor_data"` | Raw spatial data (LIDAR, Radar, Depth). |
+| **VISION_TRACKINGS** | `"vision_tracking"` | Tracking data from vision systems (bounding boxes/masks). |
+| **DEPTH_CAM_INFO** | `"depth_camera_info"` | Camera intrinsics parameters. |
+| **TRACKED_POINT** | `"tracked_point"` | Specific point or object currently being tracked. |
 
-* - GLOBAL_MAP
-  - `"map"`
-  - Global (reference) map used for navigation
+### {material-regular}`gamepad` Control & Actuation
 
-* - ROBOT_LOCATION
-  - `"location"`
-  - Current position and orientation of the robot
+| Enum Key | Keyword String | Description |
+| --- | --- | --- |
+| **INTERMEDIATE_CMD** | `"command"` | Velocity command produced by the Controller. |
+| **INTERMEDIATE_CMD_LIST** | `"multi_command"` | List of candidate velocity commands. |
+| **FINAL_COMMAND** | `"robot_command"` | Final, safety-checked command sent to the Driver. |
+| **EMERGENCY** | `"emergency_stop"` | Signal for immediate robot halt. |
 
-* - SPATIAL_SENSOR
-  - `"sensor_data"`
-  - Raw data from robot's spatial sensors (e.g., LIDAR, depth sensors)
+### {material-regular}`settings_system_daydream` System & State
 
-* - VISION_TRACKINGS
-  - `"vision_tracking"`
-  - Visual tracking data from robot's cameras or vision systems
+| Enum Key | Keyword String | Description |
+| --- | --- | --- |
+| **ROBOT_LOCATION** | `"location"` | Current robot position and orientation (Odometry). |
+| **RUN_TESTS** | `"run_tests"` | Trigger flag to initiate calibration procedures. |
 
-* - DEPTH_CAM_INFO
-  - `"depth_camera_info"`
-  - Depth camera information which includes camera intrinsics parameters
-
-* - LOCAL_PLAN
-  - `"local_plan"`
-  - Short-term path plan considering immediate surroundings
-
-* - INTERMEDIATE_CMD
-  - `"command"`
-  - Robot velocity command produced by the control system
-
-* - INTERMEDIATE_CMD_LIST
-  - `"multi_command"`
-  - List of intermediate velocity commands
-
-* - LOCAL_MAP
-  - `"local_map"`
-  - Map of the immediate surroundings for local navigation (control)
-
-* - LOCAL_MAP_OCC
-  - `"local_map"`
-  - Occupancy grid representation of the local environment
-
-* - INTERPOLATED_PATH
-  - `"interpolation"`
-  - Interpolated global path
-
-* - TRACKED_POINT
-  - `"tracked_point"`
-  - Specific point being tracked by the robot's systems on the reference path of reference vision target
-
-* - FINAL_COMMAND
-  - `"robot_command"`
-  - Final control command sent to robot's driver
-
-* - EMERGENCY
-  - `"emergency_stop"`
-  - Emergency stop signal for immediate robot halt
-
-* - REACHED_END
-  - `"reached_end"`
-  - Flag indicating whether the goal point has been reached
-
-* - RUN_TESTS
-  - `"run_tests"`
-  - Flag to initiate system test procedures
-```
-
-```{tip}
-You can refer to each individual component in the stack to see its respective Inputs and Output keys, along with their allowed types and number of optional and required streams. (See [Planner Inputs](../../navigation/path_planning.md/#inputs) or example)
-```
+:::{tip}
+Each component's specific requirements (required vs. optional streams) can be found in its respective documentation page (e.g., [Planner Inputs](../../navigation/path_planning.md/#inputs), [DriveManager Outputs](../../navigation/driver.md/#outputs)).
+:::

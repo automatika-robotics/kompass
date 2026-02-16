@@ -1,191 +1,133 @@
 # Robot Configuration
 
-A robot can be configured using RobotConfig and RobotFrames Classes by specifying the robot:
-- [motion model](#motion-model)
-- [geometry](#geometry)
-- [control limits](#control-limits)
-- and [coordinates frames](#coordinate-frames).
-
-Example:
+Before Kompass can drive your robot, it needs to understand its physical constraints. You define this "Digital Twin" using the `RobotConfig` object, which aggregates the Motion Model, Geometry, and Control Limits.
 
 ```python
 import numpy as np
-from kompass_core.models import RobotConfig, RobotType, RobotGeometry
+from kompass.robot import RobotConfig, RobotType, RobotGeometry
 
+# Example: Defining a simple box-shaped Ackermann robot
 robot_config = RobotConfig(
     model_type=RobotType.ACKERMANN,
     geometry_type=RobotGeometry.Type.BOX,
-    geometry_params=np.array([1.0, 1.0, 1.0])
+    geometry_params=np.array([1.0, 1.0, 1.0]) # x, y, z
 )
+
 ```
 
-## Motion Model
+## Motion Models
 
-Kompass supports three types of robot motion models:
+Kompass supports three distinct kinematic models. Choose the one that matches your robot's drivetrain.
 
-- ACKERMANN: Non-holonomic (bicycle model) robots, like vehicles for example. ([more](https://en.wikipedia.org/wiki/Ackermann_steering_geometry) on this motion model)
+- <span class="sd-text-primary" style="font-weight: bold; font-size: 1.1em;">{material-regular}`directions_car;1.5em;sd-text-primary` Ackermann</span> - **Car-Like Vehicles**
+Non-holonomic constraints (bicycle model). The robot has a limited steering angle and cannot rotate in place.
 
-- DIFFERENTIAL_DRIVE: Two wheeled robots that can perform forward/backward and rotation in place. Turtlebot robots fall in this category. ([more](https://www.cs.columbia.edu/~allen/F17/NOTES/icckinematics.pdf) on this motion model)
+- <span class="sd-text-primary" style="font-weight: bold; font-size: 1.1em;">{material-regular}`sync;1.5em;sd-text-primary` Differential</span> - **Two-Wheeled Robots**
+Robots like the Turtlebot. Capable of forward/backward motion and zero-radius rotation (spinning in place).
 
-- OMNI: Omni-motion robots can perform lateral motion as well. Quadrupeds are usually from this category.
+- <span class="sd-text-primary" style="font-weight: bold; font-size: 1.1em;">{material-regular}`open_with;1.5em;sd-text-primary` Omni</span> - **Holonomic Robots**
+Robots like Mecanum-wheel platforms or Quadrupeds. Capable of instantaneous motion in any direction (x, y) and rotation.
 
 
-## Geometry
+## Robot Geometry
 
-The robot geometry can be presented with one of the following 3D geometry:
+The geometry defines the collision volume of the robot. This is used by the local planner for obstacle avoidance.
 
-- BOX: Axis-aligned box with given side lengths.
+The `geometry_params` argument expects a **NumPy array** containing specific dimensions based on the selected type:
 
-Parameters: (x, y, z)
+| Type | Parameters (np.array) | Description |
+| ---  | --- | --- |
+| **BOX**  | `[length, width, height]` | Axis-aligned box. |
+| **CYLINDER**  | `[radius, length_z]` | Vertical cylinder. |
+| **SPHERE**  | `[radius]` | Perfect sphere. |
+| **ELLIPSOID**  | `[axis_x, axis_y, axis_z]` | Axis-aligned ellipsoid. |
+| **CAPSULE**  | `[radius, length_z]` | Cylinder with hemispherical ends. |
+| **CONE** | `[radius, length_z]` | Vertical cone. |
 
-Example:
-
-```python
-import numpy as np
-from kompass_core.models import RobotConfig, RobotType, RobotGeometry
-
-robot_config = RobotConfig(
-    model_type=RobotType.ACKERMANN,
-    geometry_type=RobotGeometry.Type.BOX,
-    geometry_params=np.array([1.0, 1.0, 1.0])
-)
-```
-- CYLINDER: Cylinder with given radius and height along z-axis
-
-Parameters: (rad, lz)
-
-Example:
+**Configuration Example:**
 
 ```python
-import numpy as np
-from kompass_core.models import RobotConfig, RobotType, RobotGeometry
-
-robot_config = RobotConfig(
-    model_type=RobotType.ACKERMANN,
+# A cylinder robot (Radius=0.5m, Height=1.0m)
+cylinder_robot_config = RobotConfig(
+    model_type=RobotType.DIFFERENTIAL_DRIVE,
     geometry_type=RobotGeometry.Type.CYLINDER,
     geometry_params=np.array([0.5, 1.0])
 )
-```
 
-- SPHERE: Sphere with given radius
-
-Parameters: (rad)
-
-Example:
-
-```python
-import numpy as np
-from kompass_core.models import RobotConfig, RobotType, RobotGeometry
-
-robot_config = RobotConfig(
-    model_type=RobotType.ACKERMANN,
-    geometry_type=RobotGeometry.Type.SPHERE,
-    geometry_params=np.array([0.5])
+# A box robot (Length=0.5, Width=0.5, Height=1.0m)
+box_robot_config = RobotConfig(
+    model_type=RobotType.DIFFERENTIAL_DRIVE,
+    geometry_type=RobotGeometry.Type.BOX,
+    geometry_params=np.array([0.5, 0.5, 1.0])
 )
+
 ```
 
-- ELLIPSOID: Axis-aligned ellipsoid with given radius
-
-Parameters: (x, y, z)
-
-Example:
-
-```python
-import numpy as np
-from kompass_core.models import RobotConfig, RobotType, RobotGeometry
-
-robot_config = RobotConfig(
-    model_type=RobotType.ACKERMANN,
-    geometry_type=RobotGeometry.Type.ELLIPSOID,
-    geometry_params=np.array([0.3, 0.2, 0.2])
-)
-```
-
-- CAPSULE: Capsule with given radius and height along z-axis
-
-Parameters: (rad, lz)
-
-Example:
-
-```python
-import numpy as np
-from kompass_core.models import RobotConfig, RobotType, RobotGeometry
-
-robot_config = RobotConfig(
-    model_type=RobotType.ACKERMANN,
-    geometry_type=RobotGeometry.Type.CAPSULE,
-    geometry_params=np.array([0.3, 1.0])
-)
-```
-
-- CONE: Cone with given radius and height along z-axis
-
-Parameters: (rad, lz)
-
-Example:
-
-```python
-import numpy as np
-from kompass_core.models import RobotConfig, RobotType, RobotGeometry
-
-robot_config = RobotConfig(
-    model_type=RobotType.ACKERMANN,
-    geometry_type=RobotGeometry.Type.CONE,
-    geometry_params=np.array([0.3, 1.0])
-)
-```
 
 ## Control Limits
 
-It is essential to provide the right control limits for your robot as these limits will drive the computation of the control commands during the navigation. Two classes are provided to set the linear control limits and the angular control limits, as shown in the example below.
+Safety is paramount. You must explicitly define the kinematic limits for linear and angular velocities.
 
-For both linear and angular control limits we need to set:
-
-- Maximum velocity (m/s) or (rad/s)
-- Maximum acceleration (x/s^2) or (rad/s^2)
-- Maximum deceleration (x/s^2) or (rad/s^2)
-
-Additionally, for angular control limits we can set the maximum steering angle (rad)
+Kompass separates **Acceleration** limits from **Deceleration** limits. This allows you to configure a "gentle" acceleration for smooth motion, but a "hard" deceleration for emergency braking.
 
 ```python
-from kompass_core.models import LinearCtrlLimits, AngularCtrlLimits
+from kompass.robot import LinearCtrlLimits, AngularCtrlLimits, RobotConfig, RobotType, RobotGeometry
 import numpy as np
 
-ctrl_vx_limits = LinearCtrlLimits(max_vel=1.0, max_acc=1.5, max_decel=2.5)
-ctrl_vy_limits = LinearCtrlLimits(max_vel=0.5, max_acc=0.7, max_decel=3.5)
-ctrl_omega_limits=AngularCtrlLimits(
-        max_vel=1.0, max_acc=2.0, max_decel=2.0, max_steer=np.pi / 3
-    ),
+# 1. Linear Limits (Forward/Backward)
+# Max Speed: 1.0 m/s
+# Acceleration: 1.5 m/s^2 (Smooth start)
+# Deceleration: 2.5 m/s^2 (Fast stop)
+ctrl_vx = LinearCtrlLimits(max_vel=1.0, max_acc=1.5, max_decel=2.5)
+
+# 2. Angular Limits (Rotation)
+# Max Steer is only used for Ackermann robots
+ctrl_omega = AngularCtrlLimits(
+    max_vel=1.0,
+    max_acc=2.0,
+    max_decel=2.0,
+    max_steer=np.pi / 3
+)
+
+ # Setup your robot configuration
+my_robot = RobotConfig(
+    model_type=RobotType.DIFFERENTIAL_DRIVE,
+    geometry_type=RobotGeometry.Type.CYLINDER,
+    geometry_params=np.array([0.1, 0.3]),
+    ctrl_vx_limits=ctrl_vx,
+    ctrl_omega_limits=ctrl_omega,
+)
 
 ```
-:::{tip} Deceleration limit is separated from the acceleration limit to allow the robot to decelerate faster thus ensuring safety.
+
+:::{tip}
+For Ackermann robots, `ctrl_omega_limits.max_steer` defines the maximum physical steering angle of the wheels in radians.
 :::
+
 
 ## Coordinate Frames
 
-KOMPASS currently supports the following coordinate frames, the user is required to configure the names of these frames so KOMPASS can internally lookup the transformations during navigation.
+Kompass needs to know the names of your TF frames to perform lookups. You configure this using the `RobotFrames` object.
 
-- world: Reference world frame, usually 'map'
-- odom: Robot Odometry frame
-- robot_base: Frame attached to the robot body. The navigation considers this as the center of the robot geometry.
-- scan: Lasescan frame
-- rgb: RGB camera frame
-- depth: Depth camera frame
-
-```{note}
-It is important to configure your coordinate frames names correctly and pass it Kompass. Components in Kompass will subscribe automatically to the relevant `\tf` and '\tf_static` topics in ROS2 to get the necessary transformations.
-```
+The components will automatically subscribe to `/tf` and `/tf_static` to track these frames.
 
 ```python
 from kompass.config import RobotFrames
 
-robot_frames = RobotFrames(
-    robot_base='base_link',
-    odom='odom',
-    world='map',
-    scan='scan',
-    rgb='camera/rgb',
-    depth='camera/depth',
+frames = RobotFrames(
+    world='map',          # The fixed global reference frame
+    odom='odom',          # The drift-prone odometry frame
+    robot_base='base_link', # The center of the robot
+    scan='scan',          # Lidar frame
+    rgb='camera/rgb',     # RGB Camera frame
+    depth='camera/depth'  # Depth Camera frame
 )
 
 ```
+
+| Frame | Description |
+| --- | --- |
+| **world** | The global reference for path planning (usually `map`). |
+| **odom** | The continuous reference for local control loops. |
+| **robot_base** | The physical center of the robot. All geometry is relative to this. |
+| **Sensors** | `scan`, `rgb`, `depth` frames are used to transform sensor data into the robot's frame. |

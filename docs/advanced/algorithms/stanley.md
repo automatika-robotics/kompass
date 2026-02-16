@@ -1,19 +1,28 @@
 # Stanley Steering
 
-Stanley is a pure path following method designed to track a reference by computing an orientation and cross-track errors [^1]
+**Front-wheel feedback control for path tracking.**
 
-:::{tip} Although Stanley is a pure path following method, it can be used in KOMPASS in the Controller component in combination with the Drive Manager Component to provide following + emergency stop.
-:::
+Stanley is a geometric path tracking method originally developed for the DARPA Grand Challenge.[^1] Unlike [Pure Pursuit](./pure_pursuit.md) (which looks ahead), Stanley uses the **Front Axle** as its reference point to calculate steering commands.
+
+It computes a steering angle $\delta(t)$ based on two error terms:
+1.  **Heading Error** ($\psi_e$): Difference between the robot's heading and the path direction.
+2.  **Cross-Track Error** ($e$): Lateral distance from the front axle to the nearest path segment.
+
+The control law combines these to minimize error exponentially:
+
+$$
+\delta(t) = \psi_e(t) + \arctan \left( \frac{k \cdot e(t)}{v(t)} \right)
+$$
+
+## Key Features
+
+- <span class="sd-text-primary" style="font-weight: bold; font-size: 1.1em;">{material-regular}`directions_car` Ackermann Native</span> - Designed specifically for car-like steering geometry. It is naturally stable at high speeds for these vehicles.
+- <span class="sd-text-primary" style="font-weight: bold; font-size: 1.1em;">{material-regular}`rotate_right` Multi-Model Support</span> - Kompass extends Stanley to Differential and Omni robots by applying a **Rotate-Then-Move** strategy when orientation errors are large.
+- <span class="sd-text-primary" style="font-weight: bold; font-size: 1.1em;">{material-regular}`blind` Sensor-Less</span> - Does not require LiDAR or depth data. It is a pure path follower.
 
 
-:::{note} Stanley is designed for ACKERMANN models, however, it is adjusted for all models in Kompass by adapting a rotate-then-move strategy for non ACKERMANN robot.
-:::
+## Configuration Parameters
 
-## Supported Sensory Inputs
-
-Does not require sensory input for obstacles
-
-## Parameters and Default Values
 
 ```{list-table}
 :widths: 10 10 10 70
@@ -114,6 +123,11 @@ my_controller:
     cross_track_gain: 1.0
     heading_gain: 2.0
 ```
+
+:::{admonition} Safety Note
+:class: warning
+Stanley does **not** have built-in obstacle avoidance. It is strongly recommended to use this controller in conjunction with the **[Drive Manager](https://www.google.com/search?q=drive_manager.md)** to provide Emergency Stop and Slowdown safety layers.
+:::
 
 
 [^1]:  [Hoffmann, Gabriel M., Claire J. Tomlin, Michael Montemerlo, and Sebastian Thrun. "Autonomous Automobile Trajectory Tracking for Off-Road Driving: Controller Design, Experimental Validation and Racing." American Control Conference. 2007, pp. 2296–2301](https://ieeexplore.ieee.org/document/4282788)

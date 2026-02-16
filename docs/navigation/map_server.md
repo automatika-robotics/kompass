@@ -1,33 +1,35 @@
 # Map Server
 
-The [MapServer](../apidocs/kompass/kompass.components.map_server.md) component is responsible for serving the static global map data within the navigation system. It reads static map files, processes them, and serves global map data to other components in the system.
+**Static global map management and 3D-to-2D projection.**
 
-The MapServer component can perform the following functionalities:
+The [MapServer](../apidocs/kompass/kompass.components.map_server.md) is the source of ground-truth for the navigation system. It reads static map files, processes them, and publishes the global `OccupancyGrid` required by the Planner and Localization components.
 
-```{list-table}
-:widths: 20 70
+Unlike standard ROS2 map servers, the Kompass Map Server supports **native 3D Point Cloud (PCD)** files, automatically slicing and projecting them into 2D navigable grids based on configurable height limits.
 
-* - **Map Data Conversion**
-  - Reads map files in either 2D (YAML) or 3D (PCD) format and converts the data into usable global map formats (OccupancyGrid).
+## Key Features
 
-* - **Global Map Serving**
-  - Once map data is loaded and processed, the MapServer publishes the global map as an `OccupancyGrid` message. This map is continuously available for other components to access for tasks like path planning, localization, and obstacle detection.
+The Map Server handles the lifecycle of map data from disk to network.
 
-* - **Point Cloud to Grid Conversion**
-  - If the map data is provided in the form of point cloud data (PCD file), the MapServer can generate an occupancy grid from the point cloud. It uses the provided grid resolution and ground limits to classify points and create an accurate occupancy map.
 
-* - **Custom Frame Handling**
-  - The MapServer allows configuration of a custom frame for the map. This frame can be applied to the global map when published, ensuring compatibility with other components that may use a different reference frame for their operations.
+- <span class="sd-text-primary" style="font-weight: bold; font-size: 1.1em;">{material-regular}`layers;1.2em;sd-text-primary` Multi-Format Support - </span> **YAML & PCD**. Seamlessly reads standard 2D map files (`.yaml` + image) OR 3D point cloud files (`.pcd`).
 
-* - **Map Saving**
-  - The MapServer can save the generated or modified maps to files. It supports saving both 2D and 3D maps using the `Save2dMapToFile` and `Save3dMapToFile` services. This allows map data to be preserved for later use or shared between different systems.
+- <span class="sd-text-primary" style="font-weight: bold; font-size: 1.1em;">{material-regular}`save;1.2em;sd-text-primary` Map Persistence - </span> **Save Services**. Supports saving current 2D or 3D map data to disk via `Save2dMapToFile` and `Save3dMapToFile` services.
 
-* - **Map Update Frequency Control**
-  - The MapServer can be configured to control how often map data is read and converted. The rate of map updates can be controlled by the `map_file_read_rate` parameter, ensuring that map data is refreshed periodically or only when necessary.
 
+- <span class="sd-text-primary" style="font-weight: bold; font-size: 1.1em;">{material-regular}`crop_free;1.2em;sd-text-primary` Auto Frame Handling - </span> **TF Compatibility**. Configurable reference frames ensuring the map aligns correctly with your robot's specific TF tree.
+
+- <span class="sd-text-primary" style="font-weight: bold; font-size: 1.1em;">{material-regular}`graphic_eq;1.2em;sd-text-primary` Frequency Control - </span> The MapServer can be configured to control how often map data is read and converted. The rate of map updates can be controlled by the `map_file_read_rate` parameter, ensuring that map data is refreshed periodically or only when necessary.
+
+```{seealso}
+Check the full configuration parameters of the MapServer in the [MapServerConfig](../apidocs/kompass/kompass.components.map_server.md/#classes)
 ```
 
-## Outputs:
+## Interface
+
+### Outputs
+
+The Map Server publishes the processed grid and optionally the raw cloud for visualization.
+
 
 ```{list-table}
 :widths: 10 40 10 40
@@ -37,35 +39,50 @@ The MapServer component can perform the following functionalities:
   - Number
   - Default
 
-* - **global_map**
+* - <span class="sd-text-primary" style="font-weight: bold; font-size: 1.1em;">map</span>
   - [`nav_msgs.msg.OccupancyGrid`](http://docs.ros.org/en/noetic/api/nav_msgs/html/msg/OccupancyGrid.html)
   - 1
-  - `Topic(name="/map", msg_type="OccupancyGrid")` - Global map generated from input data.
+  - `/map`
 
-* - **spatial_sensor**
+* - <span class="sd-text-primary" style="font-weight: bold; font-size: 1.1em;">sensor_data</span>
   - [`sensor_msgs.msg.PointCloud2`](http://docs.ros.org/en/noetic/api/sensor_msgs/html/msg/PointCloud2.html)
   - 1, optional
-  - `Topic(name="/row_point_cloud", msg_type="PointCloud2")` - Row point cloud data for visualization or further processing.
+  - `/row_point_cloud`
 ```
 
-## Configuration Parameters:
 
-See all available parameters in [MapServerConfig](../apidocs/kompass/kompass.components.map_server.md/#classes)
-
-## Usage Example:
+## Usage Example
 
 ```python
-    from kompass.components import MapServerConfig, MapServer
-    from kompass.ros import Topic
+from kompass.components import MapServer, MapServerConfig
 
-    # Setup custom configuration
-    my_config = MapServerConfig(
-            map_file_read_rate=5.0,
-            map_file_path="/path/to/your/map.pcd",      # Absolute path to the static map file
-            grid_resolution=0.1,                        # Map resolution used for converting from 3D
-            pc_publish_row=False,                       # Disable publishing point cloud data
-        )
+# 1. Configuration
+my_config = MapServerConfig(
+    # Path to a 3D Point Cloud file
+    map_file_path="/path/to/environment.pcd",
 
-    # Init a MapServer object
-    my_map_server = MapServer(component_name="map_server", config=my_config)
+    # Process at 5Hz (only needed if map changes or for initial load)
+    map_file_read_rate=5.0,
+
+    # Resolution for the generated 2D grid (meters/cell)
+    grid_resolution=0.1,
+
+    # Disable raw cloud publishing to save bandwidth
+    pc_publish_row=False
+)
+
+# 2. Instantiate
+my_map_server = MapServer(component_name="map_server", config=my_config)
+
 ```
+
+## See Next
+
+Once the map is served, the Planner uses it to calculate global paths.
+
+:::{button-link} path_planning.html
+:color: primary
+:ref-type: doc
+:outline:
+Configure the Planner →
+:::

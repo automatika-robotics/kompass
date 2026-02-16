@@ -1,4 +1,4 @@
-# 📷 Following a moving target using RGB Image
+# Following a moving target using RGB Image
 
 In this tutorial we will create a vision-based target following navigation system to follow a moving target using an RGB camera input.
 
@@ -141,7 +141,7 @@ my_robot = RobotConfig(
 ```
 
 ```{seealso}
-See more details about the robot configuration in the point navigation [tutorial](../tutorials/point_navigation.md#step-1-setup-your-robot) and in the `RobotConfig` class [details](../navigation/robot.md)
+See more details about the robot configuration in the point navigation [tutorial](./point_navigation.md/#step-1-robot-configuration) and in the `RobotConfig` class [details](../navigation/robot.md)
 ```
 
 ## Import the required components from Kompass
@@ -154,7 +154,7 @@ from kompass.components import Controller, ControllerConfig, DriveManager
 
 ## Configure the VisionFollower and setup the components
 
-We select the vision follower method parameters by importing the config class `VisionFollowerConfig` (see default parameters [here](../advanced/algorithms/vision_follower.md)), then configure both our components:
+We select the vision follower method parameters by importing the config class `VisionFollowerConfig` (see default parameters [here](../advanced/algorithms/vision_follower_rgb.md)), then configure both our components:
 
 ```python
 from kompass.control import VisionRGBFollowerConfig

@@ -6,29 +6,25 @@ from kompass.robot import (
     RobotGeometry,
     RobotType,
     RobotConfig,
+    RobotFrames,
 )
-from kompass.control import ControllersID
+from kompass.control import ControllersID, MapConfig
 
 from automatika_ros_sugar.msg import ComponentStatus
-from kompass_interfaces.action import PlanPath
-from kompass_interfaces.msg import PathTrackingError
-from geometry_msgs.msg import Pose, PointStamped
-
-from kompass import event
-from kompass.actions import Action
 
 from kompass.components import (
     Controller,
     DriveManager,
+    DriveManagerConfig,
     Planner,
     PlannerConfig,
     LocalMapper,
+    LocalMapperConfig,
     MapServer,
     MapServerConfig,
+    TopicsKeys,
 )
-from kompass.actions import ComponentActions, LogInfo
-from kompass.launcher import Launcher
-from kompass.ros import Topic
+from kompass.ros import Topic, Launcher, Event, Action, actions
 
 from ament_index_python.packages import (
     get_package_share_directory,
@@ -51,23 +47,25 @@ def kompass_bringup():
         ),
     )
 
-    config = PlannerConfig(robot=my_robot, loop_rate=1.0)
-    planner = Planner(component_name="planner", config=config)
+    # Configure the Global Planner
+    planner_config = PlannerConfig(loop_rate=1.0)
+    planner = Planner(component_name="planner", config=planner_config)
+    planner.run_type = "Timed"
 
+    # Configure the motion controller
     controller = Controller(component_name="controller")
-    driver = DriveManager(component_name="drive_manager")
-    mapper = LocalMapper(component_name="mapper")
-
-    # Map server
-    map_file = os.path.join(kompass_sim_dir, "maps", "turtlebot3_webots.yaml")
-    config = MapServerConfig(
-        loop_rate=1.0,
-        map_file_path=map_file,  # Path to a 2D map yaml file or a point cloud file
-        grid_resolution=0.5,
-        pc_publish_row=False,
+    controller.algorithm = ControllersID.PURE_PURSUIT
+    controller.direct_sensor = (
+        False  # Get local perception from a "map" instead (from the local mapper)
     )
-    map_server = MapServer(component_name="global_map_server", config=config)
 
+    # Configure the Drive Manager (Direct commands sending to robot)
+    driver_config = DriveManagerConfig(
+        critical_zone_distance=0.05,
+        critical_zone_angle=90.0,
+        slowdown_zone_distance=0.3,
+    )
+    driver = DriveManager(component_name="drive_manager", config=driver_config)
     # Publish Twist or TwistStamped from the DriveManager based on the distribution
     if "ROS_DISTRO" in os.environ and (
         os.environ["ROS_DISTRO"] in ["rolling", "jazzy", "kilted"]
@@ -78,71 +76,60 @@ def kompass_bringup():
 
     driver.outputs(robot_command=Topic(name="/cmd_vel", msg_type=cmd_msg_type))
 
-    # Configure Controller options
-    controller.algorithm = ControllersID.DWA
-    controller.direct_sensor = False
-    controller.run_type = "Timed"
-
-    # Run the Planner as an action server
-    planner.run_type = "ActionServer"
-
-    # Add on Any fail policy to the DriveManager
-    driver.on_fail(action=Action(driver.restart))
-
-    # DEFINE EVENTS - Uncomment this code to add reactive behavior in case of emergency stopping
-    event_emergency_stop = event.OnEqual(
-        "emergency_stop",
-        Topic(name="emergency_stop", msg_type="Bool"),
-        True,
-        "data",
+    # Configure a Local Mapper
+    local_mapper_config = LocalMapperConfig(
+        map_params=MapConfig(width=3.0, height=3.0, resolution=0.05)
     )
-    event_controller_fail = event.OnEqual(
-        "controller_fail",
-        Topic(name="controller_status", msg_type="ComponentStatus"),
-        ComponentStatus.STATUS_FAILURE_ALGORITHM_LEVEL,
-        "status",
+    local_mapper = LocalMapper(component_name="mapper", config=local_mapper_config)
+
+    # Configure the global Map Server
+    map_file = os.path.join(kompass_sim_dir, "maps", "turtlebot3_webots.yaml")
+    map_server_config = MapServerConfig(
+        loop_rate=1.0,
+        map_file_path=map_file,  # Path to a 2D map yaml file or a point cloud file
+        grid_resolution=0.5,
+        pc_publish_row=False,
+    )
+    map_server = MapServer(component_name="global_map_server", config=map_server_config)
+
+    # Get the emergency stop topic directly from the DriveManager outputs
+    emergency_stop_topic = driver.get_out_topic(TopicsKeys.EMERGENCY)
+
+    # The robot is considered blocked if:
+    # 1. the emergency stop is active
+    # 2. OR the controller algorithm failed to find a solution
+    event_robot_blocked = Event(
+        emergency_stop_topic.msg.data.is_true()
+        | (
+            controller.status_topic.msg.status
+            == ComponentStatus.STATUS_FAILURE_ALGORITHM_LEVEL
+        ),
     )
     unblock_action = Action(method=driver.move_to_unblock)
 
     # On any clicked point
-    event_clicked_point = event.OnGreater(
-        "agents_goal",
-        Topic(name="/clicked_point", msg_type="PointStamped"),
-        0,
-        ["header", "stamp", "sec"],
-        or_equal=True,
+    clicked_point_topic = Topic(name="/clicked_point", msg_type="PointStamped")
+    event_clicked_point = Event(
+        clicked_point_topic,
     )
 
-    # Define an Action to send a goal to the planner ActionServer
-    send_goal: Action = ComponentActions.send_action_goal(
-        action_name="/planner/plan_path",
-        action_type=PlanPath,
-        action_request_msg=PlanPath.Goal(),
+    # Define an Action to send a goal to the planner ActionServer based on the coming clicked point topic data
+    send_goal: Action = Action(
+        method=planner.trigger_main_action_server,
+        args=(
+            clicked_point_topic.msg.point.x,
+            clicked_point_topic.msg.point.y,
+            0.0,
+            0.05,
+            0.2,
+        ),
     )
-
-    # Define a method to parse a message of type PointStamped to the planner PlanPath Goal
-    def goal_point_parser(*, msg: PointStamped, **_):
-        action_request = PlanPath.Goal()
-        goal = Pose()
-        goal.position.x = msg.point.x
-        goal.position.y = msg.point.y
-        action_request.goal = goal
-        end_tolerance = PathTrackingError()
-        end_tolerance.orientation_error = 0.2
-        end_tolerance.lateral_distance_error = 0.05
-        action_request.end_tolerance = end_tolerance
-        return action_request
-
-    # Adds the parser method as an Event parser of the send_goal action
-    send_goal.event_parser(goal_point_parser, output_mapping="action_request_msg")
 
     # Define Events/Actions dictionary
     events_actions = {
-        event_clicked_point: [LogInfo(msg="Got new goal point"), send_goal],
-        event_controller_fail: unblock_action,
+        event_clicked_point: [actions.log(msg="Got new goal point"), send_goal],
         # Add the event action - Uncomment this code to add reactive behavior in case of emergency stopping
-        event_emergency_stop: [
-            ComponentActions.restart(component=planner),
+        event_robot_blocked: [
             unblock_action,
         ],
     }
@@ -152,7 +139,7 @@ def kompass_bringup():
 
     # Add Kompass components
     launcher.kompass(
-        components=[driver, mapper, map_server, controller, planner],
+        components=[map_server, controller, planner, driver, local_mapper],
         events_actions=events_actions,
         multiprocessing=True,
     )
@@ -163,5 +150,19 @@ def kompass_bringup():
 
     # Set the robot config for all components
     launcher.robot = my_robot
+    launcher.frames = RobotFrames(world="map", odom="map", scan="LDS-01")
 
+    # Enable the UI
+    # Inputs: Planner action server
+    # Outputs: Static Map, Global Plan, Robot Odometry
+    launcher.enable_ui(
+        inputs=[planner.ui_main_action_input],
+        outputs=[
+            map_server.get_out_topic(TopicsKeys.GLOBAL_MAP),
+            odom_topic,
+            planner.get_out_topic(TopicsKeys.GLOBAL_PLAN),
+        ],
+    )
+
+    # Run the Recipe
     launcher.bringup()

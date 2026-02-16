@@ -1,5 +1,9 @@
-# FCL (Flexible Collisions Library)
+# FCL (Flexible Collision Library)
 
-[FCL](https://github.com/flexible-collision-library/fcl) is generic library for geometric collision detection. Kompass provides FCL wrappers to detect collisions between the robot and static/dynamic obstacles during the navigation:
-- C++ wrapper in [kompass_cpp](https://github.com/automatika-robotics/kompass-core/tree/main/src/kompass_cpp)
-- Python wrapper in [kompass_core](https://github.com/automatika-robotics/kompass-core/tree/main/src/kompass_core)
+**High-speed geometric collision detection.**
+
+
+[FCL](https://github.com/flexible-collision-library/fcl) is a generic library for performing proximity and collision queries on geometric models.
+
+Kompass leverages FCL to perform precise collision checks between the robot's kinematic model and both static (map) and dynamic (sensor) obstacles during path planning and control.
+

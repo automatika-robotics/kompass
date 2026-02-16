@@ -9,6 +9,7 @@ title: KOMPASS Documentation
 ```{toctree}
 :maxdepth: 1
 :caption: Overview
+:hidden:
 
 why
 install
@@ -20,18 +21,16 @@ cli
 ```{toctree}
 :maxdepth: 1
 :caption: Tutorials
+:hidden:
 
 tutorials/index
-tutorials/point_navigation
-tutorials/events_actions
-tutorials/vision_tracking
-tutorials/vision_tracking_depth
-tutorials/configuration
+tutorials/events_index
 ```
 
 ```{toctree}
 :maxdepth: 1
 :caption: Navigation Components
+:hidden:
 
 navigation/index
 navigation/robot
@@ -47,6 +46,7 @@ navigation/mapping_localization
 ```{toctree}
 :maxdepth: 1
 :caption: Integrations
+:hidden:
 
 integrations/ompl
 integrations/fcl
@@ -57,6 +57,7 @@ integrations/fcl
 ```{toctree}
 :maxdepth: 1
 :caption: Advanced
+:hidden:
 
 advanced/index
 ```
@@ -66,6 +67,7 @@ advanced/index
 ```{toctree}
 :maxdepth: 1
 :caption: References
+:hidden:
 
 apidocs/index
 ```

@@ -151,7 +151,7 @@ class Component(BaseComponent):
         # KOMPASS can also have some input/output values to be None (therefore no stream will be created).
         # For these reasons, the lists used in Sugarcoat to maintain the set of inputs and the set of outputs are not enough (self.in_topics, self.out_topics)
         # Here we add a list to keep the topic keys self._inputs_keys, this list will have the same key name duplicated for the number of topics available.
-        # We also add a coresponding list of topics which can have None values.
+        # We also add a corresponding list of topics which can have None values.
         # The parent (self.in_topics, self.out_topics) will remain the same
         # For example: a component accept 3 SPATIAL_SENSOR topics and 1 LOCATION topics -> self._inputs_keys = ["sensor_data", "sensor_data", "sensor_data", "location"]
         (self._inputs_keys, self._inputs_list) = (

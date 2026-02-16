@@ -1,20 +1,47 @@
-# 🛠️ Advanced Configurations
+# Advanced Configurations
+
+**Fine-tune component streams and communication.**
+
+Kompass provides advanced options for developers who need precise control over how components connect and communicate. Whether you are integrating custom hardware, optimizing for lossy networks, or ensuring strict data types, these guides help you go beyond the defaults.
 
 
-Kompass provides advanced fine-tuning options for developers who need more control over how components behave, connect, and communicate. Whether you're working with custom hardware, distributed systems, or tight real-time loops, this section helps you go beyond the defaults.
+::::{grid} 1 2 2 2
+:gutter: 3
 
-- **[Configuring Components Inputs and Outputs](topics.md)**: See how to define input/output topics for Kompass components, and how to use Inputs/Outputs in your custom components
+:::{grid-item-card} {material-regular}`swap_horiz;1.5em;sd-text-primary` Inputs & Outputs
+:link: topics
+:link-type: doc
+:class-card: sugar-card
 
-
-- **[Topics QoS Configuration](qos.md)**: See how to configure **Quality of Service (QoS)** settings for inputs/outputs in Kompass, so you can match communication behavior to your system's needs.
-
-----
+**Stream Management**
+Learn how Kompass enforces strict interfaces to "lock" component functionality.
 <br>
+* Define and validate input/output types.
+* Remap standard stream keys (e.g., `sensor_data`).
+* Configure **Multi-Topic Fusion** (e.g., fusing LiDAR + Radar).
+:::
+
+:::{grid-item-card} {material-regular}`settings_input_antenna;1.5em;sd-text-primary` QoS Configuration
+:link: qos
+:link-type: doc
+:class-card: sugar-card
+
+**Communication Policies**
+Fine-tune the reliability and persistence of your data streams using ROS 2 Quality of Service.
+<br>
+* **Reliability:** *Best Effort* (Sensor speed) vs. *Reliable* (Control safety).
+* **Durability:** *Volatile* (Live data) vs. *Transient Local* (Static maps).
+:::
+::::
+
+
 
 ```{toctree}
 :maxdepth: 2
 :caption: Advanced Configurations
+:hidden:
 
 topics
 qos
+
 ```

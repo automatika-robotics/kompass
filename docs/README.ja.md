@@ -1,11 +1,24 @@
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="_static/Kompass_dark.png">
-  <source media="(prefers-color-scheme: light)" srcset="_static/Kompass_light.png">
-  <img alt="Kompass Logo." src="_static/Kompass_light.png"  width="50%">
-</picture>
-<br/>
+<div align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="_static/Kompass_dark.png">
+    <source media="(prefers-color-scheme: light)" srcset="_static/Kompass_light.png">
+    <img alt="Kompass Logo" src="_static/Kompass_light.png" width="600">
+  </picture>
 
-> 🌐 [English Version](../README.md) | 🇨🇳 [简体中文](README.zh.md)
+  <p>
+    <strong>ROS2 対応 高性能・イベント駆動型ナビゲーションスタック</strong>
+  </p>
+
+  <p>
+    <a href="https://automatika-robotics.github.io/kompass/tutorials/quick_start.html"><strong>🚀 クイックスタート</strong></a> •
+    <a href="https://automatika-robotics.github.io/kompass/"><strong>📚 ドキュメント</strong></a> •
+    <a href="https://discord.gg/automatika"><strong>💬 Discord</strong></a>
+  </p>
+
+  <p>
+    🌐 <a href="../README.md">English Version</a> | 🇨🇳 <a href="README.zh.md">简体中文</a>
+  </p>
+</div>
 
 ようこそ **Kompass** へ！
 人類史上最速で直感的なナビゲーションスタックです！
@@ -139,7 +152,7 @@ _注意：計測時間の正確性を確保するため、電力モニタリン�
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/automatika-robotics/kompass-core/main/docs/benchmark_log_dark.png">
   <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/automatika-robotics/kompass-core/main/docs/benchmark_log_light.png">
-  <img alt="対数ベンチマーク結果" src="https://raw.githubusercontent.com/automatika-robotics/kompass-core/main/docs/benchmark_log_light.png">
+  <img alt="対数ベンチマーク結果" src="https://raw.githubusercontent.com/automatika-robotics/kompass-core/main/docs/benchmark_log_light.png" width="60%">
 </picture>
 
 ### 2. 消費電力と効率
@@ -149,7 +162,7 @@ _注意：効率は **1 ジュールあたりの処理回数**（スループッ
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/automatika-robotics/kompass-core/main/docs/benchmark_power_dark.png">
   <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/automatika-robotics/kompass-core/main/docs/benchmark_power_light.png">
-  <img alt="線形ベンチマーク結果" src="https://raw.githubusercontent.com/automatika-robotics/kompass-core/main/docs/benchmark_power_light.png">
+  <img alt="線形ベンチマーク結果" src="https://raw.githubusercontent.com/automatika-robotics/kompass-core/main/docs/benchmark_power_light.png" width="60%">
 </picture>
 
 # Kompassレシピ向けのダイナミックWeb UI
@@ -161,23 +174,14 @@ _注意：効率は **1 ジュールあたりの処理回数**（スループッ
 - レシピで使用されるすべてのコンポーネントの設定インターフェース。
 - コンポーネントの入力/出力のためのリアルタイムなデータ可視化と制御。
 
-## 例 1：ビジョンフォロワーレシピ UI
 
-[RGBベースのビジョンフォロワー](https://automatika-robotics.github.io/kompass/tutorials/vision_tracking.html) レシピに対して、完全なインターフェースが自動的に生成されます。この UI は画像データ、検出結果、およびロボットアクションコマンドを自動的にレンダリングし、マルチメディアや複雑なコンポーネント間の相互作用を処理する能力を示しています。
-
-<p align="center">
-<picture align="center">
-  <img alt="KOMPASS UI Example GIF" src="_static/images/follow_ui.gif" width="60%">
-</picture>
-</p>
-
-## 例 2：ポイントナビゲーションレシピ UI
+## 例：ポイントナビゲーションレシピ UI
 
 [クイックスタートの例](https://automatika-robotics.github.io/kompass/tutorials/quick_start_webots.html) に類似した、ポイントナビゲーションシステム用の自動生成 UI の例です。この UI はマップデータをレンダリングし、ロボットにナビゲーションゴールを送信します。
 
 <p align="center">
 <picture align="center">
-  <img alt="KOMPASS UI Example GIF" src="_static/images/nav_ui.gif" width="60%">
+  <img alt="KOMPASS UI Example GIF" src="./_static/gif/ui_navigation.gif" width="60%">
 </picture>
 </p>
 

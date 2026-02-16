@@ -3,9 +3,11 @@ import os
 import sys
 from datetime import date
 import xml.etree.ElementTree as ET
-import shutil
 from pathlib import Path
 
+# Flag to signal that we are building documentation.
+# This prevents __init__.py from running runtime dependency checks.
+os.environ["KOMPASS_DOCS_BUILD"] = "1"
 
 sys.path.insert(0, os.path.abspath(".."))
 version = ET.parse("../kompass/package.xml").getroot()[1].text
@@ -23,6 +25,7 @@ extensions = [
     "autodoc2",  # install with `pip install sphinx-autodoc2`
     "myst_parser",  # install with `pip install myst-parser`
     "sphinx_sitemap",  # install with `pip install sphinx-sitemap`
+    "sphinx_design",  # install with `pip install sphinx-design`
 ]
 
 autodoc2_packages = [
@@ -70,7 +73,7 @@ myst_html_meta = {
 myst_heading_anchors = 7  # to remove cross reference errors with md
 
 html_baseurl = "https://automatika-robotics.github.io/kompass/"
-html_theme = "sphinx_book_theme"  # install with `pip install sphinx-book-theme`
+html_theme = "shibuya"  # install with `pip install shibuya`
 html_static_path = ["_static"]
 html_css_files = [
     "custom.css",
@@ -78,34 +81,19 @@ html_css_files = [
 html_favicon = "_static/favicon.png"
 
 html_theme_options = {
-    "logo": {
-        "image_light": "_static/Kompass_light.png",
-        "image_dark": "_static/Kompass_dark.png",
-    },
-    "icon_links": [
-        {
-            "name": "Automatika",
-            "url": "https://automatikarobotics.com/",
-            "icon": "_static/automatika-logo.png",
-            "type": "local",
-        },
-        {
-            "name": "GitHub",
-            "url": "https://github.com/automatika-robotics/kompass",
-            "icon": "fa-brands fa-github",
-        },
-        {
-            "name": "Discord",
-            "url": "https://discord.gg/B9ZU6qjzND",
-            "icon": "fa-brands fa-discord",
-        },
+    "light_logo": "_static/Kompass_light.png",
+    "dark_logo": "_static/Kompass_dark.png",
+    "accent_color": "indigo",
+    "twitter_url": "https://x.com/__automatika__",
+    "github_url": "https://github.com/automatika-robotics/kompass",
+    "discord_url": "https://discord.gg/B9ZU6qjzND",
+    "globaltoc_expand_depth": 1,
+    "open_in_chatgpt": True,
+    "open_in_claude": True,
+    # Navigation Links (Top bar)
+    "nav_links": [
+        {"title": "Automatika Robotics", "url": "https://automatikarobotics.com/"},
     ],
-    "path_to_docs": "docs",
-    "repository_url": "https://github.com/automatika-robotics/kompass",
-    "repository_branch": "main",
-    "use_source_button": True,
-    "use_issues_button": True,
-    "use_edit_page_button": True,
 }
 
 # --- LLMS.TXT CONFIGURATION ---
@@ -176,11 +164,26 @@ def generate_llms_txt(app, exception):
     full_text = []
 
     # Add Preamble
-    preamble = (
-        "# Kompass Documentation\n\n"
-        "The following text contains the documentation for the Kompass framework "
-        "by Automatika Robotics. It is optimized for context ingestion.\n\n"
-    )
+    # Add Preamble
+    preamble = """You are an expert robotics software engineer and developer assistant for **Kompass**, a high-performance, event-driven navigation stack built on ROS2 by Automatika Robotics.
+
+You have been provided with the official Kompass documentation. This framework distinguishes itself through **hardware-agnostic GPU acceleration** (supporting Nvidia, AMD, and integrated GPUs) and a an event-driven architecture with a simple API where you can build your entire application in one **Python Script 'Recipe'**.
+
+The documentation is structured with file headers like `## File: filename.md`. Your primary task is to answer user questions, explain navigation concepts, and generate configuration or code strictly based on this context.
+
+Follow these rules rigorously:
+1. **Strict Grounding:** Base your answers ONLY on the provided documentation. Do not hallucinate configuration parameters (e.g., for DWA or Pure Pursuit) that are not explicitly listed in the `advanced/algorithms` or `configuration.md` files.
+2. **Terminology Accuracy:** Use Kompass-specific terminology.
+    - Refer to Python applications as **"Recipes"**.
+    - When discussing GPU features, remember they are **vendor-neutral** (implemented via `kompass-core`).
+3. **Write Idiomatic Code:**
+    - For configuration: Follow the YAML structures shown in `tutorials/configuration.md`.
+    - For scripts: Use the event-driven patterns (e.g., `events_actions.md`) and the standard `Robot` -> `Driver` -> `Control` hierarchy.
+4. **Handle Unknowns:** If a specific algorithm implementation or parameter is not in the text, state that it is not covered by the current documentation version.
+5. **Cite Your Sources:** Briefly mention the file name (e.g., "See `integrations/ompl.md`...") when explaining complex topics like path planning or collision checking.
+
+Think step-by-step: Parse the user's goal, locate the relevant modules (e.g., Mapper vs. Planner), and synthesize a response that aligns with the Kompass philosophy of event-driven, modular navigation.\n\n"""
+
     full_text.append(preamble)
 
     # Process Manual Docs (Curated List)
@@ -202,27 +205,6 @@ def generate_llms_txt(app, exception):
         print(f"[llms.txt] Error writing file: {e}")
 
 
-def copy_markdown_files(app, exception):
-    """Copy source markdown files"""
-    if exception is None:  # Only run if build succeeded
-        # Source dir is where your .md files are
-        src_dir = app.srcdir  # This points to your `source/` folder
-        dst_dir = app.outdir  # This is typically `build/html`
-
-        for root, _, files in os.walk(src_dir):
-            for file in files:
-                if file.endswith(".md"):
-                    src_path = os.path.join(root, file)
-                    # Compute path relative to the source dir
-                    rel_path = os.path.relpath(src_path, src_dir)
-                    # Destination path inside the build output
-                    dst_path = os.path.join(dst_dir, rel_path)
-
-                    # Make sure the target directory exists
-                    os.makedirs(os.path.dirname(dst_path), exist_ok=True)
-                    shutil.copy2(src_path, dst_path)
-
-
 def create_robots_txt(app, exception):
     """Create robots.txt file to take advantage of sitemap crawl"""
     if exception is None:
@@ -237,7 +219,6 @@ Sitemap: {html_baseurl}/sitemap.xml
 
 
 def setup(app):
-    """Plugin to post build and copy markdowns as well"""
-    app.connect("build-finished", copy_markdown_files)
+    """Plugin to post build"""
     app.connect("build-finished", create_robots_txt)
     app.connect("build-finished", generate_llms_txt)

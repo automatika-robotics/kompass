@@ -17,15 +17,14 @@ The following chart compares the execution time of critical components.
 
 
 ```{figure} https://raw.githubusercontent.com/automatika-robotics/kompass-core/main/docs/benchmark_log_dark.png
-:class: only-dark
+:class: dark-only
 :alt: Logarithmic Benchmark Results
 :align: center
 
-Logarithmic Benchmark Results
 ```
 
 ```{figure} https://raw.githubusercontent.com/automatika-robotics/kompass-core/main/docs/benchmark_log_light.png
-:class: only-light
+:class: light-only
 :alt: Logarithmic Benchmark Results
 :align: center
 
@@ -42,15 +41,14 @@ This chart highlights the energy efficiency of the accelerators.
 
 
 ```{figure} https://raw.githubusercontent.com/automatika-robotics/kompass-core/main/docs/benchmark_power_dark.png
-:class: only-dark
+:class: dark-only
 :alt: Linear Benchmark Results
 :align: center
 
-Linear Benchmark Results
 ```
 
 ```{figure} https://raw.githubusercontent.com/automatika-robotics/kompass-core/main/docs/benchmark_power_light.png
-:class: only-light
+:class: light-only
 :alt: Linear Benchmark Results
 :align: center
 
@@ -88,4 +86,3 @@ We benchmark three computationally intensive components of the navigation stack:
 ```{seealso}
 Check how to run or reproduce these benchmarks on your own hardware using the standalone `kompass_benchmark` executable [here](https://github.com/automatika-robotics/kompass-core/blob/main/src/kompass_cpp/benchmarks/README.md)
 ```
-

@@ -44,6 +44,7 @@ from .callbacks import (
     TrackingsCallback,
     DetectionsCallback,
     CameraInfoCallback,
+    TwistStampedCallback,
 )
 
 __all__ = [
@@ -195,7 +196,7 @@ class TwistStamped(Twist):
     """Class to support ROS2 geometry_msgs/msg/TwistStamped message"""
 
     _ros_type = ROSTwistStamped
-    callback = GenericCallback
+    callback = TwistStampedCallback
 
     @classmethod
     def convert(
