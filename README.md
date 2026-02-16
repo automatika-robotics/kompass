@@ -1,25 +1,38 @@
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/_static/Kompass_dark.png">
-  <source media="(prefers-color-scheme: light)" srcset="docs/_static/Kompass_light.png">
-  <img alt="Kompass Logo." src="docs/_static/Kompass_light.png"  width="50%">
-</picture>
-<br/>
+<div align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/_static/Kompass_dark.png">
+    <source media="(prefers-color-scheme: light)" srcset="docs/_static/Kompass_light.png">
+    <img alt="Kompass Logo" src="docs/_static/Kompass_light.png" width="600">
+  </picture>
 
-🇨🇳 [简体中文](docs/README.zh.md) | 🇯🇵 [日本語](docs/README.ja.md)
+  <p>
+    <strong>High-Performance, Event-Driven Navigation Stack for ROS2</strong>
+  </p>
+
+  <p>
+    <a href="https://automatika-robotics.github.io/kompass/tutorials/quick_start.html"><strong>🚀 Get Started</strong></a> •
+    <a href="https://automatika-robotics.github.io/kompass/"><strong>📚 Documentation</strong></a> •
+    <a href="https://discord.gg/automatika"><strong>💬 Discord</strong></a>
+  </p>
+
+  <p>
+    🇨🇳 <a href="docs/README.zh.md">简体中文</a> | 🇯🇵 <a href="docs/README.ja.md">日本語</a>
+  </p>
+</div>
 
 Welcome to Kompass! The fastest and most intuitive navigation stack known to man! Kompass is a framework for building **robust**, **event-driven** navigation stacks for autonomous mobile robots. Kompass is built to be customizable, extendable and hardware-agnostic. It provides an **intuitive Python API** designed to be easy to integrate, extend, and adapt to a wide range of use cases.
 
 Kompass includes **highly optimized, GPU powered, versions of the most cutting edge navigation algorithms in C++** that make full use of available hardware resources. It supports **multi-threaded execution on CPUs** and can run on **ANY GPU** (Nvidia, AMD, etc.) without vendor lock-in. This makes it suitable for both development and deployment across diverse hardware setups. And most importantly, Kompass makes it straightforward to create and deploy sophisticated navigation capabilities for any mobile robot within **a single Python script**, without sacrificing performance or flexibility.
 
-- [**Install**](#installation) Kompass on your robot 🛠️
+- [**Install**](#installation) Kompass on your robot
 - [**Why Kompass?**](#why-kompass)
 - See an overview of Kompass [**Components**](#components)
-- To get started with Kompass, check the [**quick start**](https://automatika-robotics.github.io/kompass/tutorials/quick_start.html) tutorial 🚀
-- Do a deep dive with one of the [**tutorials**](https://automatika-robotics.github.io/kompass/tutorials/point_navigation.html) 🤖
-- See [**Benchmarking Results**](#benchmarking-results) 📊
-- Learn more about the [**design concepts**](https://automatika-robotics.github.io/kompass/advanced/design.html) of Kompass 📚
-- Explore the [**Dynamic Web UI**](#dynamic-web-ui-for-kompass-recipes) for real-time system visualization and control 🖥️
-- (**!NEW**) [**Port KOMPASS automation recipes across different robots and hardware**](#using-robot-plugins-for-generic-and-portable-automation-recipes-apps) using **Robot Plugins** 🔌
+- To get started with Kompass, check the [**quick start**](https://automatika-robotics.github.io/kompass/tutorials/quick_start.html) tutorial
+- Do a deep dive with one of the [**tutorials**](https://automatika-robotics.github.io/kompass/tutorials/point_navigation.html)
+- See [**Benchmarking Results**](#benchmarking-results)
+- Learn more about the [**design concepts**](https://automatika-robotics.github.io/kompass/advanced/design.html) of Kompass
+- Explore the [**Dynamic Web UI**](#dynamic-web-ui-for-kompass-recipes) for real-time system visualization and control
+- (**!NEW**) [**Port KOMPASS automation recipes across different robots and hardware**](#using-robot-plugins-for-generic-and-portable-automation-recipes-apps) using **Robot Plugins**
 
 # Why Kompass?
 
@@ -57,6 +70,8 @@ To learn more about the functionalities and configuration of each component chec
 
 - [Planner](https://automatika-robotics.github.io/kompass/navigation/path_planning.html)
 - [Controller](https://automatika-robotics.github.io/kompass/navigation/control.html)
+- [Local Mapper](https://automatika-robotics.github.io/kompass/navigation/mapper.html)
+- [Global Map Server](https://automatika-robotics.github.io/kompass/navigation/map_server.html)
 - [Drive Manager](https://automatika-robotics.github.io/kompass/navigation/driver.html)
 - [Motion Server](https://automatika-robotics.github.io/kompass/navigation/motion_server.html)
 
@@ -96,7 +111,7 @@ Install pre-built Kompass binary as follows:
 sudo apt install ros-$ROS_DISTRO-kompass
 ```
 
-Alternatively, grab deb packages (for kompass_interfaces and kompass) for your favourite distro from the [release page](https://github.com/automatika-robotics/kompass/releases) and install them as follows:
+Alternatively, grab deb packages (for kompass_interfaces and kompass) for your favorite distro from the [release page](https://github.com/automatika-robotics/kompass/releases) and install them as follows:
 
 ```bash
 sudo dpkg -i ros-$ROS_DISTRO-kompass-interfaces_$version$DISTRO_$ARCHITECTURE.deb
@@ -126,21 +141,25 @@ The plots below visualize the performance differences across platforms for vario
 
 _Note: This chart excludes runs where power monitoring was active to ensure timing accuracy._
 
+<div align="center">
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/automatika-robotics/kompass-core/main/docs/benchmark_log_dark.png">
   <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/automatika-robotics/kompass-core/main/docs/benchmark_log_light.png">
-  <img alt="Logarithmic Benchmark Results" src="https://raw.githubusercontent.com/automatika-robotics/kompass-core/main/docs/benchmark_log_light.png">
+  <img alt="Logarithmic Benchmark Results" src="https://raw.githubusercontent.com/automatika-robotics/kompass-core/main/docs/benchmark_log_light.png" width="60%">
 </picture>
+</div>
 
 ### 2. Power Consumption & Efficiency
 
 _Note: Efficiency is calculated as **Operations per Joule** (Throughput / Watts). Higher is better._
 
+<div align="center">
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/automatika-robotics/kompass-core/main/docs/benchmark_power_dark.png">
   <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/automatika-robotics/kompass-core/main/docs/benchmark_power_light.png">
-  <img alt="Linear Benchmark Results" src="https://raw.githubusercontent.com/automatika-robotics/kompass-core/main/docs/benchmark_power_light.png">
+  <img alt="Linear Benchmark Results" src="https://raw.githubusercontent.com/automatika-robotics/kompass-core/main/docs/benchmark_power_light.png" width="60%">
 </picture>
+</div>
 
 # Dynamic Web UI for Kompass Recipes
 
@@ -169,7 +188,7 @@ Different robots often use custom messages, or services in their ROS2 interfaces
 The new Robot Plugins act as a translation layer. It sits between your application and the robot’s hardware with all its custom types. It abstracts away robot-specific ROS2 interfaces, and allows you to write generic, portable automation logic using standard types that runs on any robot without code changes.
 
 - See an introduction to the robot plugins and how to test them in Kompass recipes in [**this video**](https://www.youtube.com/watch?v=oZN6pcJKgfY)
-- For a complete guide on how to create and use a robot plugin, [check out the documentations](https://automatika-robotics.github.io/sugarcoat/advanced/robot_plugins.html)
+- For a complete guide on how to create and use a robot plugin, [check out the documentations](https://sugarcoat.automatikarobotics.com/features/robot_plugins.html)
 
 # Copyright
 

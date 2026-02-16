@@ -1,11 +1,24 @@
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="_static/Kompass_dark.png">
-  <source media="(prefers-color-scheme: light)" srcset="_static/Kompass_light.png">
-  <img alt="Kompass Logo." src="_static/Kompass_light.png"  width="50%">
-</picture>
-<br/>
+<div align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="_static/Kompass_dark.png">
+    <source media="(prefers-color-scheme: light)" srcset="_static/Kompass_light.png">
+    <img alt="Kompass Logo" src="_static/Kompass_light.png" width="600">
+  </picture>
 
-> 🌐 [English Version](../README.md) | 🇨🇳 [简体中文](README.zh.md)
+  <p>
+    <strong>ROS2 対応 高性能・イベント駆動型ナビゲーションスタック</strong>
+  </p>
+
+  <p>
+    <a href="https://automatika-robotics.github.io/kompass/tutorials/quick_start.html"><strong>🚀 クイックスタート</strong></a> •
+    <a href="https://automatika-robotics.github.io/kompass/"><strong>📚 ドキュメント</strong></a> •
+    <a href="https://discord.gg/automatika"><strong>💬 Discord</strong></a>
+  </p>
+
+  <p>
+    🌐 <a href="../README.md">English Version</a> | 🇨🇳 <a href="README.zh.md">简体中文</a>
+  </p>
+</div>
 
 ようこそ **Kompass** へ！
 人類史上最速で直感的なナビゲーションスタックです！
@@ -139,7 +152,7 @@ _注意：計測時間の正確性を確保するため、電力モニタリン�
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/automatika-robotics/kompass-core/main/docs/benchmark_log_dark.png">
   <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/automatika-robotics/kompass-core/main/docs/benchmark_log_light.png">
-  <img alt="対数ベンチマーク結果" src="https://raw.githubusercontent.com/automatika-robotics/kompass-core/main/docs/benchmark_log_light.png">
+  <img alt="対数ベンチマーク結果" src="https://raw.githubusercontent.com/automatika-robotics/kompass-core/main/docs/benchmark_log_light.png" width="60%">
 </picture>
 
 ### 2. 消費電力と効率
@@ -149,7 +162,7 @@ _注意：効率は **1 ジュールあたりの処理回数**（スループッ
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/automatika-robotics/kompass-core/main/docs/benchmark_power_dark.png">
   <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/automatika-robotics/kompass-core/main/docs/benchmark_power_light.png">
-  <img alt="線形ベンチマーク結果" src="https://raw.githubusercontent.com/automatika-robotics/kompass-core/main/docs/benchmark_power_light.png">
+  <img alt="線形ベンチマーク結果" src="https://raw.githubusercontent.com/automatika-robotics/kompass-core/main/docs/benchmark_power_light.png" width="60%">
 </picture>
 
 # Kompassレシピ向けのダイナミックWeb UI

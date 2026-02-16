@@ -1,11 +1,24 @@
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="_static/Kompass_dark.png">
-  <source media="(prefers-color-scheme: light)" srcset="_static/Kompass_light.png">
-  <img alt="Kompass Logo." src="docs/_static/Kompass_light.png"  width="50%">
-</picture>
-<br/>
+<div align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="_static/Kompass_dark.png">
+    <source media="(prefers-color-scheme: light)" srcset="_static/Kompass_light.png">
+    <img alt="Kompass Logo" src="_static/Kompass_light.png" width="600">
+  </picture>
 
-> 🌐 [English Version](../README.md) | 🇯🇵 [日本語版](README.ja.md)
+  <p>
+    <strong>面向 ROS2 的高性能、事件驱动型导航堆栈</strong>
+  </p>
+
+  <p>
+    <a href="https://automatika-robotics.github.io/kompass/tutorials/quick_start.html"><strong>🚀 快速入门</strong></a> •
+    <a href="https://automatika-robotics.github.io/kompass/"><strong>📚 项目文档</strong></a> •
+    <a href="https://discord.gg/automatika"><strong>💬 Discord 社区</strong></a>
+  </p>
+
+  <p>
+    🌐 <a href="../README.md">English Version</a> | 🇯🇵 <a href="README.ja.md">日本語</a>
+  </p>
+</div>
 
 欢迎使用 Kompass!
 
@@ -129,7 +142,7 @@ _注意：为确保计时准确性，此图表排除了启用功耗监测的运�
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/automatika-robotics/kompass-core/main/docs/benchmark_log_dark.png">
   <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/automatika-robotics/kompass-core/main/docs/benchmark_log_light.png">
-  <img alt="对数基准测试结果" src="https://raw.githubusercontent.com/automatika-robotics/kompass-core/main/docs/benchmark_log_light.png">
+  <img alt="对数基准测试结果" src="https://raw.githubusercontent.com/automatika-robotics/kompass-core/main/docs/benchmark_log_light.png" width="60%">
 </picture>
 
 ### 2. 功耗与能效
@@ -139,7 +152,7 @@ _注意：能效的计算方式为 **每焦耳操作数**（吞吐量 / 功率�
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/automatika-robotics/kompass-core/main/docs/benchmark_power_dark.png">
   <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/automatika-robotics/kompass-core/main/docs/benchmark_power_light.png">
-  <img alt="线性基准测试结果" src="https://raw.githubusercontent.com/automatika-robotics/kompass-core/main/docs/benchmark_power_light.png">
+  <img alt="线性基准测试结果" src="https://raw.githubusercontent.com/automatika-robotics/kompass-core/main/docs/benchmark_power_light.png" width="60%">
 </picture>
 
 # Kompass 配方的动态 Web UI
