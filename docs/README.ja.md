@@ -161,23 +161,14 @@ _注意：効率は **1 ジュールあたりの処理回数**（スループッ
 - レシピで使用されるすべてのコンポーネントの設定インターフェース。
 - コンポーネントの入力/出力のためのリアルタイムなデータ可視化と制御。
 
-## 例 1：ビジョンフォロワーレシピ UI
 
-[RGBベースのビジョンフォロワー](https://automatika-robotics.github.io/kompass/tutorials/vision_tracking.html) レシピに対して、完全なインターフェースが自動的に生成されます。この UI は画像データ、検出結果、およびロボットアクションコマンドを自動的にレンダリングし、マルチメディアや複雑なコンポーネント間の相互作用を処理する能力を示しています。
-
-<p align="center">
-<picture align="center">
-  <img alt="KOMPASS UI Example GIF" src="_static/images/follow_ui.gif" width="60%">
-</picture>
-</p>
-
-## 例 2：ポイントナビゲーションレシピ UI
+## 例：ポイントナビゲーションレシピ UI
 
 [クイックスタートの例](https://automatika-robotics.github.io/kompass/tutorials/quick_start_webots.html) に類似した、ポイントナビゲーションシステム用の自動生成 UI の例です。この UI はマップデータをレンダリングし、ロボットにナビゲーションゴールを送信します。
 
 <p align="center">
 <picture align="center">
-  <img alt="KOMPASS UI Example GIF" src="_static/images/nav_ui.gif" width="60%">
+  <img alt="KOMPASS UI Example GIF" src="./_static/gif/ui_navigation.gif" width="60%">
 </picture>
 </p>
 

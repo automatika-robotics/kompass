@@ -151,23 +151,14 @@ _注意：能效的计算方式为 **每焦耳操作数**（吞吐量 / 功率�
 - 配方中使用的所有组件的设置界面。
 - 组件输入/输出的实时数据可视化和控件。
 
-## 示例 1：视觉跟随器配方 UI
 
-为 [基于 RGB 的视觉跟随器](https://automatika-robotics.github.io/kompass/tutorials/vision_tracking.html) 配方自动生成的完整界面。该 UI 自动渲染图像数据、检测结果和机器人动作指令，展示了其处理多媒体和复杂组件交互的能力。
-
-<p align="center">
-<picture align="center">
-  <img alt="KOMPASS UI Example GIF" src="_static/images/follow_ui.gif" width="60%">
-</picture>
-</p>
-
-## 示例 2：点导航配方 UI
+## 示例：点导航配方 UI
 
 一个为点导航系统自动生成 UI 的示例，类似于 [快速入门示例](https://automatika-robotics.github.io/kompass/tutorials/quick_start_webots.html)。该 UI 渲染地图数据，并向机器人发送导航目标。
 
 <p align="center">
 <picture align="center">
-  <img alt="KOMPASS UI Example GIF" src="_static/images/nav_ui.gif" width="60%">
+  <img alt="KOMPASS UI Example GIF" src="./_static/gif/ui_navigation.gif" width="60%">
 </picture>
 </p>
 
