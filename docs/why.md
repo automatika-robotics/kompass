@@ -14,7 +14,7 @@ While metric navigation has matured, deploying robots extensively in dynamic env
 Kompass adheres to open event-driven software standards, allowing the navigation stack to **reconfigure itself on the fly**.
 
 - **Dynamic Response:** The stack adapts not just to internal robot states (like Battery Low), but to external world events (e.g., "Crowd Detected" or "Entering Warehouse").
-- **Context-Aware Control:** You can configure the system to use a _Pure Pursuit_ controller on open roads, switch to _MPC_ indoors, and fallback to a precise docking controller—all triggered by environmental context.
+- **Context-Aware Control:** You can configure the system to use a _Pure Pursuit_ controller on open roads, switch to _DWA_ indoors, and fallback to a precise docking controller, all triggered by environmental context.
 - **Simplified Logic:** Unlike complex Behavior Trees that can become unmanageable, Kompass allows you to define clean, event-based transitions and fallback behaviors for every component.
 
 ## 2. High-Performance & Vendor-Agnostic GPU Acceleration
@@ -31,7 +31,7 @@ Because Kompass is event-driven, it can directly utilize the outputs of Machine 
 
 - **Neuro-Symbolic Control:** Use an object detection model to trigger a controller switch (e.g., switching to _Human-Aware TEB_ when people are detected).
 - **VLM Integration:** Use Vision Language Models to answer abstract queries (e.g., "Am I indoors or outdoors?") and fundamentally alter the robot's planning strategy based on the answer.
-- **Deep Integration:** See our tutorial on using [Vision Tracking with EmbodiedAgents](https://www.google.com/search?q=./tutorials/vision_tracking.md) to see this in action.
+- **Deep Integration:** See our tutorial on using [Vision Tracking with EmbodiedAgents](./tutorials/vision_tracking.md) to see this in action.
 
 ## 4. Pythonic Simplicity, ROS Compatible
 

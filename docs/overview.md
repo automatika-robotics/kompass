@@ -8,7 +8,7 @@
   Built to be customizable, extendable, and hardware-agnostic. Create sophisticated navigation capabilities within a <b>single Python script</b> without sacrificing performance.
 </p>
 
-[Get Started](tutorials/quick_start.md) • [View on GitHub](https://github.com/automatika-robotics/kompass)
+[Get Started](tutorials/quick_start.md) • [Why Kompass?](./why.md) • [View on GitHub](https://github.com/automatika-robotics/kompass)
 
 - <span class="sd-text-primary" style="font-weight: bold; font-size: 1.1em;">Hardware-Agnostic GPU Acceleration - </span> Kompass includes **highly optimized, GPU powered, versions of the most cutting edge navigation algorithms** in C++ that make full use of available hardware resources. It supports multi-threaded execution on CPUs and can run on <span class="text-red-strong">ANY GPU</span> (Nvidia, AMD, etc.) without vendor lock-in, making it suitable for both development and deployment across diverse hardware setups.
 
@@ -20,7 +20,7 @@
 
 ## Explore Kompass
 
-::::{grid} 1 2 2 4
+::::{grid} 1 2 3 3
 :gutter: 2
 
 :::{grid-item-card} {material-regular}`download;1.2em;sd-text-primary` Installation
@@ -39,14 +39,6 @@ Install Kompass on your system
 Get your robot moving in minutes
 :::
 
-:::{grid-item-card} {material-regular}`menu_book;1.2em;sd-text-primary` Tutorials
-:link: tutorials/index
-:link-type: doc
-:class-card: sugar-card
-
-Learn how to create custom navigation capabilities with Kompass
-:::
-
 :::{grid-item-card} {material-regular}`lightbulb;1.2em;sd-text-primary` Motivation
 :link: why
 :link-type: doc
@@ -55,12 +47,20 @@ Learn how to create custom navigation capabilities with Kompass
 Why we built Kompass
 :::
 
+:::{grid-item-card} {material-regular}`menu_book;1.2em;sd-text-primary` Tutorials
+:link: tutorials/index
+:link-type: doc
+:class-card: sugar-card
+
+Learn how to create custom navigation capabilities
+:::
+
 :::{grid-item-card} {material-regular}`bolt;1.2em;sd-text-primary` Benchmarks
 :link: advanced/benchmark
 :link-type: doc
 :class-card: sugar-card
 
-See Kompass performance across different hardware (CPUs & GPUs)
+See performance across hardware (CPUs & GPUs)
 :::
 
 
@@ -84,6 +84,13 @@ Port automation recipes across different hardware
 :class-card: sugar-card
 
 Explore the core design concepts
+:::
+
+:::{grid-item-card} {material-regular}`smart_toy;1.2em;sd-text-primary` AI-Assisted Coding
+:link: llms.txt
+:link-type: url
+
+Get the `llms.txt` for your coding-agent and let it write the recipes
 :::
 
 ::::
