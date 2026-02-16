@@ -573,3 +573,11 @@ class PointCloudCallback(GenericCallback):
             return None
 
         return pc
+
+
+class TwistStampedCallback(GenericCallback):
+    def __init__(self, input_topic, node_name = ""):
+        super().__init__(input_topic, node_name)
+
+    def _get_output(self, **_):
+        return self.msg.twist if self.msg else None

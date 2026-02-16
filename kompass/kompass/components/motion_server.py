@@ -1,6 +1,6 @@
 import os
 from typing import Dict, List, Optional
-
+import time
 import numpy as np
 from attrs import define, field
 from geometry_msgs.msg import Twist, Vector3
@@ -125,31 +125,52 @@ class MotionServer(Component):
         )
         self.config: MotionServerConfig
         self.action_type = MotionRecording
+        self.robot_cmd = None
+        self.robot_state = None
+
+    def custom_on_configure(self):
+        if self.run_type == ComponentRunType.EVENT:
+            self.get_logger().warn(
+                "Event-Based MotionServer waiting for trigger to start recording",
+                once=True,
+            )
+            # Run tests on True
+            self.attach_custom_callback(
+                self.get_in_topic(TopicsKeys.RUN_TESTS), self.run_motion_response_tests
+            )
+        return super().custom_on_configure()
 
     def _update_state(self) -> None:
         """
         Updates all inputs
         """
-        self.robot_cmd: Optional[Twist] = self.get_callback(
-            TopicsKeys.INTERMEDIATE_CMD
-        ).get_output()
+        wait_count = 0.0
+        while (
+            not self.robot_cmd and wait_count < self.config.topic_subscription_timeout
+        ):
+            self.robot_cmd: Optional[Twist] = self.get_callback(
+                TopicsKeys.INTERMEDIATE_CMD
+            ).get_output(clear_last=True)
+            wait_count += 1 / self.config.loop_rate
+            time.sleep(1 / self.config.loop_rate)
 
-        self.robot_state: Optional[RobotState] = self.get_callback(
-            TopicsKeys.ROBOT_LOCATION
-        ).get_output(
-            transformation=self.odom_tf_listener.transform
-            if self.odom_tf_listener
-            else None
-        )
+        wait_count = 0.0
+        while (
+            not self.robot_state and wait_count < self.config.topic_subscription_timeout
+        ):
+            self.robot_state: Optional[RobotState] = self.get_callback(
+                TopicsKeys.ROBOT_LOCATION
+            ).get_output(
+                transformation=self.odom_tf_listener.transform
+                if self.odom_tf_listener
+                else None,
+                clear_last=True,
+            )
+            wait_count += 1 / self.config.loop_rate
+            time.sleep(1 / self.config.loop_rate)
 
     def _execute_once(self) -> None:
         """Init recording for timed component"""
-        if self.run_type == ComponentRunType.EVENT:
-            # Run tests on True
-            self.attach_custom_callback(
-                self.in_topic_name(TopicsKeys.RUN_TESTS), self.run_motion_response_tests
-            )
-
         # check if topic being published
         while not self.got_all_inputs():
             self.get_logger().warn(
@@ -325,7 +346,7 @@ class MotionServer(Component):
                 feedback_msg = MotionRecording.Feedback()
 
             self.get_logger().warn(
-                "Could not record a new point: Robot Odometry is not available or no command is sent to the robot"
+                f"Could not record a new point: Robot Odometry {self.robot_state} is not available or no command is sent to the robot: {self.robot_cmd}"
             )
             continue_recording = False
 
@@ -354,6 +375,7 @@ class MotionServer(Component):
         Run a set of tests to record the robot motion response
         Used for robot model calibration
         """
+        self.get_logger().info(f"Got trigger to run tests {msg.data}")
         if not msg.data:
             return
 
@@ -381,8 +403,7 @@ class MotionServer(Component):
         self.get_logger().info("Done running tests")
 
         # Publish zero to stop the robot
-        cmd_vel = Twist()
-        self.get_publisher("robot_command").publish(cmd_vel)
+        self.get_publisher(TopicsKeys.INTERMEDIATE_CMD).publish(0.0, 0.0, 0.0)
 
     def generate_basic_ctr_tests(self, number_of_steps: int) -> List[Dict]:
         """
@@ -500,17 +521,16 @@ class MotionServer(Component):
         self.get_logger().info(f"Starting test: {test_name}")
 
         # init robot ctr command
-        cmd_vel = Twist()
 
         while time_now <= motion_recording_max:
             time_now = self.get_secs_time()
 
             for cmd_idx in range(number_steps):
                 # get commands from test
-                cmd_vel.linear.x = test[cmd_idx, 0]
-                cmd_vel.angular.z = test[cmd_idx, 1]
-                # send to robot
-                self.get_publisher(TopicsKeys.FINAL_COMMAND).publish(cmd_vel)
+                # and send to robot
+                self.get_publisher(TopicsKeys.FINAL_COMMAND).publish(
+                    test[cmd_idx, 0], 0.0, test[cmd_idx, 1]
+                )
 
                 self._update_state()
 
