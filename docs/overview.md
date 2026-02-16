@@ -165,7 +165,7 @@ Learn more about configuring your robot and explore the functionalities and conf
 ::::{grid} 1 2 2 4
 :gutter: 2
 
-:::{grid-item-card} {material-regular}`precision_manufacturing;1.2em;sd-text-primary` Robot Configuration
+:::{grid-item-card} {material-regular}`precision_manufacturing;1.2em;sd-text-primary` Robot Config
 :link: navigation/robot
 :link-type: doc
 

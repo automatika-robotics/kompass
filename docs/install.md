@@ -42,7 +42,6 @@ Installs the standard Python package along with the CPP package bindings via `pi
 
 ```bash
 pip install kompass-core
-
 ```
 
 :::
