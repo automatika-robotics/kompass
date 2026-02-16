@@ -2,6 +2,18 @@
 Changelog for package kompass
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* (fix) Fixes TwistStamped callback
+* (fix) Updates turtlebot3 recipe
+* (chore) Adds missing config imports from kompass core
+* (fix) Adds wait time for fetching inputs on acion execution
+* (chore) Adds prompt for llms.txt context ingestion
+* (chore) Adds minimum version check for sugarcoat to init
+* (refactor) Fixes imports from sugarcoat
+* (refactor) Removes events module and updates imports from sugarcoat
+* Contributors: ahr, mkabtoul
+
 0.4.0 (2026-01-07)
 ------------------
 * (chore) Adds version check for kompass-core
