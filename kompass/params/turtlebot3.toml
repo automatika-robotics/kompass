@@ -15,9 +15,11 @@ resolution = 0.05
 [drive_manager]
 loop_rate = 20.0
 cmd_rate = 10.0
-critical_zone_distance = 0.3
-slowdown_zone_distance = 0.4
+critical_zone_distance = 0.05
+critical_zone_angle = 90.0
+slowdown_zone_distance = 0.3
 closed_loop = false
+use_gpu = false
 
 [controller]
 loop_rate = 10.0
