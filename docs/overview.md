@@ -65,14 +65,14 @@ See performance across hardware (CPUs & GPUs)
 
 
 :::{grid-item-card} {material-regular}`desktop_windows;1.2em;sd-text-primary` Web UI
-:link: https://automatika-robotics.github.io/sugarcoat/advanced/web_ui.html
+:link: https://sugarcoat.automatikarobotics.com/features/web_ui.html
 :class-card: sugar-card
 
 Explore the Zero-Code Dynamic Web UI
 :::
 
 :::{grid-item-card} {material-regular}`power;1.2em;sd-text-primary` Universal Robot Plugins
-:link: https://automatika-robotics.github.io/sugarcoat/advanced/robot_plugins.html
+:link: https://sugarcoat.automatikarobotics.com/features/robot_plugins.html
 :class-card: sugar-card
 
 Port automation recipes across different hardware
