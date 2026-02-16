@@ -254,7 +254,7 @@ if __name__ == "__main__":
 
 ## Next Steps
 
-Congratulations! You have analyzed a full production-grade navigation recipe.
+Congratulations! You have created a full production-grade navigation recipe.
 
 * **[Vision Following](vision_tracking.md)**: Replace the Pure Pursuit controller with a Vision Follower to chase targets.
 * **[Handling Failures](fallbacks_simple.md)**: Learn how to make your recipe robust by automatically restarting components if they crash.

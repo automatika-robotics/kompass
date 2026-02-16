@@ -218,7 +218,7 @@ RViz View: Blue line shows the global path, red arrow shows the local command.
 ## What just happened?
 
 * **Components**: You configured your robot and the navigation components directly directly in your python recipe.
-* **`Launcher`**: Automatically managed the lifecycle of 5 ROS2 nodes in multi-processing.
+* **Launcher**: Automatically managed the lifecycle of 5 ROS2 nodes in multi-processing.
 * **Web UI**: Visualized the map, plan, and odometry topics instantly without installing extra frontend tools.
 
 :::{tip}
