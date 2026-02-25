@@ -124,6 +124,13 @@ LLMS_TXT_SELECTION = [
     "tutorials/events_actions.md",
     "tutorials/vision_tracking.md",
     "tutorials/vision_tracking_depth.md",
+    "tutorials/record_load_path.md",
+    "tutorials/events_composed.md",
+    "tutorials/events_cross_healing.md",
+    "tutorials/events_dynamic.md",
+    "tutorials/events_external_reflexes.md",
+    "tutorials/fallbacks_simple.md",
+    "tutorials/automated_motion_test.md",
     # Advanced Concepts & System Design
     "advanced/design.md",
     "advanced/types.md",
