@@ -4,10 +4,7 @@
 
 [OMPL (Open Motion Planning Library)](https://github.com/ompl/ompl) is the industry standard for generic motion planning algorithms. Kompass integrates OMPL to solve complex planning problems in 2D and 3D spaces for various robot morphologies.
 
-
-## Kompass Bindings
-
-Kompass provides efficient Nanobind bindings in the `kompass_navigation` package, bridging your Python components with OMPL's C++ core.
+Kompass provides efficient Nanobind bindings in the `kompass_core` package, bridging your Python components with OMPL's C++ core.
 
 - <span class="sd-text-primary" style="font-weight: bold; font-size: 1.1em;">{material-regular}`architecture;1.5em;sd-text-primary` Geometric Planners - </span> **Algorithm Suite**. Direct access to over 20 geometric planners (RRT*, PRM, EST, etc.) configurable in your recipe or via a configuration file (YAML, TOML, JSON).
 

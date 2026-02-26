@@ -14,7 +14,7 @@ Kompass allows you to compose complex triggers using standard Python bitwise ope
 | Logic | Operator | Description | Use Case |
 | :--- | :--- | :--- | :--- |
 | **AND** | `&` | All conditions must be True. | "Safety Checks" (Speed > 0 **AND** Obstacle Close) |
-| **OR** | `|` | At least one condition is True. | "Redundancy" (Lidar Blocked **OR** Bumper Hit) |
+| **OR** | `\|` | At least one condition is True. | "Redundancy" (Lidar Blocked **OR** Bumper Hit) |
 | **NOT** | `~` | Inverts the condition. | "Exclusion" (Target Seen **AND NOT** Low Battery) |
 
 ---

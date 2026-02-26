@@ -25,7 +25,7 @@ This installs [AdaptiveCPP](https://github.com/AdaptiveCpp/AdaptiveCpp) and comp
 Run the following on any Ubuntu-based machine (including Jetson):
 
 ```bash
-curl [https://raw.githubusercontent.com/automatika-robotics/kompass-core/refs/heads/main/build_dependencies/install_gpu.sh](https://raw.githubusercontent.com/automatika-robotics/kompass-core/refs/heads/main/build_dependencies/install_gpu.sh) | bash
+curl -sSL https://raw.githubusercontent.com/automatika-robotics/kompass-core/refs/heads/main/build_dependencies/install_gpu.sh | bash
 
 ```
 
