@@ -11,8 +11,6 @@ title: Advanced
 :hidden:
 
 design
-advanced_conf/index
 algorithms/index
-types
 benchmark
 ```
