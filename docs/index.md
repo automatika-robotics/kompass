@@ -64,56 +64,17 @@ Query available algorithms, inspect default parameters, and check GPU accelerato
 
 ::::
 
-## Architecture & Internals
-
-::::{grid} 1 2 2 3
-:gutter: 3
-
-:::{grid-item-card} {material-regular}`architecture;1.5em;sd-text-primary` System Design
-:link: advanced/design
-:link-type: doc
-:class-card: sugar-card
-
-Component architecture, data flow, and the three-layer stack (kompass / kompass-core / kompass_cpp).
-:::
-
-:::{grid-item-card} {material-regular}`functions;1.5em;sd-text-primary` Algorithm Details
-:link: advanced/algorithms/index
-:link-type: doc
-:class-card: sugar-card
-
-Mathematical formulations, cost functions, and implementation details for each built-in algorithm.
-:::
-
-:::{grid-item-card} {material-regular}`speed;1.5em;sd-text-primary` Benchmarks
-:link: advanced/benchmark
-:link-type: doc
-:class-card: sugar-card
-
-Performance benchmarks for CPU vs. GPU execution across algorithms and map resolutions.
-:::
-
-::::
-
-## Integrations
+## Architecture, Algorithms & Integrations
 
 ::::{grid} 1 2 2 2
 :gutter: 3
 
-:::{grid-item-card} {material-regular}`route;1.5em;sd-text-primary` OMPL
-:link: integrations/ompl
+:::{grid-item-card} {material-regular}`menu_book;1.5em;sd-text-primary` Architecture & Algorithm References
+:link: development/architecture_references
 :link-type: doc
 :class-card: sugar-card
 
-Path planning with the Open Motion Planning Library via `omplpy` bindings.
-:::
-
-:::{grid-item-card} {material-regular}`view_in_ar;1.5em;sd-text-primary` FCL
-:link: integrations/fcl
-:link-type: doc
-:class-card: sugar-card
-
-Collision checking with the Flexible Collision Library for geometric robot models.
+Links to the canonical EMOS documentation for system design, algorithm details, benchmarks, and integrations.
 :::
 
 ::::
@@ -130,25 +91,7 @@ development/custom_component
 development/advanced_component
 development/custom_callbacks_publishers
 development/cli_reference
-```
-
-```{toctree}
-:maxdepth: 2
-:caption: Architecture & Algorithms
-:hidden:
-
-advanced/design
-advanced/algorithms/index
-advanced/benchmark
-```
-
-```{toctree}
-:maxdepth: 1
-:caption: Integrations
-:hidden:
-
-integrations/ompl
-integrations/fcl
+development/architecture_references
 ```
 
 ```{toctree}

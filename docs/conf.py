@@ -104,21 +104,7 @@ LLMS_TXT_SELECTION = [
     "development/advanced_component.md",
     "development/custom_callbacks_publishers.md",
     "development/cli_reference.md",
-    # Architecture & Design
-    "advanced/design.md",
-    # Algorithms (Technical Details)
-    "advanced/algorithms/dwa.md",
-    "advanced/algorithms/pure_pursuit.md",
-    "advanced/algorithms/stanley.md",
-    "advanced/algorithms/vision_follower_rgb.md",
-    "advanced/algorithms/vision_follower_rgbd.md",
-    "advanced/algorithms/dvz.md",
-    "advanced/algorithms/cost_eval.md",
-    # Benchmarks
-    "advanced/benchmark.md",
-    # Integrations
-    "integrations/ompl.md",
-    "integrations/fcl.md",
+    "development/architecture_references.md",
 ]
 
 
