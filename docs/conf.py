@@ -24,7 +24,6 @@ extensions = [
     "sphinx_copybutton",  # install with `pip install sphinx-copybutton`
     "autodoc2",  # install with `pip install sphinx-autodoc2`
     "myst_parser",  # install with `pip install myst-parser`
-    "sphinx_sitemap",  # install with `pip install sphinx-sitemap`
     "sphinx_design",  # install with `pip install sphinx-design`
 ]
 
@@ -67,21 +66,17 @@ myst_enable_extensions = [
     "tasklist",
 ]
 language = "en"
-myst_html_meta = {
-    "google-site-verification": "cQVj-BaADcGVOGB7GOvfbkgJjxni10C2fYWCZ03jOeo"
-}
 myst_heading_anchors = 7  # to remove cross reference errors with md
 
-html_baseurl = "https://kompass.automatikarobotics.com/"
 html_theme = "shibuya"  # install with `pip install shibuya`
 html_static_path = ["_static"]
 html_css_files = [
     "custom.css",
 ]
 html_favicon = "_static/favicon.png"
-sitemap_url_scheme = "{link}"
 
 html_theme_options = {
+    "announcement": 'Usage docs have moved to <a href="https://emos.automatikarobotics.com">EMOS Documentation</a>. This site only contains developer docs.',
     "light_logo": "_static/Kompass_light.png",
     "dark_logo": "_static/Kompass_dark.png",
     "accent_color": "indigo",
@@ -93,60 +88,23 @@ html_theme_options = {
     "open_in_claude": True,
     # Navigation Links (Top bar)
     "nav_links": [
+        {"title": "EMOS Docs", "url": "https://emos.automatikarobotics.com/"},
         {"title": "Automatika Robotics", "url": "https://automatikarobotics.com/"},
     ],
 }
 
 # --- LLMS.TXT CONFIGURATION ---
-# Defines the order of manual documentation for the curriculum
+# Developer documentation files for the LLM curriculum
 LLMS_TXT_SELECTION = [
-    # Introduction & Setup
-    "overview.md",
-    "why.md",
-    "install.md",
-    "cli.md",
-    # Getting Started (Simulations & Basics)
-    "tutorials/quick_start.md",
-    "tutorials/quick_start_gazebo.md",
-    "tutorials/quick_start_webots.md",
-    "tutorials/configuration.md",
-    # Core Architecture (Navigation Stack Definition)
-    "navigation/robot.md",
-    "navigation/driver.md",
-    "navigation/control.md",
-    "navigation/path_planning.md",
-    "navigation/motion_server.md",
-    "navigation/mapper.md",
-    "navigation/map_server.md",
-    "navigation/mapping_localization.md",
-    # Key Capabilities & Tutorials
-    "tutorials/point_navigation.md",
-    "tutorials/events_actions.md",
-    "tutorials/vision_tracking.md",
-    "tutorials/vision_tracking_depth.md",
-    "tutorials/record_load_path.md",
-    "tutorials/events_composed.md",
-    "tutorials/events_cross_healing.md",
-    "tutorials/events_dynamic.md",
-    "tutorials/events_external_reflexes.md",
-    "tutorials/fallbacks_simple.md",
-    "tutorials/automated_motion_test.md",
-    # Advanced Concepts & System Design
-    "advanced/design.md",
-    "advanced/types.md",
-    "advanced/extending.md",
-    "advanced/advanced_conf/topics.md",
-    "advanced/advanced_conf/qos.md",
-    # Algorithms (Technical Details)
-    "advanced/algorithms/dwa.md",
-    "advanced/algorithms/pure_pursuit.md",
-    "advanced/algorithms/stanley.md",
-    "advanced/algorithms/vision_follower.md",
-    "advanced/algorithms/dvz.md",
-    "advanced/algorithms/cost_eval.md",
-    # Integrations
-    "integrations/ompl.md",
-    "integrations/fcl.md",
+    # Developer Guide
+    "development/adding_algorithms.md",
+    "development/adding_python_algorithms.md",
+    "development/adding_cpp_algorithms.md",
+    "development/custom_component.md",
+    "development/advanced_component.md",
+    "development/custom_callbacks_publishers.md",
+    "development/cli_reference.md",
+    "development/architecture_references.md",
 ]
 
 
@@ -172,25 +130,25 @@ def generate_llms_txt(app, exception):
     full_text = []
 
     # Add Preamble
-    # Add Preamble
     preamble = """You are an expert robotics software engineer and developer assistant for **Kompass**, a high-performance, event-driven navigation stack built on ROS2 by Automatika Robotics.
 
-You have been provided with the official Kompass documentation. This framework distinguishes itself through **hardware-agnostic GPU acceleration** (supporting Nvidia, AMD, and integrated GPUs) and a an event-driven architecture with a simple API where you can build your entire application in one **Python Script 'Recipe'**.
+You have been provided with the Kompass developer documentation. This covers the internal architecture, algorithm implementations, data type system, and extension patterns for contributors working on the framework.
 
-The documentation is structured with file headers like `## File: filename.md`. Your primary task is to answer user questions, explain navigation concepts, and generate configuration or code strictly based on this context.
+For usage documentation including tutorials, installation guides, and configuration references, see [EMOS Documentation](https://emos.automatikarobotics.com).
+
+The documentation is structured with file headers like `## File: filename.md`. Your primary task is to answer developer questions about extending the framework, explain internal architecture, and help with algorithm implementation based on this context.
 
 Follow these rules rigorously:
-1. **Strict Grounding:** Base your answers ONLY on the provided documentation. Do not hallucinate configuration parameters (e.g., for DWA or Pure Pursuit) that are not explicitly listed in the `advanced/algorithms` or `configuration.md` files.
+1. **Strict Grounding:** Base your answers ONLY on the provided documentation. Do not hallucinate configuration parameters or API signatures that are not explicitly documented.
 2. **Terminology Accuracy:** Use Kompass-specific terminology.
-    - Refer to Python applications as **"Recipes"**.
-    - When discussing GPU features, remember they are **vendor-neutral** (implemented via `kompass-core`).
-3. **Write Idiomatic Code:**
-    - For configuration: Follow the YAML structures shown in `tutorials/configuration.md`.
-    - For scripts: Use the event-driven patterns (e.g., `events_actions.md`) and the standard `Robot` -> `Driver` -> `Control` hierarchy.
-4. **Handle Unknowns:** If a specific algorithm implementation or parameter is not in the text, state that it is not covered by the current documentation version.
-5. **Cite Your Sources:** Briefly mention the file name (e.g., "See `integrations/ompl.md`...") when explaining complex topics like path planning or collision checking.
+    - Refer to `Component` as the base execution unit (ROS 2 Lifecycle Node).
+    - Reference `TopicsKeys` for I/O naming conventions.
+    - When discussing GPU features, remember they are **vendor-neutral** (implemented via `kompass-core` and AdaptiveCpp/SYCL).
+3. **Write Idiomatic Code:** Follow the patterns shown in the developer guide -- `attrs` `@define` for configs, `AllowedTopics` for I/O constraints, `ControlClasses`/`ControlConfigClasses` for algorithm registration.
+4. **Handle Unknowns:** If a specific implementation detail is not in the text, state that it is not covered by the current documentation version.
+5. **Cite Your Sources:** Briefly mention the file name when explaining topics.
 
-Think step-by-step: Parse the user's goal, locate the relevant modules (e.g., Mapper vs. Planner), and synthesize a response that aligns with the Kompass philosophy of event-driven, modular navigation.\n\n"""
+Think step-by-step: Parse the developer's goal, locate the relevant architecture concepts, and synthesize a response that aligns with the Kompass patterns.\n\n"""
 
     full_text.append(preamble)
 
@@ -213,20 +171,6 @@ Think step-by-step: Parse the user's goal, locate the relevant modules (e.g., Ma
         print(f"[llms.txt] Error writing file: {e}")
 
 
-def create_robots_txt(app, exception):
-    """Create robots.txt file to take advantage of sitemap crawl"""
-    if exception is None:
-        dst_dir = app.outdir  # Typically 'build/html/'
-        robots_path = os.path.join(dst_dir, "robots.txt")
-        content = f"""User-agent: *
-
-Sitemap: {html_baseurl}sitemap.xml
-"""
-        with open(robots_path, "w") as f:
-            f.write(content)
-
-
 def setup(app):
     """Plugin to post build"""
-    app.connect("build-finished", create_robots_txt)
     app.connect("build-finished", generate_llms_txt)
