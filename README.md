@@ -15,7 +15,7 @@ Part of the [EMOS](https://github.com/automatika-robotics/emos) ecosystem
 [![ROS2](https://img.shields.io/badge/ROS2-Foxy%2B-green)](https://docs.ros.org/en/humble/index.html)
 [![Discord](https://img.shields.io/badge/Discord-%235865F2.svg?logo=discord&logoColor=white)](https://discord.gg/B9ZU6qjzND)
 
-**High-Performance, Event-Driven Navigation Stack for ROS 2**
+**High-Performance, Event-Driven Navigation Stack for ROS2**
 
 [**EMOS Documentation**](https://emos.automatikarobotics.com) | [**Developer Docs**](https://automatika-robotics.github.io/kompass/) | [**Discord**](https://discord.gg/B9ZU6qjzND)
 
@@ -27,9 +27,9 @@ Part of the [EMOS](https://github.com/automatika-robotics/emos) ecosystem
 
 ## What is Kompass?
 
-**Kompass** is the navigation layer of the [EMOS](https://github.com/automatika-robotics/emos) (Embodied Operating System). Kompass is a framework for building for building **robust**, **event-driven** navigation stacks for autonomous mobile robots. Kompass is built to be customizable, extendable and hardware-agnostic. It provides an intuitive Python API designed to be easy to integrate, extend, and adapt to a wide range of use cases.
+**Kompass** is the navigation layer of [EMOS](https://github.com/automatika-robotics/emos) (Embodied Operating System) and a framework for building **robust**, **event-driven** navigation stacks for autonomous mobile robots. It is built to be customizable, extendable and hardware-agnostic. 
 
-Kompass includes **highly optimized, GPU-powered navigation algorithms in C++** that make full use of available hardware resources. It supports **multi-threaded execution on CPUs** and can run on **any GPU** (Nvidia, AMD, etc.) without vendor lock-in. And most importantly, Kompass makes it straightforward to create and deploy sophisticated navigation capabilities for any mobile robot within **a single Python script**, without sacrificing performance or flexibility.
+Kompass includes **highly optimized, GPU-powered navigation algorithms in C++** that make full use of available hardware resources. It supports **multi-process parallelism on CPUs** and highly parallelized execution on **any GPU** (Nvidia, AMD, etc.) without vendor lock-in. And most importantly, Kompass makes it straightforward to create and deploy sophisticated navigation capabilities for any mobile robot within **a single Python script**, without sacrificing performance or flexibility.
 
 For full documentation, tutorials, and recipes, visit [emos.automatikarobotics.com](https://emos.automatikarobotics.com).
 
