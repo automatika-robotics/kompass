@@ -40,6 +40,9 @@ class PlannerConfig(ComponentConfig):
     points_per_meter: int = field(
         default=10, validator=BaseValidators.in_range(min_value=1, max_value=1e9)
     )
+    distance_tolerance: float = field(
+        default=0.1, validator=BaseValidators.in_range(min_value=0.0, max_value=1e9)
+    )
 
 
 class Planner(Component):
@@ -624,8 +627,30 @@ class Planner(Component):
         """
         self._update_state()
 
-        if self.run_type == ComponentRunType.TIMED and self.goal and self.robot_state:
+        if (
+            self.run_type == ComponentRunType.TIMED
+            and self.goal
+            and self.robot_state
+            and not self.reached_end
+        ):
             self._plan(self.robot_state, self.goal)
+            self.reached_end = self.reached_point(
+                self.goal,
+                PathTrackingError(
+                    lateral_distance_error=self.config.distance_tolerance
+                ),
+            )
+        elif self.reached_end:
+            self.get_logger().info("Goal Reached!")
+            self.get_publisher(TopicsKeys.REACHED_END).publish(bool(True))
+            self.reached_end = False
+            self.goal = None
+            self._clear_path()
+            # Publish empty path to clear the plan in any subscribers
+            path = Path()
+            path.header.frame_id = self.config.frames.world
+            path.header.stamp = self.get_ros_time()
+            self.get_publisher(TopicsKeys.GLOBAL_PLAN).publish(path)
 
     # SERVICES CALLBACKS
     def _start_path_recording_callback(
@@ -643,6 +668,7 @@ class Planner(Component):
         self.get_logger().info("RECEIVED RECORDING PATH FROM MOTION SERVICE REQUEST")
         if self.robot_state:
             self._recorded_motion = Path()
+            self._recorded_motion.header.frame_id = self.config.frames.world
             self._recording_on = True
             recording_step = max(
                 request.recording_time_step, 1e-3
@@ -750,7 +776,9 @@ class Planner(Component):
             response.path_num_points = len(self.ros_path.poses)
             response.path_length = KompassPath.length(self.ros_path)
 
-            self.get_publisher(TopicsKeys.GLOBAL_PLAN).publish(self.ros_path)
+            self.get_publisher(TopicsKeys.GLOBAL_PLAN).publish(
+                self.ros_path, frame_id=self.ros_path.header.frame_id
+            )
 
         else:
             self.get_logger().warning("Invalid file -> No plan is loaded")
