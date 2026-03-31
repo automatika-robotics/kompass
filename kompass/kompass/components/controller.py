@@ -663,13 +663,8 @@ class Controller(Component):
         """
         if self.algorithm in [ControllersID(algorithm_value), algorithm_value]:
             return True
-        try:
-            self.stop()
-            self.algorithm = algorithm_value
-            self.start()
-        except Exception:
-            raise
-        return True
+        success, _ = self._update_param('algorithm', algorithm_value, keep_alive=False)
+        return success
 
     def _activate_vision_mode(self):
         """Activate object following mode using vision detections"""
@@ -728,7 +723,7 @@ class Controller(Component):
         )
         self.depth_image = vision_callback.depth_image if vision_callback else None
         # Depth image cam info
-        depth_img_info_callback = self.depth_image_info = self.get_callback(
+        depth_img_info_callback = self.get_callback(
             TopicsKeys.DEPTH_CAM_INFO
         )
         self.depth_image_info = (

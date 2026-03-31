@@ -211,7 +211,7 @@ class DriveManager(Component):
             else driver_default_outputs
         )
 
-        # Trun on robot plugin Handling
+        # Turn on robot plugin Handling
         config._enable_plugin_actions_handling = True
 
         super().__init__(
