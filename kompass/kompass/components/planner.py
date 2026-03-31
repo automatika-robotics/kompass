@@ -1,7 +1,7 @@
 from typing import Dict, Optional
 import time
 import numpy as np
-from attrs import field
+from attrs import field, define
 
 # ROS INTERFACES
 from geometry_msgs.msg import PoseStamped
@@ -34,6 +34,7 @@ from .defaults import (
 )
 
 
+@define
 class PlannerConfig(ComponentConfig):
     """
     Planner component config parameters
@@ -51,6 +52,8 @@ class PlannerConfig(ComponentConfig):
     depth_range: np.ndarray = field(
         default=np.array([0.1, 10.0], dtype=np.float32),
         validator=BaseValidators.array_shape((2,), dtype=np.float32),
+        # Automatically cast incoming lists/arrays to float32
+        converter=lambda x: np.array(x, dtype=np.float32),
     )
 
 
@@ -400,6 +403,9 @@ class Planner(Component):
         if not self.robot_state:
             return False
         dist: float = self.robot_state.distance(goal_point)
+        self.get_logger().info(
+            f"checking against tolerance {tolerance.lateral_distance_error} {type(tolerance.lateral_distance_error)}"
+        )
         reached_end = dist <= tolerance.lateral_distance_error
         self.get_publisher(TopicsKeys.REACHED_END).publish(bool(reached_end))
         return reached_end
