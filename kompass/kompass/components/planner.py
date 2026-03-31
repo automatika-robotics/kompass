@@ -1,4 +1,4 @@
-from typing import Any, Dict, Optional, List
+from typing import Dict, Optional
 import time
 import numpy as np
 from attrs import field
