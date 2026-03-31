@@ -2,7 +2,9 @@ from typing import Optional, Dict, List, Union, Any
 import numpy as np
 import logging
 
-from kompass_core.datatypes import Bbox2D
+from kompass_core.datatypes import Bbox2D, PointsOfInterest
+from kompass_core.vision import DepthDetector
+from kompass_core.models import RobotState
 from ros_sugar.io import GenericCallback
 
 # Conditional import to get EmbodiedAgents vision types callbacks
@@ -15,6 +17,7 @@ except ImportError:
 __all__ = [
     "TrackingsCallback",
     "DetectionsCallback",
+    "PointsOfInterestCallback",
 ]
 
 
@@ -228,6 +231,90 @@ if EmbodiedAgentsCallbacks is not None:
             except KeyError:
                 return None
 
+    class PointsOfInterestCallback(EmbodiedAgentsCallbacks.PointsOfInterestCallback):
+        """ROS2 Detections Callback Handler to process and transform automatika_agents_interfaces/Detections data"""
+
+        def __init__(
+            self,
+            input_topic,
+            node_name: Optional[str] = None,
+        ) -> None:
+            """__init__.
+
+            :param input_topic:
+            :param node_name:
+            :type node_name: Optional[str]
+            :param buffer_size:
+            :type buffer_size: Optional[Int], default 10
+            :rtype: None
+            """
+            super().__init__(input_topic, node_name)
+            self._img_size: Optional[np.ndarray] = None
+            # Initial time of the first detection is used to reset ROS time to zero on the first detection and avoid sending large timestamps to core
+            self._initial_time = 0.0
+            self._depth_image: Optional[np.ndarray] = None
+            self._label: Optional[str] = None
+            self._depth_image: Optional[np.ndarray] = None
+            self._depth_detector: Optional[DepthDetector] = None
+
+        def set_depth_detector(self, depth_detector: DepthDetector) -> None:
+            """Sets the depth detector to be used with the points of interest
+
+            :param depth_detector: DepthDetector object to be used with the points of interest
+            :type depth_detector: DepthDetector
+            """
+            self._depth_detector = depth_detector
+
+        def callback(self, msg) -> None:
+            """
+            Topic subscriber callback
+
+            :param msg: Received ros msg
+            :type msg: Any
+            """
+            super().callback(msg)
+            # Get depth image if available
+            self._depth_image = (
+                np.frombuffer(msg.depth.data, dtype=np.uint16).reshape((
+                    msg.depth.height,
+                    msg.depth.width,
+                ))
+                if msg.depth.data
+                else None
+            )
+
+        def _get_output(
+            self,
+            **_,
+        ) -> Optional[RobotState]:
+            """
+            Gets the trackings data
+            :returns:   Topic content
+            :rtype:     Union[ROSTrackings, np.ndarray, None]
+            """
+            if not self._depth_detector:
+                logging.error(
+                    "Depth detector is not set for PointsOfInterestCallback. Please set it using the set_depth_detector method before calling get_output."
+                )
+                return None
+            points = []
+
+            for point in self.msg.points:
+                points.append(np.array([point.x, point.y], dtype=np.int32))
+            try:
+                box_3d = self._depth_detector.compute_3d_detections(
+                    depth_img=self._depth_image,
+                    input=PointsOfInterest(
+                        points=points, img_size=self._depth_image.shape[:2]
+                    ),
+                )
+                points_center = box_3d[0].center
+                return RobotState(
+                    x=points_center[0], y=points_center[1]
+                )
+            except KeyError:
+                return None
+
     class TrackingsCallback(EmbodiedAgentsCallbacks.DetectionsCallback):
         """ROS2 Trackings Callback Handler to process and transform automatika_agents_interfaces/Trackings data"""
 
@@ -430,4 +517,10 @@ else:
         def __init__(self, *args, **kwargs) -> None:
             raise ModuleNotFoundError(
                 "'automatika_embodied_agents' module is required to use 'Trackings' msg type but it is not installed. Install it with `sudo apt install ros-$ROS_DISTRO-automatika-embodied-agents`"
+            )
+
+    class PointsOfInterestCallback(GenericCallback):
+        def __init__(self, *args, **kwargs) -> None:
+            raise ModuleNotFoundError(
+                "'automatika_embodied_agents' module is required to use 'PointsOfInterest' msg type but it is not installed. Install it with `sudo apt install ros-$ROS_DISTRO-automatika-embodied-agents`"
             )
