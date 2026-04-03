@@ -8,7 +8,7 @@ from ros_sugar.config import QoSConfig as QoSConfigBase
 from ros_sugar.supported_types import add_additional_datatypes
 from ros_sugar.io import get_all_msg_types
 from ros_sugar.base_clients import ServiceClientConfig, ActionClientConfig
-from .launcher import Launcher
+from ros_sugar import Launcher
 from ros_sugar import logger
 from ros_sugar import actions
 from . import data_types
