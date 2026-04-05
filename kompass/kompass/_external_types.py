@@ -43,7 +43,7 @@ if EmbodiedAgentsCallbacks is not None:
             :rtype: None
             """
             super().__init__(input_topic, node_name)
-            self._detected_boxes: Dict[List, Bbox2D] = {}
+            self._detected_boxes: Dict[str, Bbox2D] = {}
             self._img_size: Optional[np.ndarray] = None
             # Initial time of the first detection is used to reset ROS time to zero on the first detection and avoid sending large timestamps to core
             self._initial_time = 0.0
@@ -58,6 +58,15 @@ if EmbodiedAgentsCallbacks is not None:
                 buffer_size,
                 self._feature_items,
             ))  # num_detections x num_features
+            self._depth_detector: Optional[DepthDetector] = None
+
+        def set_depth_detector(self, depth_detector: DepthDetector) -> None:
+            """Sets the depth detector to be used with the points of interest
+
+            :param depth_detector: DepthDetector object to be used with the points of interest
+            :type depth_detector: DepthDetector
+            """
+            self._depth_detector = depth_detector
 
         def __get_img_size(self, msg) -> Optional[np.ndarray]:
             """Get image size from a detection set
@@ -186,9 +195,26 @@ if EmbodiedAgentsCallbacks is not None:
             """
             return self._depth_image
 
+        def _get_output_state(self, boxes: List[Bbox2D]):
+            if not self._depth_detector:
+                logging.error(
+                    "Depth detector is not set for Detections callback. Please set it using the set_depth_detector method before calling get_output."
+                )
+                return None
+            try:
+                box_3d = self._depth_detector.compute_3d_detections(
+                    depth_img=self._depth_image,
+                    input=boxes,
+                )
+                points_center = box_3d[0].center
+                return RobotState(x=points_center[0], y=points_center[1])
+            except KeyError:
+                return None
+
         def _get_output(
             self,
             label: Optional[str] = None,
+            to_robot_state: bool = False,
             **_,
         ) -> Union[None, List[Bbox2D]]:
             """
@@ -197,7 +223,10 @@ if EmbodiedAgentsCallbacks is not None:
             :rtype:     Union[ROSTrackings, np.ndarray, None]
             """
             if not label:
-                return list(self._detected_boxes.values())
+                all_boxes = list(self._detected_boxes.values())
+                if to_robot_state:
+                    return self._get_output_state(all_boxes)
+                return all_boxes
             try:
                 self._label = label
                 if self._buffer_items <= 0:
@@ -227,6 +256,8 @@ if EmbodiedAgentsCallbacks is not None:
                         label=label,
                     )
                     average_box.set_img_size(self._detected_boxes[label].img_size)
+                    if to_robot_state:
+                        return self._get_output_state([average_box])
                     return [average_box]
             except KeyError:
                 return None

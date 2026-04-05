@@ -250,7 +250,13 @@ motion_server_default_inputs: Dict[TopicsKeys, Topic] = {
 planner_allowed_inputs: Dict[TopicsKeys, AllowedTopics] = {
     TopicsKeys.GLOBAL_MAP: AllowedTopics(types=["OccupancyGrid"]),
     TopicsKeys.GOAL_POINT: AllowedTopics(
-        types=["Odometry", "PoseStamped", "PointStamped", "PointsOfInterest"],
+        types=[
+            "Odometry",
+            "PoseStamped",
+            "PointStamped",
+            "PointsOfInterest",
+            "Detections",
+        ],
         number_required=1,
         number_optional=2,
     ),

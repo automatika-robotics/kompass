@@ -692,7 +692,7 @@ class Planner(Component):
         num_goal_inputs = self._inputs_keys.count(TopicsKeys.GOAL_POINT)
         for idx in range(num_goal_inputs):
             callback = self.get_callback(TopicsKeys.GOAL_POINT, idx)
-            self.goal[idx] = callback.get_output()
+            self.goal[idx] = callback.get_output(to_robot_state=True)
 
     def __setup_depth_detector(self) -> Optional[DepthDetector]:
         """Setup and configure a DepthDetector for usage with Vision-based goals"""
