@@ -1,7 +1,7 @@
 """Supported data types for inputs/outputs"""
 
 import json
-from typing import Union
+from typing import Union, List
 
 import numpy as np
 from ros_sugar.supported_types import Bool, ComponentStatus, Float32, Float64
@@ -219,9 +219,7 @@ class TwistStamped(Twist):
     @classmethod
     def convert(
         cls,
-        vx: float,
-        vy: float,
-        omega: float,
+        output: Union[np.ndarray, List],
         **kwargs,
     ) -> ROSTwistStamped:
         """Converter to publish Twist data to TwistStamped
@@ -232,7 +230,7 @@ class TwistStamped(Twist):
         :rtype: ROSTwistStamped
         """
         msg = ROSTwistStamped()
-        msg.twist = super().convert(vx=vx, vy=vy, omega=omega, **kwargs)
+        msg.twist = super().convert(output=output, **kwargs)
         return msg
 
 
