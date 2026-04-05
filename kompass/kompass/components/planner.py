@@ -1,4 +1,4 @@
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 import time
 import numpy as np
 from attrs import field, define
@@ -7,6 +7,7 @@ from attrs import field, define
 from geometry_msgs.msg import PoseStamped
 from kompass_core.utils.geometry import from_euler_to_quaternion
 from nav_msgs.msg import Path
+from std_msgs.msg import Header
 
 # KOMPASS NAVIGATION
 from kompass_core.models import Robot, RobotState
@@ -23,7 +24,7 @@ from kompass_interfaces.srv import PlanPath as PlanPathSrv
 from ..config import BaseValidators, ComponentConfig, ComponentRunType
 from ..data_types import Path as KompassPath
 from ..callbacks import PointsOfInterestCallback
-from .ros import Topic, update_topics, ActionClientHandler, component_action
+from .ros import Topic, update_topics, ActionClientHandler
 from .component import Component
 from .defaults import (
     TopicsKeys,
@@ -158,6 +159,67 @@ class Planner(Component):
         # Main service and action types of the planner component
         self.service_type = PlanPathSrv
         self.action_type = PlanPathAction
+        self.main_action_name = "navigate_to_goal"
+
+    def inspect_component(self) -> str:
+        """
+        Method to return a string representation of the component configuration, used for inspection and LLM-based reasoning about the component
+
+        :return: String representation of the component configuration
+        :rtype: str
+        """
+        base_info = super().inspect_component()
+        # Get all planning algorithms
+        try:
+            import omplpy as ompl
+            from kompass_core.third_party.ompl.config import initializePlanners
+            initializePlanners()
+            planners = ompl.geometric.planners.getPlanners()
+            planning_algorithms = "Available planning algorithms are:\n"
+            for planner_name in planners.keys():
+                planning_algorithms += f"- {planner_name}\n"
+        except Exception:
+            planning_algorithms = "Could not retrieve available planning algorithms.\n"
+
+        action_goal_info = (
+            f"If the Run Type is ACTION_SERVER, the Planner main action server is '{self.main_action_name}'.\n"
+            "To construct a goal request:\n"
+            "- 'goal' is a geometry_msgs/Pose representing the target location. "
+            "When the user specifies a 2D point like 'go to (-4, 4)', map the first value to goal.position.x and the second to goal.position.y. "
+            "Set goal.position.z to 0.0. If no orientation is given, use the identity quaternion (x=0, y=0, z=0, w=1.0).\n"
+            "- 'algorithm_name' selects the planning algorithm. Leave it empty to use the currently configured default. Or send one of the planner's available algorithms names.\n"
+            "- 'end_tolerance' defines when the goal is considered reached. "
+            "lateral_distance_error is in meters, orientation_error is in radians. "
+            "If not specified by the user, use a reasonable default (e.g. 0.1 m, 0.1 rad).\n"
+        )
+
+        services_info = (
+            "Additional ROS services:\n"
+            f"- '{self.node_name}/save_plan_to_file' (PathFromToFile): Save the current plan to a JSON file. "
+            "Use this after a plan has been generated or a motion has been recorded. "
+            "Provide 'file_location' (directory path) and 'file_name' (the JSON file name). "
+            "Calling this while recording is active will stop the recording and save the recorded path.\n"
+            f"- '{self.node_name}/load_plan_from_file' (PathFromToFile): Load a previously saved plan from a JSON file and publish it to the Controller. "
+            "Use this to replay or reuse a saved path without re-planning. "
+            "Provide 'file_location' and 'file_name' pointing to the saved JSON file.\n"
+            f"- '{self.node_name}/start_path_recording' (StartPathRecording): Start recording the robot's actual motion as a path. "
+            "Use this when the user wants to teach a path by manually driving the robot or capture the executed trajectory. "
+            "Provide 'recording_time_step' (seconds between recorded points, e.g. 0.1). "
+            "To stop recording and save, call the save_plan_to_file service.\n"
+        )
+
+        return base_info + "\n" + planning_algorithms + "\n" + action_goal_info + "\n" + services_info
+
+    def get_ros_entrypoints(self) -> Dict[str, Dict[str, Any]]:
+        """Get the component ROS entry points (additional services and actions) as a dictionary.
+        """
+        entry_points = {"services": {}, "actions": {}}
+        entry_points["services"].update({
+            f"{self.node_name}/save_plan_to_file": PathFromToFile,
+            f"{self.node_name}/load_plan_from_file": PathFromToFile,
+            f"{self.node_name}/start_path_recording": StartPathRecording,
+        })
+        return entry_points
 
     def config_from_file(self, config_file: str):
         """
@@ -255,7 +317,6 @@ class Planner(Component):
                     callback.set_depth_detector(depth_detector)
                 break
 
-    @component_action
     def trigger_main_action_server(
         self,
         goal_x: float = 0.0,
@@ -446,14 +507,14 @@ class Planner(Component):
 
         # Setup response and feedback of the action
         action_feedback_msg = PlanPathAction.Feedback()
+        action_feedback_msg.current_pose = self.__robot_state_to_pose_stamped()
+        action_feedback_msg.reached_end = False
 
         action_result = PlanPathAction.Result()
 
         action_result.end_displacement = PathTrackingError()
 
         action_result.reached_end = False
-
-        action_feedback_msg.plan = Path()
 
         while not self.got_all_inputs(
             inputs_to_check=[self.in_topic_name(TopicsKeys.ROBOT_LOCATION)]
@@ -477,13 +538,11 @@ class Planner(Component):
                 self._update_state()
 
                 # plan a new path
-                got_plan = self._plan(self.robot_state, goal_state)
+                self._plan(self.robot_state, goal_state)
 
-                if got_plan and self.ros_path:
-                    # publish feedback
-                    action_feedback_msg.plan = self.ros_path
-                else:
-                    action_feedback_msg.plan = None
+                action_feedback_msg.current_pose = self.__robot_state_to_pose_stamped()
+                action_feedback_msg.reached_end = False
+
                 goal_handle.publish_feedback(action_feedback_msg)
                 self.get_logger().debug(f"Action Feedback: {action_feedback_msg}")
                 # NOTE: using Python time directly, as ros rate sleep (from self.create_rate) was not functioning as expected
@@ -792,19 +851,24 @@ class Planner(Component):
             self.get_logger().info(f"Cannot record returning {response}")
         return response
 
-    def __record_new_point_callback(self):
-        """Timer callback to record new motion point while recording is on"""
-        if not self._recording_on:
-            self.destroy_timer(self.__motion_recording_timer)
-            return
-        self._update_state()
+    def __robot_state_to_pose_stamped(self) -> PoseStamped:
         new_pose = PoseStamped()
+        new_pose.header = Header()
         new_pose.header.frame_id = self.config.frames.world
         new_pose.header.stamp = self.get_ros_time()
         new_pose.pose.position.x = float(self.robot_state.x)
         new_pose.pose.position.y = float(self.robot_state.y)
         new_pose.pose.orientation.z = float(np.sin(self.robot_state.yaw / 2))
         new_pose.pose.orientation.w = float(np.cos(self.robot_state.yaw / 2))
+        return new_pose
+
+    def __record_new_point_callback(self):
+        """Timer callback to record new motion point while recording is on"""
+        if not self._recording_on:
+            self.destroy_timer(self.__motion_recording_timer)
+            return
+        self._update_state()
+        new_pose = self.__robot_state_to_pose_stamped()
         self._recorded_motion.poses.append(new_pose)
 
     def _save_plan_to_file_srv_callback(

@@ -284,6 +284,7 @@ class Controller(Component):
 
         # Set action type
         self.action_type = ControlPath
+        self.main_action_name = "control_static_path"
 
     def custom_on_activate(self):
         """
@@ -413,6 +414,51 @@ class Controller(Component):
             self.destroy_service(self.__vision_tracking_srv)
         super().destroy_all_services()
 
+    def inspect_component(self) -> str:
+        """
+        Method to return a string representation of the component configuration, used for inspection and LLM-based reasoning about the component
+
+        :return: String representation of the component configuration
+        :rtype: str
+        """
+        base_info = super().inspect_component()
+        # Get all control algorithms
+        try:
+            from kompass_core.control import ControllersID
+
+            control_algorithms = "Available control algorithms are:\n"
+            for item in ControllersID:
+                control_algorithms += f"- {item.value}\n"
+        except ImportError:
+            control_algorithms = "Could not retrieve available control algorithms"
+
+        # Control Modes
+        modes_info = (
+            "Controller modes:\n"
+            f"- {ControllerMode.PATH_FOLLOWER.value}: Follow a global plan while avoiding dynamic obstacles. "
+            "In this mode, the Controller is driven by the Planner component which generates the path. "
+            "Do NOT send navigation goals directly to the Controller — use the Planner's action server instead. "
+            "The Planner will generate a plan and forward it to the Controller automatically.\n"
+            f"- {ControllerMode.VISION_FOLLOWER.value}: Follow a vision-detected target (bounding box detections). "
+            "This mode uses the TrackVisionTarget action server. To trigger it, send a goal with:\n"
+            "  - 'label': the object class to track (e.g. 'person', 'cup') as specified by the user.\n"
+            "  - 'search_radius': how far (meters) to search for the target. Use a reasonable default if not specified.\n"
+            "  - 'search_timeout': max time (seconds) to search before giving up.\n"
+            "  - 'pose_x', 'pose_y': pixel coordinates of the target in the image frame if known, otherwise set to 0.\n"
+            "The mode is determined by the selected algorithm — setting a vision-based algorithm switches to vision mode, "
+            "and a path-following algorithm switches to path follower mode."
+        )
+        return base_info + "\n" + control_algorithms + "\n" + modes_info
+
+    def get_ros_entrypoints(self) -> Dict[str, Dict[str, Any]]:
+        """Get the component ROS entry points (additional services and actions) as a dictionary."""
+        entry_points = {"services": {}, "actions": {}}
+        # Register the vision tracking action server as an additional entry point
+        entry_points["actions"].update({
+            "track_vision_target": TrackVisionTarget,
+        })
+        return entry_points
+
     def _cmds_publishing_callback(self):
         """Commands execution timer callback"""
         # If end is reached do not publish new command
@@ -428,7 +474,7 @@ class Controller(Component):
             return
 
         # Publish one twist message
-        self.get_publisher(TopicsKeys.INTERMEDIATE_CMD).publish(cmd[0], cmd[1], cmd[2])
+        self.get_publisher(TopicsKeys.INTERMEDIATE_CMD).publish(cmd)
 
     def _info_publishing_callback(self):
         """Tracking publishing timer callback"""
@@ -675,6 +721,7 @@ class Controller(Component):
             )
 
         self.action_type = TrackVisionTarget
+        self.main_action_name = "track_vision_target"
 
         self.config._mode = ControllerMode.VISION_FOLLOWER
 
@@ -928,7 +975,7 @@ class Controller(Component):
             _cmd_vel_array = _cmd_vel_array = init_twist_array_msg(1)
             self.get_publisher(TopicsKeys.INTERMEDIATE_CMD_LIST).publish(_cmd_vel_array)
         else:
-            self.get_publisher(TopicsKeys.INTERMEDIATE_CMD).publish(0.0, 0.0, 0.0)
+            self.get_publisher(TopicsKeys.INTERMEDIATE_CMD).publish([0.0, 0.0, 0.0])
 
     def _publish(
         self,
@@ -970,7 +1017,7 @@ class Controller(Component):
         if self.config.ctrl_publish_type == CmdPublishType.TWIST_SEQUENCE:
             for vx, vy, omega in zip(commands_vx, commands_vy, commands_omega):
                 self.get_publisher(TopicsKeys.INTERMEDIATE_CMD).publish(
-                    float(vx), float(vy), float(omega)
+                    [float(vx), float(vy), float(omega)]
                 )
                 time.sleep(self.config.control_time_step)
 
@@ -1032,7 +1079,7 @@ class Controller(Component):
         )
 
         # LOG CONTROLLER INFO
-        self.get_logger().info(f"{self.__path_controller.logging_info()}")
+        self.get_logger().debug(f"{self.__path_controller.logging_info()}")
 
         # PUBLISH CONTROL TO ROBOT CMD TOPIC
         if not cmd_found:
