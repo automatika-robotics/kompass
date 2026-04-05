@@ -293,6 +293,36 @@ class Component(BaseComponent):
         self._outputs_list = self._reparse_outputs_converts(_outputs)
         self.out_topics = [topic for topic in self._outputs_list if topic]
 
+    def set_input(self, **kwargs) -> bool:
+        """Set value of an input(s) topic
+
+        :return: If input(s) successfully updated
+        :rtype: bool
+        """
+        for key, value in kwargs.items():
+            if TopicsKeys(key) in self._inputs_keys:
+                # Update input value
+                self.inputs(**{key: value})
+            else:
+                return False
+        # All updated
+        return True
+
+    def set_output(self, **kwargs) -> bool:
+        """Set value of an output(s) topic
+
+        :return: If output is successfully updates
+        :rtype: bool
+        """
+        for key, value in kwargs.items():
+            if TopicsKeys(key) in self._outputs_keys:
+                # Update input value
+                self.outputs(**{key: value})
+            else:
+                return False
+        # All updated
+        return True
+
     def _update_inactive_input_topic(self, old_topic, new_topic):
         """Updates internal topics list with a new input topic.
         Overrides the parent hook to add child-specific list updates.
