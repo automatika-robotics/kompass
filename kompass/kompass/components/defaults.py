@@ -117,7 +117,7 @@ controller_allowed_inputs: Dict[TopicsKeys, AllowedTopics] = {
     TopicsKeys.ROBOT_LOCATION: AllowedTopics(types=["Odometry", "PoseStamped", "Pose"]),
     TopicsKeys.SPATIAL_SENSOR: AllowedTopics(types=["LaserScan", "PointCloud2"]),
     TopicsKeys.LOCAL_MAP: AllowedTopics(types=["OccupancyGrid"]),
-    TopicsKeys.VISION_DETECTIONS: AllowedTopics(types=["Detections"]),
+    TopicsKeys.VISION_DETECTIONS: AllowedTopics(types=["Detections", "Trackings"]),
     TopicsKeys.DEPTH_CAM_INFO: AllowedTopics(types=["CameraInfo"]),
 }
 

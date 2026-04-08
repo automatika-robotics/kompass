@@ -1,6 +1,6 @@
 from typing import Optional, Dict, List, Union, Any
 import numpy as np
-import logging
+from rclpy.logging import get_logger
 
 from kompass_core.datatypes import Bbox2D, PointsOfInterest
 from kompass_core.vision import DepthDetector
@@ -90,8 +90,8 @@ if EmbodiedAgentsCallbacks is not None:
                 )
             # TODO: get compressed image size
             if img_size is None:
-                logging.debug(
-                    f"No image is provided with the detections message. Unknown image size can lead to errors! {len(msg.depth.data)} and {len(msg.image.data)} and {len(msg.compressed_image.data)}"
+                get_logger(self.node_name).debug(
+                    f"No image is provided with the detections message. Unknown image size can lead to errors! {len(msg.depth.data)} and {len(msg.image.data)} and {len(msg.compressed_image.data)}", once=True
                 )
             return img_size
 
@@ -197,8 +197,9 @@ if EmbodiedAgentsCallbacks is not None:
 
         def _get_output_state(self, boxes: List[Bbox2D]):
             if not self._depth_detector:
-                logging.error(
-                    "Depth detector is not set for Detections callback. Please set it using the set_depth_detector method before calling get_output."
+                get_logger(self.node_name).error(
+                    "Depth detector is not set for Detections callback. Please set it using the set_depth_detector method before calling get_output.",
+                    once=True,
                 )
                 return None
             try:
@@ -324,8 +325,8 @@ if EmbodiedAgentsCallbacks is not None:
             :rtype:     Union[ROSTrackings, np.ndarray, None]
             """
             if not self._depth_detector:
-                logging.error(
-                    "Depth detector is not set for PointsOfInterestCallback. Please set it using the set_depth_detector method before calling get_output."
+                get_logger(self.node_name).error(
+                    "Depth detector is not set for PointsOfInterestCallback. Please set it using the set_depth_detector method before calling get_output.", once=True
                 )
                 return None
             points = []
@@ -377,6 +378,7 @@ if EmbodiedAgentsCallbacks is not None:
             self._label: Optional[str] = None
             self._id: Optional[int] = None
             self._initial_time = 0.0
+            self._depth_image: Optional[np.ndarray] = None
 
         def callback(self, msg) -> None:
             """
@@ -471,10 +473,30 @@ if EmbodiedAgentsCallbacks is not None:
             self._label = label
             self._id = idx
 
+        @property
+        def depth_image(self) -> Optional[np.ndarray]:
+            """
+            Sets the depth image to be used with the detections
+
+            :param depth_image: Depth image in numpy array format
+            :type depth_image: Optional[np.ndarray]
+            """
+            return self._depth_image
+
         def _process_raw_data(self) -> None:
             """Process new raw trackings data and add it to buffer if available"""
             # Remove a buffer item
             self._detections_buffer = np.roll(self._detections_buffer, -1, axis=0)
+
+            # Get depth image if available
+            self._depth_image = (
+                np.frombuffer(self.msg.depth.data, dtype=np.uint16).reshape((
+                    self.msg.depth.height,
+                    self.msg.depth.width,
+                ))
+                if self.msg.depth.data
+                else None
+            )
 
             if not self._label or not self.msg:
                 # No trackings -> reduce buffer items
