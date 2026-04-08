@@ -439,8 +439,8 @@ class Controller(Component):
             "In this mode, the Controller is driven by the Planner component which generates the path. "
             "Do NOT send navigation goals directly to the Controller — use the Planner's action server instead. "
             "The Planner will generate a plan and forward it to the Controller automatically.\n"
-            f"- {ControllerMode.VISION_FOLLOWER.value}: Follow a vision-detected target (bounding box detections). "
-            "This mode uses the TrackVisionTarget action server. To trigger it, send a goal with:\n"
+            f"- {ControllerMode.VISION_FOLLOWER.value}: Start follow a vision target."
+            "This mode uses the track vision target action server. To trigger it, First set_algorithm to a vision based algorithm (VisionRGBFollower or VisionRGBDFollower), then send a goal with:\n"
             "  - 'label': the object class to track (e.g. 'person', 'cup') as specified by the user.\n"
             "  - 'search_radius': how far (meters) to search for the target. Use a reasonable default if not specified.\n"
             "  - 'search_timeout': max time (seconds) to search before giving up.\n"
@@ -479,6 +479,9 @@ class Controller(Component):
     def _info_publishing_callback(self):
         """Tracking publishing timer callback"""
         # Publish tracked point on the global path
+        if self.mode == ControllerMode.VISION_FOLLOWER:
+            return
+
         if self.tracked_point is not None:
             self.get_publisher(TopicsKeys.TRACKED_POINT).publish(
                 self.tracked_point,
@@ -694,7 +697,40 @@ class Controller(Component):
         else:
             self._activate_follower_mode()
 
-    @component_action
+    @property
+    def mode(self) -> ControllerMode:
+        """Get the current control mode
+
+        :return: control mode ControllerMode.PATH_FOLLOWER or ControllerMode.VISION_FOLLOWER
+        :rtype: ControllerMode
+        """
+        return self.config._mode
+
+    @component_action(description={
+        "type": "function",
+        "function": {
+            "name": "set_algorithm",
+            "description": "Set the controller algorithm used to compute motion control commands. "
+            "Available algorithms: 'DWA' (Dynamic Window Approach for path following with obstacle avoidance), "
+            "'Stanley' (Stanley steering controller for path following), "
+            "'DVZ' (Deformable Virtual Zone for reactive obstacle avoidance), "
+            "'PurePursuit' (Pure Pursuit geometric path follower), "
+            "'VisionRGBFollower' (vision-based target following using RGB images), "
+            "'VisionRGBDFollower' (vision-based target following using RGB-D depth images). "
+            "Use when the user asks to change or switch the control algorithm.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "algorithm_value": {
+                        "type": "string",
+                        "description": "The controller algorithm to use. Must be one of: 'DWA', 'Stanley', 'DVZ', 'PurePursuit', 'VisionRGBFollower', 'VisionRGBDFollower'.",
+                        "enum": ["DWA", "Stanley", "DVZ", "PurePursuit", "VisionRGBFollower", "VisionRGBDFollower"],
+                    },
+                },
+                "required": ["algorithm_value"],
+            },
+        },
+    })
     def set_algorithm(self, algorithm_value: Union[str, ControllersID], **_) -> bool:
         """
         Component action - Set controller algorithm action
@@ -709,8 +745,10 @@ class Controller(Component):
         """
         if self.algorithm in [ControllersID(algorithm_value), algorithm_value]:
             return True
-        success, _ = self._update_param('algorithm', algorithm_value, keep_alive=False)
-        return success
+        try:
+            self.algorithm = algorithm_value
+        except Exception:
+            return False
 
     def _activate_vision_mode(self):
         """Activate object following mode using vision detections"""
