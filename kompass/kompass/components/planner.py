@@ -464,9 +464,6 @@ class Planner(Component):
         if not self.robot_state:
             return False
         dist: float = self.robot_state.distance(goal_point)
-        self.get_logger().info(
-            f"checking against tolerance {tolerance.lateral_distance_error} {type(tolerance.lateral_distance_error)}"
-        )
         reached_end = dist <= tolerance.lateral_distance_error
         self.get_publisher(TopicsKeys.REACHED_END).publish(bool(reached_end))
         return reached_end
@@ -507,8 +504,6 @@ class Planner(Component):
 
         # Setup response and feedback of the action
         action_feedback_msg = PlanPathAction.Feedback()
-        action_feedback_msg.current_pose = self.__robot_state_to_pose_stamped()
-        action_feedback_msg.reached_end = False
 
         action_result = PlanPathAction.Result()
 
