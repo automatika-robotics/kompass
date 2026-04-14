@@ -2,6 +2,7 @@
 
 from attrs import define
 from ros_sugar.io import Publisher
+from ros_sugar.io import GenericCallback
 from ros_sugar.core import Event, Action
 from ros_sugar.io import Topic as BaseTopic, AllowedTopics
 from ros_sugar.config import QoSConfig as QoSConfigBase
@@ -17,6 +18,7 @@ from . import data_types
 __all__ = [
     "Launcher",
     "Publisher",
+    "GenericCallback",
     "Topic",
     "QoSConfig",
     "AllowedTopics",

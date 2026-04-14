@@ -23,7 +23,7 @@ from kompass_interfaces.srv import PlanPath as PlanPathSrv
 # KOMPASS ROS
 from ..config import BaseValidators, ComponentConfig, ComponentRunType
 from ..data_types import Path as KompassPath
-from ..callbacks import PointsOfInterestCallback
+from ..callbacks import PointsOfInterestCallback, DetectionsCallback
 from .ros import Topic, update_topics, ActionClientHandler
 from .component import Component
 from .defaults import (
@@ -173,6 +173,7 @@ class Planner(Component):
         try:
             import omplpy as ompl
             from kompass_core.third_party.ompl.config import initializePlanners
+
             initializePlanners()
             planners = ompl.geometric.planners.getPlanners()
             planning_algorithms = "Available planning algorithms are:\n"
@@ -208,11 +209,18 @@ class Planner(Component):
             "To stop recording and save, call the save_plan_to_file service.\n"
         )
 
-        return base_info + "\n" + planning_algorithms + "\n" + action_goal_info + "\n" + services_info
+        return (
+            base_info
+            + "\n"
+            + planning_algorithms
+            + "\n"
+            + action_goal_info
+            + "\n"
+            + services_info
+        )
 
     def get_ros_entrypoints(self) -> Dict[str, Dict[str, Any]]:
-        """Get the component ROS entry points (additional services and actions) as a dictionary.
-        """
+        """Get the component ROS entry points (additional services and actions) as a dictionary."""
         entry_points = {"services": {}, "actions": {}}
         entry_points["services"].update({
             f"{self.node_name}/save_plan_to_file": PathFromToFile,
@@ -303,7 +311,9 @@ class Planner(Component):
         num_goal_inputs = self._inputs_keys.count(TopicsKeys.GOAL_POINT)
         for idx in range(num_goal_inputs):
             callback = self.get_callback(TopicsKeys.GOAL_POINT, idx)
-            if isinstance(callback, PointsOfInterestCallback):
+            if isinstance(callback, PointsOfInterestCallback) or isinstance(
+                callback, DetectionsCallback
+            ):
                 # Init the depth detector
                 depth_detector = self.__setup_depth_detector()
                 if not depth_detector:
@@ -314,6 +324,9 @@ class Planner(Component):
                         topic_names=[self.in_topic_name(TopicsKeys.DEPTH_CAM_INFO)]
                     )
                 else:
+                    self.get_logger().debug(
+                        f"Setting up Depth Detector for input goals on topic {callback.input_topic.name}"
+                    )
                     callback.set_depth_detector(depth_detector)
                 break
 
@@ -385,13 +398,15 @@ class Planner(Component):
             )
             for idx in range(num_goal_inputs):
                 callback = self.get_callback(TopicsKeys.GOAL_POINT, idx)
-                if isinstance(callback, PointsOfInterestCallback):
+                if isinstance(callback, PointsOfInterestCallback) or isinstance(
+                    callback, DetectionsCallback
+                ):
                     # Points of interest callback requires camera info input topic to be set
                     require_cam_info = True
                 callback.on_callback_execute(self._plan_on_goal)
         if require_cam_info and not self.got_input(TopicsKeys.DEPTH_CAM_INFO):
             raise ValueError(
-                f"At least one of the goal point callbacks is a PointsOfInterestCallback which requires depth camera info input. Please provide a topic for {TopicsKeys.DEPTH_CAM_INFO} to ensure proper functionality."
+                f"At least one of the goal point callbacks is a {callback.__class__.__name__} which requires depth camera info input. Please provide a topic for {TopicsKeys.DEPTH_CAM_INFO} to ensure proper functionality."
             )
 
     def main_service_callback(
@@ -687,7 +702,9 @@ class Planner(Component):
         num_goal_inputs = self._inputs_keys.count(TopicsKeys.GOAL_POINT)
         for idx in range(num_goal_inputs):
             callback = self.get_callback(TopicsKeys.GOAL_POINT, idx)
-            self.goal[idx] = callback.get_output(to_robot_state=True)
+            self.goal[idx] = callback.get_output(
+                to_robot_state=True, robot_state=self.robot_state
+            )
 
     def __setup_depth_detector(self) -> Optional[DepthDetector]:
         """Setup and configure a DepthDetector for usage with Vision-based goals"""
@@ -698,15 +715,15 @@ class Planner(Component):
                 not self.depth_tf_listener.got_transform or not self._depth_image_info
             ) and timeout <= self.config.topic_subscription_timeout:
                 # Depth image cam info
-                depth_img_info_callback = self.get_callback(TopicsKeys.DEPTH_CAM_INFO)
-                self._depth_image_info: Optional[dict] = (
-                    depth_img_info_callback.get_output()
-                    if depth_img_info_callback
-                    else None
-                )
-                self.get_logger().info(
-                    "Waiting to get Depth camera to body TF to initialize Vision Depth Detector required for vision-based planner goals..."
-                )
+                if not self._depth_image_info:
+                    depth_img_info_callback = self.get_callback(
+                        TopicsKeys.DEPTH_CAM_INFO
+                    )
+                    self._depth_image_info: Optional[dict] = (
+                        depth_img_info_callback.get_output()
+                        if depth_img_info_callback
+                        else None
+                    )
                 time.sleep(1 / self.config.loop_rate)
                 timeout += 1 / self.config.loop_rate
         else:
@@ -718,7 +735,16 @@ class Planner(Component):
             )
             return None
 
-        if timeout >= self.config.topic_subscription_timeout:
+        if not self.depth_tf_listener.got_transform:
+            self.get_logger().error(
+                f"Could not obtain transformation between the Depth camera frame '{self.depth_tf_listener.config.source_frame}' to the robot body frame '{self.depth_tf_listener.config.goal_frame}'"
+            )
+            return None
+
+        if not self._depth_image_info:
+            self.get_logger().error(
+                f"Depth camera info topic '{self.in_topic_name(TopicsKeys.DEPTH_CAM_INFO)}' did not publish any message. TIMEOUT."
+            )
             return None
 
         self.get_logger().info(
@@ -807,7 +833,13 @@ class Planner(Component):
             and not self.reached_end
         ):
             for idx, goal_state in self.goal.items():
+                self.get_logger().debug(f"Planning for goal {idx}: {goal_state}")
                 self._plan_on_goal_core(goal_state, goal_index=idx)
+        else:
+            self.get_logger().debug(
+                f"No planning executed for current step:\nGoal: {self.goal}, robot_state: {self.robot_state}, reached_end: {self.reached_end}",
+                throttle_duration_sec=30.0,
+            )
 
     # SERVICES CALLBACKS
     def _start_path_recording_callback(
