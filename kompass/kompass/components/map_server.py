@@ -206,7 +206,7 @@ class MapServer(Component):
         super().create_all_timers()
         if self.config.map_file_read_rate > 0.0:
             if self.config.map_file_read_rate < 1.0:
-                self.get_logger().warn(
+                self.get_logger().warning(
                     "map_file_read_rate is too low, consider increasing it to at least 1 Hz!"
                 )
             self.__conversion_timer = self.create_timer(

@@ -449,7 +449,7 @@ class Planner(Component):
         if start_state:
             self._plan(start_state, goal_state, publish_path=True)
         else:
-            self.get_logger().warn(
+            self.get_logger().warning(
                 "Cannot execute planning service, robot location is unavailable"
             )
             response.success = False
@@ -532,7 +532,7 @@ class Planner(Component):
             if not goal_handle.is_active or goal_handle.is_cancel_requested:
                 self.get_logger().info("Goal Canceled")
                 return action_result
-            self.get_logger().warn(
+            self.get_logger().warning(
                 f"Location input topic '{self.in_topic_name(TopicsKeys.ROBOT_LOCATION)}' is not available, waiting...",
                 once=True,
             )

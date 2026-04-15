@@ -130,7 +130,7 @@ class MotionServer(Component):
 
     def custom_on_configure(self):
         if self.run_type == ComponentRunType.EVENT:
-            self.get_logger().warn(
+            self.get_logger().warning(
                 "Event-Based MotionServer waiting for trigger to start recording",
                 once=True,
             )
@@ -173,7 +173,7 @@ class MotionServer(Component):
         """Init recording for timed component"""
         # check if topic being published
         while not self.got_all_inputs():
-            self.get_logger().warn(
+            self.get_logger().warning(
                 "Timed MotionServer waiting for inputs to start recording", once=True
             )
             pass
@@ -247,7 +247,7 @@ class MotionServer(Component):
 
         if motion_file_name == "":
             motion_file_name = "motion_test"
-            self.get_logger().warn(
+            self.get_logger().warning(
                 f"Motion file save name is not provided in the request -> saving motion in default name {motion_file_name}"
             )
 
@@ -291,7 +291,7 @@ class MotionServer(Component):
                 )
 
         else:
-            self.get_logger().warn(
+            self.get_logger().warning(
                 f"Requested topics not being published: {self.get_missing_inputs()}"
             )
             action_result.recording_done = False
@@ -345,7 +345,7 @@ class MotionServer(Component):
             if feedback_msg:
                 feedback_msg = MotionRecording.Feedback()
 
-            self.get_logger().warn(
+            self.get_logger().warning(
                 f"Could not record a new point: Robot Odometry {self.robot_state} is not available or no command is sent to the robot: {self.robot_cmd}"
             )
             continue_recording = False

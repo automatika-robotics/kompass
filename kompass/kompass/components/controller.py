@@ -515,7 +515,7 @@ class Controller(Component):
                 frame_id=self.config.frames.world,
                 time_stamp=self.get_ros_time(),
             )
-            self.get_logger().warn("Sleeping for 10seconds to plot in debug mode")
+            self.get_logger().warning("Sleeping for 10seconds to plot in debug mode")
             time.sleep(10.0)
 
     @property
@@ -771,7 +771,7 @@ class Controller(Component):
             return
 
         if self.algorithm not in [ControllersID.VISION_IMG, ControllersID.VISION_DEPTH]:
-            self.get_logger().warn(
+            self.get_logger().warning(
                 f"Vision Tracking algorithm is not set, setting to default '{ControllersID.VISION_DEPTH}'"
             )
             self.algorithm = ControllersID.VISION_DEPTH
@@ -792,7 +792,7 @@ class Controller(Component):
             return
 
         if self.algorithm in [ControllersID.VISION_IMG, ControllersID.VISION_DEPTH]:
-            self.get_logger().warn(
+            self.get_logger().warning(
                 f"Path control algorithm is not set, setting to default '{ControllersID.DWA}'"
             )
             self.algorithm = ControllersID.DWA
@@ -843,7 +843,7 @@ class Controller(Component):
                 and timeout < self.config.topic_subscription_timeout
             ):
                 # Blocking loop until transform is collected
-                self.get_logger().warn(
+                self.get_logger().warning(
                     f"Waiting to get TF from {self.config.frames.odom} frame to {self.config.frames.world} frame...",
                     once=True,
                 )
@@ -1077,7 +1077,7 @@ class Controller(Component):
         self._update_state()
 
         while not self.robot_state:
-            self.get_logger().warn("Waiting to get all new incoming data...", once=True)
+            self.get_logger().warning("Waiting to get all new incoming data...", once=True)
             self._update_state()
             time.sleep(1 / self.config.loop_rate)
 
@@ -1170,11 +1170,11 @@ class Controller(Component):
             self.config._mode == ControllerMode.PATH_FOLLOWER
             or self._tracked_center is None
         ):
-            self.get_logger().warn("No ongoing vision tracking")
+            self.get_logger().warning("No ongoing vision tracking")
             response.success = True
             return response
 
-        self.get_logger().warn("Ending Vision Tracking Action for target")
+        self.get_logger().warning("Ending Vision Tracking Action for target")
 
         # Set reached end to true so the action server can end following
         self.__reached_end = True
@@ -1538,7 +1538,7 @@ class Controller(Component):
             )
             self.get_logger().info(f"Initialized '{self.algorithm}' controller")
         else:
-            self.get_logger().warn(
+            self.get_logger().warning(
                 f"No Algorithm is provided in control action request -> Using node configured algorithm '{self.algorithm}'"
             )
 

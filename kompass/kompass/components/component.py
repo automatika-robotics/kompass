@@ -661,7 +661,7 @@ class Component(BaseComponent):
         input_wait_time: float = 0.0
         while not self.got_all_inputs(inputs_to_check, inputs_to_exclude):
             unavailable_topics = self.get_missing_inputs()
-            self.get_logger().warn(
+            self.get_logger().warning(
                 f"{self.node_name} inputs: '{unavailable_topics}' are not available. Waiting for maximum of {self.config.topic_subscription_timeout}seconds...",
                 once=True,
             )

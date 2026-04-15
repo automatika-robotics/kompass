@@ -419,7 +419,7 @@ class DriveManager(Component):
             and not self.sensor_data
             and not self.config.use_without_scan_sensor
         ):
-            self.get_logger().warn(
+            self.get_logger().warning(
                 "LaserScan data is not available -> disabling command publish to robot. To use the DriveManager without safety stop set 'disable_safety_stop' to 'True'",
                 once=True,
             )
@@ -471,7 +471,7 @@ class DriveManager(Component):
         if slowdown_val == 0.0:
             # STOP ROBOT
             self.get_publisher(TopicsKeys.EMERGENCY).publish(True)
-            self.get_logger().warn("EMERGENCY STOP ON")
+            self.get_logger().warning("EMERGENCY STOP ON")
             # Publish zero velocity command
             self.get_publisher(TopicsKeys.FINAL_COMMAND).publish([0.0, 0.0, 0.0])
             return
@@ -489,7 +489,7 @@ class DriveManager(Component):
         :type max_time: float
         """
         if not self.robot_state:
-            self.get_logger().warn(
+            self.get_logger().warning(
                 "Robot state is not available and command publish is set to closed loop -> disabling command publish to robot. To use the DriveManager without robot state set 'closed_loop' to 'False'"
             )
             return
@@ -1108,7 +1108,7 @@ class DriveManager(Component):
             self.get_publisher(TopicsKeys.EMERGENCY).publish(False)
 
         if speed_factor == 0.0:
-            self.get_logger().warn("Emergency stop is ON, no commands will be executed")
+            self.get_logger().warning("Emergency stop is ON, no commands will be executed")
             return
 
         # Publish commands in the queue
@@ -1134,14 +1134,14 @@ class DriveManager(Component):
         super()._execute_once()
 
         if self.config.use_without_scan_sensor and not self.config.disable_safety_stop:
-            self.get_logger().warn(
+            self.get_logger().warning(
                 "Using DriveManager without 360deg scan sensor and Safety stop functionality is still enabled."
             )
             self._emergency_checker = None
             return
 
         if self.config.disable_safety_stop:
-            self.get_logger().warn("Safety Stop is Disabled!")
+            self.get_logger().warning("Safety Stop is Disabled!")
             self._emergency_checker = None
             return
 
@@ -1226,7 +1226,7 @@ class DriveManager(Component):
                 )
                 return
             except ImportError:
-                self.get_logger().warn(
+                self.get_logger().warning(
                     "GPU use is enabled but CriticalZoneCheckerGPU implementation is not found -> Using CPU implementation instead"
                 )
 
