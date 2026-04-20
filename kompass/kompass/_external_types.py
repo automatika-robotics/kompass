@@ -282,8 +282,11 @@ if EmbodiedAgentsCallbacks is not None:
                         weights
                     )
                     detection_at_index = next(
-                        box for lbl, box in self._detected_boxes if lbl == label
+                        (box for lbl, box in self._detected_boxes if lbl == label),
+                        None,
                     )
+                    if detection_at_index is None:
+                        return None
                     average_box = Bbox2D(
                         top_left_corner=np.array(
                             [average_det[0], average_det[1]], dtype=np.int32
