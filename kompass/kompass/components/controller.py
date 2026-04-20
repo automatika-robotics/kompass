@@ -706,31 +706,40 @@ class Controller(Component):
         """
         return self.config._mode
 
-    @component_action(description={
-        "type": "function",
-        "function": {
-            "name": "set_algorithm",
-            "description": "Set the controller algorithm used to compute motion control commands. "
-            "Available algorithms: 'DWA' (Dynamic Window Approach for path following with obstacle avoidance), "
-            "'Stanley' (Stanley steering controller for path following), "
-            "'DVZ' (Deformable Virtual Zone for reactive obstacle avoidance), "
-            "'PurePursuit' (Pure Pursuit geometric path follower), "
-            "'VisionRGBFollower' (vision-based target following using RGB images), "
-            "'VisionRGBDFollower' (vision-based target following using RGB-D depth images). "
-            "Use when the user asks to change or switch the control algorithm.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "algorithm_value": {
-                        "type": "string",
-                        "description": "The controller algorithm to use. Must be one of: 'DWA', 'Stanley', 'DVZ', 'PurePursuit', 'VisionRGBFollower', 'VisionRGBDFollower'.",
-                        "enum": ["DWA", "Stanley", "DVZ", "PurePursuit", "VisionRGBFollower", "VisionRGBDFollower"],
+    @component_action(
+        description={
+            "type": "function",
+            "function": {
+                "name": "set_algorithm",
+                "description": "Set the controller algorithm used to compute motion control commands. "
+                "Available algorithms: 'DWA' (Dynamic Window Approach for path following with obstacle avoidance), "
+                "'Stanley' (Stanley steering controller for path following), "
+                "'DVZ' (Deformable Virtual Zone for reactive obstacle avoidance), "
+                "'PurePursuit' (Pure Pursuit geometric path follower), "
+                "'VisionRGBFollower' (vision-based target following using RGB images), "
+                "'VisionRGBDFollower' (vision-based target following using RGB-D depth images). "
+                "Use when the user asks to change or switch the control algorithm.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "algorithm_value": {
+                            "type": "string",
+                            "description": "The controller algorithm to use. Must be one of: 'DWA', 'Stanley', 'DVZ', 'PurePursuit', 'VisionRGBFollower', 'VisionRGBDFollower'.",
+                            "enum": [
+                                "DWA",
+                                "Stanley",
+                                "DVZ",
+                                "PurePursuit",
+                                "VisionRGBFollower",
+                                "VisionRGBDFollower",
+                            ],
+                        },
                     },
+                    "required": ["algorithm_value"],
                 },
-                "required": ["algorithm_value"],
             },
-        },
-    })
+        }
+    )
     def set_algorithm(self, algorithm_value: Union[str, ControllersID], **_) -> bool:
         """
         Component action - Set controller algorithm action
@@ -808,9 +817,7 @@ class Controller(Component):
         )
         self.depth_image = vision_callback.depth_image if vision_callback else None
         # Depth image cam info
-        depth_img_info_callback = self.get_callback(
-            TopicsKeys.DEPTH_CAM_INFO
-        )
+        depth_img_info_callback = self.get_callback(TopicsKeys.DEPTH_CAM_INFO)
         self.depth_image_info = (
             depth_img_info_callback.get_output() if depth_img_info_callback else None
         )
@@ -1054,9 +1061,11 @@ class Controller(Component):
         # TWIST_SEQUENCE: Publish one-by-one in a blocking loop
         if self.config.ctrl_publish_type == CmdPublishType.TWIST_SEQUENCE:
             for vx, vy, omega in zip(commands_vx, commands_vy, commands_omega):
-                self.get_publisher(TopicsKeys.INTERMEDIATE_CMD).publish(
-                    [float(vx), float(vy), float(omega)]
-                )
+                self.get_publisher(TopicsKeys.INTERMEDIATE_CMD).publish([
+                    float(vx),
+                    float(vy),
+                    float(omega),
+                ])
                 time.sleep(self.config.control_time_step)
 
     def _path_control(self) -> bool:
@@ -1077,7 +1086,9 @@ class Controller(Component):
         self._update_state()
 
         while not self.robot_state:
-            self.get_logger().warning("Waiting to get all new incoming data...", once=True)
+            self.get_logger().warning(
+                "Waiting to get all new incoming data...", once=True
+            )
             self._update_state()
             time.sleep(1 / self.config.loop_rate)
 
@@ -1233,7 +1244,8 @@ class Controller(Component):
             ):
                 self._update_vision()
                 self.get_logger().info(
-                    "Waiting to get Depth camera to body TF to initialize Vision Follower..."
+                    "Waiting to get Depth camera to body TF to initialize Vision Follower...",
+                    once=True,
                 )
                 time.sleep(1 / self.config.loop_rate)
                 timeout += 1 / self.config.loop_rate
@@ -1245,10 +1257,48 @@ class Controller(Component):
             "Got Depth camera to body TF -> Setting up Vision Follower controller"
         )
 
+        # Determine whether global localization is available by waiting for
+        # odometry and (if needed) the odom->world TF, using the same timeout
+        # pattern as the depth TF wait above.
+        state_callback = self.get_callback(TopicsKeys.ROBOT_LOCATION)
+        loc_timeout = 0.0
+        while loc_timeout < self.config.topic_subscription_timeout:
+            self._update_state()
+            has_odom = state_callback is not None and self.robot_state is not None
+            has_world_tf = (
+                self.config.frames.odom == self.config.frames.world
+            ) or (
+                self.odom_tf_listener is not None
+                and self.odom_tf_listener.transform is not None
+            )
+            if has_odom and has_world_tf:
+                break
+            self.get_logger().info(
+                "Waiting for robot localization to determine tracking mode...",
+                once=True,
+            )
+            time.sleep(1 / self.config.loop_rate)
+            loc_timeout += 1 / self.config.loop_rate
+
+        has_global_localization = has_odom and has_world_tf
+        use_local = not has_global_localization
+
+        if use_local:
+            self.get_logger().info(
+                "No global localization available — vision follower will "
+                "operate in local (robot-relative) frame"
+            )
+        else:
+            self.get_logger().info(
+                "Global localization available — vision follower will "
+                "operate in world frame with velocity tracking"
+            )
+
         config = ControlConfigClasses[self.algorithm](
             control_time_step=self.config.control_time_step,
             camera_position_to_robot=self.depth_tf_listener.translation,
             camera_rotation_to_robot=self.depth_tf_listener.rotation,
+            _use_local_coordinates=use_local,
         )
 
         # Set the buffer size to the detections callback
@@ -1316,7 +1366,7 @@ class Controller(Component):
                 f"Got initial target {label}, setting to controller..."
             )
             self._update_state()
-            if not self.robot_state or not self.depth_image:
+            if not self.robot_state or self.depth_image is None:
                 return False
             found_target = controller.set_initial_tracking_2d_target(
                 target_box=target_2d[0],
@@ -1325,8 +1375,10 @@ class Controller(Component):
             )
         else:
             if self.algorithm == ControllersID.VISION_IMG:
-                self.get_logger().error("Cannot use Vision RGB Follower without providing a target label")
-                self.health_status.set_fail_algorithm(algorithm_names=["VisionRGBFollower"])
+                self.get_logger().error(
+                    "Cannot use Vision RGB Follower without providing a target label"
+                )
+                self.health_status.set_fail_algorithm(algorithm_names=[self.algorithm.value])
                 return False
 
             self._update_state()
