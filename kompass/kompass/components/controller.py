@@ -1344,6 +1344,7 @@ class Controller(Component):
         while (not self.robot_state or self.depth_image is None) and (timeout < self.config.topic_subscription_timeout):
             self._update_state()
             timeout += 1 / self.config.loop_rate
+            time.sleep(1 / self.config.loop_rate)
         if not self.robot_state or self.depth_image is None:
             self.get_logger().error(
                 f"Could not get robot state and depth image to set initial tracking target after {self.config.topic_subscription_timeout} seconds"
