@@ -1,8 +1,6 @@
-["/**".frames]
-robot_base = "base_link"
-odom = "map"
-world = "map"
-scan = "base_link"
+["/**".inputs.map_layer]
+name = "/odometry/filtered"
+msg_type = "Odometry"
 
 [mapper]
 loop_rate = 10.0
@@ -57,10 +55,6 @@ jerk_weight = 0.0
 [planner.inputs.map_layer]
 name = "/map"
 msg_type = "OccupancyGrid"
-
-[planner.inputs.goal_point]
-name = "/clicked_point"
-msg_type = "PointStamped"
 
 [planner]
 loop_rate = 1.0
