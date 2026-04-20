@@ -826,10 +826,7 @@ class Controller(Component):
         """
         Updates node inputs from associated callbacks
         """
-        if self.config._mode == ControllerMode.VISION_FOLLOWER:
-            # If vision mode is ON and a label is getting tracked
-            self._update_vision()
-        else:
+        if self.config._mode == ControllerMode.PATH_FOLLOWER:
             plan_callback = self.get_callback(TopicsKeys.GLOBAL_PLAN)
             self.plan: Optional[Path] = (
                 plan_callback.get_output() if plan_callback else None
@@ -1224,7 +1221,7 @@ class Controller(Component):
                 f"Waiting for vision target information, timeout in {round(max_wait_time - wait_time, 2)}s...",
                 once=True,
             )
-            self._update_state()
+            self._update_vision()
             wait_time += 1 / self.config.loop_rate
             time.sleep(1 / self.config.loop_rate)
         return wait_time < max_wait_time
@@ -1459,6 +1456,8 @@ class Controller(Component):
             )
 
             if got_data:
+                # Update robot state and sensor data
+                self._update_state()
                 laser_scan = None
                 point_cloud = None
                 local_map = None
