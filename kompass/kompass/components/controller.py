@@ -1340,6 +1340,15 @@ class Controller(Component):
         :return: If target is set successfully to the controller
         :rtype: bool
         """
+        timeout = 0.0
+        while (not self.robot_state or self.depth_image is None) and (timeout < self.config.topic_subscription_timeout):
+            self._update_state()
+            timeout += 1 / self.config.loop_rate
+        if not self.robot_state or self.depth_image is None:
+            self.get_logger().error(
+                f"Could not get robot state and depth image to set initial tracking target after {self.config.topic_subscription_timeout} seconds"
+            )
+            return False
         if label != "":
             target_2d = None
             vision_callback = self.get_callback(TopicsKeys.VISION_DETECTIONS)
@@ -1362,9 +1371,6 @@ class Controller(Component):
             self.get_logger().info(
                 f"Got initial target {label}, setting to controller..."
             )
-            self._update_state()
-            if not self.robot_state or self.depth_image is None:
-                return False
             found_target = controller.set_initial_tracking_2d_target(
                 target_box=target_2d[0],
                 current_state=self.robot_state,
@@ -1378,9 +1384,6 @@ class Controller(Component):
                 self.health_status.set_fail_algorithm(algorithm_names=[self.algorithm.value])
                 return False
 
-            self._update_state()
-            if not self.robot_state or not self.vision_detections:
-                return False
             # If no label is provided, use the provided pixel coordinates (Only works with depth)
             found_target = controller.set_initial_tracking_image(
                 self.robot_state,
