@@ -84,6 +84,16 @@ class ControllerMode(StrEnum):
     VISION_FOLLOWER = "vision_object_follower"
 
 
+class PathControlStatus(StrEnum):
+    """Outcome of a single ``_path_control`` step."""
+
+    IDLE = "idle"                    # no controller or no path set
+    WAITING_INPUTS = "waiting"       # robot state / TF not yet available
+    RUNNING = "running"              # command computed and published
+    GOAL_REACHED = "goal_reached"    # robot inside goal tolerance
+    FAILED = "failed"                # algorithm could not produce a command
+
+
 @define
 class ControllerConfig(ComponentConfig):
     """
@@ -1076,20 +1086,20 @@ class Controller(Component):
                 ])
                 time.sleep(self.config.control_time_step)
 
-    def _path_control(self) -> bool:
+    def _path_control(self) -> PathControlStatus:
         """
-        Gets robot control command using reference commands
+        Run one step of the path-following controller.
 
-        :return: If robot reached end of reference plan
-        :rtype: bool
+        This method reports the outcome via ``PathControlStatus``;
+        callers own the lifecycle transition (setting ``__reached_end``,
+        clearing the plan callback, aborting the action, etc.).
         """
         if self.__path_controller is None:
-            return False
+            return PathControlStatus.IDLE
 
         if not self.__path_controller.path:
-            # No global path -> End is reached or task is cancelled
-            self.__reached_end = True
-            return True
+            # No global path -> nothing to control toward
+            return PathControlStatus.IDLE
 
         self._update_state(block=False)
 
@@ -1107,7 +1117,7 @@ class Controller(Component):
                 f"Robot state unavailable after {self.config.topic_subscription_timeout}s -> skipping control step",
                 throttle_duration_sec=5.0,
             )
-            return False
+            return PathControlStatus.WAITING_INPUTS
 
         laser_scan = None
         point_cloud = None
@@ -1121,43 +1131,28 @@ class Controller(Component):
         else:
             local_map = self.local_map
 
-        self.__reached_end = self.reached_point(self.__goal_point)
-
-        # If end is reached stop the robot
-        if self.__reached_end:
-            # Stop robot
+        if self.reached_point(self.__goal_point):
             self._stop_robot()
-            # Clear path
-            self.get_callback(TopicsKeys.GLOBAL_PLAN).clear_last_msg()
-            # Unset reached_end for new incoming paths
-            self.__reached_end = False
-            return True
+            return PathControlStatus.GOAL_REACHED
 
         cmd_found: bool = self.__path_controller.loop_step(
             current_state=self.robot_state,  # type: ignore
             laser_scan=laser_scan,
             point_cloud=point_cloud,
             local_map=local_map,
-            local_map_resolution=self.local_map_resolution
-            if hasattr(self, "local_map_resolution")
-            else None,
+            local_map_resolution=getattr(self, "local_map_resolution", None),
             debug=self.config.debug,
         )
 
         # LOG CONTROLLER INFO
         self.get_logger().debug(f"{self.__path_controller.logging_info()}")
 
-        # PUBLISH CONTROL TO ROBOT CMD TOPIC
         if not cmd_found:
-            self.health_status.set_fail_algorithm(
-                algorithm_names=[str(ControlClasses[self.algorithm])]
-            )
-            self.__reached_end = False
-            return False
+            return PathControlStatus.FAILED
 
         self.health_status.set_healthy()
 
-        # Update controller path tracking info (errors/end_reached)
+        # Update controller path tracking info (errors)
         self.__lat_dist_error = self.__path_controller.distance_error
         self.__ori_error = self.__path_controller.orientation_error
 
@@ -1167,7 +1162,7 @@ class Controller(Component):
             self.__path_controller.angular_control,
         )
 
-        return True
+        return PathControlStatus.RUNNING
 
     def __vision_mode_inputs(self) -> List[str]:
         """Helper method to get the names of the topics required for the vision follower mode
@@ -1595,13 +1590,16 @@ class Controller(Component):
 
         self.__reached_end: bool = False
 
-        while not self.__reached_end:
-            cmd_found: bool = self._path_control()
+        while True:
+            status: PathControlStatus = self._path_control()
 
-            if not cmd_found:
+            if status == PathControlStatus.GOAL_REACHED:
+                self.__reached_end = True
+                break
+            if status in (PathControlStatus.FAILED, PathControlStatus.IDLE):
                 break
 
-            # Send controller feedback
+            # RUNNING or WAITING_INPUTS: keep the action alive, publish feedback
             # TODO: Add an option to update the computation time using timeit and send it in feedback, for controller performance tracking
             feedback_msg.control_list = init_twist_array_msg(
                 number_of_cmds=len(self.__path_controller.linear_x_control),
@@ -1697,12 +1695,23 @@ class Controller(Component):
             # If vision mode is activated -> do nothing
             return
 
+        if self.__reached_end:
+            return
         try:
-            # Check if all inputs are available
-            if not self.__reached_end:
-                self._path_control()
+            status = self._path_control()
         except Exception as e:
             self.get_logger().error(
                 f"Path control step failed for algorithm '{self.algorithm}': {e}"
             )
             self.health_status.set_fail_algorithm(algorithm_names=[self.algorithm])
+            return
+
+        if status == PathControlStatus.GOAL_REACHED:
+            self.__reached_end = True
+            plan_callback = self.get_callback(TopicsKeys.GLOBAL_PLAN)
+            if plan_callback:
+                plan_callback.clear_last_msg()
+        elif status == PathControlStatus.FAILED:
+            self.health_status.set_fail_algorithm(
+                algorithm_names=[str(ControlClasses[self.algorithm])]
+            )
