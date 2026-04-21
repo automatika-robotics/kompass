@@ -1090,12 +1090,21 @@ class Controller(Component):
 
         self._update_state()
 
-        while not self.robot_state:
+        waited = 0.0
+        while not self.robot_state and waited < self.config.topic_subscription_timeout:
             self.get_logger().warning(
                 "Waiting to get all new incoming data...", once=True
             )
-            self._update_state()
             time.sleep(1 / self.config.loop_rate)
+            waited += 1 / self.config.loop_rate
+            self._update_state(block=False)
+
+        if not self.robot_state:
+            self.get_logger().warning(
+                f"Robot state unavailable after {self.config.topic_subscription_timeout}s -> skipping control step",
+                throttle_duration_sec=5.0,
+            )
+            return False
 
         laser_scan = None
         point_cloud = None
