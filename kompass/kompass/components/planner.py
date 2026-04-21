@@ -405,7 +405,11 @@ class Planner(Component):
                 ):
                     # Points of interest callback requires camera info input topic to be set
                     require_cam_info = True
-                callback.on_callback_execute(self._plan_on_goal)
+                callback.on_callback_execute(
+                    lambda msg, _cb=callback, _idx=idx, **__: self._plan_on_goal(
+                        msg, callback=_cb, goal_index=_idx
+                    )
+                )
         if require_cam_info and not self.got_input(TopicsKeys.DEPTH_CAM_INFO):
             raise ValueError(
                 f"At least one of the goal point callbacks is a {callback.__class__.__name__} which requires depth camera info input. Please provide a topic for {TopicsKeys.DEPTH_CAM_INFO} to ensure proper functionality."
@@ -796,22 +800,36 @@ class Planner(Component):
             return True
         return False
 
-    def _plan_on_goal(self, msg, **_) -> bool:
+    def _plan_on_goal(self, msg, *, callback=None, goal_index: int = 0, **_) -> None:
         """
         Generate a new plan on a msg published to goal_point topic
 
-        :param goal: Goal point topic message
-        :type goal: RobotState
+        :param msg: Goal point topic message (PointStamped, PoseStamped, Detections2D, Trackings, etc.)
+        :param callback: Callback that produced the message, used to convert the
+            raw msg to a RobotState via its get_output(to_robot_state=True, ...)
+            contract. If None, falls back to msg.point field access.
+        :param goal_index: Index of the goal_point input when multiple are
+            configured; used to key into self.goal[...] inside _plan_on_goal_core.
         """
         # Clear any previous path
         self._clear_path()
 
         self._update_state()
 
-        goal_state = RobotState(x=msg.point.x, y=msg.point.y)
+        if callback is not None:
+            goal_state: Optional[RobotState] = callback.get_output(
+                to_robot_state=True, robot_state=self.robot_state
+            )
+        else:
+            goal_state = RobotState(x=msg.point.x, y=msg.point.y)
 
-        result = self._plan_on_goal_core(goal_state)
-        if not result:
+        if not goal_state:
+            self.get_logger().error(
+                "Could not extract goal state from incoming goal message"
+            )
+            return
+
+        if not self._plan_on_goal_core(goal_state, goal_index=goal_index):
             # Robot location not known -> cannot plan
             self.get_logger().error(
                 f"Got goal point {goal_state} but cannot plan. Robot location is not known"
@@ -819,7 +837,6 @@ class Planner(Component):
             self.health_status.set_fail_system(
                 topic_names=[self.in_topic_name(TopicsKeys.ROBOT_LOCATION)]
             )
-            return False
 
     def _execution_step(self):
         """
