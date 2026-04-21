@@ -312,6 +312,8 @@ class TestPathTrackingCallbackDispatch:
         # Inputs check passes; mode assignment is a no-op on MagicMock config;
         # set_path is on the path controller mock.
         c.callbacks_inputs_check = MagicMock(return_value=True)
+        # __vision_mode_inputs reaches into self._inputs_keys — stub it out.
+        _set_mangled(c, "vision_mode_inputs", lambda: [])
         return make_goal_handle()
 
     def test_succeeds_when_path_control_reaches_goal(self):
@@ -371,3 +373,293 @@ class TestPathTrackingCallbackDispatch:
 
         gh.succeed.assert_called_once()
         assert c._path_control.call_count == 3
+
+    def test_feedback_control_list_has_correct_field_mapping(self):
+        """A1 regression: linear_y / angular must come from their own getters,
+        not copies of linear_x_control."""
+        c = make_path_controller_stub()
+        gh = self._prep(c)
+        path_ctrl = _get_mangled(c, "path_controller")
+        path_ctrl.linear_x_control = [1.1, 1.2]
+        path_ctrl.linear_y_control = [0.5, 0.6]
+        path_ctrl.angular_control = [0.01, 0.02]
+
+        c._path_control = MagicMock(
+            side_effect=[PathControlStatus.RUNNING, PathControlStatus.GOAL_REACHED]
+        )
+
+        c._path_tracking_callback(gh)
+
+        feedback = gh.publish_feedback.call_args.args[0]
+        assert list(feedback.control_list.linear_velocities.x) == [1.1, 1.2]
+        assert list(feedback.control_list.linear_velocities.y) == [0.5, 0.6]
+        assert list(feedback.control_list.angular_velocities.z) == [0.01, 0.02]
+
+    def test_feedback_deviation_has_correct_field_mapping(self):
+        """A2 regression: lateral_distance_error and orientation_error not swapped."""
+        c = make_path_controller_stub()
+        gh = self._prep(c)
+        _set_mangled(c, "lat_dist_error", 0.42)
+        _set_mangled(c, "ori_error", 0.07)
+        c._path_control = MagicMock(
+            side_effect=[PathControlStatus.RUNNING, PathControlStatus.GOAL_REACHED]
+        )
+
+        c._path_tracking_callback(gh)
+
+        fb = gh.publish_feedback.call_args.args[0]
+        assert fb.global_path_deviation.lateral_distance_error == 0.42
+        assert fb.global_path_deviation.orientation_error == 0.07
+
+
+# ---------------------------------------------------------------------------
+# _set_path_to_controller
+# ---------------------------------------------------------------------------
+
+class TestSetPathToController:
+    def _make_path_msg(self, xy_pairs):
+        from nav_msgs.msg import Path
+        from geometry_msgs.msg import PoseStamped
+        p = Path()
+        for x, y in xy_pairs:
+            ps = PoseStamped()
+            ps.pose.position.x = float(x)
+            ps.pose.position.y = float(y)
+            p.poses.append(ps)
+        return p
+
+    def test_multi_pose_path_populates_goal_and_resets_reached_end(self):
+        c = make_path_controller_stub()
+        _set_mangled(c, "reached_end", True)  # pretend previous goal completed
+        path_ctrl = _get_mangled(c, "path_controller")
+
+        msg = self._make_path_msg([(0.0, 0.0), (1.0, 0.5), (2.0, 1.0)])
+        c._set_path_to_controller(msg)
+
+        assert _get_mangled(c, "reached_end") is False
+        path_ctrl.set_path.assert_called_once_with(global_path=msg)
+        goal = _get_mangled(c, "goal_point")
+        assert goal.x == 2.0 and goal.y == 1.0
+
+    def test_single_pose_path_clears_goal_point(self):
+        """A10-adjacent: a one-pose path is treated as 'no goal'."""
+        c = make_path_controller_stub()
+        msg = self._make_path_msg([(5.0, 5.0)])
+
+        c._set_path_to_controller(msg)
+
+        assert _get_mangled(c, "goal_point") is None
+        # And kompass-core set_path is still called — it's responsible for
+        # clearing its own internal path for < 2 poses.
+        _get_mangled(c, "path_controller").set_path.assert_called_once_with(
+            global_path=msg
+        )
+
+
+# ---------------------------------------------------------------------------
+# reached_point
+# ---------------------------------------------------------------------------
+
+class TestReachedPoint:
+    # The stub mocks c.reached_point for the _path_control tests; call the real
+    # method via the class descriptor to bypass the instance-level mock.
+    @staticmethod
+    def _real(c, goal):
+        return Controller.reached_point(c, goal)
+
+    def test_returns_true_when_goal_is_none(self):
+        c = make_path_controller_stub()
+        assert self._real(c, None) is True
+
+    def test_returns_false_when_robot_state_missing(self):
+        c = make_path_controller_stub()
+        c.robot_state = None
+        assert self._real(c, RobotState(x=0.0, y=0.0)) is False
+
+    def test_returns_false_when_no_path_controller(self):
+        c = make_path_controller_stub()
+        _set_mangled(c, "path_controller", None)
+        assert self._real(c, RobotState(x=0.0, y=0.0)) is False
+
+    def test_true_within_tolerance(self):
+        c = make_path_controller_stub()
+        c.robot_state = RobotState(x=0.05, y=0.0, yaw=0.0)
+        # goal_dist_tolerance = 0.1 from stub; numpy bool -> cast to Python bool
+        assert bool(self._real(c, RobotState(x=0.0, y=0.0))) is True
+
+    def test_false_outside_tolerance(self):
+        c = make_path_controller_stub()
+        c.robot_state = RobotState(x=1.0, y=0.0, yaw=0.0)
+        assert bool(self._real(c, RobotState(x=0.0, y=0.0))) is False
+
+
+# ---------------------------------------------------------------------------
+# _stop_robot
+# ---------------------------------------------------------------------------
+
+class TestStopRobot:
+    def test_array_mode_publishes_one_cmd_array(self):
+        c = make_path_controller_stub()
+        c.config.ctrl_publish_type = CmdPublishType.TWIST_ARRAY
+        pub = MagicMock()
+        c.get_publisher = MagicMock(return_value=pub)
+        c._cmds_queue.put((1, 2, 3))
+
+        Controller._stop_robot(c)
+
+        assert c._cmds_queue.empty()
+        pub.publish.assert_called_once()
+        published_msg = pub.publish.call_args.args[0]
+        assert list(published_msg.linear_velocities.x) == [0.0]
+        assert list(published_msg.angular_velocities.z) == [0.0]
+
+    def test_sequence_mode_publishes_single_zero_cmd(self):
+        c = make_path_controller_stub()
+        c.config.ctrl_publish_type = CmdPublishType.TWIST_SEQUENCE
+        pub = MagicMock()
+        c.get_publisher = MagicMock(return_value=pub)
+
+        Controller._stop_robot(c)
+
+        pub.publish.assert_called_once_with([0.0, 0.0, 0.0])
+
+
+# ---------------------------------------------------------------------------
+# _publish dispatch
+# ---------------------------------------------------------------------------
+
+class TestPublishDispatch:
+    def test_parallel_mode_enqueues_commands(self):
+        c = make_path_controller_stub()
+        c.config.ctrl_publish_type = CmdPublishType.TWIST_PARALLEL
+        pub = MagicMock()
+        c.get_publisher = MagicMock(return_value=pub)
+
+        Controller._publish(c, [0.1, 0.2, 0.3], [0.0, 0.0, 0.0], [0.5, 0.4, 0.3])
+
+        pub.publish.assert_not_called()
+        queued = list(c._cmds_queue.queue)
+        assert queued == [(0.1, 0.0, 0.5), (0.2, 0.0, 0.4), (0.3, 0.0, 0.3)]
+
+    def test_array_mode_publishes_twist_array(self):
+        c = make_path_controller_stub()
+        c.config.ctrl_publish_type = CmdPublishType.TWIST_ARRAY
+        c.config.control_time_step = 0.25
+        pub = MagicMock()
+        c.get_publisher = MagicMock(return_value=pub)
+
+        Controller._publish(c, [0.1, 0.2], [0.0, 0.0], [0.5, 0.4])
+
+        pub.publish.assert_called_once()
+        msg = pub.publish.call_args.args[0]
+        assert list(msg.linear_velocities.x) == [0.1, 0.2]
+        assert list(msg.linear_velocities.y) == [0.0, 0.0]
+        assert list(msg.angular_velocities.z) == [0.5, 0.4]
+        assert msg.time_step == 0.25
+
+    def test_sequence_mode_publishes_each(self, monkeypatch):
+        c = make_path_controller_stub()
+        c.config.ctrl_publish_type = CmdPublishType.TWIST_SEQUENCE
+        pub = MagicMock()
+        c.get_publisher = MagicMock(return_value=pub)
+        # avoid real sleeps
+        from kompass.components import controller as ctrl_mod
+        monkeypatch.setattr(ctrl_mod.time, "sleep", lambda *_: None)
+
+        Controller._publish(c, [0.1, 0.2], [0.0, 0.0], [0.5, 0.4])
+
+        assert pub.publish.call_count == 2
+        first = pub.publish.call_args_list[0].args[0]
+        assert first == [0.1, 0.0, 0.5]
+
+
+# ---------------------------------------------------------------------------
+# _cmds_publishing_callback
+# ---------------------------------------------------------------------------
+
+class TestCmdsPublishingCallback:
+    def test_skips_and_clears_queue_when_reached_end(self):
+        c = make_path_controller_stub()
+        _set_mangled(c, "reached_end", True)
+        c._cmds_queue.put((0.1, 0.0, 0.0))
+        pub = MagicMock()
+        c.get_publisher = MagicMock(return_value=pub)
+
+        c._cmds_publishing_callback()
+
+        pub.publish.assert_not_called()
+        assert c._cmds_queue.empty()
+
+    def test_publishes_one_cmd_from_queue(self):
+        c = make_path_controller_stub()
+        _set_mangled(c, "reached_end", False)
+        pub = MagicMock()
+        c.get_publisher = MagicMock(return_value=pub)
+        c._cmds_queue.put((0.1, 0.0, 0.2))
+
+        c._cmds_publishing_callback()
+
+        pub.publish.assert_called_once_with((0.1, 0.0, 0.2))
+
+    def test_noop_on_empty_queue(self):
+        c = make_path_controller_stub()
+        _set_mangled(c, "reached_end", False)
+        pub = MagicMock()
+        c.get_publisher = MagicMock(return_value=pub)
+
+        c._cmds_publishing_callback()
+
+        pub.publish.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# _info_publishing_callback
+# ---------------------------------------------------------------------------
+
+class TestInfoPublishingCallback:
+    def test_noop_in_vision_mode(self):
+        c = make_path_controller_stub()
+        c.config._mode = ControllerMode.VISION_FOLLOWER
+        pub = MagicMock()
+        c.get_publisher = MagicMock(return_value=pub)
+
+        c._info_publishing_callback()
+
+        pub.publish.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# set_algorithm   (B10 regression: log on failure)
+# ---------------------------------------------------------------------------
+
+class TestSetAlgorithm:
+    # set_algorithm is wrapped with @component_action which requires rclpy.
+    # functools.wraps exposes the original via __wrapped__.
+    _raw = staticmethod(Controller.set_algorithm.__wrapped__)
+
+    def test_returns_true_when_value_matches_current(self):
+        c = make_path_controller_stub()
+        from kompass_core.control import ControllersID
+        c.config.algorithm = ControllersID.DWA
+
+        assert self._raw(c, "DWA") is True
+
+    def test_logs_and_returns_false_when_setter_raises(self, monkeypatch):
+        """B10 regression: failure path logs via get_logger and returns False."""
+        c = make_path_controller_stub()
+        from kompass_core.control import ControllersID
+        c.config.algorithm = ControllersID.DWA
+
+        def _raise(self, value):
+            raise RuntimeError("simulated setter failure")
+
+        monkeypatch.setattr(
+            Controller,
+            "algorithm",
+            property(lambda self: self.config.algorithm, _raise),
+        )
+
+        result = self._raw(c, "Stanley")
+
+        assert result is False
+        c.get_logger.return_value.error.assert_called()
