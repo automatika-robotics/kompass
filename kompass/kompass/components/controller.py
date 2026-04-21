@@ -756,7 +756,10 @@ class Controller(Component):
             return True
         try:
             self.algorithm = algorithm_value
-        except Exception:
+        except Exception as e:
+            self.get_logger().error(
+                f"Failed to set controller algorithm to '{algorithm_value}': {e}"
+            )
             return False
 
     def _activate_vision_mode(self):

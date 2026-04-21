@@ -374,7 +374,10 @@ class Planner(Component):
             if algorithm_name:
                 goal.algorithm_name = algorithm_name
             action_client.send_request(goal)
-        except Exception:
+        except Exception as e:
+            self.get_logger().error(
+                f"Failed to trigger '{self.main_action_name}' action on '{self.node_name}': {e}"
+            )
             self.health_status.set_fail_component()
 
     def _clear_path(self, *_, **__):
