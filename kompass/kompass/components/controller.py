@@ -1588,8 +1588,8 @@ class Controller(Component):
                 angular=self.__path_controller.angular_control,
             )
 
-            feedback_msg.global_path_deviation.orientation_error = self.__lat_dist_error
-            feedback_msg.global_path_deviation.lateral_distance_error = self.__ori_error
+            feedback_msg.global_path_deviation.lateral_distance_error = self.__lat_dist_error
+            feedback_msg.global_path_deviation.orientation_error = self.__ori_error
             feedback_msg.prediction_horizon = self.config.prediction_horizon
 
             self.get_logger().info(
@@ -1604,8 +1604,8 @@ class Controller(Component):
             # WHEN PATH TRACKER SERVICE RETURNS RESULT
             self.get_logger().info("Reached end of path!")
             # Update the result msg
-            result.destination_error.orientation_error = self.__lat_dist_error
-            result.destination_error.lateral_distance_error = self.__ori_error
+            result.destination_error.lateral_distance_error = self.__lat_dist_error
+            result.destination_error.orientation_error = self.__ori_error
             goal_handle.succeed()
 
         else:
