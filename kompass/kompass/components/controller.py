@@ -1584,8 +1584,8 @@ class Controller(Component):
             feedback_msg.control_list = init_twist_array_msg(
                 number_of_cmds=len(self.__path_controller.linear_x_control),
                 linear_x=self.__path_controller.linear_x_control,
-                linear_y=self.__path_controller.linear_x_control,
-                angular=self.__path_controller.linear_x_control,
+                linear_y=self.__path_controller.linear_y_control,
+                angular=self.__path_controller.angular_control,
             )
 
             feedback_msg.global_path_deviation.orientation_error = self.__lat_dist_error
