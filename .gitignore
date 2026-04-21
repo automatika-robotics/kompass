@@ -62,7 +62,6 @@ CATKIN_IGNORE
 */parts/
 */sdist/
 */var/
-*/test/
 *.egg-info/
 .installed.cfg
 *.egg
