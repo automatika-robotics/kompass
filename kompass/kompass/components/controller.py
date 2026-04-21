@@ -822,9 +822,14 @@ class Controller(Component):
             depth_img_info_callback.get_output() if depth_img_info_callback else None
         )
 
-    def _update_state(self) -> None:
+    def _update_state(self, block: bool = True) -> None:
         """
-        Updates node inputs from associated callbacks
+        Updates node inputs from associated callbacks.
+
+        :param block: If True, blocks up to ``topic_subscription_timeout`` waiting
+            for the odom->world TF when the two frames differ. Pass ``False`` from
+            fast control loops to read the latest cached transform without blocking;
+            if the TF is not yet available the update is skipped for this tick.
         """
         if self.config._mode == ControllerMode.PATH_FOLLOWER:
             plan_callback = self.get_callback(TopicsKeys.GLOBAL_PLAN)
@@ -841,32 +846,34 @@ class Controller(Component):
                 else None
             )
         else:
-            timeout = 0.0
-            while (
-                not self.odom_tf_listener.transform
-                and timeout < self.config.topic_subscription_timeout
-            ):
-                # Blocking loop until transform is collected
-                self.get_logger().warning(
-                    f"Waiting to get TF from {self.config.frames.odom} frame to {self.config.frames.world} frame...",
-                    once=True,
-                )
-                timeout += 1 / self.config.loop_rate
-                time.sleep(1 / self.config.loop_rate)
+            if block and not self.odom_tf_listener.transform:
+                timeout = 0.0
+                while (
+                    not self.odom_tf_listener.transform
+                    and timeout < self.config.topic_subscription_timeout
+                ):
+                    self.get_logger().warning(
+                        f"Waiting to get TF from {self.config.frames.odom} frame to {self.config.frames.world} frame...",
+                        once=True,
+                    )
+                    timeout += 1 / self.config.loop_rate
+                    time.sleep(1 / self.config.loop_rate)
+                if not self.odom_tf_listener.transform:
+                    self.get_logger().error(
+                        f"Could not get TF from {self.config.frames.odom} frame to {self.config.frames.world} frame after {self.config.topic_subscription_timeout} seconds"
+                    )
             if not self.odom_tf_listener.transform:
-                self.get_logger().error(
-                    f"Could not get TF from {self.config.frames.odom} frame to {self.config.frames.world} frame after {self.config.topic_subscription_timeout} seconds"
-                )
                 self.robot_state = None
-            self.robot_state = (
-                state_callback.get_output(
-                    transformation=self.odom_tf_listener.transform,
-                    get_front=True,
-                    clear_last=True,
+            else:
+                self.robot_state = (
+                    state_callback.get_output(
+                        transformation=self.odom_tf_listener.transform,
+                        get_front=True,
+                        clear_last=True,
+                    )
+                    if state_callback
+                    else None
                 )
-                if state_callback
-                else None
-            )
 
         if self.direct_sensor:
             sensor_callback = self.get_callback(TopicsKeys.SPATIAL_SENSOR)
