@@ -1538,7 +1538,6 @@ class Controller(Component):
         request_msg = goal_handle.request
 
         feedback_msg = ControlPath.Feedback()
-        feedback_msg.control_feedback = kompass_msgs.ControllerInfo()
 
         result = ControlPath.Result()
         result.destination_error = kompass_msgs.PathTrackingError()
@@ -1615,7 +1614,8 @@ class Controller(Component):
             feedback_msg.prediction_horizon = self.config.prediction_horizon
 
             self.get_logger().info(
-                "Controlling Path: {0}".format(feedback_msg.control_feedback)
+                "Controlling Path — lat_err=%.3f, ori_err=%.3f"
+                % (self.__lat_dist_error, self.__ori_error)
             )
 
             goal_handle.publish_feedback(feedback_msg)
