@@ -1088,7 +1088,7 @@ class Controller(Component):
             self.__reached_end = True
             return True
 
-        self._update_state()
+        self._update_state(block=False)
 
         waited = 0.0
         while not self.robot_state and waited < self.config.topic_subscription_timeout:
@@ -1252,9 +1252,7 @@ class Controller(Component):
         while loc_timeout < self.config.topic_subscription_timeout:
             self._update_state()
             has_odom = state_callback is not None and self.robot_state is not None
-            has_world_tf = (
-                self.config.frames.odom == self.config.frames.world
-            ) or (
+            has_world_tf = (self.config.frames.odom == self.config.frames.world) or (
                 self.odom_tf_listener is not None
                 and self.odom_tf_listener.transform is not None
             )
@@ -1330,7 +1328,9 @@ class Controller(Component):
         :rtype: bool
         """
         timeout = 0.0
-        while (not self.robot_state or self.depth_image is None) and (timeout < self.config.topic_subscription_timeout):
+        while (not self.robot_state or self.depth_image is None) and (
+            timeout < self.config.topic_subscription_timeout
+        ):
             self._update_state()
             self._update_vision()
             timeout += 1 / self.config.loop_rate
@@ -1378,7 +1378,9 @@ class Controller(Component):
                 self.get_logger().error(
                     "Cannot use Vision RGB Follower without providing a target label"
                 )
-                self.health_status.set_fail_algorithm(algorithm_names=[self.algorithm.value])
+                self.health_status.set_fail_algorithm(
+                    algorithm_names=[self.algorithm.value]
+                )
                 return False
 
             # If no label is provided, use the provided pixel coordinates (Only works with depth)
@@ -1445,8 +1447,12 @@ class Controller(Component):
         if not self.__vision_controller:
             self.__vision_controller = self.__setup_vision_controller()
         if not self.__vision_controller:
-            self.get_logger().error("Could not initialize controller -> ABORTING ACTION")
-            return self.__terminate_vision_action(goal_handle, result, start_time, "abort")
+            self.get_logger().error(
+                "Could not initialize controller -> ABORTING ACTION"
+            )
+            return self.__terminate_vision_action(
+                goal_handle, result, start_time, "abort"
+            )
 
         if not self.__setup_initial_tracking_target(
             self.__vision_controller,
@@ -1455,7 +1461,9 @@ class Controller(Component):
             request_msg.pose_y,
         ):
             self.get_logger().error("No Target found on image -> ABORTING ACTION")
-            return self.__terminate_vision_action(goal_handle, result, start_time, "abort")
+            return self.__terminate_vision_action(
+                goal_handle, result, start_time, "abort"
+            )
 
         self._tracked_center = np.array([request_msg.pose_x, request_msg.pose_y])
 
@@ -1511,7 +1519,9 @@ class Controller(Component):
             time.sleep(1 / self.config.loop_rate)
 
         self.get_logger().warning("Ending tracking action")
-        return self.__terminate_vision_action(goal_handle, result, start_time, "succeed")
+        return self.__terminate_vision_action(
+            goal_handle, result, start_time, "succeed"
+        )
 
     def _path_tracking_callback(self, goal_handle) -> ControlPath.Result:
         """
@@ -1597,7 +1607,9 @@ class Controller(Component):
                 angular=self.__path_controller.angular_control,
             )
 
-            feedback_msg.global_path_deviation.lateral_distance_error = self.__lat_dist_error
+            feedback_msg.global_path_deviation.lateral_distance_error = (
+                self.__lat_dist_error
+            )
             feedback_msg.global_path_deviation.orientation_error = self.__ori_error
             feedback_msg.prediction_horizon = self.config.prediction_horizon
 
@@ -1686,5 +1698,8 @@ class Controller(Component):
             # Check if all inputs are available
             if not self.__reached_end:
                 self._path_control()
-        except Exception:
+        except Exception as e:
+            self.get_logger().error(
+                f"Path control step failed for algorithm '{self.algorithm}': {e}"
+            )
             self.health_status.set_fail_algorithm(algorithm_names=[self.algorithm])
