@@ -367,9 +367,8 @@ class Planner(Component):
             goal = self.action_type.Goal()
             goal.goal.position.x = goal_x
             goal.goal.position.y = goal_y
-            # TODO
-            goal.goal.orientation.z = goal_orientation
-            goal.goal.orientation.w = goal_orientation
+            goal.goal.orientation.z = float(np.sin(goal_orientation / 2.0))
+            goal.goal.orientation.w = float(np.cos(goal_orientation / 2.0))
             goal.end_tolerance.lateral_distance_error = tolerance_dist
             goal.end_tolerance.orientation_error = tolerance_ori
             if algorithm_name:
@@ -562,7 +561,7 @@ class Planner(Component):
             self.get_logger().error(f"Action execution error - {e}")
             with self._main_goal_lock:
                 goal_handle.abort()
-                goal_handle.reset()
+            return action_result
 
         # Get the displacement at the end of the path
         end_state_error: RobotState = self.robot_state - goal_state
@@ -570,7 +569,7 @@ class Planner(Component):
         action_result.end_displacement.orientation_error = end_state_error.yaw
 
         action_result.reached_end = True
-        self.get_logger().error(
+        self.get_logger().info(
             f"End Goal Reached with result {action_result} -> Ending Action"
         )
         # Publish empty path
