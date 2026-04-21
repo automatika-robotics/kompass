@@ -478,9 +478,7 @@ class Planner(Component):
         if not self.robot_state:
             return False
         dist: float = self.robot_state.distance(goal_point)
-        reached_end = dist <= tolerance.lateral_distance_error
-        self.get_publisher(TopicsKeys.REACHED_END).publish(bool(reached_end))
-        return reached_end
+        return dist <= tolerance.lateral_distance_error
 
     def main_action_callback(self, goal_handle: PlanPathAction.Goal):
         """
@@ -572,6 +570,7 @@ class Planner(Component):
         self.get_logger().info(
             f"End Goal Reached with result {action_result} -> Ending Action"
         )
+        self.get_publisher(TopicsKeys.REACHED_END).publish(bool(True))
         # Publish empty path
         self.ros_path = Path()
         self.ros_path.header.frame_id = self.config.frames.world
