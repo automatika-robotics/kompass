@@ -15,8 +15,28 @@ import numpy as np
 from kompass_core.models import RobotState
 
 from kompass.components.planner import Planner
-from kompass.components.defaults import TopicsKeys
+from kompass.components.ros import Topic
 from kompass_interfaces.msg import PathTrackingError
+from ros_sugar.io.publisher import Publisher
+
+
+def make_real_publisher(topic_name: str, msg_type: str) -> Publisher:
+    """Construct a real ros_sugar Publisher with the underlying rclpy
+    publisher replaced by a MagicMock.
+
+    This exercises the real ``msg_type.convert`` + header/frame_id attachment
+    that happens inside ``Publisher.publish``, without needing rclpy.init()
+    or a live node. Tests can inspect the sent message via
+    ``pub._publisher.publish.call_args``.
+    """
+    topic = Topic(name=topic_name, msg_type=msg_type)
+    # When multiple packages register converters for the same type, msg_type.convert
+    # is a list; the real pipeline flattens it in _select_output_converters.
+    if isinstance(topic.msg_type.convert, list):
+        topic.msg_type.convert = topic.msg_type.convert[0]
+    pub = Publisher(output_topic=topic, node_name="test_planner")
+    pub._publisher = MagicMock()
+    return pub
 
 
 # ---------------------------------------------------------------------------
@@ -246,7 +266,9 @@ class TestPlanHeader:
         p.map_data = {"origin_x": 0.0, "origin_y": 0.0, "width": 10, "height": 10, "resolution": 0.05}
         p.map = np.zeros((10, 10), dtype=np.int8)
 
-        pub = MagicMock()
+        # Use a real Publisher so the frame_id is attached by the actual
+        # convert + header-injection path inside Publisher.publish().
+        pub = make_real_publisher("/plan", "Path")
         p.get_publisher = MagicMock(return_value=pub)
 
         ok = p._plan(
@@ -255,8 +277,15 @@ class TestPlanHeader:
             publish_path=True,
         )
         assert ok is True
-        assert p.ros_path is not None
-        assert p.ros_path.header.frame_id == p.config.frames.world
+
+        # Inspect the message handed to the underlying rclpy publisher
+        pub._publisher.publish.assert_called_once()
+        sent_msg = pub._publisher.publish.call_args[0][0]
+        assert sent_msg.header.frame_id == p.config.frames.world
+        # Stamp is set by Publisher.publish (non-zero time)
+        assert (sent_msg.header.stamp.sec, sent_msg.header.stamp.nanosec) != (0, 0)
+        # ros_path reference matches the sent msg (identity convert for Path)
+        assert p.ros_path is sent_msg
 
 
 # ---------------------------------------------------------------------------
