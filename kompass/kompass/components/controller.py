@@ -771,6 +771,7 @@ class Controller(Component):
                 f"Failed to set controller algorithm to '{algorithm_value}': {e}"
             )
             return False
+        return True
 
     def _activate_vision_mode(self):
         """Activate object following mode using vision detections"""

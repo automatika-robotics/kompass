@@ -644,6 +644,24 @@ class TestSetAlgorithm:
 
         assert self._raw(c, "DWA") is True
 
+    def test_returns_true_on_successful_change(self, monkeypatch):
+        """Happy path: setter succeeds -> method must return True (not None)."""
+        c = make_path_controller_stub()
+        from kompass_core.control import ControllersID
+        c.config.algorithm = ControllersID.DWA
+
+        # Silent successful setter (avoids hitting _activate_follower_mode internals)
+        monkeypatch.setattr(
+            Controller,
+            "algorithm",
+            property(
+                lambda self: self.config.algorithm,
+                lambda self, value: setattr(self.config, "algorithm", value),
+            ),
+        )
+
+        assert self._raw(c, "Stanley") is True
+
     def test_logs_and_returns_false_when_setter_raises(self, monkeypatch):
         """B10 regression: failure path logs via get_logger and returns False."""
         c = make_path_controller_stub()
