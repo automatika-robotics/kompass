@@ -1215,55 +1215,143 @@ class Controller(Component):
         response.success = False
         return response
 
+    def __get_proximity_sensor_tf_kwargs(self) -> Dict[str, Any]:
+        """Pick the proximity-sensor TF that should be applied to the obstacle
+        data fed into the vision follower.
+
+        - ``direct_sensor=True``  : sensor (scan/pointcloud) → robot_base TF,
+          from ``self.__sensor_tf_listener``.
+        - ``direct_sensor=False`` (local_map input): compare the local_map
+          message's ``header.frame_id`` against ``frames.world``. If they
+          differ, pass the ``map_frame`` → ``world`` TF (reusing
+          ``odom_tf_listener`` when the map frame matches ``frames.odom``,
+          otherwise constructing a one-off listener).
+        - Otherwise: empty dict — leave config defaults (identity / zero).
+        """
+        kwargs: Dict[str, Any] = {}
+
+        if self.direct_sensor:
+            if self._wait_for_tf(
+                self.__sensor_tf_listener, "proximity sensor to robot"
+            ):
+                kwargs["proximity_sensor_position_to_robot"] = (
+                    self.__sensor_tf_listener.translation
+                )
+                kwargs["proximity_sensor_rotation_to_robot"] = (
+                    self.__sensor_tf_listener.rotation
+                )
+            else:
+                self.get_logger().warning(
+                    "Could not get proximity sensor TF; vision follower "
+                    "obstacle avoidance will assume a robot-centred sensor"
+                )
+            return kwargs
+
+        # Local map path: check the actual frame of the incoming map.
+        map_callback = self.get_callback(TopicsKeys.LOCAL_MAP)
+        if map_callback is None:
+            return kwargs
+
+        frame_timeout = 0.0
+        while (
+            map_callback.frame_id is None
+            and frame_timeout < self.config.topic_subscription_timeout
+        ):
+            self.get_logger().info(
+                "Waiting for a local_map message to read its frame...",
+                once=True,
+            )
+            time.sleep(1 / self.config.loop_rate)
+            frame_timeout += 1 / self.config.loop_rate
+
+        map_frame = map_callback.frame_id
+        if not map_frame or map_frame == self.config.frames.world:
+            return kwargs
+
+        if (
+            map_frame == self.config.frames.odom
+            and self.odom_tf_listener is not None
+        ):
+            map_tf_listener = self.odom_tf_listener
+        else:
+            map_tf_listener = self.get_transform_listener(
+                source_frame=map_frame,
+                goal_frame=self.config.frames.world,
+            )
+
+        if self._wait_for_tf(
+            map_tf_listener, f"{map_frame} to {self.config.frames.world}"
+        ):
+            kwargs["proximity_sensor_position_to_robot"] = (
+                map_tf_listener.translation
+            )
+            kwargs["proximity_sensor_rotation_to_robot"] = (
+                map_tf_listener.rotation
+            )
+        else:
+            self.get_logger().warning(
+                f"Could not get TF from '{map_frame}' to "
+                f"'{self.config.frames.world}'; local_map obstacles may "
+                "misregister in the vision follower"
+            )
+        return kwargs
+
     def __setup_vision_controller(self) -> Any:
         """Setup and configure a VisionDWA controller instance
 
         :return: Configured controller
         :rtype: VisionDWA
         """
-        timeout = 0.0
-        # Get the depth image transform if the input is provided
+        # Get the depth image transform + intrinsics if the input is provided
         if self.in_topic_name(TopicsKeys.DEPTH_CAM_INFO):
+            if not self._wait_for_tf(
+                self.depth_tf_listener, "depth camera to robot"
+            ):
+                return None
+            info_timeout = 0.0
             while (
-                not (self.depth_tf_listener.got_transform and self.depth_image_info)
-                and timeout < self.config.topic_subscription_timeout
+                self.depth_image_info is None
+                and info_timeout < self.config.topic_subscription_timeout
             ):
                 self._update_vision()
                 self.get_logger().info(
-                    "Waiting to get Depth camera to body TF to initialize Vision Follower...",
+                    "Waiting for depth camera intrinsics...",
                     once=True,
                 )
                 time.sleep(1 / self.config.loop_rate)
-                timeout += 1 / self.config.loop_rate
-
-        if timeout >= self.config.topic_subscription_timeout:
-            return None
+                info_timeout += 1 / self.config.loop_rate
+            if self.depth_image_info is None:
+                return None
 
         self.get_logger().info(
             "Got Depth camera to body TF -> Setting up Vision Follower controller"
         )
 
-        # Determine whether global localization is available by waiting for
-        # odometry and (if needed) the odom->world TF, using the same timeout
-        # pattern as the depth TF wait above.
-        state_callback = self.get_callback(TopicsKeys.ROBOT_LOCATION)
-        loc_timeout = 0.0
-        while loc_timeout < self.config.topic_subscription_timeout:
-            self._update_state()
-            has_odom = state_callback is not None and self.robot_state is not None
-            has_world_tf = (self.config.frames.odom == self.config.frames.world) or (
-                self.odom_tf_listener is not None
-                and self.odom_tf_listener.transform is not None
+        # Determine whether global localization is available: wait for the
+        # odom->world TF (if those frames differ) and for a robot state.
+        if self.config.frames.odom != self.config.frames.world:
+            has_world_tf = self._wait_for_tf(
+                self.odom_tf_listener,
+                f"{self.config.frames.odom} to {self.config.frames.world}",
             )
-            if has_odom and has_world_tf:
-                break
+        else:
+            has_world_tf = True
+
+        state_callback = self.get_callback(TopicsKeys.ROBOT_LOCATION)
+        state_timeout = 0.0
+        while (
+            state_timeout < self.config.topic_subscription_timeout
+            and (state_callback is None or self.robot_state is None)
+        ):
+            self._update_state()
             self.get_logger().info(
                 "Waiting for robot localization to determine tracking mode...",
                 once=True,
             )
             time.sleep(1 / self.config.loop_rate)
-            loc_timeout += 1 / self.config.loop_rate
+            state_timeout += 1 / self.config.loop_rate
 
+        has_odom = state_callback is not None and self.robot_state is not None
         has_global_localization = has_odom and has_world_tf
         use_local = not has_global_localization
 
@@ -1278,11 +1366,14 @@ class Controller(Component):
                 "operate in world frame with velocity tracking"
             )
 
+        proximity_kwargs = self.__get_proximity_sensor_tf_kwargs()
+
         config = ControlConfigClasses[self.algorithm](
             control_time_step=self.config.control_time_step,
             camera_position_to_robot=self.depth_tf_listener.translation,
             camera_rotation_to_robot=self.depth_tf_listener.rotation,
             _use_local_coordinates=use_local,
+            **proximity_kwargs,
         )
 
         _controller_config = self._configure_algorithm(config)

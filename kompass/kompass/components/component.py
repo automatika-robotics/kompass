@@ -522,6 +522,27 @@ class Component(BaseComponent):
         tf_listener: TFListener = self.create_tf_listener(tf_config)
         return tf_listener
 
+    def _wait_for_tf(self, tf_listener: TFListener, description: str = "") -> bool:
+        """Block up to ``config.topic_subscription_timeout`` waiting for a
+        transform to arrive on the given listener.
+
+        :param tf_listener: Transform listener to poll
+        :param description: Short label for the TF, used in the waiting log
+        :return: True if the transform was acquired before timing out
+        """
+        timeout = 0.0
+        while (
+            not tf_listener.got_transform
+            and timeout < self.config.topic_subscription_timeout
+        ):
+            self.get_logger().info(
+                f"Waiting for {description or 'requested'} TF...",
+                once=True,
+            )
+            time.sleep(1 / self.config.loop_rate)
+            timeout += 1 / self.config.loop_rate
+        return tf_listener.got_transform
+
     def in_topic_name(self, key: Union[str, TopicsKeys]) -> Union[str, List[str], None]:
         """Get the topic(s) name(s) corresponding to an input key name
 
