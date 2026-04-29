@@ -3,7 +3,6 @@ import time
 from attrs import define, field
 from queue import Queue, Empty
 import numpy as np
-from ..utils import StrEnum
 
 from rclpy.logging import get_logger
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
@@ -11,11 +10,11 @@ from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
 # ROS MSGS
 from nav_msgs.msg import Path
 from sensor_msgs.msg import PointCloud2
-from geometry_msgs.msg import Twist, PoseStamped
+from geometry_msgs.msg import PoseStamped
 
 # KOMPASS
 from kompass_core.models import Robot, RobotCtrlLimits, RobotState
-from kompass_core.datatypes import LaserScanData, PointCloudData, Bbox2D
+from kompass_core.datatypes import LaserScanData, PointCloudData
 from kompass_core.utils.geometry import from_euler_to_quaternion
 from kompass_core.control import (
     ControlClasses,
@@ -41,7 +40,9 @@ from ..callbacks import PointCloudCallback
 
 # KOMPASS MSGS/SRVS/ACTIONS
 from .component import Component, TFListener
-from .utils import init_twist_array_msg
+from .utils import gather_local_obstacles, init_twist_array_msg
+from ._modes import ControllerMode, FrameMode, PathControlStatus, CmdPublishType
+from ._vision_follower import VisionFollower
 from .defaults import (
     controller_allowed_inputs,
     controller_allowed_outputs,
@@ -49,49 +50,6 @@ from .defaults import (
     controller_default_outputs,
     TopicsKeys,
 )
-
-
-class CmdPublishType(StrEnum):
-    """
-    Control command publishing method:
-
-    ```{list-table}
-    :widths: 20 70
-    :header-rows: 1
-
-    * - Value
-      - Description
-
-    * - **TWIST_SEQUENCE (Literal "Sequence")**
-      - the controller publishes a Twist message in the same thread running the control algorithm. If a series of commands is computed (up to the control horizon), the controller publishes the commands one by one before running the control algorithm again
-
-    * - **TWIST_PARALLEL (Literal "Parallel")**
-      - the controller handles publishing a Twist message in a new thread. If a series of commands is computed (up to the control horizon), the controller publishes the commands one by one in parallel while running the control algorithm again
-
-    * - **TWIST_ARRAY (Literal "Array")**
-      - the controller publishes a TwistArray msg of all the computed control commands (up to the control horizon)
-    ```
-
-    """
-
-    TWIST_SEQUENCE = "Sequence"
-    TWIST_PARALLEL = "Parallel"
-    TWIST_ARRAY = "Array"
-
-
-class ControllerMode(StrEnum):
-    PATH_FOLLOWER = "path_follower"
-    VISION_FOLLOWER = "vision_object_follower"
-
-
-class PathControlStatus(StrEnum):
-    """Outcome of a single ``_path_control`` step."""
-
-    IDLE = "idle"                    # no controller or no path set
-    WAITING_INPUTS = "waiting"       # robot state / TF not yet available
-    RUNNING = "running"              # command computed and published
-    GOAL_REACHED = "goal_reached"    # robot inside goal tolerance
-    FAILED = "failed"                # algorithm could not produce a command
 
 
 @define
@@ -153,6 +111,10 @@ class ControllerConfig(ComponentConfig):
         converter=lambda value: (
             ControllerMode(value) if isinstance(value, str) else value
         ),
+    )
+    _frame_mode: Union[str, FrameMode] = field(
+        default=FrameMode.GLOBAL,
+        converter=lambda value: FrameMode(value) if isinstance(value, str) else value,
     )
 
 
@@ -337,7 +299,7 @@ class Controller(Component):
             # In path follower mode -> skip all vision inputs
             if (
                 self.config._mode == ControllerMode.PATH_FOLLOWER
-                and callback.input_topic.name in self.__vision_mode_inputs()
+                and callback.input_topic.name in self._vision_mode_inputs()
             ):
                 # skip
                 continue
@@ -382,14 +344,14 @@ class Controller(Component):
             self.get_logger().debug(
                 f"Creating execution timer with step: {self.config.control_time_step}"
             )
-            self.__cmd_execution_timer = self.create_timer(
+            self._cmd_execution_timer = self.create_timer(
                 self.config.control_time_step,
                 self._cmds_publishing_callback,
                 callback_group=MutuallyExclusiveCallbackGroup(),
             )
 
         # Create timer to publish additional control tracking info
-        self.__info_publishing_timer = self.create_timer(
+        self._info_publishing_timer = self.create_timer(
             1 / self.config.loop_rate,
             self._info_publishing_callback,
             callback_group=MutuallyExclusiveCallbackGroup(),
@@ -400,16 +362,16 @@ class Controller(Component):
         super().destroy_all_timers()
         # Destroy execution timer/rate
         if self.config.ctrl_publish_type == CmdPublishType.TWIST_PARALLEL:
-            self.destroy_timer(self.__cmd_execution_timer)
+            self.destroy_timer(self._cmd_execution_timer)
 
-        self.destroy_timer(self.__info_publishing_timer)
+        self.destroy_timer(self._info_publishing_timer)
 
     def create_all_services(self):
         """
         Creates all node services
         """
         if self.config._mode == ControllerMode.VISION_FOLLOWER:
-            self.__vision_tracking_srv = self.create_service(
+            self._vision_tracking_srv = self.create_service(
                 StopVisionTracking,
                 f"{self.node_name}/end_vision_tracking",
                 self._end_vision_tracking_srv_callback,
@@ -421,7 +383,7 @@ class Controller(Component):
         Destroys all node services
         """
         if self.config._mode == ControllerMode.VISION_FOLLOWER:
-            self.destroy_service(self.__vision_tracking_srv)
+            self.destroy_service(self._vision_tracking_srv)
         super().destroy_all_services()
 
     def inspect_component(self) -> str:
@@ -472,7 +434,7 @@ class Controller(Component):
     def _cmds_publishing_callback(self):
         """Commands execution timer callback"""
         # If end is reached do not publish new command
-        if self.__reached_end:
+        if self._reached_end:
             self.get_logger().debug("End of action reached -> Not executing commands")
             self._cmds_queue.queue.clear()
             return
@@ -536,10 +498,10 @@ class Controller(Component):
         :return: _description_
         :rtype: StrEnum
         """
-        if not self.__path_controller:
+        if not self._path_controller:
             return None
 
-        tracked_state: Optional[RobotState] = self.__path_controller.tracked_state
+        tracked_state: Optional[RobotState] = self._path_controller.tracked_state
 
         if not tracked_state:
             return None
@@ -560,12 +522,15 @@ class Controller(Component):
         :rtype: StrEnum
         """
         # NOTE: For now only DWA provides a local plan
-        if self.algorithm != ControllersID.DWA or not self.__path_controller:
-            return None
+        if self.algorithm == ControllersID.DWA and self._path_controller:
+            kompass_cpp_path = self._path_controller.optimal_path()
+            if not kompass_cpp_path:
+                return None
 
-        kompass_cpp_path = self.__path_controller.optimal_path()
-        if not kompass_cpp_path:
-            return None
+        if self.algorithm == ControllersID.VISION_DEPTH:
+            kompass_cpp_path = self._vision_follower.optimal_path()
+            if not kompass_cpp_path:
+                return None
 
         ros_path = Path()
         parsed_points = []
@@ -588,14 +553,14 @@ class Controller(Component):
         :rtype: StrEnum
         """
         # NOTE: For now only DWA provides a local plan
-        if self.algorithm != ControllersID.DWA or not self.__path_controller:
+        if self.algorithm != ControllersID.DWA or not self._path_controller:
             return None
 
         # If result is not processed -> no debug is available yet
-        if not self.__path_controller.has_result():
+        if not self._path_controller.has_result():
             return
 
-        (paths_x, paths_y) = self.__path_controller.planner.get_debugging_samples()
+        (paths_x, paths_y) = self._path_controller.planner.get_debugging_samples()
 
         if paths_x is None:
             return None
@@ -626,9 +591,9 @@ class Controller(Component):
         :return: Path Interpolation
         :rtype: Optional[Path]
         """
-        if not self.__path_controller:
+        if not self._path_controller:
             return None
-        kompass_cpp_path = self.__path_controller.interpolated_path()
+        kompass_cpp_path = self._path_controller.interpolated_path()
         if not kompass_cpp_path:
             return None
         ros_path = Path()
@@ -808,6 +773,9 @@ class Controller(Component):
         self.action_type = ControlPath
 
         self.config._mode = ControllerMode.PATH_FOLLOWER
+        # Path following always runs in the world frame; frame_mode is
+        # only configurable in vision follower mode.
+        self.config._frame_mode = FrameMode.GLOBAL
         if hasattr(self, "_old_run_type"):
             self.run_type = self._old_run_type
 
@@ -822,19 +790,6 @@ class Controller(Component):
 
         self.custom_create_all_subscribers()
         self.custom_create_all_action_servers()
-
-    def _update_vision(self) -> None:
-        """Update vision detections and depth image from the vision callback"""
-        vision_callback = self.get_callback(TopicsKeys.VISION_DETECTIONS)
-        self.vision_detections = (
-            vision_callback.get_output(clear_last=True) if vision_callback else None
-        )
-        self.depth_image = vision_callback.depth_image if vision_callback else None
-        # Depth image cam info
-        depth_img_info_callback = self.get_callback(TopicsKeys.DEPTH_CAM_INFO)
-        self.depth_image_info = (
-            depth_img_info_callback.get_output() if depth_img_info_callback else None
-        )
 
     def _update_state(self, block: bool = True) -> None:
         """
@@ -851,37 +806,41 @@ class Controller(Component):
                 plan_callback.get_output() if plan_callback else None
             )
 
-        state_callback = self.get_callback(TopicsKeys.ROBOT_LOCATION)
-
-        if self.config.frames.odom == self.config.frames.world:
-            self.robot_state = (
-                state_callback.get_output(get_front=True, clear_last=True)
-                if state_callback
-                else None
-            )
+        # In LOCAL frame mode robot state is irrelevant: sensor data and
+        # tracked targets are reasoned about robot-relative.
+        if self.config._frame_mode == FrameMode.LOCAL:
+            self.robot_state = None
         else:
-            if block and not self.odom_tf_listener.transform:
-                timeout = 0.0
-                while (
-                    not self.odom_tf_listener.transform
-                    and timeout < self.config.topic_subscription_timeout
-                ):
-                    self.get_logger().warning(
-                        f"Waiting to get TF from {self.config.frames.odom} frame to {self.config.frames.world} frame...",
-                        once=True,
-                    )
-                    timeout += 1 / self.config.loop_rate
-                    time.sleep(1 / self.config.loop_rate)
-                if not self.odom_tf_listener.transform:
-                    self.get_logger().error(
-                        f"Could not get TF from {self.config.frames.odom} frame to {self.config.frames.world} frame after {self.config.topic_subscription_timeout} seconds"
-                    )
-            if not self.odom_tf_listener.transform:
-                self.robot_state = None
+            state_callback = self.get_callback(TopicsKeys.ROBOT_LOCATION)
+
+            if self.config.frames.odom == self.config.frames.world:
+                self.robot_state = (
+                    state_callback.get_output(get_front=True, clear_last=True)
+                    if state_callback
+                    else None
+                )
             else:
+                if block and not self.odom_tf_listener.transform:
+                    timeout = 0.0
+                    while (
+                        not self.odom_tf_listener.transform
+                        and timeout < self.config.topic_subscription_timeout
+                    ):
+                        self.get_logger().warning(
+                            f"Waiting to get TF from {self.config.frames.odom} frame to {self.config.frames.world} frame...",
+                            once=True,
+                        )
+                        timeout += 1 / self.config.loop_rate
+                        time.sleep(1 / self.config.loop_rate)
+                    if not self.odom_tf_listener.transform:
+                        self.get_logger().error(
+                            f"Could not get TF from {self.config.frames.odom} frame to {self.config.frames.world} frame after {self.config.topic_subscription_timeout} seconds"
+                        )
                 self.robot_state = (
                     state_callback.get_output(
-                        transformation=self.odom_tf_listener.transform,
+                        transformation=self.odom_tf_listener.transform
+                        if self.odom_tf_listener
+                        else None,
                         get_front=True,
                         clear_last=True,
                     )
@@ -893,8 +852,8 @@ class Controller(Component):
             sensor_callback = self.get_callback(TopicsKeys.SPATIAL_SENSOR)
             self.sensor_data = (
                 sensor_callback.get_output(
-                    transformation=self.__sensor_tf_listener.transform
-                    if self.__sensor_tf_listener
+                    transformation=self._sensor_tf_listener.transform
+                    if self._sensor_tf_listener
                     else None
                 )
                 if sensor_callback
@@ -938,22 +897,22 @@ class Controller(Component):
         """
         Set a new plan to the controller/follower
         """
-        self.__reached_end = False
-        if self.__path_controller:
-            self.__path_controller.set_path(global_path=msg)
+        self._reached_end = False
+        if self._path_controller:
+            self._path_controller.set_path(global_path=msg)
         if len(msg.poses) > 1:
-            self.__goal_point = RobotState(
+            self._goal_point = RobotState(
                 x=msg.poses[-1].pose.position.x, y=msg.poses[-1].pose.position.y
             )
         else:
-            self.__goal_point = None
+            self._goal_point = None
 
     def init_variables(self):
         """
         Overwrites the init variables method called at Node init
         """
         # reached end path / end of control action
-        self.__reached_end: bool = False
+        self._reached_end: bool = False
 
         self.robot_state: Optional[RobotState] = (
             None  # robot current state - to be updated from odom
@@ -961,7 +920,7 @@ class Controller(Component):
         self.plan: Optional[Path] = None  # robot plan (global path)
 
         # INIT PATH CONTROLLER
-        self.__robot = Robot(
+        self._robot = Robot(
             robot_type=self.config.robot.model_type,
             geometry_type=self.config.robot.geometry_type,
             geometry_params=self.config.robot.geometry_params,
@@ -969,16 +928,20 @@ class Controller(Component):
         )
 
         # SET robot control limits
-        self.__robot_ctr_limits = RobotCtrlLimits(
+        self._robot_ctr_limits = RobotCtrlLimits(
             vx_limits=self.config.robot.ctrl_vx_limits,
             vy_limits=self.config.robot.ctrl_vy_limits,
             omega_limits=self.config.robot.ctrl_omega_limits,
         )
 
-        self.__reached_end = False
-        self.__lat_dist_error: float = 0.0
-        self.__ori_error: float = 0.0
-        self._tracked_center: Optional[np.ndarray] = None
+        self._reached_end = False
+        self._lat_dist_error: float = 0.0
+        self._ori_error: float = 0.0
+
+        # Vision tracking lifecycle helper (owns _vision_controller, detections,
+        # depth image and tracked-target state). Always instantiated; dormant
+        # in path follower mode.
+        self._vision_follower = VisionFollower(self)
 
         # Command queue to send controller command list to the robot
         self._cmds_queue: Queue = Queue()
@@ -988,7 +951,7 @@ class Controller(Component):
                 self._inputs_keys.index(TopicsKeys.SPATIAL_SENSOR)
             ]
             # Setup transform listener
-            self.__sensor_tf_listener: TFListener = (
+            self._sensor_tf_listener: TFListener = (
                 self.pc_tf_listener
                 if sensor_topic.msg_type._ros_type == PointCloud2
                 else self.scan_tf_listener
@@ -996,17 +959,16 @@ class Controller(Component):
 
             self.sensor_data: Optional[Union[LaserScanData, PointCloudData]] = None
 
-        self.__path_controller: Optional[ControllerType] = None
-        self.__vision_controller: Optional[ControllerType] = None
+        self._path_controller: Optional[ControllerType] = None
 
         if self.config._mode == ControllerMode.PATH_FOLLOWER:
             config_kwargs = {}
-            if self.direct_sensor and self.__sensor_tf_listener.got_transform:
+            if self.direct_sensor and self._sensor_tf_listener.got_transform:
                 config_kwargs["proximity_sensor_position_to_robot"] = (
-                    self.__sensor_tf_listener.translation
+                    self._sensor_tf_listener.translation
                 )
                 config_kwargs["proximity_sensor_rotation_to_robot"] = (
-                    self.__sensor_tf_listener.rotation
+                    self._sensor_tf_listener.rotation
                 )
                 config_kwargs["control_time_step"] = self.config.control_time_step
             # Get default controller configuration and update it from user defined config
@@ -1014,19 +976,14 @@ class Controller(Component):
                 ControlConfigClasses[self.algorithm](**config_kwargs)
             )
 
-            self.__path_controller = ControlClasses[self.algorithm](
-                robot=self.__robot,
+            self._path_controller = ControlClasses[self.algorithm](
+                robot=self._robot,
                 config=_controller_config,
-                ctrl_limits=self.__robot_ctr_limits,
+                ctrl_limits=self._robot_ctr_limits,
                 config_file=self._config_file,
                 config_root_name=f"{self.node_name}.{self.config.algorithm}",
                 control_time_step=self.config.control_time_step,
             )
-
-        # Vision Follower variables
-        self.vision_detections: Optional[Bbox2D] = None
-        self.depth_image: Optional[np.ndarray] = None
-        self.depth_image_info: Optional[Dict] = None
 
     def _stop_robot(self):
         """
@@ -1095,10 +1052,10 @@ class Controller(Component):
         callers own the lifecycle transition (setting ``__reached_end``,
         clearing the plan callback, aborting the action, etc.).
         """
-        if self.__path_controller is None:
+        if self._path_controller is None:
             return PathControlStatus.IDLE
 
-        if not self.__path_controller.path:
+        if not self._path_controller.path:
             # No global path -> nothing to control toward
             return PathControlStatus.IDLE
 
@@ -1120,23 +1077,17 @@ class Controller(Component):
             )
             return PathControlStatus.WAITING_INPUTS
 
-        laser_scan = None
-        point_cloud = None
-        local_map = None
+        laser_scan, point_cloud, local_map = gather_local_obstacles(
+            direct_sensor=self.direct_sensor,
+            sensor_data=getattr(self, "sensor_data", None),
+            local_map=getattr(self, "local_map", None),
+        )
 
-        if self.direct_sensor:
-            if isinstance(self.sensor_data, LaserScanData):
-                laser_scan = self.sensor_data
-            else:
-                point_cloud = self.sensor_data
-        else:
-            local_map = self.local_map
-
-        if self.reached_point(self.__goal_point):
+        if self.reached_point(self._goal_point):
             self._stop_robot()
             return PathControlStatus.GOAL_REACHED
 
-        cmd_found: bool = self.__path_controller.loop_step(
+        cmd_found: bool = self._path_controller.loop_step(
             current_state=self.robot_state,  # type: ignore
             laser_scan=laser_scan,
             point_cloud=point_cloud,
@@ -1146,7 +1097,7 @@ class Controller(Component):
         )
 
         # LOG CONTROLLER INFO
-        self.get_logger().debug(f"{self.__path_controller.logging_info()}")
+        self.get_logger().debug(f"{self._path_controller.logging_info()}")
 
         if not cmd_found:
             return PathControlStatus.FAILED
@@ -1154,18 +1105,18 @@ class Controller(Component):
         self.health_status.set_healthy()
 
         # Update controller path tracking info (errors)
-        self.__lat_dist_error = self.__path_controller.distance_error
-        self.__ori_error = self.__path_controller.orientation_error
+        self._lat_dist_error = self._path_controller.distance_error
+        self._ori_error = self._path_controller.orientation_error
 
         self._publish(
-            self.__path_controller.linear_x_control,
-            self.__path_controller.linear_y_control,
-            self.__path_controller.angular_control,
+            self._path_controller.linear_x_control,
+            self._path_controller.linear_y_control,
+            self._path_controller.angular_control,
         )
 
         return PathControlStatus.RUNNING
 
-    def __vision_mode_inputs(self) -> List[str]:
+    def _vision_mode_inputs(self) -> List[str]:
         """Helper method to get the names of the topics required for the vision follower mode
 
         :return: _description_
@@ -1179,439 +1130,9 @@ class Controller(Component):
     def _end_vision_tracking_srv_callback(
         self, _: StopVisionTracking.Request, response: StopVisionTracking.Response
     ) -> StopVisionTracking.Response:
-        """Service callback to end Vision target tracking action
-
-        :param request: Request to end the vision tracking
-        :type request: StopVisionTracking.Request
-        :param response: Service response
-        :type response: StopVisionTracking.Response
-
-        :return: Service response
-        :rtype: StopVisionTracking.Response
-        """
-        # Vision tracking mode is already not active
-        if (
-            self.config._mode == ControllerMode.PATH_FOLLOWER
-            or self._tracked_center is None
-        ):
-            self.get_logger().warning("No ongoing vision tracking")
-            response.success = True
-            return response
-
-        self.get_logger().warning("Ending Vision Tracking Action for target")
-
-        # Set reached end to true so the action server can end following
-        self.__reached_end = True
-
-        # Wait for the action server to reset
-        _counter: int = 0
-        while _counter < 10:
-            time.sleep(1 / self.config.loop_rate)
-            if not self.__reached_end:
-                response.success = True
-                self._tracked_center = None
-                return response
-
-        response.success = False
+        """Service callback to end Vision target tracking action."""
+        response.success = self._vision_follower.request_stop()
         return response
-
-    def __get_proximity_sensor_tf_kwargs(self) -> Dict[str, Any]:
-        """Pick the proximity-sensor TF that should be applied to the obstacle
-        data fed into the vision follower.
-
-        - ``direct_sensor=True``  : sensor (scan/pointcloud) → robot_base TF,
-          from ``self.__sensor_tf_listener``.
-        - ``direct_sensor=False`` (local_map input): compare the local_map
-          message's ``header.frame_id`` against ``frames.world``. If they
-          differ, pass the ``map_frame`` → ``world`` TF (reusing
-          ``odom_tf_listener`` when the map frame matches ``frames.odom``,
-          otherwise constructing a one-off listener).
-        - Otherwise: empty dict — leave config defaults (identity / zero).
-        """
-        kwargs: Dict[str, Any] = {}
-
-        if self.direct_sensor:
-            if self._wait_for_tf(
-                self.__sensor_tf_listener, "proximity sensor to robot"
-            ):
-                kwargs["proximity_sensor_position_to_robot"] = (
-                    self.__sensor_tf_listener.translation
-                )
-                kwargs["proximity_sensor_rotation_to_robot"] = (
-                    self.__sensor_tf_listener.rotation
-                )
-            else:
-                self.get_logger().warning(
-                    "Could not get proximity sensor TF; vision follower "
-                    "obstacle avoidance will assume a robot-centred sensor"
-                )
-            return kwargs
-
-        # Local map path: check the actual frame of the incoming map.
-        map_callback = self.get_callback(TopicsKeys.LOCAL_MAP)
-        if map_callback is None:
-            return kwargs
-
-        frame_timeout = 0.0
-        while (
-            map_callback.frame_id is None
-            and frame_timeout < self.config.topic_subscription_timeout
-        ):
-            self.get_logger().info(
-                "Waiting for a local_map message to read its frame...",
-                once=True,
-            )
-            time.sleep(1 / self.config.loop_rate)
-            frame_timeout += 1 / self.config.loop_rate
-
-        map_frame = map_callback.frame_id
-        if not map_frame or map_frame == self.config.frames.world:
-            return kwargs
-
-        if (
-            map_frame == self.config.frames.odom
-            and self.odom_tf_listener is not None
-        ):
-            map_tf_listener = self.odom_tf_listener
-        else:
-            map_tf_listener = self.get_transform_listener(
-                source_frame=map_frame,
-                goal_frame=self.config.frames.world,
-            )
-
-        if self._wait_for_tf(
-            map_tf_listener, f"{map_frame} to {self.config.frames.world}"
-        ):
-            kwargs["proximity_sensor_position_to_robot"] = (
-                map_tf_listener.translation
-            )
-            kwargs["proximity_sensor_rotation_to_robot"] = (
-                map_tf_listener.rotation
-            )
-        else:
-            self.get_logger().warning(
-                f"Could not get TF from '{map_frame}' to "
-                f"'{self.config.frames.world}'; local_map obstacles may "
-                "misregister in the vision follower"
-            )
-        return kwargs
-
-    def __setup_vision_controller(self) -> Any:
-        """Setup and configure a VisionDWA controller instance
-
-        :return: Configured controller
-        :rtype: VisionDWA
-        """
-        # Get the depth image transform + intrinsics if the input is provided
-        if self.in_topic_name(TopicsKeys.DEPTH_CAM_INFO):
-            if not self._wait_for_tf(
-                self.depth_tf_listener, "depth camera to robot"
-            ):
-                return None
-            info_timeout = 0.0
-            while (
-                self.depth_image_info is None
-                and info_timeout < self.config.topic_subscription_timeout
-            ):
-                self._update_vision()
-                self.get_logger().info(
-                    "Waiting for depth camera intrinsics...",
-                    once=True,
-                )
-                time.sleep(1 / self.config.loop_rate)
-                info_timeout += 1 / self.config.loop_rate
-            if self.depth_image_info is None:
-                return None
-
-        self.get_logger().info(
-            "Got Depth camera to body TF -> Setting up Vision Follower controller"
-        )
-
-        # Determine whether global localization is available: wait for the
-        # odom->world TF (if those frames differ) and for a robot state.
-        if self.config.frames.odom != self.config.frames.world:
-            has_world_tf = self._wait_for_tf(
-                self.odom_tf_listener,
-                f"{self.config.frames.odom} to {self.config.frames.world}",
-            )
-        else:
-            has_world_tf = True
-
-        state_callback = self.get_callback(TopicsKeys.ROBOT_LOCATION)
-        state_timeout = 0.0
-        while (
-            state_timeout < self.config.topic_subscription_timeout
-            and (state_callback is None or self.robot_state is None)
-        ):
-            self._update_state()
-            self.get_logger().info(
-                "Waiting for robot localization to determine tracking mode...",
-                once=True,
-            )
-            time.sleep(1 / self.config.loop_rate)
-            state_timeout += 1 / self.config.loop_rate
-
-        has_odom = state_callback is not None and self.robot_state is not None
-        has_global_localization = has_odom and has_world_tf
-        use_local = not has_global_localization
-
-        if use_local:
-            self.get_logger().info(
-                "No global localization available — vision follower will "
-                "operate in local (robot-relative) frame"
-            )
-        else:
-            self.get_logger().info(
-                "Global localization available — vision follower will "
-                "operate in world frame with velocity tracking"
-            )
-
-        proximity_kwargs = self.__get_proximity_sensor_tf_kwargs()
-
-        config = ControlConfigClasses[self.algorithm](
-            control_time_step=self.config.control_time_step,
-            camera_position_to_robot=self.depth_tf_listener.translation,
-            camera_rotation_to_robot=self.depth_tf_listener.rotation,
-            _use_local_coordinates=use_local,
-            **proximity_kwargs,
-        )
-
-        _controller_config = self._configure_algorithm(config)
-
-        # Apply the (possibly user-overridden) buffer size to the detections callback
-        detections_callback = self.get_callback(TopicsKeys.VISION_DETECTIONS)
-        if detections_callback:
-            detections_callback.set_buffer_size(_controller_config.buffer_size)
-
-        # re-read the file and overwrite any programmatic overrides.
-        controller = ControlClasses[self.algorithm](
-            robot=self.__robot,
-            ctrl_limits=self.__robot_ctr_limits,
-            config=_controller_config,
-            camera_focal_length=self.depth_image_info["focal_length"]
-            if self.depth_image_info
-            else None,
-            camera_principal_point=self.depth_image_info["principal_point"]
-            if self.depth_image_info
-            else None,
-        )
-
-        self.get_logger().info(
-            f"Vision Controller '{self.algorithm}' is initialized and ready to use"
-        )
-        return controller
-
-    def __setup_initial_tracking_target(
-        self, controller: Any, label: str, pose_x: int, pose_y: int
-    ) -> bool:
-        """Set the initial target to the vision follower controller to start tracking
-
-        :param controller: Vision Follower controller object
-        :type controller: Any
-        :param label: Target label
-        :type label: str
-        :param pose_x: Target center pixel x coordinates in the image plane
-        :type pose_x: int
-        :param pose_y: Target center pixel y coordinates in the image plane
-        :type pose_y: int
-        :return: If target is set successfully to the controller
-        :rtype: bool
-        """
-        timeout = 0.0
-        while (not self.robot_state or self.depth_image is None) and (
-            timeout < self.config.topic_subscription_timeout
-        ):
-            self._update_state()
-            self._update_vision()
-            timeout += 1 / self.config.loop_rate
-            time.sleep(1 / self.config.loop_rate)
-        if not self.robot_state or self.depth_image is None:
-            self.get_logger().error(
-                f"Could not get robot state and depth image to set initial tracking target after {self.config.topic_subscription_timeout} seconds"
-            )
-            return False
-        if label != "":
-            target_2d = None
-            vision_callback = self.get_callback(TopicsKeys.VISION_DETECTIONS)
-            timeout = 0.0
-            while not target_2d and timeout < self.config.topic_subscription_timeout:
-                self._update_vision()
-                target_2d = (
-                    vision_callback.get_output(label=label) if vision_callback else None
-                )
-                self.get_logger().info(
-                    f"Waiting to get target {label} from vision detections...",
-                    once=True,
-                )
-                timeout += 1 / self.config.loop_rate
-                time.sleep(1 / self.config.loop_rate)
-            if not target_2d:
-                self.get_logger().error(
-                    f"Could not find target {label} in vision detections"
-                )
-                return False
-            if self.depth_image is None:
-                self.get_logger().warning(
-                    f"Target '{label}' found but no aligned depth image is available; "
-                    "check that the detector is publishing depth with detections"
-                )
-            self.get_logger().info(
-                f"Got initial target {label}, setting to controller..."
-            )
-            found_target = controller.set_initial_tracking_2d_target(
-                target_box=target_2d[0],
-                current_state=self.robot_state,
-                aligned_depth_image=self.depth_image,
-            )
-        else:
-            if self.algorithm == ControllersID.VISION_IMG:
-                self.get_logger().error(
-                    "Cannot use Vision RGB Follower without providing a target label"
-                )
-                self.health_status.set_fail_algorithm(
-                    algorithm_names=[self.algorithm.value]
-                )
-                return False
-
-            # If no label is provided, use the provided pixel coordinates (Only works with depth)
-            found_target = controller.set_initial_tracking_image(
-                self.robot_state,
-                pose_x,
-                pose_y,
-                self.vision_detections,
-                self.depth_image,
-            )
-        return found_target
-
-    def __gather_local_obstacles(self):
-        """Collect latest obstacle inputs for the vision follower's loop_step."""
-        laser_scan = None
-        point_cloud = None
-        local_map = None
-        if self.direct_sensor:
-            if isinstance(self.sensor_data, LaserScanData):
-                laser_scan = self.sensor_data
-            else:
-                point_cloud = self.sensor_data
-        else:
-            local_map = self.local_map
-        return laser_scan, point_cloud, local_map
-
-    def __terminate_vision_action(
-        self,
-        goal_handle,
-        result: TrackVisionTarget.Result,
-        start_time: float,
-        status: str,
-    ) -> TrackVisionTarget.Result:
-        """Finalize a vision tracking action (succeed/abort/cancel), stop robot, reset state."""
-        result.tracked_duration = time.time() - start_time
-        result.success = status == "succeed"
-        with self._main_goal_lock:
-            if status == "cancel" and goal_handle.is_cancel_requested:
-                goal_handle.canceled()
-            elif status == "succeed":
-                goal_handle.succeed()
-            elif goal_handle.is_active:
-                goal_handle.abort()
-        self.__reached_end = True
-        self._tracked_center = None
-        self.vision_detections = None
-        self._stop_robot()
-        return result
-
-    def _vision_tracking_callback(self, goal_handle) -> TrackVisionTarget.Result:
-        """Vision target tracking action callback
-
-        :param goal_handle: Vision target tracking action goal message
-        :type goal_handle: TrackVisionTarget.Goal
-        :return: Vision target tracking action result
-        :rtype: TrackVisionTarget.Result
-        """
-        self.__reached_end = False
-        request_msg = goal_handle.request
-        feedback_msg = TrackVisionTarget.Feedback()
-        result = TrackVisionTarget.Result()
-        start_time = time.time()
-
-        if not self.__vision_controller:
-            self.__vision_controller = self.__setup_vision_controller()
-        if not self.__vision_controller:
-            self.get_logger().error(
-                "Could not initialize controller -> ABORTING ACTION"
-            )
-            return self.__terminate_vision_action(
-                goal_handle, result, start_time, "abort"
-            )
-
-        if not self.__setup_initial_tracking_target(
-            self.__vision_controller,
-            request_msg.label,
-            request_msg.pose_x,
-            request_msg.pose_y,
-        ):
-            self.get_logger().error("No Target found on image -> ABORTING ACTION")
-            return self.__terminate_vision_action(
-                goal_handle, result, start_time, "abort"
-            )
-
-        self._tracked_center = np.array([request_msg.pose_x, request_msg.pose_y])
-
-        while (
-            self.config._mode == ControllerMode.VISION_FOLLOWER
-            and not self.__reached_end
-        ):
-            if not goal_handle.is_active or goal_handle.is_cancel_requested:
-                self.get_logger().info("Vision Following Action Canceled!")
-                return self.__terminate_vision_action(
-                    goal_handle, result, start_time, "cancel"
-                )
-
-            # Refresh inputs non-blocking; follower tolerates missing frames via
-            # its internal target_wait_timeout / enable_search.
-            self._update_vision()
-            self._update_state(block=False)
-            laser_scan, point_cloud, local_map = self.__gather_local_obstacles()
-
-            found_ctrl = self.__vision_controller.loop_step(
-                detections_2d=self.vision_detections or [],
-                current_state=self.robot_state,
-                depth_image=self.depth_image,
-                laser_scan=laser_scan,
-                point_cloud=point_cloud,
-                local_map=local_map,
-                local_map_resolution=getattr(self, "local_map_resolution", None),
-            )
-
-            if not found_ctrl:
-                self.get_logger().warning(
-                    "Vision follower lost the target -> Aborting action"
-                )
-                return self.__terminate_vision_action(
-                    goal_handle, result, start_time, "abort"
-                )
-
-            feedback_msg.distance_error = float(self.__vision_controller.dist_error)
-            feedback_msg.orientation_error = float(
-                self.__vision_controller.orientation_error
-            )
-            goal_handle.publish_feedback(feedback_msg)
-
-            self.get_logger().debug(
-                f"Following tracked target with control: {self.__vision_controller.linear_x_control}, {self.__vision_controller.angular_control}"
-            )
-            self._publish(
-                self.__vision_controller.linear_x_control,
-                self.__vision_controller.linear_y_control,
-                self.__vision_controller.angular_control,
-            )
-
-            time.sleep(1 / self.config.loop_rate)
-
-        self.get_logger().warning("Ending tracking action")
-        return self.__terminate_vision_action(
-            goal_handle, result, start_time, "succeed"
-        )
 
     def _path_tracking_callback(self, goal_handle) -> ControlPath.Result:
         """
@@ -1650,10 +1171,10 @@ class Controller(Component):
                 ControlConfigClasses[self.algorithm]()
             )
 
-            self.__path_controller = ControlClasses[self.algorithm](
-                robot=self.__robot,
+            self._path_controller = ControlClasses[self.algorithm](
+                robot=self._robot,
                 config=_controller_config,
-                ctrl_limits=self.__robot_ctr_limits,
+                ctrl_limits=self._robot_ctr_limits,
                 config_file=self._config_file,
                 config_root_name=f"{self.node_name}.{self.config.algorithm}",
             )
@@ -1665,7 +1186,7 @@ class Controller(Component):
 
         # Check if inputs are available until timeout
         if not self.callbacks_inputs_check(
-            inputs_to_exclude=self.__vision_mode_inputs()
+            inputs_to_exclude=self._vision_mode_inputs()
         ):
             self.get_logger().error(
                 "Requested action inputs are not available -> Aborting"
@@ -1677,15 +1198,15 @@ class Controller(Component):
         # Note: This will automatically end the vision target tracking action if it is ongoing
         self.config._mode = ControllerMode.PATH_FOLLOWER
 
-        self.__path_controller.set_path(self.plan)  # type: ignore
+        self._path_controller.set_path(self.plan)  # type: ignore
 
-        self.__reached_end: bool = False
+        self._reached_end: bool = False
 
         while True:
             status: PathControlStatus = self._path_control()
 
             if status == PathControlStatus.GOAL_REACHED:
-                self.__reached_end = True
+                self._reached_end = True
                 break
             if status in (PathControlStatus.FAILED, PathControlStatus.IDLE):
                 break
@@ -1693,33 +1214,33 @@ class Controller(Component):
             # RUNNING or WAITING_INPUTS: keep the action alive, publish feedback
             # TODO: Add an option to update the computation time using timeit and send it in feedback, for controller performance tracking
             feedback_msg.control_list = init_twist_array_msg(
-                number_of_cmds=len(self.__path_controller.linear_x_control),
-                linear_x=self.__path_controller.linear_x_control,
-                linear_y=self.__path_controller.linear_y_control,
-                angular=self.__path_controller.angular_control,
+                number_of_cmds=len(self._path_controller.linear_x_control),
+                linear_x=self._path_controller.linear_x_control,
+                linear_y=self._path_controller.linear_y_control,
+                angular=self._path_controller.angular_control,
             )
 
             feedback_msg.global_path_deviation.lateral_distance_error = (
-                self.__lat_dist_error
+                self._lat_dist_error
             )
-            feedback_msg.global_path_deviation.orientation_error = self.__ori_error
+            feedback_msg.global_path_deviation.orientation_error = self._ori_error
             feedback_msg.prediction_horizon = self.config.prediction_horizon
 
             self.get_logger().info(
                 "Controlling Path — lat_err=%.3f, ori_err=%.3f"
-                % (self.__lat_dist_error, self.__ori_error)
+                % (self._lat_dist_error, self._ori_error)
             )
 
             goal_handle.publish_feedback(feedback_msg)
 
             time.sleep(1 / self.config.loop_rate)
 
-        if self.__reached_end:
+        if self._reached_end:
             # WHEN PATH TRACKER SERVICE RETURNS RESULT
             self.get_logger().info("Reached end of path!")
             # Update the result msg
-            result.destination_error.lateral_distance_error = self.__lat_dist_error
-            result.destination_error.orientation_error = self.__ori_error
+            result.destination_error.lateral_distance_error = self._lat_dist_error
+            result.destination_error.orientation_error = self._ori_error
             goal_handle.succeed()
 
         else:
@@ -1743,7 +1264,7 @@ class Controller(Component):
         :rtype: Union[ControlPath.Result, TrackVisionTarget.Result]
         """
         if self.config._mode == ControllerMode.VISION_FOLLOWER:
-            return self._vision_tracking_callback(goal_handle)
+            return self._vision_follower.execute_action(goal_handle)
         else:
             return self._path_tracking_callback(goal_handle)
 
@@ -1759,18 +1280,19 @@ class Controller(Component):
         :return: If the distance to the goal is less than the given tolerance
         :rtype: bool
         """
-        if not self.robot_state or not self.__path_controller:
+        if not self.robot_state or not self._path_controller:
             return False
         if not goal_point:
             return True
         dist: float = self.robot_state.distance(goal_point)
-        return dist <= self.__path_controller._config.goal_dist_tolerance
+        return dist <= self._path_controller._config.goal_dist_tolerance
 
     def _execution_once(self):
         """Intialize controller post activation"""
         if self.config._mode == ControllerMode.VISION_FOLLOWER:
-            # Setup the controller to avoid overhead when using the action server
-            self.__vision_controller = self.__setup_vision_controller()
+            # Set up the vision controller eagerly to avoid first-call overhead
+            # in the action server.
+            self._vision_follower.setup()
 
     def _execution_step(self):
         """
@@ -1787,7 +1309,7 @@ class Controller(Component):
             # If vision mode is activated -> do nothing
             return
 
-        if self.__reached_end:
+        if self._reached_end:
             return
         try:
             status = self._path_control()
@@ -1799,7 +1321,7 @@ class Controller(Component):
             return
 
         if status == PathControlStatus.GOAL_REACHED:
-            self.__reached_end = True
+            self._reached_end = True
             plan_callback = self.get_callback(TopicsKeys.GLOBAL_PLAN)
             if plan_callback:
                 plan_callback.clear_last_msg()
