@@ -189,7 +189,7 @@ class LocalMapper(Component):
             else None
         )
 
-        if self.odom_tf_listener and self.odom_tf_listener.has_transform():
+        if self.odom_tf_listener and self.odom_tf_listener.got_transform:
             # If the transform from odom to world is available, we can set the local map frame to world frame, as the local map will be built in the world frame
             self._local_map_frame = self.config.frames.world
         else:
