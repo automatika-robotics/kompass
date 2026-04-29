@@ -1,7 +1,8 @@
 import numpy as np
-from typing import List, Union
+from typing import List, Optional, Tuple, Union
 from geometry_msgs.msg import Twist
 from nav_msgs.msg import Odometry
+from kompass_core.datatypes import LaserScanData, PointCloudData
 from kompass_core.models import RobotState
 
 from kompass_interfaces.msg import TwistArray
@@ -51,6 +52,31 @@ def twist_array_to_ros_twist(cmd_list: TwistArray, idx: int) -> Twist:
     cmd_vel.angular.z = cmd_list.angular_velocities.z[idx]
 
     return cmd_vel
+
+
+def gather_local_obstacles(
+    direct_sensor: bool,
+    sensor_data: Optional[Union[LaserScanData, PointCloudData]],
+    local_map: Optional[np.ndarray],
+) -> Tuple[
+    Optional[LaserScanData], Optional[PointCloudData], Optional[np.ndarray]
+]:
+    """Route the latest obstacle inputs into the (laser_scan, point_cloud, local_map) triple expected by kompass_core controllers.
+
+    When ``direct_sensor`` is True the live ``sensor_data`` is dispatched to
+    either the laser-scan or point-cloud slot based on its type and the local
+    map slot is left empty. Otherwise the local map is forwarded and both
+    direct-sensor slots are empty.
+    """
+    laser_scan: Optional[LaserScanData] = None
+    point_cloud: Optional[PointCloudData] = None
+    if direct_sensor:
+        if isinstance(sensor_data, LaserScanData):
+            laser_scan = sensor_data
+        else:
+            point_cloud = sensor_data
+        return laser_scan, point_cloud, None
+    return None, None, local_map
 
 
 def __restrict_list_length(list_values: List[float], list_len: int):
