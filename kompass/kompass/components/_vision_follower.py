@@ -162,6 +162,8 @@ class VisionFollower:
 
         self._tracked_center = np.array([request_msg.pose_x, request_msg.pose_y])
 
+        cmp.get_logger().info("Starting following control...")
+
         while (
             cmp.config._mode == ControllerMode.VISION_FOLLOWER and not cmp._reached_end
         ):
