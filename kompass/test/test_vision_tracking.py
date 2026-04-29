@@ -24,7 +24,9 @@ from kompass.components.controller import (
     Controller,
     ControllerMode,
 )
+from kompass.components._vision_follower import VisionFollower
 from kompass.components.defaults import TopicsKeys
+from kompass.components.utils import gather_local_obstacles
 from kompass_core.datatypes import LaserScanData
 
 
@@ -32,16 +34,14 @@ from kompass_core.datatypes import LaserScanData
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _mangle(name: str) -> str:
-    """Return the Controller-mangled attribute name for a private method."""
-    return f"_Controller__{name}"
-
 
 def make_controller_stub(**overrides) -> Controller:
-    """Build a bare Controller with mock attributes attached.
+    """Build a bare Controller (with attached VisionFollower) and mock dependencies.
 
     Each test tops up whatever extra state it needs; defaults here are
-    the ones common to most of the helpers under test.
+    the ones common to most of the helpers under test. The vision-only
+    state (``_vision_controller``, ``_tracked_center``, detections, depth
+    image) lives on ``c._vision_follower`` rather than on the controller.
     """
     c = object.__new__(Controller)
 
@@ -49,11 +49,8 @@ def make_controller_stub(**overrides) -> Controller:
     c._main_goal_lock = threading.Lock()
     c._cmds_queue = Queue()
 
-    # Tracking state
-    setattr(c, _mangle("reached_end"), False)
-    c._tracked_center = None
-    c.vision_detections = None
-    c.depth_image = None
+    # Tracking / shared state
+    c._reached_end = False
     c.sensor_data = None
     c.local_map = None
     c.local_map_resolution = None
@@ -81,12 +78,12 @@ def make_controller_stub(**overrides) -> Controller:
     c.get_publisher = MagicMock()
     c.get_logger = MagicMock()
 
-    # Controller references
-    setattr(c, _mangle("vision_controller"), None)
-
     # _stop_robot recorder (instead of calling the real one which needs publishers)
     c._stop_robot_calls = []
     c._stop_robot = lambda: c._stop_robot_calls.append(True)
+
+    # Vision follower wraps the stub. Helper init seeds vision-only state.
+    c._vision_follower = VisionFollower(c)
 
     for k, v in overrides.items():
         setattr(c, k, v)
@@ -107,52 +104,46 @@ def make_goal_handle(is_cancel_requested: bool = False, is_active: bool = True):
 
 
 # ---------------------------------------------------------------------------
-# __gather_local_obstacles
+# gather_local_obstacles (free function in components.utils)
 # ---------------------------------------------------------------------------
 
 class TestGatherLocalObstacles:
     def test_routes_laser_scan_when_direct_sensor(self):
-        c = make_controller_stub()
-        c.config.use_direct_sensor = True
         scan = MagicMock(spec=LaserScanData)
-        c.sensor_data = scan
-
-        laser, pc, local = getattr(c, _mangle("gather_local_obstacles"))()
+        laser, pc, local = gather_local_obstacles(
+            direct_sensor=True, sensor_data=scan, local_map=None
+        )
         assert laser is scan
         assert pc is None
         assert local is None
 
     def test_routes_point_cloud_when_direct_sensor_and_not_laser(self):
-        c = make_controller_stub()
-        c.config.use_direct_sensor = True
         pc_data = object()  # not a LaserScanData instance
-        c.sensor_data = pc_data
-
-        laser, pc, local = getattr(c, _mangle("gather_local_obstacles"))()
+        laser, pc, local = gather_local_obstacles(
+            direct_sensor=True, sensor_data=pc_data, local_map=None
+        )
         assert laser is None
         assert pc is pc_data
         assert local is None
 
     def test_routes_local_map_when_not_direct_sensor(self):
-        c = make_controller_stub()
-        c.config.use_direct_sensor = False
         grid = np.zeros((4, 4), dtype=np.int8)
-        c.local_map = grid
-
-        laser, pc, local = getattr(c, _mangle("gather_local_obstacles"))()
+        laser, pc, local = gather_local_obstacles(
+            direct_sensor=False, sensor_data=None, local_map=grid
+        )
         assert laser is None
         assert pc is None
         assert local is grid
 
 
 # ---------------------------------------------------------------------------
-# __terminate_vision_action
+# VisionFollower._terminate_action
 # ---------------------------------------------------------------------------
 
 class TestTerminateVisionAction:
     def _call(self, c, gh, status, started_ago: float = 0.05):
         result = TrackVisionTarget.Result()
-        return getattr(c, _mangle("terminate_vision_action"))(
+        return c._vision_follower._terminate_action(
             gh, result, time.time() - started_ago, status
         )
 
@@ -209,14 +200,14 @@ class TestTerminateVisionAction:
 
     def test_terminate_resets_state_and_stops_robot(self):
         c = make_controller_stub()
-        c._tracked_center = np.array([10, 20])
-        c.vision_detections = [object()]
-        setattr(c, _mangle("reached_end"), False)
+        c._vision_follower._tracked_center = np.array([10, 20])
+        c._vision_follower.vision_detections = [object()]
+        c._reached_end = False
         gh = make_goal_handle(is_active=True)
         self._call(c, gh, "abort")
-        assert getattr(c, _mangle("reached_end")) is True
-        assert c._tracked_center is None
-        assert c.vision_detections is None
+        assert c._reached_end is True
+        assert c._vision_follower._tracked_center is None
+        assert c._vision_follower.vision_detections is None
         assert c._stop_robot_calls == [True]
 
 
@@ -225,27 +216,31 @@ class TestTerminateVisionAction:
 # ---------------------------------------------------------------------------
 
 class TestUpdateStateNonBlocking:
-    def test_returns_none_without_waiting_when_tf_missing(self):
-        """Confirms non-blocking path skips the TF wait loop."""
+    def test_reads_state_without_transform_when_tf_missing(self):
+        """Non-blocking with frames differing and no TF: skip the wait loop and
+        read the raw odom-frame state (no transformation applied)."""
         c = make_controller_stub()
         c.config.frames.odom = "odom"
         c.config.frames.world = "map"
         c.odom_tf_listener.transform = None
         state_cb = MagicMock()
+        state_cb.get_output.return_value = "RAW_STATE"
         c.get_callback = MagicMock(
             side_effect=lambda key: state_cb
             if key == TopicsKeys.ROBOT_LOCATION
             else None
         )
-        c.robot_state = "stale"
 
         t0 = time.time()
         c._update_state(block=False)
         elapsed = time.time() - t0
 
-        assert c.robot_state is None
-        state_cb.get_output.assert_not_called()
-        # must not have slept anywhere near topic_subscription_timeout
+        # State is read with transformation=None (no transform applied)
+        state_cb.get_output.assert_called_once_with(
+            transformation=None, get_front=True, clear_last=True
+        )
+        assert c.robot_state == "RAW_STATE"
+        # Must not have slept anywhere near topic_subscription_timeout
         assert elapsed < c.config.topic_subscription_timeout
 
     def test_uses_cached_transform_when_available(self):
@@ -287,19 +282,17 @@ class TestUpdateStateNonBlocking:
 
 
 # ---------------------------------------------------------------------------
-# _vision_tracking_callback — high-level branches
+# VisionFollower.execute_action — high-level branches
 # ---------------------------------------------------------------------------
 
 class TestVisionTrackingCallback:
     def _stub_loop_deps(self, c):
-        """No-op the input refreshers and time.sleep so the callback loop is fast."""
-        c._update_vision = MagicMock()
+        """No-op the input refreshers and the helper's setup hooks so the loop is fast."""
         c._update_state = MagicMock()
         c._publish = MagicMock()
-        setattr(c, _mangle("setup_vision_controller"), MagicMock())
-        setattr(
-            c, _mangle("setup_initial_tracking_target"), MagicMock(return_value=True)
-        )
+        c._vision_follower._update_inputs = MagicMock()
+        c._vision_follower.setup = MagicMock(return_value=True)
+        c._vision_follower._acquire_initial_target = MagicMock(return_value=True)
 
     def _stub_vision_controller(self, c, loop_step_return=True):
         vc = MagicMock()
@@ -309,17 +302,17 @@ class TestVisionTrackingCallback:
         vc.angular_control = [0.0]
         vc.dist_error = 0.0
         vc.orientation_error = 0.0
-        setattr(c, _mangle("vision_controller"), vc)
+        c._vision_follower._vision_controller = vc
         return vc
 
     def test_aborts_when_vision_controller_init_fails(self):
         c = make_controller_stub()
         self._stub_loop_deps(c)
-        # setup returns None -> init failure
-        getattr(c, _mangle("setup_vision_controller")).return_value = None
+        # setup returns False and no preinitialised vision controller -> abort
+        c._vision_follower.setup.return_value = False
 
         gh = make_goal_handle()
-        result = c._vision_tracking_callback(gh)
+        result = c._vision_follower.execute_action(gh)
 
         gh.abort.assert_called_once()
         assert result.success is False
@@ -329,10 +322,10 @@ class TestVisionTrackingCallback:
         c = make_controller_stub()
         self._stub_loop_deps(c)
         self._stub_vision_controller(c)
-        getattr(c, _mangle("setup_initial_tracking_target")).return_value = False
+        c._vision_follower._acquire_initial_target.return_value = False
 
         gh = make_goal_handle()
-        result = c._vision_tracking_callback(gh)
+        result = c._vision_follower.execute_action(gh)
 
         gh.abort.assert_called_once()
         assert result.success is False
@@ -362,8 +355,8 @@ class TestVisionTrackingCallback:
                 return self._reads >= self._flip_after
 
         gh = FlippingGoal(flip_after=1)  # first check triggers cancel
-        with patch("kompass.components.controller.time.sleep", lambda *_: None):
-            result = c._vision_tracking_callback(gh)
+        with patch("kompass.components._vision_follower.time.sleep", lambda *_: None):
+            result = c._vision_follower.execute_action(gh)
 
         gh.canceled.assert_called_once()
         gh.abort.assert_not_called()
@@ -377,8 +370,8 @@ class TestVisionTrackingCallback:
         self._stub_vision_controller(c, loop_step_return=False)
 
         gh = make_goal_handle()
-        with patch("kompass.components.controller.time.sleep", lambda *_: None):
-            result = c._vision_tracking_callback(gh)
+        with patch("kompass.components._vision_follower.time.sleep", lambda *_: None):
+            result = c._vision_follower.execute_action(gh)
 
         gh.abort.assert_called_once()
         gh.succeed.assert_not_called()
@@ -403,8 +396,8 @@ class TestVisionTrackingCallback:
         vc.loop_step.side_effect = loop_step_side_effect
 
         gh = make_goal_handle()
-        with patch("kompass.components.controller.time.sleep", lambda *_: None):
-            result = c._vision_tracking_callback(gh)
+        with patch("kompass.components._vision_follower.time.sleep", lambda *_: None):
+            result = c._vision_follower.execute_action(gh)
 
         gh.succeed.assert_called_once()
         gh.abort.assert_not_called()

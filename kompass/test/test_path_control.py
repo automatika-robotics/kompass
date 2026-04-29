@@ -34,8 +34,9 @@ from kompass.components.defaults import TopicsKeys
 # ---------------------------------------------------------------------------
 
 def _mangle(name: str) -> str:
-    """Return the Controller-mangled attribute name for a private method."""
-    return f"_Controller__{name}"
+    """Return the attribute name for a Controller private method.
+    """
+    return f"_{name}"
 
 
 def _set_mangled(c: Controller, name: str, value) -> None:
