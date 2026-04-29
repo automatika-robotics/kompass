@@ -225,11 +225,11 @@ class ComponentConfig(BaseComponentConfig):
     frames: RobotFrames = field(default=Factory(RobotFrames))
 
     topic_subscription_timeout: float = field(
-        default=20.0, validator=BaseValidators.in_range(min_value=1e-3, max_value=1e9)
+        default=5.0, validator=BaseValidators.in_range(min_value=1e-3, max_value=1e9)
     )
 
     topic_try_wait_timeout: float = field(
-        default=0.1, validator=BaseValidators.in_range(min_value=1e-3, max_value=1e9)
+        default=0.05, validator=BaseValidators.in_range(min_value=1e-3, max_value=1e9)
     )
 
     core_log_level: str = field(
