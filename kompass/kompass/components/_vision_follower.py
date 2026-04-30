@@ -66,6 +66,7 @@ class VisionFollower:
         """
         cmp = self._component
         timeout = 0.0
+        # Get the depth image transform if the input is provided
         if cmp.in_topic_name(TopicsKeys.DEPTH_CAM_INFO):
             while (
                 not (cmp.depth_tf_listener.got_transform and self.depth_image_info)
@@ -86,6 +87,10 @@ class VisionFollower:
             "Got Depth camera to body TF -> Setting up Vision Follower controller"
         )
 
+        # In vision mode the frame is decided by what's available at setup time:
+        # if odom->world TF (or matching frames) is available we operate in
+        # GLOBAL, otherwise we fall back to LOCAL (robot-relative). Once set,
+        # _frame_mode drives state/sensor handling for the rest of the session.
         # Reset to GLOBAL before probing so _update_state(block=True) actually
         # waits for the TF (even if a prior session ended in LOCAL).
         cmp.config._frame_mode = FrameMode.GLOBAL
@@ -121,6 +126,7 @@ class VisionFollower:
         if detections_callback:
             detections_callback.set_buffer_size(_controller_config.buffer_size)
 
+        # re-read the file and overwrite any programmatic overrides.
         self._vision_controller = ControlClasses[cmp.algorithm](
             robot=cmp._robot,
             ctrl_limits=cmp._robot_ctr_limits,
@@ -147,9 +153,13 @@ class VisionFollower:
         result = TrackVisionTarget.Result()
         start_time = time.time()
 
-        if not self._vision_controller and not self.setup():
+        if not self._vision_controller:
+            success = self.setup()
+        if not success:
             cmp.get_logger().error("Could not initialize controller -> ABORTING ACTION")
-            return self._terminate_action(goal_handle, result, start_time, "abort")
+            return self._terminate_action(
+                goal_handle, result, start_time, "abort"
+            )
 
         if not self._acquire_initial_target(
             request_msg.label,
@@ -157,18 +167,21 @@ class VisionFollower:
             request_msg.pose_y,
         ):
             cmp.get_logger().error("No Target found on image -> ABORTING ACTION")
-            return self._terminate_action(goal_handle, result, start_time, "abort")
+            return self._terminate_action(
+                goal_handle, result, start_time, "abort"
+            )
 
         self._tracked_center = np.array([request_msg.pose_x, request_msg.pose_y])
 
-        cmp.get_logger().info("Starting following control...")
-
         while (
-            cmp.config._mode == ControllerMode.VISION_FOLLOWER and not cmp._reached_end
+            cmp.config._mode == ControllerMode.VISION_FOLLOWER
+            and not cmp._reached_end
         ):
             if not goal_handle.is_active or goal_handle.is_cancel_requested:
                 cmp.get_logger().info("Vision Following Action Canceled!")
-                return self._terminate_action(goal_handle, result, start_time, "cancel")
+                return self._terminate_action(
+                    goal_handle, result, start_time, "cancel"
+                )
 
             # Refresh inputs non-blocking; follower tolerates missing frames via
             # its internal target_wait_timeout / enable_search.
@@ -185,7 +198,9 @@ class VisionFollower:
                 cmp.get_logger().warning(
                     "Vision follower lost the target -> Aborting action"
                 )
-                return self._terminate_action(goal_handle, result, start_time, "abort")
+                return self._terminate_action(
+                    goal_handle, result, start_time, "abort"
+                )
 
             feedback_msg.distance_error = float(self._vision_controller.dist_error)
             feedback_msg.orientation_error = float(
@@ -205,7 +220,9 @@ class VisionFollower:
             time.sleep(1 / cmp.config.loop_rate)
 
         cmp.get_logger().warning("Ending tracking action")
-        return self._terminate_action(goal_handle, result, start_time, "succeed")
+        return self._terminate_action(
+            goal_handle, result, start_time, "succeed"
+        )
 
     def request_stop(self) -> bool:
         """Request termination of an ongoing vision tracking action.
@@ -257,25 +274,10 @@ class VisionFollower:
         Returns True if the controller accepted the initial target.
         """
         cmp = self._component
-        vision_controller = self._vision_controller
 
         # In LOCAL frame mode robot_state is intentionally None — only wait
         # for it when we're operating in GLOBAL.
         needs_state = cmp.config._frame_mode == FrameMode.GLOBAL
-        timeout = 0.0
-        while ((needs_state and not cmp.robot_state) or self.depth_image is None) and (
-            timeout < cmp.config.topic_subscription_timeout
-        ):
-            cmp._update_state(block=False)
-            self._update_inputs()
-            timeout += 1 / cmp.config.loop_rate
-            time.sleep(1 / cmp.config.loop_rate)
-        if (needs_state and not cmp.robot_state) or self.depth_image is None:
-            cmp.get_logger().error(
-                f"Could not get robot state {cmp.robot_state} and/or depth image {self.depth_image} to set initial tracking target after {cmp.config.topic_subscription_timeout} seconds"
-            )
-            return False
-
         if label != "":
             target_2d = None
             vision_callback = cmp.get_callback(TopicsKeys.VISION_DETECTIONS)
@@ -296,35 +298,57 @@ class VisionFollower:
                     f"Could not find target {label} in vision detections"
                 )
                 return False
-            if self.depth_image is None:
-                cmp.get_logger().warning(
-                    f"Target '{label}' found but no aligned depth image is available; "
-                    "check that the detector is publishing depth with detections"
+            timeout = 0.0
+            while (
+                needs_state and not cmp.robot_state
+            ) and timeout < cmp.config.topic_subscription_timeout:
+                cmp._update_state(block=False)
+                timeout += 1 / cmp.config.loop_rate
+                time.sleep(1 / cmp.config.loop_rate)
+            if needs_state and not cmp.robot_state:
+                cmp.get_logger().error(
+                    f"Could not get robot state required for Global mode after {cmp.config.topic_subscription_timeout} seconds"
                 )
+                return False
             cmp.get_logger().info(
                 f"Got initial target {label}, setting to controller..."
             )
-            return vision_controller.set_initial_tracking_2d_target(
+            found_target = self._vision_controller.set_initial_tracking_2d_target(
                 target_box=target_2d[0],
                 current_state=cmp.robot_state,
                 aligned_depth_image=self.depth_image,
             )
+        else:
+            if cmp.algorithm == ControllersID.VISION_IMG:
+                cmp.get_logger().error(
+                    "Cannot use Vision RGB Follower without providing a target label"
+                )
+                cmp.health_status.set_fail_algorithm(
+                    algorithm_names=[cmp.algorithm.value]
+                )
+                return False
 
-        if cmp.algorithm == ControllersID.VISION_IMG:
-            cmp.get_logger().error(
-                "Cannot use Vision RGB Follower without providing a target label"
+            while (
+                self.depth_image is None or self.vision_detections is None
+            ) and timeout < cmp.config.topic_subscription_timeout:
+                self._update_inputs()
+                timeout += 1 / cmp.config.loop_rate
+                time.sleep(1 / cmp.config.loop_rate)
+            if self.depth_image is None or self.vision_detections is None:
+                cmp.get_logger().error(
+                    f"Could not get initial vision detections to setup the vision follower controller after {cmp.config.topic_subscription_timeout} seconds"
+                )
+                return False
+
+            # If no label is provided, use the provided pixel coordinates (Only works with depth)
+            found_target = self._vision_controller.set_initial_tracking_image(
+                cmp.robot_state,
+                pose_x,
+                pose_y,
+                self.vision_detections,
+                self.depth_image,
             )
-            cmp.health_status.set_fail_algorithm(algorithm_names=[cmp.algorithm.value])
-            return False
-
-        # No label provided: use pixel coordinates (depth-based only).
-        return vision_controller.set_initial_tracking_image(
-            cmp.robot_state,
-            pose_x,
-            pose_y,
-            self.vision_detections,
-            self.depth_image,
-        )
+        return found_target
 
     def _terminate_action(
         self,
