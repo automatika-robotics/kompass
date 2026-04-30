@@ -328,7 +328,6 @@ if EmbodiedAgentsCallbacks is not None:
             super().__init__(input_topic, node_name)
             self._img_size: Optional[np.ndarray] = None
             self._depth_image: Optional[np.ndarray] = None
-            self._depth_image: Optional[np.ndarray] = None
             self._depth_detector: Optional[DepthDetector] = None
             self._depth_encoding: Optional[Dict] = None
 

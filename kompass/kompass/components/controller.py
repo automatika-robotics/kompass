@@ -873,7 +873,7 @@ class Controller(Component):
                     f"Could not get TF from {self.config.frames.odom} frame to {self.config.frames.world} frame after {self.config.topic_subscription_timeout} seconds"
                 )
                 return
-        self.robot_state = self._read_state()
+        self.robot_state = self._read_robot_state()
         if block:
             waited = 0.0
             while (
@@ -881,7 +881,7 @@ class Controller(Component):
             ):
                 time.sleep(1 / self.config.loop_rate)
                 waited += 1 / self.config.loop_rate
-                self.robot_state = self._read_state()
+                self.robot_state = self._read_robot_state()
 
     def _attach_callbacks(self) -> None:
         """
