@@ -854,15 +854,23 @@ class Controller(Component):
                 )
                 return
         state_callback = self.get_callback(TopicsKeys.ROBOT_LOCATION)
-        self.robot_state = (
-            state_callback.get_output(
-                transformation=self.odom_tf_listener.transform if self.odom_tf_listener else None,
-                get_front=True,
-                clear_last=True,
+        self.robot_state = None
+        waited = 0.0
+        while block and not self.robot_state and waited < self.config.topic_subscription_timeout:
+            self.get_logger().warning(
+                "Waiting to get all new incoming data...", once=True
             )
-            if state_callback
-            else None
-        )
+            time.sleep(1 / self.config.loop_rate)
+            waited += 1 / self.config.loop_rate
+            self.robot_state = (
+                state_callback.get_output(
+                    transformation=self.odom_tf_listener.transform if self.odom_tf_listener else None,
+                    get_front=True,
+                    clear_last=True,
+                )
+                if state_callback
+                else None
+            )
 
     def _attach_callbacks(self) -> None:
         """
@@ -1052,15 +1060,8 @@ class Controller(Component):
             # No global path -> nothing to control toward
             return PathControlStatus.IDLE
 
-        waited = 0.0
-        while not self.robot_state and waited < self.config.topic_subscription_timeout:
-            self.get_logger().warning(
-                "Waiting to get all new incoming data...", once=True
-            )
-            time.sleep(1 / self.config.loop_rate)
-            waited += 1 / self.config.loop_rate
-            self._update_state(block=True)
-            self._update_sensor_data()
+        self._update_state(block=True)
+        self._update_sensor_data()
 
         if not self.robot_state:
             self.get_logger().warning(
