@@ -17,11 +17,16 @@ helper sets at setup time based on TF availability.
 from __future__ import annotations
 
 import time
-from typing import TYPE_CHECKING, Any, Dict, Optional
+from typing import TYPE_CHECKING, Dict, Optional
 
 import numpy as np
 
-from kompass_core.control import ControlClasses, ControlConfigClasses, ControllersID
+from kompass_core.control import (
+    ControlClasses,
+    ControlConfigClasses,
+    ControllersID,
+    ControllerType,
+)
 from kompass_core.datatypes import Bbox2D
 from kompass_interfaces.action import TrackVisionTarget
 
@@ -37,7 +42,7 @@ class VisionFollower:
 
     def __init__(self, component: "Controller") -> None:
         self._component = component
-        self._vision_controller: Optional[Any] = None
+        self._vision_controller: Optional[ControllerType] = None
         self._tracked_center: Optional[np.ndarray] = None
         self.vision_detections: Optional[Bbox2D] = None
         self.depth_image: Optional[np.ndarray] = None
@@ -153,11 +158,9 @@ class VisionFollower:
         result = TrackVisionTarget.Result()
         start_time = time.time()
 
-        if not self._vision_controller and not self.setup():
+        if not self._vision_controller or not self.setup():
             cmp.get_logger().error("Could not initialize controller -> ABORTING ACTION")
-            return self._terminate_action(
-                goal_handle, result, start_time, "abort"
-            )
+            return self._terminate_action(goal_handle, result, start_time, "abort")
 
         if not self._acquire_initial_target(
             request_msg.label,
@@ -165,21 +168,16 @@ class VisionFollower:
             request_msg.pose_y,
         ):
             cmp.get_logger().error("No Target found on image -> ABORTING ACTION")
-            return self._terminate_action(
-                goal_handle, result, start_time, "abort"
-            )
+            return self._terminate_action(goal_handle, result, start_time, "abort")
 
         self._tracked_center = np.array([request_msg.pose_x, request_msg.pose_y])
 
         while (
-            cmp.config._mode == ControllerMode.VISION_FOLLOWER
-            and not cmp._reached_end
+            cmp.config._mode == ControllerMode.VISION_FOLLOWER and not cmp._reached_end
         ):
             if not goal_handle.is_active or goal_handle.is_cancel_requested:
                 cmp.get_logger().info("Vision Following Action Canceled!")
-                return self._terminate_action(
-                    goal_handle, result, start_time, "cancel"
-                )
+                return self._terminate_action(goal_handle, result, start_time, "cancel")
 
             # Refresh inputs non-blocking; follower tolerates missing frames via
             # its internal target_wait_timeout / enable_search.
@@ -196,9 +194,7 @@ class VisionFollower:
                 cmp.get_logger().warning(
                     "Vision follower lost the target -> Aborting action"
                 )
-                return self._terminate_action(
-                    goal_handle, result, start_time, "abort"
-                )
+                return self._terminate_action(goal_handle, result, start_time, "abort")
 
             feedback_msg.distance_error = float(self._vision_controller.dist_error)
             feedback_msg.orientation_error = float(
@@ -218,9 +214,7 @@ class VisionFollower:
             time.sleep(1 / cmp.config.loop_rate)
 
         cmp.get_logger().warning("Ending tracking action")
-        return self._terminate_action(
-            goal_handle, result, start_time, "succeed"
-        )
+        return self._terminate_action(goal_handle, result, start_time, "succeed")
 
     def request_stop(self) -> bool:
         """Request termination of an ongoing vision tracking action.

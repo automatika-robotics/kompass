@@ -1327,7 +1327,9 @@ class Controller(Component):
             self.get_logger().error(
                 f"Path control step failed for algorithm '{self.algorithm}': {e}"
             )
-            self.health_status.set_fail_algorithm(algorithm_names=[self.algorithm.value])
+            self.health_status.set_fail_algorithm(
+                algorithm_names=[self.algorithm.value]
+            )
             return
 
         if status == PathControlStatus.GOAL_REACHED:
