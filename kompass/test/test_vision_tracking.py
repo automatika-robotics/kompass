@@ -26,7 +26,6 @@ from kompass.components.controller import (
 )
 from kompass.components._vision_follower import VisionFollower
 from kompass.components.defaults import TopicsKeys
-from kompass.components.utils import gather_local_obstacles
 from kompass_core.datatypes import LaserScanData
 
 
@@ -102,43 +101,10 @@ def make_goal_handle(is_cancel_requested: bool = False, is_active: bool = True):
     gh.request = SimpleNamespace(label="", pose_x=0, pose_y=0)
     return gh
 
-
-# ---------------------------------------------------------------------------
-# gather_local_obstacles (free function in components.utils)
-# ---------------------------------------------------------------------------
-
-class TestGatherLocalObstacles:
-    def test_routes_laser_scan_when_direct_sensor(self):
-        scan = MagicMock(spec=LaserScanData)
-        laser, pc, local = gather_local_obstacles(
-            direct_sensor=True, sensor_data=scan, local_map=None
-        )
-        assert laser is scan
-        assert pc is None
-        assert local is None
-
-    def test_routes_point_cloud_when_direct_sensor_and_not_laser(self):
-        pc_data = object()  # not a LaserScanData instance
-        laser, pc, local = gather_local_obstacles(
-            direct_sensor=True, sensor_data=pc_data, local_map=None
-        )
-        assert laser is None
-        assert pc is pc_data
-        assert local is None
-
-    def test_routes_local_map_when_not_direct_sensor(self):
-        grid = np.zeros((4, 4), dtype=np.int8)
-        laser, pc, local = gather_local_obstacles(
-            direct_sensor=False, sensor_data=None, local_map=grid
-        )
-        assert laser is None
-        assert pc is None
-        assert local is grid
-
-
 # ---------------------------------------------------------------------------
 # VisionFollower._terminate_action
 # ---------------------------------------------------------------------------
+
 
 class TestTerminateVisionAction:
     def _call(self, c, gh, status, started_ago: float = 0.05):

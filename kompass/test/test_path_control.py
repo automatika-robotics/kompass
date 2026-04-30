@@ -101,8 +101,9 @@ def make_path_controller_stub(**overrides) -> Controller:
     c.get_publisher = MagicMock()
     c.get_logger = MagicMock()
 
-    # _update_state / _publish / _stop_robot are side-effect surfaces; record calls
+    # _update_state / _update_sensor_data / _publish / _stop_robot are side-effect surfaces; record calls
     c._update_state = MagicMock()
+    c._update_sensor_data = MagicMock()
     c._publish = MagicMock()
     c._stop_robot_calls = []
     c._stop_robot = lambda: c._stop_robot_calls.append(True)
