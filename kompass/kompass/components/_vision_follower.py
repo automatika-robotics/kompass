@@ -27,7 +27,6 @@ from kompass_interfaces.action import TrackVisionTarget
 
 from ._modes import ControllerMode, FrameMode
 from .defaults import TopicsKeys
-from .utils import gather_local_obstacles
 
 if TYPE_CHECKING:
     from .controller import Controller
@@ -175,20 +174,11 @@ class VisionFollower:
             # its internal target_wait_timeout / enable_search.
             self._update_inputs()
             cmp._update_state(block=False)
-            laser_scan, point_cloud, local_map = gather_local_obstacles(
-                direct_sensor=cmp.direct_sensor,
-                sensor_data=getattr(cmp, "sensor_data", None),
-                local_map=getattr(cmp, "local_map", None),
-            )
 
             found_ctrl = self._vision_controller.loop_step(
                 detections_2d=self.vision_detections or [],
                 current_state=cmp.robot_state,
                 depth_image=self.depth_image,
-                laser_scan=laser_scan,
-                point_cloud=point_cloud,
-                local_map=local_map,
-                local_map_resolution=getattr(cmp, "local_map_resolution", None),
             )
 
             if not found_ctrl:
