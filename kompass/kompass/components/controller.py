@@ -832,7 +832,7 @@ class Controller(Component):
             kw["transformation"] = (
                 self.odom_tf_listener.transform if self.odom_tf_listener else None
             )
-            return state_callback.get_output(**kw)
+        return state_callback.get_output(**kw)
 
     def _update_state(self, block: bool = True) -> None:
         """
