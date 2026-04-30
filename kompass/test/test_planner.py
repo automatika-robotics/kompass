@@ -14,6 +14,8 @@ from unittest.mock import MagicMock
 import numpy as np
 from kompass_core.models import RobotState
 
+from builtin_interfaces.msg import Time
+
 from kompass.components.planner import Planner
 from kompass.components.ros import Topic
 from kompass_interfaces.msg import PathTrackingError
@@ -77,7 +79,7 @@ def make_planner_stub(**overrides) -> Planner:
     p.get_callback = MagicMock(return_value=None)
     p.get_publisher = MagicMock()
     p.get_logger = MagicMock()
-    p.get_ros_time = MagicMock(return_value=SimpleNamespace(sec=0, nanosec=0))
+    p.get_ros_time = MagicMock(return_value=Time(sec=0, nanosec=0))
     p.health_status = MagicMock()
     p.in_topic_name = MagicMock(side_effect=lambda key: f"/{str(key).lower()}")
     p.got_all_inputs = MagicMock(return_value=True)
