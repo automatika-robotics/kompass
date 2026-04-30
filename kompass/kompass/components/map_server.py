@@ -15,7 +15,6 @@ from kompass_core.models import RobotGeometry
 from kompass_core.datatypes import get_occupancy_grid_from_pcd, get_points_from_pcd
 
 # KOMPASS ROS
-from rclpy.topic_endpoint_info import TopicEndpointInfo
 from rclpy.callback_groups import ReentrantCallbackGroup
 from ..config import BaseValidators, ComponentConfig, ComponentRunType
 from ..utils import IntEnum
@@ -434,7 +433,7 @@ class MapServer(Component):
         self.get_logger().info(f"RECEIVED SAVE {msg_type} MAP SERVICE REQUEST")
         self._save_map_data: Optional[Union[PointCloud2, OccupancyGrid]] = None
         # Confirm the topic exists and is being published
-        topic_end_point_info: List[TopicEndpointInfo] = (
+        topic_end_point_info: List = (
             self.get_publishers_info_by_topic(request.topic_name)
         )
         if not topic_end_point_info:
