@@ -50,10 +50,12 @@ def kompass_bringup():
     planner_config = PlannerConfig(loop_rate=1.0)
     planner = Planner(component_name="planner", config=planner_config)
     planner.run_type = "ActionServer"  # Run the planner as an ActionServer to receive goals from the UI or other components
+    clicked_point_topic = Topic(name="/clicked_point", msg_type="PointStamped")
+    planner.inputs(goal_point=clicked_point_topic)
 
     # Configure the motion controller
     controller = Controller(component_name="controller")
-    controller.algorithm = ControllersID.PURE_PURSUIT
+    controller.algorithm = ControllersID.DWA
     controller.direct_sensor = (
         False  # Get local perception from a "map" instead (from the local mapper)
     )
@@ -78,9 +80,15 @@ def kompass_bringup():
 
     # Configure a Local Mapper
     local_mapper_config = LocalMapperConfig(
-        map_params=MapConfig(width=3.0, height=3.0, resolution=0.05)
+        map_params=MapConfig(
+            width=4.0,
+            height=4.0,
+            resolution=0.1,
+            max_points_per_line=256,
+        )
     )
     local_mapper = LocalMapper(component_name="mapper", config=local_mapper_config)
+    local_mapper.inputs(sensor_data=Topic(name="/scan", msg_type="LaserScan"))
 
     # Configure the global Map Server
     map_file = os.path.join(kompass_sim_dir, "maps", "turtlebot3_webots.yaml")
@@ -108,7 +116,6 @@ def kompass_bringup():
     unblock_action = Action(method=driver.move_to_unblock)
 
     # On any clicked point
-    clicked_point_topic = Topic(name="/clicked_point", msg_type="PointStamped")
     event_clicked_point = Event(
         clicked_point_topic,
     )
@@ -150,7 +157,9 @@ def kompass_bringup():
 
     # Set the robot config for all components
     launcher.robot = my_robot
-    launcher.frames = RobotFrames(world="map", odom="map", scan="LDS-01")
+    launcher.frames = RobotFrames(
+        world="map", odom="map", scan="LDS-01"
+    )
     # Enable the UI
     # Inputs: Planner action server
     # Outputs: Static Map, Global Plan, Robot Odometry
