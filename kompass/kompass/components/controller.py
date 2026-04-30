@@ -791,6 +791,33 @@ class Controller(Component):
         self.custom_create_all_subscribers()
         self.custom_create_all_action_servers()
 
+    def _update_sensor_data(self) -> None:
+        """Update sensor data from the sensor callback"""
+        if self.direct_sensor:
+            self.local_map = None
+            sensor_callback = self.get_callback(TopicsKeys.SPATIAL_SENSOR)
+            self.sensor_data = (
+                sensor_callback.get_output(
+                    transformation=self._sensor_tf_listener.transform
+                    if self._sensor_tf_listener
+                    else None
+                )
+                if sensor_callback
+                else None
+            )
+        else:
+            self.sensor_data = None
+            map_callback = self.get_callback(TopicsKeys.LOCAL_MAP)
+            if map_callback:
+                self.local_map: Optional[np.ndarray] = map_callback.get_output()
+                _metadata = map_callback.get_output(get_metadata=True)
+                self.local_map_resolution = (
+                    _metadata["resolution"] if _metadata else None
+                )
+            else:
+                self.local_map = None
+                self.local_map_resolution = None
+
     def _update_state(self, block: bool = True) -> None:
         """
         Updates node inputs from associated callbacks.
@@ -808,68 +835,33 @@ class Controller(Component):
 
         # In LOCAL frame mode robot state is irrelevant: sensor data and
         # tracked targets are reasoned about robot-relative.
-        if self.config._frame_mode == FrameMode.LOCAL:
-            self.robot_state = None
-        else:
-            state_callback = self.get_callback(TopicsKeys.ROBOT_LOCATION)
-
-            if self.config.frames.odom == self.config.frames.world:
-                self.robot_state = (
-                    state_callback.get_output(get_front=True, clear_last=True)
-                    if state_callback
-                    else None
+        if block and not self.odom_tf_listener.transform:
+            timeout = 0.0
+            while (
+                not self.odom_tf_listener.transform
+                and timeout < self.config.topic_subscription_timeout
+            ):
+                self.get_logger().warning(
+                    f"Waiting to get TF from {self.config.frames.odom} frame to {self.config.frames.world} frame...",
+                    once=True,
                 )
-            else:
-                if block and not self.odom_tf_listener.transform:
-                    timeout = 0.0
-                    while (
-                        not self.odom_tf_listener.transform
-                        and timeout < self.config.topic_subscription_timeout
-                    ):
-                        self.get_logger().warning(
-                            f"Waiting to get TF from {self.config.frames.odom} frame to {self.config.frames.world} frame...",
-                            once=True,
-                        )
-                        timeout += 1 / self.config.loop_rate
-                        time.sleep(1 / self.config.loop_rate)
-                    if not self.odom_tf_listener.transform:
-                        self.get_logger().error(
-                            f"Could not get TF from {self.config.frames.odom} frame to {self.config.frames.world} frame after {self.config.topic_subscription_timeout} seconds"
-                        )
-                self.robot_state = (
-                    state_callback.get_output(
-                        transformation=self.odom_tf_listener.transform
-                        if self.odom_tf_listener
-                        else None,
-                        get_front=True,
-                        clear_last=True,
-                    )
-                    if state_callback
-                    else None
+                timeout += 1 / self.config.loop_rate
+                time.sleep(1 / self.config.loop_rate)
+            if not self.odom_tf_listener.transform:
+                self.get_logger().error(
+                    f"Could not get TF from {self.config.frames.odom} frame to {self.config.frames.world} frame after {self.config.topic_subscription_timeout} seconds"
                 )
-
-        if self.direct_sensor:
-            sensor_callback = self.get_callback(TopicsKeys.SPATIAL_SENSOR)
-            self.sensor_data = (
-                sensor_callback.get_output(
-                    transformation=self._sensor_tf_listener.transform
-                    if self._sensor_tf_listener
-                    else None
-                )
-                if sensor_callback
-                else None
+                return
+        state_callback = self.get_callback(TopicsKeys.ROBOT_LOCATION)
+        self.robot_state = (
+            state_callback.get_output(
+                transformation=self.odom_tf_listener.transform,
+                get_front=True,
+                clear_last=True,
             )
-        else:
-            map_callback = self.get_callback(TopicsKeys.LOCAL_MAP)
-            if map_callback:
-                self.local_map: Optional[np.ndarray] = map_callback.get_output()
-                _metadata = map_callback.get_output(get_metadata=True)
-                self.local_map_resolution = (
-                    _metadata["resolution"] if _metadata else None
-                )
-            else:
-                self.local_map = None
-                self.local_map_resolution = None
+            if state_callback
+            else None
+        )
 
     def _attach_callbacks(self) -> None:
         """
@@ -1069,6 +1061,7 @@ class Controller(Component):
             time.sleep(1 / self.config.loop_rate)
             waited += 1 / self.config.loop_rate
             self._update_state(block=False)
+            self._update_sensor_data()
 
         if not self.robot_state:
             self.get_logger().warning(
