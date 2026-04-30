@@ -835,10 +835,11 @@ class Controller(Component):
 
         # In LOCAL frame mode robot state is irrelevant: sensor data and
         # tracked targets are reasoned about robot-relative.
-        if block and not self.odom_tf_listener.transform:
+        if block and self.config._frame_mode == FrameMode.GLOBAL and self.config.frames.odom != self.config.frames.world:
             timeout = 0.0
+            odom_listener = self.odom_tf_listener
             while (
-                not self.odom_tf_listener.transform
+                not odom_listener.transform
                 and timeout < self.config.topic_subscription_timeout
             ):
                 self.get_logger().warning(
@@ -855,7 +856,7 @@ class Controller(Component):
         state_callback = self.get_callback(TopicsKeys.ROBOT_LOCATION)
         self.robot_state = (
             state_callback.get_output(
-                transformation=self.odom_tf_listener.transform,
+                transformation=self.odom_tf_listener.transform if self.odom_tf_listener else None,
                 get_front=True,
                 clear_last=True,
             )
@@ -1051,8 +1052,6 @@ class Controller(Component):
             # No global path -> nothing to control toward
             return PathControlStatus.IDLE
 
-        self._update_state(block=False)
-
         waited = 0.0
         while not self.robot_state and waited < self.config.topic_subscription_timeout:
             self.get_logger().warning(
@@ -1060,7 +1059,7 @@ class Controller(Component):
             )
             time.sleep(1 / self.config.loop_rate)
             waited += 1 / self.config.loop_rate
-            self._update_state(block=False)
+            self._update_state(block=True)
             self._update_sensor_data()
 
         if not self.robot_state:
