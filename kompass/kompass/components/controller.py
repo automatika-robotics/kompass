@@ -40,9 +40,9 @@ from ..callbacks import PointCloudCallback
 
 # KOMPASS MSGS/SRVS/ACTIONS
 from .component import Component, TFListener
-from .utils import gather_local_obstacles, init_twist_array_msg
 from ._modes import ControllerMode, FrameMode, PathControlStatus, CmdPublishType
 from ._vision_follower import VisionFollower
+from .utils import init_twist_array_msg
 from .defaults import (
     controller_allowed_inputs,
     controller_allowed_outputs,
@@ -1077,11 +1077,17 @@ class Controller(Component):
             )
             return PathControlStatus.WAITING_INPUTS
 
-        laser_scan, point_cloud, local_map = gather_local_obstacles(
-            direct_sensor=self.direct_sensor,
-            sensor_data=getattr(self, "sensor_data", None),
-            local_map=getattr(self, "local_map", None),
-        )
+        laser_scan = None
+        point_cloud = None
+        local_map = None
+
+        if self.direct_sensor:
+            if isinstance(self.sensor_data, LaserScanData):
+                laser_scan = self.sensor_data
+            else:
+                point_cloud = self.sensor_data
+        else:
+            local_map = self.local_map
 
         if self.reached_point(self._goal_point):
             self._stop_robot()
