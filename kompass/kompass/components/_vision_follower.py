@@ -153,9 +153,7 @@ class VisionFollower:
         result = TrackVisionTarget.Result()
         start_time = time.time()
 
-        if not self._vision_controller:
-            success = self.setup()
-        if not success:
+        if not self._vision_controller and not self.setup():
             cmp.get_logger().error("Could not initialize controller -> ABORTING ACTION")
             return self._terminate_action(
                 goal_handle, result, start_time, "abort"
