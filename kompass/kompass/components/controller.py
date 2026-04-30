@@ -527,10 +527,14 @@ class Controller(Component):
             if not kompass_cpp_path:
                 return None
 
-        if self.algorithm == ControllersID.VISION_DEPTH:
+        elif self.algorithm == ControllersID.VISION_DEPTH:
             kompass_cpp_path = self._vision_follower.optimal_path()
             if not kompass_cpp_path:
                 return None
+
+        # Only DWA and VISION_DEPTH provide a local plan for now, if other algorithm is selected return None
+        else:
+            return None
 
         ros_path = Path()
         parsed_points = []

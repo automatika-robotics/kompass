@@ -325,7 +325,7 @@ class VisionFollower:
                     algorithm_names=[cmp.algorithm.value]
                 )
                 return False
-
+            timeout = 0.0
             while (
                 self.depth_image is None or self.vision_detections is None
             ) and timeout < cmp.config.topic_subscription_timeout:
