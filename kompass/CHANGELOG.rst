@@ -2,6 +2,63 @@
 Changelog for package kompass
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* (fix) Removes type hint from map server to fix for rolling api change
+* (fix) Fixes sending algorithm name error in health status
+* (fix) Returns robot state regardless of the TF since it will be blocked in the main update_state if required and not available
+* (fix) Fixes reading robot state in update state
+* (chore) Updates kompaass-core and sugarcoat minimum versions
+* (chore) Update turtlebot test recipe
+* (fix) Fixes state update in path control
+* (refactor) Fixes vision follower execution using rgb images
+* (refactor) Removes sensor data from vision follower loop step
+* (refactor) Splits update_state into two methods for updating sensor data and updating robot state
+* (fix) Reduces default value for topic subscription timeout and timestep
+* (refactor) Updates tests to use new controller helper modules
+* (refactor) Cleans up the controller component and uses new helper modules
+* (refactor) Moves all vision following lifecycle methods to a helper module
+* (refactor) Moves gathering obstacles method into utils
+* (refactor) Moves Controller status/mode enums into a helper module
+* (fix) Fixes method name typo
+* (chore) Adds a user warning when providing a camera frame that seems like an 'optical' frame instead of the physical link
+* (fix) Fixes setting the local map frame based on the available transformation data
+* (refactor) Adds utility method to lookup and wait for a TF in component and uses it in the Controller
+* (fix) Fixes all return paths for set_algorithm and adds tests for it
+* (chore) Adds tests for planner and path controller
+* (fix) Removes stale interface calls in controller
+* (refactor) Adds path controller status enum to track status uniformly during control loops
+* (fix) Fixes handling of detection and point of interest use in planning callback for EVENT mode
+* (refactor) Removes blocking wait for odom world tf to not starve the callbacks
+* (fix) Removes reached_end topic spamming from reached_point function in planner
+* (refactor) Makes robot state wait loop non blocking with timeout in controller
+* (fix) Fixes quaternion construction in planner for goal orientation
+* (fix) Fixes path deviation error assignment in controller action feedback msg
+* (fix) Fixes path tracking callback feedback construction
+* (feature) Adds correctness pytests for controller vision tracking server
+* (refactor) Reduces vision_tracking_callback complexity by refactoring steps into helper methods
+* (feature) Adds block attribute to update_state to block on controller init and prevent blocking inside control loops
+* (fix) Adds missing sleep to wait for incoming data
+* (fix) Adds wait and timeout for incoming data on vision tracking setup
+* (fix) Fixes state update in vision follower server callback
+* (fix) Sets detection search default value to None in callback to avoid `next` exceptions
+* (chore) Uses 'warning' instead of 'warn' in loggings for Rolling compatibility
+* (fix) Fixes Detections2D and PointsOfInterest callbacks handeling of depth data
+* (fix) Marks static transforms to reduce TF search overhead
+* (fix) Fixes planner action feedback initialization
+* (feature) Adds Trackings to Planner supported goal_point input types
+* (fix) Adds action description to set_algorithm action
+* (feature) Adds support for Detections as Planner goal_point input
+* (fix) Updates Twist pubisher to match parent in sugarcoat
+* (feature) Adds components introspection and component actions description
+* (feature) Implements set_input and set_output method in component to be used by the base Launcher
+* (fix) Removes launcher module from kompass and migrates to upstream base launcher in sugarcoat
+* (fix) Uses _update_param method in controller algorithm change action
+* (feature) Adds PointsOfInterest to supported external data types
+* (feature) Allows multiple topics for Planner goal_point input
+* (fix) Adds check for reaching the target goal in timed planner execution
+* Contributors: ahr, aleph-ra, mkabtoul
+
 0.4.1 (2026-02-16)
 ------------------
 * (fix) Fixes TwistStamped callback

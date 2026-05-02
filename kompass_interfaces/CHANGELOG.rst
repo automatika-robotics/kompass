@@ -2,6 +2,11 @@
 Changelog for package kompass_interfaces
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* (fix) Changes PlanPath feedback to send the current robot pose and reached_end flag
+* Contributors: ahr, mkabtoul
+
 0.4.1 (2026-02-16)
 ------------------
 
