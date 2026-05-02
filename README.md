@@ -27,7 +27,7 @@ Part of the [EMOS](https://github.com/automatika-robotics/emos) ecosystem
 
 ## What is Kompass?
 
-**Kompass** is the navigation layer of [EMOS](https://github.com/automatika-robotics/emos) (Embodied Operating System) and a framework for building **robust**, **event-driven** navigation stacks for autonomous mobile robots. It is built to be customizable, extendable and hardware-agnostic. 
+**Kompass** is the navigation layer of [EMOS](https://github.com/automatika-robotics/emos) (Embodied Operating System) and a framework for building **robust**, **event-driven** navigation stacks for autonomous mobile robots. It is built to be customizable, extendable and hardware-agnostic.
 
 Kompass includes **highly optimized, GPU-powered navigation algorithms in C++** that make full use of available hardware resources. It supports **multi-process parallelism on CPUs** and highly parallelized execution on **any GPU** (Nvidia, AMD, etc.) without vendor lock-in. And most importantly, Kompass makes it straightforward to create and deploy sophisticated navigation capabilities for any mobile robot within **a single Python script**, without sacrificing performance or flexibility.
 
@@ -38,7 +38,6 @@ For full documentation, tutorials, and recipes, visit [emos.automatikarobotics.c
 - [**Installation**](#installation)
 - [**Benchmarking Results**](#benchmarking-results)
 - [**Dynamic Web UI**](#dynamic-web-ui)
-- [**Robot Plugins**](#robot-plugins)
 - [**EMOS Ecosystem**](#part-of-the-emos-ecosystem)
 
 ---
@@ -162,15 +161,6 @@ Every Kompass recipe generates a fully dynamic Web UI automatically. Built with 
   <img alt="Kompass UI" src="./docs/_static/gif/ui_navigation.gif" width="60%">
 </picture>
 </div>
-
----
-
-## Robot Plugins
-
-Write portable automation recipes that run on any robot without code changes. Robot Plugins act as a translation layer between your application and robot-specific ROS 2 interfaces.
-
-- [Introduction video](https://www.youtube.com/watch?v=oZN6pcJKgfY)
-- [Full guide](https://sugarcoat.automatikarobotics.com/features/robot_plugins.html)
 
 ---
 
