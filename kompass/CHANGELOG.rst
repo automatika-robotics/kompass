@@ -2,8 +2,8 @@
 Changelog for package kompass
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+0.5.0 (2026-05-02)
+------------------
 * (fix) Removes type hint from map server to fix for rolling api change
 * (fix) Fixes sending algorithm name error in health status
 * (fix) Returns robot state regardless of the TF since it will be blocked in the main update_state if required and not available
