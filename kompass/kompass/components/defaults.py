@@ -117,7 +117,7 @@ controller_allowed_inputs: Dict[TopicsKeys, AllowedTopics] = {
     TopicsKeys.ROBOT_LOCATION: AllowedTopics(types=["Odometry", "PoseStamped", "Pose"]),
     TopicsKeys.SPATIAL_SENSOR: AllowedTopics(types=["LaserScan", "PointCloud2"]),
     TopicsKeys.LOCAL_MAP: AllowedTopics(types=["OccupancyGrid"]),
-    TopicsKeys.VISION_DETECTIONS: AllowedTopics(types=["Detections"]),
+    TopicsKeys.VISION_DETECTIONS: AllowedTopics(types=["Detections", "Trackings"]),
     TopicsKeys.DEPTH_CAM_INFO: AllowedTopics(types=["CameraInfo"]),
 }
 
@@ -250,9 +250,18 @@ motion_server_default_inputs: Dict[TopicsKeys, Topic] = {
 planner_allowed_inputs: Dict[TopicsKeys, AllowedTopics] = {
     TopicsKeys.GLOBAL_MAP: AllowedTopics(types=["OccupancyGrid"]),
     TopicsKeys.GOAL_POINT: AllowedTopics(
-        types=["Odometry", "PoseStamped", "PointStamped"]
+        types=[
+            "Odometry",
+            "PoseStamped",
+            "PointStamped",
+            "PointsOfInterest",
+            "Detections",
+        ],
+        number_required=1,
+        number_optional=2,
     ),
     TopicsKeys.ROBOT_LOCATION: AllowedTopics(types=["Odometry", "PoseStamped", "Pose"]),
+    TopicsKeys.DEPTH_CAM_INFO: AllowedTopics(types=["CameraInfo"]),
 }
 
 planner_allowed_outputs: Dict[TopicsKeys, AllowedTopics] = {
@@ -270,6 +279,7 @@ planner_default_inputs: Dict[TopicsKeys, Topic] = {
     ),
     TopicsKeys.GOAL_POINT: Topic(name="/goal", msg_type="PointStamped"),
     TopicsKeys.ROBOT_LOCATION: Topic(name="/odom", msg_type="Odometry"),
+    TopicsKeys.DEPTH_CAM_INFO: None,  # No default topic is assigned. Should be provided by the user to use PointsOfInterest as planner goals
 }
 
 planner_default_outputs: Dict[TopicsKeys, Topic] = {

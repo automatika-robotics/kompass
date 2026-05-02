@@ -158,6 +158,10 @@ class LocalMapper(Component):
             None  # robot current state - to be updated from odom
         )
 
+        self._local_map_frame: str = (
+            self.config.frames.world
+        )  # Default local map frame is world frame, will be updated to odom frame if the transform from odom to world is not available
+
         self.robot_height = RobotGeometry.get_height(
             self.config.robot.geometry_type, self.config.robot.geometry_params
         )
@@ -184,6 +188,13 @@ class LocalMapper(Component):
             if self.odom_tf_listener
             else None
         )
+
+        if self.odom_tf_listener and self.odom_tf_listener.got_transform:
+            # If the transform from odom to world is available, we can set the local map frame to world frame, as the local map will be built in the world frame
+            self._local_map_frame = self.config.frames.world
+        else:
+            # If the transform from odom to world is not available, we set the local map frame to odom frame, as the robot_state will be in the odom frame
+            self._local_map_frame = self.config.frames.odom
 
         callback = self.get_callback(TopicsKeys.SPATIAL_SENSOR)
         if isinstance(callback, LaserScanCallback):
@@ -220,7 +231,7 @@ class LocalMapper(Component):
         # Publish occupancy grid data to ROS
         self.get_publisher(TopicsKeys.LOCAL_MAP_OCC).publish(
             self._local_map_builder.occupancy,
-            frame_id=self.config.frames.world,
+            frame_id=self._local_map_frame,
             origin=origin_pose_msg,
             width=self._local_map_builder.grid_width,
             height=self._local_map_builder.grid_height,

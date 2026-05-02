@@ -1,7 +1,8 @@
 import numpy as np
-from typing import List, Union
+from typing import List, Optional, Tuple, Union
 from geometry_msgs.msg import Twist
 from nav_msgs.msg import Odometry
+from kompass_core.datatypes import LaserScanData, PointCloudData
 from kompass_core.models import RobotState
 
 from kompass_interfaces.msg import TwistArray

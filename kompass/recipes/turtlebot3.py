@@ -9,7 +9,6 @@ from kompass.robot import (
     RobotFrames,
 )
 from kompass.control import ControllersID, MapConfig
-
 from automatika_ros_sugar.msg import ComponentStatus
 
 from kompass.components import (
@@ -40,7 +39,7 @@ def kompass_bringup():
     my_robot = RobotConfig(
         model_type=RobotType.DIFFERENTIAL_DRIVE,
         geometry_type=RobotGeometry.Type.CYLINDER,
-        geometry_params=np.array([0.1, 0.3]),
+        geometry_params=np.array([0.08, 0.3]),
         ctrl_vx_limits=LinearCtrlLimits(max_vel=0.4, max_acc=1.5, max_decel=2.5),
         ctrl_omega_limits=AngularCtrlLimits(
             max_vel=0.4, max_acc=2.0, max_decel=2.0, max_steer=np.pi / 3
@@ -50,11 +49,13 @@ def kompass_bringup():
     # Configure the Global Planner
     planner_config = PlannerConfig(loop_rate=1.0)
     planner = Planner(component_name="planner", config=planner_config)
-    planner.run_type = "Timed"
+    planner.run_type = "ActionServer"  # Run the planner as an ActionServer to receive goals from the UI or other components
+    clicked_point_topic = Topic(name="/clicked_point", msg_type="PointStamped")
+    planner.inputs(goal_point=clicked_point_topic)
 
     # Configure the motion controller
     controller = Controller(component_name="controller")
-    controller.algorithm = ControllersID.PURE_PURSUIT
+    controller.algorithm = ControllersID.DWA
     controller.direct_sensor = (
         False  # Get local perception from a "map" instead (from the local mapper)
     )
@@ -75,12 +76,19 @@ def kompass_bringup():
         cmd_msg_type = "Twist"
 
     driver.outputs(robot_command=Topic(name="/cmd_vel", msg_type=cmd_msg_type))
+    driver.config.disable_safety_stop = True
 
     # Configure a Local Mapper
     local_mapper_config = LocalMapperConfig(
-        map_params=MapConfig(width=3.0, height=3.0, resolution=0.05)
+        map_params=MapConfig(
+            width=4.0,
+            height=4.0,
+            resolution=0.1,
+            max_points_per_line=256,
+        )
     )
     local_mapper = LocalMapper(component_name="mapper", config=local_mapper_config)
+    local_mapper.inputs(sensor_data=Topic(name="/scan", msg_type="LaserScan"))
 
     # Configure the global Map Server
     map_file = os.path.join(kompass_sim_dir, "maps", "turtlebot3_webots.yaml")
@@ -108,7 +116,6 @@ def kompass_bringup():
     unblock_action = Action(method=driver.move_to_unblock)
 
     # On any clicked point
-    clicked_point_topic = Topic(name="/clicked_point", msg_type="PointStamped")
     event_clicked_point = Event(
         clicked_point_topic,
     )
@@ -119,9 +126,8 @@ def kompass_bringup():
         args=(
             clicked_point_topic.msg.point.x,
             clicked_point_topic.msg.point.y,
-            0.0,
-            0.05,
-            0.2,
+            0.05,    # Goal distance tolerance
+            0.2,   # Goal angle tolerance (in radians)
         ),
     )
 
@@ -138,20 +144,22 @@ def kompass_bringup():
     launcher = Launcher(config_file=config_file)
 
     # Add Kompass components
-    launcher.kompass(
+    launcher.add_pkg(
         components=[map_server, controller, planner, driver, local_mapper],
         events_actions=events_actions,
         multiprocessing=True,
+        package_name="kompass"      # ROS2 package name for the Kompass components
     )
 
     # Get odom from localizer filtered odom for all components
-    odom_topic = Topic(name="/odometry/filtered", msg_type="Odometry")
+    odom_topic = Topic(name="/odometry/filtered", msg_type="Odometry")      # Robot odometry topic published in global frame (map) by the localizer
     launcher.inputs(location=odom_topic)
 
     # Set the robot config for all components
     launcher.robot = my_robot
-    launcher.frames = RobotFrames(world="map", odom="map", scan="LDS-01")
-
+    launcher.frames = RobotFrames(
+        world="map", odom="map", scan="LDS-01"
+    )
     # Enable the UI
     # Inputs: Planner action server
     # Outputs: Static Map, Global Plan, Robot Odometry
@@ -166,3 +174,6 @@ def kompass_bringup():
 
     # Run the Recipe
     launcher.bringup()
+
+
+kompass_bringup()

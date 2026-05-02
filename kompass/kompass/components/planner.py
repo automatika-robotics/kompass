@@ -1,15 +1,17 @@
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 import time
 import numpy as np
-from attrs import field
+from attrs import field, define
 
 # ROS INTERFACES
 from geometry_msgs.msg import PoseStamped
 from kompass_core.utils.geometry import from_euler_to_quaternion
 from nav_msgs.msg import Path
+from std_msgs.msg import Header
 
 # KOMPASS NAVIGATION
 from kompass_core.models import Robot, RobotState
+from kompass_core.vision import DepthDetector
 from kompass_core.third_party.ompl.planner import OMPLGeometric
 
 # KOMPASS INTERFACES
@@ -21,7 +23,8 @@ from kompass_interfaces.srv import PlanPath as PlanPathSrv
 # KOMPASS ROS
 from ..config import BaseValidators, ComponentConfig, ComponentRunType
 from ..data_types import Path as KompassPath
-from .ros import Topic, update_topics, ActionClientHandler, component_action
+from ..callbacks import PointsOfInterestCallback, DetectionsCallback
+from .ros import Topic, update_topics, ActionClientHandler
 from .component import Component
 from .defaults import (
     TopicsKeys,
@@ -32,6 +35,7 @@ from .defaults import (
 )
 
 
+@define
 class PlannerConfig(ComponentConfig):
     """
     Planner component config parameters
@@ -39,6 +43,18 @@ class PlannerConfig(ComponentConfig):
 
     points_per_meter: int = field(
         default=10, validator=BaseValidators.in_range(min_value=1, max_value=1e9)
+    )
+    distance_tolerance: float = field(
+        default=0.1, validator=BaseValidators.in_range(min_value=0.0, max_value=1e9)
+    )
+    depth_conversion_factor: float = field(
+        default=1e-3, validator=BaseValidators.in_range(min_value=1e-6, max_value=1e3)
+    )  # Depth conversion factor to convert depth image values to meters, default is 1e-3 for millimeters to meters
+    depth_range: np.ndarray = field(
+        default=np.array([0.1, 10.0], dtype=np.float32),
+        validator=BaseValidators.array_shape((2,), dtype=np.float32),
+        # Automatically cast incoming lists/arrays to float32
+        converter=lambda x: np.array(x, dtype=np.float32),
     )
 
 
@@ -143,6 +159,75 @@ class Planner(Component):
         # Main service and action types of the planner component
         self.service_type = PlanPathSrv
         self.action_type = PlanPathAction
+        self.main_action_name = "navigate_to_goal"
+
+    def inspect_component(self) -> str:
+        """
+        Method to return a string representation of the component configuration, used for inspection and LLM-based reasoning about the component
+
+        :return: String representation of the component configuration
+        :rtype: str
+        """
+        base_info = super().inspect_component()
+        # Get all planning algorithms
+        try:
+            import omplpy as ompl
+            from kompass_core.third_party.ompl.config import initializePlanners
+
+            initializePlanners()
+            planners = ompl.geometric.planners.getPlanners()
+            planning_algorithms = "Available planning algorithms are:\n"
+            for planner_name in planners.keys():
+                planning_algorithms += f"- {planner_name}\n"
+        except Exception:
+            planning_algorithms = "Could not retrieve available planning algorithms.\n"
+
+        action_goal_info = (
+            f"If the Run Type is ACTION_SERVER, the Planner main action server is '{self.main_action_name}'.\n"
+            "To construct a goal request:\n"
+            "- 'goal' is a geometry_msgs/Pose representing the target location. "
+            "When the user specifies a 2D point like 'go to (-4, 4)', map the first value to goal.position.x and the second to goal.position.y. "
+            "Set goal.position.z to 0.0. If no orientation is given, use the identity quaternion (x=0, y=0, z=0, w=1.0).\n"
+            "- 'algorithm_name' selects the planning algorithm. Leave it empty to use the currently configured default. Or send one of the planner's available algorithms names.\n"
+            "- 'end_tolerance' defines when the goal is considered reached. "
+            "lateral_distance_error is in meters, orientation_error is in radians. "
+            "If not specified by the user, use a reasonable default (e.g. 0.1 m, 0.1 rad).\n"
+        )
+
+        services_info = (
+            "Additional ROS services:\n"
+            f"- '{self.node_name}/save_plan_to_file' (PathFromToFile): Save the current plan to a JSON file. "
+            "Use this after a plan has been generated or a motion has been recorded. "
+            "Provide 'file_location' (directory path) and 'file_name' (the JSON file name). "
+            "Calling this while recording is active will stop the recording and save the recorded path.\n"
+            f"- '{self.node_name}/load_plan_from_file' (PathFromToFile): Load a previously saved plan from a JSON file and publish it to the Controller. "
+            "Use this to replay or reuse a saved path without re-planning. "
+            "Provide 'file_location' and 'file_name' pointing to the saved JSON file.\n"
+            f"- '{self.node_name}/start_path_recording' (StartPathRecording): Start recording the robot's actual motion as a path. "
+            "Use this when the user wants to teach a path by manually driving the robot or capture the executed trajectory. "
+            "Provide 'recording_time_step' (seconds between recorded points, e.g. 0.1). "
+            "To stop recording and save, call the save_plan_to_file service.\n"
+        )
+
+        return (
+            base_info
+            + "\n"
+            + planning_algorithms
+            + "\n"
+            + action_goal_info
+            + "\n"
+            + services_info
+        )
+
+    def get_ros_entrypoints(self) -> Dict[str, Dict[str, Any]]:
+        """Get the component ROS entry points (additional services and actions) as a dictionary."""
+        entry_points = {"services": {}, "actions": {}}
+        entry_points["services"].update({
+            f"{self.node_name}/save_plan_to_file": PathFromToFile,
+            f"{self.node_name}/load_plan_from_file": PathFromToFile,
+            f"{self.node_name}/start_path_recording": StartPathRecording,
+        })
+        return entry_points
 
     def config_from_file(self, config_file: str):
         """
@@ -159,11 +244,12 @@ class Planner(Component):
         """
         Overwrites the init variables method called at Node init
         """
-        self.goal: Optional[RobotState] = None
+        self.goal: Dict[int, RobotState] = {}
         self.robot_state: Optional[RobotState] = None
         self.map: Optional[np.ndarray] = None
         self.map_data: Optional[Dict] = None
         self.reached_end: bool = False
+        self._depth_image_info: Optional[Dict] = None
 
         self.__robot = Robot(
             robot_type=self.config.robot.model_type,
@@ -219,7 +305,31 @@ class Planner(Component):
         # Call component service destruction (for main service if running as a server)
         super().destroy_all_services()
 
-    @component_action
+    def create_all_subscribers(self):
+        super().create_all_subscribers()
+        # If a vision goal input is provided -> Init the depth detector
+        num_goal_inputs = self._inputs_keys.count(TopicsKeys.GOAL_POINT)
+        for idx in range(num_goal_inputs):
+            callback = self.get_callback(TopicsKeys.GOAL_POINT, idx)
+            if isinstance(callback, PointsOfInterestCallback) or isinstance(
+                callback, DetectionsCallback
+            ):
+                # Init the depth detector
+                depth_detector = self.__setup_depth_detector()
+                if not depth_detector:
+                    self.get_logger().error(
+                        "Failed to initialize depth detector for vision-based goals. Please ensure that the depth camera info topic is provided and the TF from depth camera to robot base can be obtained within the topic subscription timeout."
+                    )
+                    self.health_status.set_fail_system(
+                        topic_names=[self.in_topic_name(TopicsKeys.DEPTH_CAM_INFO)]
+                    )
+                else:
+                    self.get_logger().debug(
+                        f"Setting up Depth Detector for input goals on topic {callback.input_topic.name}"
+                    )
+                    callback.set_depth_detector(depth_detector)
+                break
+
     def trigger_main_action_server(
         self,
         goal_x: float = 0.0,
@@ -257,15 +367,17 @@ class Planner(Component):
             goal = self.action_type.Goal()
             goal.goal.position.x = goal_x
             goal.goal.position.y = goal_y
-            # TODO
-            goal.goal.orientation.z = goal_orientation
-            goal.goal.orientation.w = goal_orientation
+            goal.goal.orientation.z = float(np.sin(goal_orientation / 2.0))
+            goal.goal.orientation.w = float(np.cos(goal_orientation / 2.0))
             goal.end_tolerance.lateral_distance_error = tolerance_dist
             goal.end_tolerance.orientation_error = tolerance_ori
             if algorithm_name:
                 goal.algorithm_name = algorithm_name
             action_client.send_request(goal)
-        except Exception:
+        except Exception as e:
+            self.get_logger().error(
+                f"Failed to trigger '{self.main_action_name}' action on '{self.node_name}': {e}"
+            )
             self.health_status.set_fail_component()
 
     def _clear_path(self, *_, **__):
@@ -280,17 +392,27 @@ class Planner(Component):
         """
         Attaches planning method to goal_point topic callback if run_type is event based
         """
+        require_cam_info = False
+        num_goal_inputs = self._inputs_keys.count(TopicsKeys.GOAL_POINT)
         if self.run_type == ComponentRunType.EVENT:
             self.get_logger().info(
                 "Attaching Planning Callback for Event-Based Planner Component"
             )
-            self.attach_custom_callback(
-                self.get_in_topic(TopicsKeys.GOAL_POINT), self._plan_on_goal
-            )
-
-        if self.run_type in [ComponentRunType.EVENT, ComponentRunType.TIMED]:
-            self.attach_custom_callback(
-                self.get_in_topic(TopicsKeys.GOAL_POINT), self._clear_path
+            for idx in range(num_goal_inputs):
+                callback = self.get_callback(TopicsKeys.GOAL_POINT, idx)
+                if isinstance(callback, PointsOfInterestCallback) or isinstance(
+                    callback, DetectionsCallback
+                ):
+                    # Points of interest callback requires camera info input topic to be set
+                    require_cam_info = True
+                callback.on_callback_execute(
+                    lambda msg, _cb=callback, _idx=idx, **__: self._plan_on_goal(
+                        msg, callback=_cb, goal_index=_idx
+                    )
+                )
+        if require_cam_info and not self.got_input(TopicsKeys.DEPTH_CAM_INFO):
+            raise ValueError(
+                f"At least one of the goal point callbacks is a {callback.__class__.__name__} which requires depth camera info input. Please provide a topic for {TopicsKeys.DEPTH_CAM_INFO} to ensure proper functionality."
             )
 
     def main_service_callback(
@@ -333,7 +455,7 @@ class Planner(Component):
         if start_state:
             self._plan(start_state, goal_state, publish_path=True)
         else:
-            self.get_logger().warn(
+            self.get_logger().warning(
                 "Cannot execute planning service, robot location is unavailable"
             )
             response.success = False
@@ -363,9 +485,7 @@ class Planner(Component):
         if not self.robot_state:
             return False
         dist: float = self.robot_state.distance(goal_point)
-        reached_end = dist <= tolerance.lateral_distance_error
-        self.get_publisher(TopicsKeys.REACHED_END).publish(bool(reached_end))
-        return reached_end
+        return dist <= tolerance.lateral_distance_error
 
     def main_action_callback(self, goal_handle: PlanPathAction.Goal):
         """
@@ -410,15 +530,13 @@ class Planner(Component):
 
         action_result.reached_end = False
 
-        action_feedback_msg.plan = Path()
-
         while not self.got_all_inputs(
             inputs_to_check=[self.in_topic_name(TopicsKeys.ROBOT_LOCATION)]
         ):
             if not goal_handle.is_active or goal_handle.is_cancel_requested:
                 self.get_logger().info("Goal Canceled")
                 return action_result
-            self.get_logger().warn(
+            self.get_logger().warning(
                 f"Location input topic '{self.in_topic_name(TopicsKeys.ROBOT_LOCATION)}' is not available, waiting...",
                 once=True,
             )
@@ -434,13 +552,11 @@ class Planner(Component):
                 self._update_state()
 
                 # plan a new path
-                got_plan = self._plan(self.robot_state, goal_state)
+                self._plan(self.robot_state, goal_state)
 
-                if got_plan and self.ros_path:
-                    # publish feedback
-                    action_feedback_msg.plan = self.ros_path
-                else:
-                    action_feedback_msg.plan = None
+                action_feedback_msg.current_pose = self.__robot_state_to_pose_stamped()
+                action_feedback_msg.reached_end = False
+
                 goal_handle.publish_feedback(action_feedback_msg)
                 self.get_logger().debug(f"Action Feedback: {action_feedback_msg}")
                 # NOTE: using Python time directly, as ros rate sleep (from self.create_rate) was not functioning as expected
@@ -450,7 +566,7 @@ class Planner(Component):
             self.get_logger().error(f"Action execution error - {e}")
             with self._main_goal_lock:
                 goal_handle.abort()
-                goal_handle.reset()
+            return action_result
 
         # Get the displacement at the end of the path
         end_state_error: RobotState = self.robot_state - goal_state
@@ -458,9 +574,10 @@ class Planner(Component):
         action_result.end_displacement.orientation_error = end_state_error.yaw
 
         action_result.reached_end = True
-        self.get_logger().error(
+        self.get_logger().info(
             f"End Goal Reached with result {action_result} -> Ending Action"
         )
+        self.get_publisher(TopicsKeys.REACHED_END).publish(bool(True))
         # Publish empty path
         self.ros_path = Path()
         self.ros_path.header.frame_id = self.config.frames.world
@@ -587,29 +704,132 @@ class Planner(Component):
             TopicsKeys.GLOBAL_MAP
         ).get_output(get_metadata=True)
 
-        self.goal: Optional[RobotState] = self.get_callback(
-            TopicsKeys.GOAL_POINT
-        ).get_output()
+        num_goal_inputs = self._inputs_keys.count(TopicsKeys.GOAL_POINT)
+        for idx in range(num_goal_inputs):
+            callback = self.get_callback(TopicsKeys.GOAL_POINT, idx)
+            self.goal[idx] = callback.get_output(
+                to_robot_state=True, robot_state=self.robot_state
+            )
 
-    def _plan_on_goal(self, msg, **_):
+    def __setup_depth_detector(self) -> Optional[DepthDetector]:
+        """Setup and configure a DepthDetector for usage with Vision-based goals"""
+        timeout = 0.0
+        # Get the depth image transform if the input is provided
+        if self.in_topic_name(TopicsKeys.DEPTH_CAM_INFO):
+            while (
+                not self.depth_tf_listener.got_transform or not self._depth_image_info
+            ) and timeout <= self.config.topic_subscription_timeout:
+                # Depth image cam info
+                if not self._depth_image_info:
+                    depth_img_info_callback = self.get_callback(
+                        TopicsKeys.DEPTH_CAM_INFO
+                    )
+                    self._depth_image_info: Optional[dict] = (
+                        depth_img_info_callback.get_output()
+                        if depth_img_info_callback
+                        else None
+                    )
+                time.sleep(1 / self.config.loop_rate)
+                timeout += 1 / self.config.loop_rate
+        else:
+            self.get_logger().error(
+                f"Depth camera info topic '{self.in_topic_name(TopicsKeys.DEPTH_CAM_INFO)}' is not provided, cannot initialize Vision Depth Detector required for vision-based planner goals. Please provide an input topic for {TopicsKeys.DEPTH_CAM_INFO} to ensure proper functionality."
+            )
+            self.health_status.set_fail_system(
+                topic_names=[self.in_topic_name(TopicsKeys.DEPTH_CAM_INFO)]
+            )
+            return None
+
+        if not self.depth_tf_listener.got_transform:
+            self.get_logger().error(
+                f"Could not obtain transformation between the Depth camera frame '{self.depth_tf_listener.config.source_frame}' to the robot body frame '{self.depth_tf_listener.config.goal_frame}'"
+            )
+            return None
+
+        if not self._depth_image_info:
+            self.get_logger().error(
+                f"Depth camera info topic '{self.in_topic_name(TopicsKeys.DEPTH_CAM_INFO)}' did not publish any message. TIMEOUT."
+            )
+            return None
+
+        self.get_logger().info(
+            f"Got Depth camera to body TF -> {self._depth_image_info} Setting up Vision Depth Detector"
+        )
+
+        return DepthDetector(
+            depth_range=self.config.depth_range,
+            camera_in_body_translation=self.depth_tf_listener.translation,
+            camera_in_body_rotation=self.depth_tf_listener.rotation,
+            focal_length=self._depth_image_info["focal_length"]
+            if self._depth_image_info
+            else None,
+            principal_point=self._depth_image_info["principal_point"]
+            if self._depth_image_info
+            else None,
+            depth_conversion_factor=self.config.depth_conversion_factor,
+        )
+
+    def _plan_on_goal_core(
+        self, goal_state: RobotState, goal_index: int = 0, **_
+    ) -> bool:
+        if (
+            self.got_all_inputs(
+                inputs_to_check=[self.in_topic_name(TopicsKeys.ROBOT_LOCATION)]
+            )
+            and not self.reached_end
+        ):
+            self._plan(self.robot_state, goal_state)
+            self.reached_end = self.reached_point(
+                goal_state,
+                PathTrackingError(
+                    lateral_distance_error=self.config.distance_tolerance
+                ),
+            )
+            return True
+        elif self.reached_end:
+            self.get_logger().info("Goal Reached!")
+            self.get_publisher(TopicsKeys.REACHED_END).publish(bool(True))
+            self.reached_end = False
+            self.goal[goal_index] = None
+            self._clear_path()
+            # Publish empty path to clear the plan in any subscribers
+            path = Path()
+            path.header.frame_id = self.config.frames.world
+            path.header.stamp = self.get_ros_time()
+            self.get_publisher(TopicsKeys.GLOBAL_PLAN).publish(path)
+            return True
+        return False
+
+    def _plan_on_goal(self, msg, *, callback=None, goal_index: int = 0, **_) -> None:
         """
         Generate a new plan on a msg published to goal_point topic
 
-        :param goal: Goal point topic message
-        :type goal: RobotState
+        :param msg: Goal point topic message (PointStamped, PoseStamped, Detections2D, Trackings, etc.)
+        :param callback: Callback that produced the message, used to convert the
+            raw msg to a RobotState via its get_output(to_robot_state=True, ...)
+            contract. If None, falls back to msg.point field access.
+        :param goal_index: Index of the goal_point input when multiple are
+            configured; used to key into self.goal[...] inside _plan_on_goal_core.
         """
         # Clear any previous path
         self._clear_path()
 
         self._update_state()
 
-        goal_state = RobotState(x=msg.point.x, y=msg.point.y)
-
-        if self.got_all_inputs(
-            inputs_to_check=[self.in_topic_name(TopicsKeys.ROBOT_LOCATION)]
-        ):
-            self._plan(self.robot_state, goal_state)
+        if callback is not None:
+            goal_state: Optional[RobotState] = callback.get_output(
+                to_robot_state=True, robot_state=self.robot_state
+            )
         else:
+            goal_state = RobotState(x=msg.point.x, y=msg.point.y)
+
+        if not goal_state:
+            self.get_logger().error(
+                "Could not extract goal state from incoming goal message"
+            )
+            return
+
+        if not self._plan_on_goal_core(goal_state, goal_index=goal_index):
             # Robot location not known -> cannot plan
             self.get_logger().error(
                 f"Got goal point {goal_state} but cannot plan. Robot location is not known"
@@ -624,8 +844,20 @@ class Planner(Component):
         """
         self._update_state()
 
-        if self.run_type == ComponentRunType.TIMED and self.goal and self.robot_state:
-            self._plan(self.robot_state, self.goal)
+        if (
+            self.run_type == ComponentRunType.TIMED
+            and any(self.goal.values())
+            and self.robot_state
+            and not self.reached_end
+        ):
+            for idx, goal_state in self.goal.items():
+                self.get_logger().debug(f"Planning for goal {idx}: {goal_state}")
+                self._plan_on_goal_core(goal_state, goal_index=idx)
+        else:
+            self.get_logger().debug(
+                f"No planning executed for current step:\nGoal: {self.goal}, robot_state: {self.robot_state}, reached_end: {self.reached_end}",
+                throttle_duration_sec=30.0,
+            )
 
     # SERVICES CALLBACKS
     def _start_path_recording_callback(
@@ -643,6 +875,7 @@ class Planner(Component):
         self.get_logger().info("RECEIVED RECORDING PATH FROM MOTION SERVICE REQUEST")
         if self.robot_state:
             self._recorded_motion = Path()
+            self._recorded_motion.header.frame_id = self.config.frames.world
             self._recording_on = True
             recording_step = max(
                 request.recording_time_step, 1e-3
@@ -663,19 +896,24 @@ class Planner(Component):
             self.get_logger().info(f"Cannot record returning {response}")
         return response
 
-    def __record_new_point_callback(self):
-        """Timer callback to record new motion point while recording is on"""
-        if not self._recording_on:
-            self.destroy_timer(self.__motion_recording_timer)
-            return
-        self._update_state()
+    def __robot_state_to_pose_stamped(self) -> PoseStamped:
         new_pose = PoseStamped()
+        new_pose.header = Header()
         new_pose.header.frame_id = self.config.frames.world
         new_pose.header.stamp = self.get_ros_time()
         new_pose.pose.position.x = float(self.robot_state.x)
         new_pose.pose.position.y = float(self.robot_state.y)
         new_pose.pose.orientation.z = float(np.sin(self.robot_state.yaw / 2))
         new_pose.pose.orientation.w = float(np.cos(self.robot_state.yaw / 2))
+        return new_pose
+
+    def __record_new_point_callback(self):
+        """Timer callback to record new motion point while recording is on"""
+        if not self._recording_on:
+            self.destroy_timer(self.__motion_recording_timer)
+            return
+        self._update_state()
+        new_pose = self.__robot_state_to_pose_stamped()
         self._recorded_motion.poses.append(new_pose)
 
     def _save_plan_to_file_srv_callback(
@@ -750,7 +988,9 @@ class Planner(Component):
             response.path_num_points = len(self.ros_path.poses)
             response.path_length = KompassPath.length(self.ros_path)
 
-            self.get_publisher(TopicsKeys.GLOBAL_PLAN).publish(self.ros_path)
+            self.get_publisher(TopicsKeys.GLOBAL_PLAN).publish(
+                self.ros_path, frame_id=self.ros_path.header.frame_id
+            )
 
         else:
             self.get_logger().warning("Invalid file -> No plan is loaded")

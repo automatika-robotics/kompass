@@ -12,7 +12,7 @@ from kompass_cpp.types import SensorInputType
 
 # KOMPASS ROS
 from ..config import BaseValidators, ComponentConfig, ComponentRunType
-from .ros import Topic, update_topics
+from .ros import Topic, update_topics, component_action
 from .component import Component
 from ..callbacks import LaserScanCallback, PointCloudCallback
 from .defaults import (
@@ -211,7 +211,7 @@ class DriveManager(Component):
             else driver_default_outputs
         )
 
-        # Trun on robot plugin Handling
+        # Turn on robot plugin Handling
         config._enable_plugin_actions_handling = True
 
         super().__init__(
@@ -419,7 +419,7 @@ class DriveManager(Component):
             and not self.sensor_data
             and not self.config.use_without_scan_sensor
         ):
-            self.get_logger().warn(
+            self.get_logger().warning(
                 "LaserScan data is not available -> disabling command publish to robot. To use the DriveManager without safety stop set 'disable_safety_stop' to 'True'",
                 once=True,
             )
@@ -471,13 +471,13 @@ class DriveManager(Component):
         if slowdown_val == 0.0:
             # STOP ROBOT
             self.get_publisher(TopicsKeys.EMERGENCY).publish(True)
-            self.get_logger().warn("EMERGENCY STOP ON")
+            self.get_logger().warning("EMERGENCY STOP ON")
             # Publish zero velocity command
-            self.get_publisher(TopicsKeys.FINAL_COMMAND).publish(0.0, 0.0, 0.0)
+            self.get_publisher(TopicsKeys.FINAL_COMMAND).publish([0.0, 0.0, 0.0])
             return
         # Publish command with slowdown
         self.get_publisher(TopicsKeys.FINAL_COMMAND).publish(
-            vx_out * slowdown_val, vy_out * slowdown_val, omega_out * slowdown_val
+            [vx_out * slowdown_val, vy_out * slowdown_val, omega_out * slowdown_val]
         )
 
     def execute_cmd_closed_loop(self, output: Twist, max_time: float):
@@ -489,7 +489,7 @@ class DriveManager(Component):
         :type max_time: float
         """
         if not self.robot_state:
-            self.get_logger().warn(
+            self.get_logger().warning(
                 "Robot state is not available and command publish is set to closed loop -> disabling command publish to robot. To use the DriveManager without robot state set 'closed_loop' to 'False'"
             )
             return
@@ -526,7 +526,26 @@ class DriveManager(Component):
             self._publish_cmd(vx_out, vy_out, omega_out)
             time.sleep(_step)
 
-    def move_forward(self, max_distance: float) -> bool:
+    @component_action(description={
+        "type": "function",
+        "function": {
+            "name": "move_forward",
+            "description": "Move the robot forward by a given distance while checking for obstacles. "
+            "The robot will stop early if an obstacle is detected in the forward direction. "
+            "Use when the user asks the robot to move forward, advance, or go straight ahead.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "max_distance": {
+                        "type": "number",
+                        "description": "Distance to move forward in meters. Map user instructions like 'move forward 1 meter' to max_distance=1.0.",
+                    },
+                },
+                "required": ["max_distance"],
+            },
+        },
+    })
+    def move_forward(self, max_distance: float, **_) -> bool:
         """Moves the robot forward if the forward direction is clear of obstacles
 
         :param max_distance: Maximum distance (m)
@@ -579,7 +598,26 @@ class DriveManager(Component):
         # Return true if unblocking forward is done
         return traveled_distance >= max_distance
 
-    def move_backward(self, max_distance: float) -> bool:
+    @component_action(description={
+        "type": "function",
+        "function": {
+            "name": "move_backward",
+            "description": "Move the robot backward by a given distance while checking for obstacles behind it. "
+            "The robot will stop early if an obstacle is detected in the backward direction. "
+            "Use when the user asks the robot to move back, reverse, or go backwards.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "max_distance": {
+                        "type": "number",
+                        "description": "Distance to move backward in meters. Map user instructions like 'go back 0.5 meters' to max_distance=0.5.",
+                    },
+                },
+                "required": ["max_distance"],
+            },
+        },
+    })
+    def move_backward(self, max_distance: float, **_) -> bool:
         """Moves the robot backwards if the backward direction is clear of obstacles
 
         :param max_distance: Maximum distance (m)
@@ -631,8 +669,33 @@ class DriveManager(Component):
         # Return true if unblocking forward is done
         return traveled_distance >= max_distance
 
+    @component_action(description={
+        "type": "function",
+        "function": {
+            "name": "rotate_in_place",
+            "description": "Rotate the robot in place by a given angle. Checks that the area around the robot is clear before rotating. "
+            "Will not work for Ackermann-type robots (car-like steering). "
+            "Use when the user asks the robot to turn, rotate, spin, or face a different direction.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "max_rotation": {
+                        "type": "number",
+                        "description": "Maximum rotation angle in radians. Convert user requests from degrees to radians "
+                        "(e.g. 'turn 90 degrees' -> max_rotation=1.5708). Positive values rotate counter-clockwise.",
+                    },
+                    "safety_margin": {
+                        "type": "number",
+                        "description": "Minimum clearance around the robot in meters required to perform the rotation. "
+                        "Defaults to 5% of the robot radius if not specified.",
+                    },
+                },
+                "required": ["max_rotation"],
+            },
+        },
+    })
     def rotate_in_place(
-        self, max_rotation: float, safety_margin: Optional[float] = None
+        self, max_rotation: float, safety_margin: Optional[float] = None, **_
     ) -> bool:
         """Rotates the robot in place if a safety margin around the robot is clear
 
@@ -699,7 +762,7 @@ class DriveManager(Component):
                 unblocking = False
             else:
                 self.get_publisher(TopicsKeys.FINAL_COMMAND).publish(
-                    0.0, 0.0, self.robot.ctrl_omega_limits.max_vel / 2
+                    [0.0, 0.0, self.robot.ctrl_omega_limits.max_vel / 2]
                 )
                 traveled_radius += self.robot.ctrl_omega_limits.max_vel / (
                     2 * self.config.loop_rate
@@ -709,12 +772,45 @@ class DriveManager(Component):
         # Return true if unblocking forward is done
         return traveled_radius >= max_rotation
 
+    @component_action(description={
+        "type": "function",
+        "function": {
+            "name": "move_to_unblock",
+            "description": "Attempt to free the robot when it is stuck or blocked by obstacles. "
+            "Tries moving forward first, then backward, then rotating in place until one succeeds. "
+            "Requires sensor data (LaserScan or PointCloud) to check surroundings. "
+            "Use when the robot is stuck, blocked, or unable to proceed along its path.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "max_distance_forward": {
+                        "type": "number",
+                        "description": "Maximum forward distance to try in meters. Defaults to 2x the robot radius.",
+                    },
+                    "max_distance_backwards": {
+                        "type": "number",
+                        "description": "Maximum backward distance to try in meters. Defaults to 2x the robot radius.",
+                    },
+                    "max_rotation": {
+                        "type": "number",
+                        "description": "Maximum rotation angle to try in radians. Defaults to pi/2 (~90 degrees).",
+                    },
+                    "rotation_safety_margin": {
+                        "type": "number",
+                        "description": "Clearance required around the robot to attempt rotation in meters. Defaults to 5% of robot radius.",
+                    },
+                },
+                "required": [],
+            },
+        },
+    })
     def move_to_unblock(
         self,
         max_distance_forward: Optional[float] = None,
         max_distance_backwards: Optional[float] = None,
         max_rotation: float = np.pi / 2,
         rotation_safety_margin: Optional[float] = None,
+        **_
     ) -> bool:
         """Moves the robot forward/backward or rotate in place to get out of blocking spots
 
@@ -958,7 +1054,9 @@ class DriveManager(Component):
         else:
             self.slow_down_factor[topic.name] = 1.0
 
-    def _limit_command_vel(self, vx: float, vy: float, omega: float) -> Twist:
+    def _limit_command_vel(
+        self, output: Union[np.ndarray, list]
+    ) -> Union[np.ndarray, list]:
         """Check and limit the control commands
 
         :param cmd: Robot control command
@@ -968,30 +1066,30 @@ class DriveManager(Component):
         :rtype: bool
         """
 
-        if abs(vx) > self.config.robot.ctrl_vx_limits.max_vel:
-            self.get_logger().warn(
+        if abs(output[0]) > self.config.robot.ctrl_vx_limits.max_vel:
+            self.get_logger().debug(
                 f"Limiting linear velocity by allowed maximum {self.config.robot.ctrl_vx_limits.max_vel}"
             )
-            vx = np.sign(vx) * self.config.robot.ctrl_vx_limits.max_vel
-        elif abs(vx) < self.config.robot.ctrl_vx_limits.min_absolute_val:
-            vx = 0.0
+            output[0] = np.sign(output[0]) * self.config.robot.ctrl_vx_limits.max_vel
+        elif abs(output[0]) < self.config.robot.ctrl_vx_limits.min_absolute_val:
+            output[0] = 0.0
 
-        if abs(vy) > self.config.robot.ctrl_vy_limits.max_vel:
-            self.get_logger().warn(
+        if abs(output[1]) > self.config.robot.ctrl_vy_limits.max_vel:
+            self.get_logger().debug(
                 f"Limiting linear Vy velocity by allowed maximum {self.config.robot.ctrl_vy_limits.max_vel}"
             )
-            vy = np.sign(vy) * self.config.robot.ctrl_vy_limits.max_vel
-        elif abs(vy) < self.config.robot.ctrl_vy_limits.min_absolute_val:
-            vy = 0.0
+            output[1] = np.sign(output[1]) * self.config.robot.ctrl_vy_limits.max_vel
+        elif abs(output[1]) < self.config.robot.ctrl_vy_limits.min_absolute_val:
+            output[1] = 0.0
 
-        if abs(omega) > self.config.robot.ctrl_omega_limits.max_vel:
-            self.get_logger().warn(
+        if abs(output[2]) > self.config.robot.ctrl_omega_limits.max_vel:
+            self.get_logger().debug(
                 f"Limiting angular velocity by allowed maximum {self.config.robot.ctrl_omega_limits.max_vel}"
             )
-            omega = np.sign(omega) * self.config.robot.ctrl_omega_limits.max_vel
-        elif abs(omega) < self.config.robot.ctrl_omega_limits.min_absolute_val:
-            omega = 0.0
-        return (float(vx), float(vy), float(omega))
+            output[2] = np.sign(output[2]) * self.config.robot.ctrl_omega_limits.max_vel
+        elif abs(output[2]) < self.config.robot.ctrl_omega_limits.min_absolute_val:
+            output[2] = 0.0
+        return output
 
     def _execution_step(self):
         """
@@ -1010,7 +1108,7 @@ class DriveManager(Component):
             self.get_publisher(TopicsKeys.EMERGENCY).publish(False)
 
         if speed_factor == 0.0:
-            self.get_logger().warn("Emergency stop is ON, no commands will be executed")
+            self.get_logger().warning("Emergency stop is ON, no commands will be executed")
             return
 
         # Publish commands in the queue
@@ -1036,14 +1134,14 @@ class DriveManager(Component):
         super()._execute_once()
 
         if self.config.use_without_scan_sensor and not self.config.disable_safety_stop:
-            self.get_logger().warn(
+            self.get_logger().warning(
                 "Using DriveManager without 360deg scan sensor and Safety stop functionality is still enabled."
             )
             self._emergency_checker = None
             return
 
         if self.config.disable_safety_stop:
-            self.get_logger().warn("Safety Stop is Disabled!")
+            self.get_logger().warning("Safety Stop is Disabled!")
             self._emergency_checker = None
             return
 
@@ -1128,7 +1226,7 @@ class DriveManager(Component):
                 )
                 return
             except ImportError:
-                self.get_logger().warn(
+                self.get_logger().warning(
                     "GPU use is enabled but CriticalZoneCheckerGPU implementation is not found -> Using CPU implementation instead"
                 )
 

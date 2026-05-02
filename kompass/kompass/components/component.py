@@ -293,6 +293,36 @@ class Component(BaseComponent):
         self._outputs_list = self._reparse_outputs_converts(_outputs)
         self.out_topics = [topic for topic in self._outputs_list if topic]
 
+    def set_input(self, **kwargs) -> bool:
+        """Set value of an input(s) topic
+
+        :return: If input(s) successfully updated
+        :rtype: bool
+        """
+        for key, value in kwargs.items():
+            if TopicsKeys(key) in self._inputs_keys:
+                # Update input value
+                self.inputs(**{key: value})
+            else:
+                return False
+        # All updated
+        return True
+
+    def set_output(self, **kwargs) -> bool:
+        """Set value of an output(s) topic
+
+        :return: If output is successfully updates
+        :rtype: bool
+        """
+        for key, value in kwargs.items():
+            if TopicsKeys(key) in self._outputs_keys:
+                # Update input value
+                self.outputs(**{key: value})
+            else:
+                return False
+        # All updated
+        return True
+
     def _update_inactive_input_topic(self, old_topic, new_topic):
         """Updates internal topics list with a new input topic.
         Overrides the parent hook to add child-specific list updates.
@@ -424,7 +454,7 @@ class Component(BaseComponent):
         if not hasattr(self, "_odom_tf_listener"):
             if self.config.frames.odom != self.config.frames.world:
                 self._odom_tf_listener = self.get_transform_listener(
-                    src_frame=self.config.frames.odom,
+                    source_frame=self.config.frames.odom,
                     goal_frame=self.config.frames.world,
                 )
             else:
@@ -440,8 +470,9 @@ class Component(BaseComponent):
         """
         if not hasattr(self, "_scan_tf_listener"):
             self._scan_tf_listener = self.get_transform_listener(
-                src_frame=self.config.frames.scan,
+                source_frame=self.config.frames.scan,
                 goal_frame=self.config.frames.robot_base,
+                static_tf=True,
             )
         return self._scan_tf_listener
 
@@ -454,8 +485,9 @@ class Component(BaseComponent):
         """
         if not hasattr(self, "_depth_tf_listener"):
             self._depth_tf_listener = self.get_transform_listener(
-                src_frame=self.config.frames.depth,
+                source_frame=self.config.frames.depth,
                 goal_frame=self.config.frames.robot_base,
+                static_tf=True,
             )
         return self._depth_tf_listener
 
@@ -468,12 +500,13 @@ class Component(BaseComponent):
         """
         if not hasattr(self, "_pc_tf_listener"):
             self._pc_tf_listener = self.get_transform_listener(
-                src_frame=self.config.frames.point_cloud,
+                source_frame=self.config.frames.point_cloud,
                 goal_frame=self.config.frames.robot_base,
+                static_tf=True,
             )
         return self._pc_tf_listener
 
-    def get_transform_listener(self, src_frame: str, goal_frame: str) -> TFListener:
+    def get_transform_listener(self, **kwargs) -> TFListener:
         """Gets a transform listener
 
         :param src_frame: Source coordinates frame
@@ -485,12 +518,30 @@ class Component(BaseComponent):
         :rtype: TFListener
         """
         # Configure transform source and goal frames
-        tf_config = TFListenerConfig(
-            source_frame=src_frame,
-            goal_frame=goal_frame,
-        )
+        tf_config = TFListenerConfig(**kwargs)
         tf_listener: TFListener = self.create_tf_listener(tf_config)
         return tf_listener
+
+    def _wait_for_tf(self, tf_listener: TFListener, description: str = "") -> bool:
+        """Block up to ``config.topic_subscription_timeout`` waiting for a
+        transform to arrive on the given listener.
+
+        :param tf_listener: Transform listener to poll
+        :param description: Short label for the TF, used in the waiting log
+        :return: True if the transform was acquired before timing out
+        """
+        timeout = 0.0
+        while (
+            not tf_listener.got_transform
+            and timeout < self.config.topic_subscription_timeout
+        ):
+            self.get_logger().info(
+                f"Waiting for {description or 'requested'} TF...",
+                once=True,
+            )
+            time.sleep(1 / self.config.loop_rate)
+            timeout += 1 / self.config.loop_rate
+        return tf_listener.got_transform
 
     def in_topic_name(self, key: Union[str, TopicsKeys]) -> Union[str, List[str], None]:
         """Get the topic(s) name(s) corresponding to an input key name
@@ -631,7 +682,7 @@ class Component(BaseComponent):
         input_wait_time: float = 0.0
         while not self.got_all_inputs(inputs_to_check, inputs_to_exclude):
             unavailable_topics = self.get_missing_inputs()
-            self.get_logger().warn(
+            self.get_logger().warning(
                 f"{self.node_name} inputs: '{unavailable_topics}' are not available. Waiting for maximum of {self.config.topic_subscription_timeout}seconds...",
                 once=True,
             )

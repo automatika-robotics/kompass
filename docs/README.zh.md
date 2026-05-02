@@ -102,7 +102,7 @@ curl -sSL https://raw.githubusercontent.com/automatika-robotics/kompass-core/ref
 **通过 pip 安装（仅 CPU）：**
 
 ```bash
-sudo apt-get install -y libompl-dev libfcl-dev libpcl-dev && pip install kompass-core
+sudo apt-get install -y libompl-dev libfcl-dev && pip install kompass-core
 ```
 
 ### 安装 Kompass

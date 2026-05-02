@@ -1,0 +1,71 @@
+name: Tests
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'LICENSE'
+      - '.gitignore'
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'LICENSE'
+      - '.gitignore'
+
+jobs:
+  tests:
+    name: Tests (ROS 2 ${{ matrix.ros_distro }})
+    runs-on: ubuntu-latest
+    env:
+      PIP_BREAK_SYSTEM_PACKAGES: "1"
+    strategy:
+      fail-fast: false
+      matrix:
+        ros_distro: [humble, jazzy, kilted, rolling]
+    container:
+      image: ros:${{ matrix.ros_distro }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: |
+          apt-get update
+          apt-get install -y python3-pip python3-pykdl git \
+                              libompl-dev libfcl-dev
+          pip install pytest
+
+      - name: Install kompass-core (CPU build)
+        run: |
+          pip install --upgrade kompass-core
+
+      - name: Install sugarcoat pip dependencies
+        run: |
+          pip install --ignore-installed opencv-python-headless 'attrs>=23.2.0' \
+                      jinja2 msgpack msgpack-numpy setproctitle pyyaml toml
+
+      - name: Set up workspace (sugarcoat + kompass)
+        run: |
+          mkdir -p /ws/src
+          git clone --depth 1 https://github.com/automatika-robotics/sugarcoat \
+                              /ws/src/sugarcoat
+          ln -s $GITHUB_WORKSPACE /ws/src/kompass
+
+      - name: Build workspace
+        run: |
+          . /opt/ros/${{ matrix.ros_distro }}/setup.sh
+          cd /ws
+          colcon build --symlink-install
+        shell: bash
+
+      - name: Run tests
+        run: |
+          . /opt/ros/${{ matrix.ros_distro }}/setup.sh
+          . /ws/install/setup.sh
+          cd $GITHUB_WORKSPACE/kompass
+          python3 -m pytest test/ -v -p no:anyio
+        shell: bash

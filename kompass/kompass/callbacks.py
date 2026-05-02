@@ -21,7 +21,11 @@ from sensor_msgs.msg import LaserScan
 from tf2_ros import TransformStamped
 from geometry_msgs.msg import Point, Pose
 
-from ._external_types import DetectionsCallback, TrackingsCallback
+from ._external_types import (
+    DetectionsCallback,
+    TrackingsCallback,
+    PointsOfInterestCallback,
+)
 
 
 __all__ = [
@@ -34,6 +38,7 @@ __all__ = [
     "OccupancyGridCallback",
     "TrackingsCallback",
     "DetectionsCallback",
+    "PointsOfInterestCallback",
 ]
 
 

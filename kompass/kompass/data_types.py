@@ -1,7 +1,7 @@
 """Supported data types for inputs/outputs"""
 
 import json
-from typing import Union
+from typing import Union, List
 
 import numpy as np
 from ros_sugar.supported_types import Bool, ComponentStatus, Float32, Float64
@@ -19,7 +19,6 @@ from ros_sugar.supported_types import SupportedType, Twist
 from geometry_msgs.msg import (
     PoseStamped as ROSPoseStamped,
     TwistStamped as ROSTwistStamped,
-    Twist as ROSTwist,
 )
 from kompass_core.datatypes import LaserScanData
 from nav_msgs.msg import Odometry as ROSOdometry
@@ -45,6 +44,7 @@ from .callbacks import (
     DetectionsCallback,
     CameraInfoCallback,
     TwistStampedCallback,
+    PointsOfInterestCallback,
 )
 
 __all__ = [
@@ -97,6 +97,24 @@ class Trackings(SupportedType):
         from automatika_embodied_agents.msg import Trackings as ROSTrackings
 
         return ROSTrackings
+
+
+class PointsOfInterest(SupportedType):
+    """Adds callback for automatika_embodied_agents/msg/PointsOfInterest message"""
+
+    callback = PointsOfInterestCallback
+
+    @classmethod
+    def get_ros_type(cls) -> type:
+        if find_spec("automatika_embodied_agents") is None:
+            raise ModuleNotFoundError(
+                "'automatika_embodied_agents' module is required to use 'PointsOfInterest' msg type but it is not installed. Install it with `sudo apt install ros-$ROS_DISTRO-automatika-embodied-agents`"
+            )
+        from automatika_embodied_agents.msg import (
+            PointsOfInterest as ROSPointsOfInterest,
+        )
+
+        return ROSPointsOfInterest
 
 
 class CameraInfo(SupportedType):
@@ -201,9 +219,7 @@ class TwistStamped(Twist):
     @classmethod
     def convert(
         cls,
-        vx: float,
-        vy: float,
-        omega: float,
+        output: Union[np.ndarray, List],
         **kwargs,
     ) -> ROSTwistStamped:
         """Converter to publish Twist data to TwistStamped
@@ -214,7 +230,7 @@ class TwistStamped(Twist):
         :rtype: ROSTwistStamped
         """
         msg = ROSTwistStamped()
-        msg.twist = super().convert(vx=vx, vy=vy, omega=omega, **kwargs)
+        msg.twist = super().convert(output=output, **kwargs)
         return msg
 
 

@@ -1,6 +1,7 @@
 """Configuration classes for a Component and a robot in Kompass"""
 
 import math
+import warnings
 from typing import Union
 
 import numpy as np
@@ -30,6 +31,26 @@ __all__ = [
     "ComponentRunType",
     "BaseComponentConfig",
 ]
+
+
+def _warn_if_optical_frame(_, attribute, value):
+    """Warn when an RGB/depth camera frame name looks like a ROS optical frame.
+
+    The ``rgb`` and ``depth`` fields are expected to refer to the *physical*
+    camera link (e.g. ``camera_link``, ``camera_depth_link``), not the
+    z-forward optical frame typically published by ROS drivers as
+    ``*_optical_frame``. Using the optical frame here usually means the
+    camera→body transform will be off by the link↔optical rotation.
+    """
+    if value and "optical" in value.lower():
+        warnings.warn(
+            f"RobotFrames.{attribute.name}='{value}' looks like a ROS optical "
+            f"frame; this field expects the physical camera link (e.g. "
+            f"'camera_link'), not the optical frame. Check that the camera "
+            f"driver publishes the link you intended.",
+            UserWarning,
+            stacklevel=3,
+        )
 
 
 @define(kw_only=True)
@@ -75,8 +96,8 @@ class RobotFrames(BaseAttrs):
     odom: str = field(default="odom")
     world: str = field(default="map")
     scan: str = field(default="base_link")
-    rgb: str = field(default="camera_link")
-    depth: str = field(default="camera_depth_link")
+    rgb: str = field(default="camera_link", validator=_warn_if_optical_frame)
+    depth: str = field(default="camera_depth_link", validator=_warn_if_optical_frame)
     point_cloud: str = field(default="point_cloud_link")
 
 
@@ -204,11 +225,11 @@ class ComponentConfig(BaseComponentConfig):
     frames: RobotFrames = field(default=Factory(RobotFrames))
 
     topic_subscription_timeout: float = field(
-        default=20.0, validator=BaseValidators.in_range(min_value=1e-3, max_value=1e9)
+        default=5.0, validator=BaseValidators.in_range(min_value=1e-3, max_value=1e9)
     )
 
     topic_try_wait_timeout: float = field(
-        default=0.1, validator=BaseValidators.in_range(min_value=1e-3, max_value=1e9)
+        default=0.05, validator=BaseValidators.in_range(min_value=1e-3, max_value=1e9)
     )
 
     core_log_level: str = field(

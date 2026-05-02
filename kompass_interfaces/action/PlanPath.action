@@ -9,4 +9,5 @@ PathTrackingError end_displacement      # Error between end location and goal lo
 bool reached_end        # If goal location is reached within given tolerance
 ---
 # Feedback
-nav_msgs/Path plan      # Path from current location to goal
+geometry_msgs/PoseStamped current_pose     # Robot current position
+bool reached_end        # If goal location is reached within given tolerance
