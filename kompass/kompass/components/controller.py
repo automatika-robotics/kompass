@@ -290,12 +290,21 @@ class Controller(Component):
         Overrides BaseComponent create_all_subscribers to implement controller mode change
         """
         self.get_logger().info("STARTING ALL SUBSCRIBERS")
-        self.callbacks = {
-            input.name: input.msg_type.callback(input, node_name=self.node_name)
-            for input in self.in_topics
-        }
+        # Refresh only non-external callback slots; entries in _external_topics
+        # were swapped by the robot plugin and must not be overwritten.
+        for input in self.in_topics:
+            if input.name in self._external_topics:
+                continue
+            self.callbacks[input.name] = input.msg_type.callback(
+                input, node_name=self.node_name
+            )
         # Create subscribers
         for callback in self.callbacks.values():
+            # Inputs bound to a non-ROS robot plugin transport are fed through
+            # the feedback bus, not a ROS subscription
+            if callback.input_topic.name in self._external_topics:
+                continue
+
             # In path follower mode -> skip all vision inputs
             if (
                 self.config._mode == ControllerMode.PATH_FOLLOWER
