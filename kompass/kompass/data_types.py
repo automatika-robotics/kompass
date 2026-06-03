@@ -29,6 +29,7 @@ from sensor_msgs.msg import PointCloud2 as ROSPointCloud2
 from sensor_msgs.msg import CameraInfo as ROSCameraInfo
 
 from kompass_interfaces.msg import TwistArray as ROSTwistArray
+from kompass_interfaces.msg import PathTrackingError as ROSPathTrackingError
 from importlib.util import find_spec
 
 from .callbacks import (
@@ -247,6 +248,22 @@ class TwistArray(SupportedType):
         :param output:
         :type output: ROSTwistArray
         :param kwargs:
+        """
+        return output
+
+
+class PathTrackingError(SupportedType):
+    """Class to support ROS2 kompass_interfaces/msg/PathTrackingError message"""
+
+    _ros_type = ROSPathTrackingError
+    callback = GenericCallback
+
+    @classmethod
+    def convert(cls, output: ROSPathTrackingError, **_):
+        """Pass a PathTrackingError message through for publishing.
+
+        :param output:
+        :type output: ROSPathTrackingError
         """
         return output
 

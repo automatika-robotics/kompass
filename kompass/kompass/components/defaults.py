@@ -105,6 +105,7 @@ class TopicsKeys(StrEnum):
     LOCAL_MAP_OCC = "local_map"
     INTERPOLATED_PATH = "interpolation"
     TRACKED_POINT = "tracked_point"
+    PATH_TRACKING_ERROR = "path_tracking_error"
     # Result
     FINAL_COMMAND = "robot_command"
     EMERGENCY = "emergency_stop"
@@ -128,6 +129,7 @@ controller_allowed_outputs: Dict[TopicsKeys, AllowedTopics] = {
     TopicsKeys.LOCAL_PLAN: AllowedTopics(types=["Path"]),
     TopicsKeys.PATH_SAMPLES: AllowedTopics(types=["Path"]),
     TopicsKeys.TRACKED_POINT: AllowedTopics(types=["Odometry", "PoseStamped", "Pose"]),
+    TopicsKeys.PATH_TRACKING_ERROR: AllowedTopics(types=["PathTrackingError"]),
 }
 
 # Create default inputs - Used if no inputs config is provided to the controller
@@ -152,6 +154,9 @@ controller_default_outputs: Dict[TopicsKeys, Topic] = {
     TopicsKeys.TRACKED_POINT: Topic(name="/tracked_point", msg_type="PoseStamped"),
     TopicsKeys.LOCAL_PLAN: Topic(name="/local_path", msg_type="Path"),
     TopicsKeys.PATH_SAMPLES: Topic(name="/debug_samples", msg_type="Path"),
+    TopicsKeys.PATH_TRACKING_ERROR: Topic(
+        name="/path_tracking_error", msg_type="PathTrackingError"
+    ),
 }
 
 # MAP SERVER

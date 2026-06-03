@@ -81,6 +81,10 @@ class ControllerConfig(ComponentConfig):
       - `bool`, `False`
       - To used direct sensor information, otherwise the node subscriber to a local map
 
+    * - **publish_tracking_error**
+      - `bool`, `False`
+      - Publish the path tracking error (lateral + orientation deviation) on the `path_tracking_error` topic, for recording / monitoring. Off by default
+
     * - **ctrl_publish_type**
       - `CmdPublishType | str`, `TWIST_ARRAY`
       - How to publish the control commands
@@ -100,6 +104,7 @@ class ControllerConfig(ComponentConfig):
         default=False
     )  # Turn on debug mode -> published additional data visualization
     use_direct_sensor: bool = field(default=False)
+    publish_tracking_error: bool = field(default=False)
     ctrl_publish_type: Union[str, CmdPublishType] = field(
         default=CmdPublishType.TWIST_ARRAY,
         converter=lambda value: (
@@ -241,6 +246,15 @@ class Controller(Component):
             if outputs
             else controller_default_outputs
         )
+        # NOTE: Path-tracking error is opt-in; when disabled, drop it so the topic is
+        # not advertised or published at all. Rebind to a fresh dict instead of
+        # mutating the shared default.
+        if not self.config.publish_tracking_error:
+            out_topics = {
+                key: topic
+                for key, topic in out_topics.items()
+                if key != TopicsKeys.PATH_TRACKING_ERROR
+            }
 
         super().__init__(
             config=self.config,
@@ -469,6 +483,15 @@ class Controller(Component):
                 frame_id=self.config.frames.world,
                 time_stamp=self.get_ros_time(),
             )
+            # Publish path-tracking error (lateral + orientation deviation) so it
+            # is recordable.
+            if self.config.publish_tracking_error:
+                tracking_error = kompass_msgs.PathTrackingError()
+                tracking_error.lateral_distance_error = self._lat_dist_error
+                tracking_error.orientation_error = self._ori_error
+                self.get_publisher(TopicsKeys.PATH_TRACKING_ERROR).publish(
+                    tracking_error
+                )
         # Publish local plan
         if self.local_plan:
             self.get_publisher(TopicsKeys.LOCAL_PLAN).publish(
