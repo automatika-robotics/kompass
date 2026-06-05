@@ -2,6 +2,12 @@
 Changelog for package kompass
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* (chore) Bumps required sugarcoat version
+* (fix) Fixes controller mode change to handle plugin-based callbacks
+* Contributors: ahr, mkabtoul
+
 0.5.0 (2026-05-02)
 ------------------
 * (fix) Removes type hint from map server to fix for rolling api change
