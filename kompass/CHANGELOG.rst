@@ -2,8 +2,8 @@
 Changelog for package kompass
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+0.6.0 (2026-06-05)
+------------------
 * (chore) Bumps required sugarcoat version
 * (fix) Fixes controller mode change to handle plugin-based callbacks
 * Contributors: ahr, mkabtoul
