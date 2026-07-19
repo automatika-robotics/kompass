@@ -160,7 +160,7 @@ if EmbodiedAgentsCallbacks is not None:
 
             # Get depth image if available
             if msg.depth.data:
-                if not self._depth_encoding:
+                if self._depth_encoding is None:
                     self._depth_encoding = process_encoding(msg.depth.encoding)
                 image_array = image_pre_processing(msg.depth, *self._depth_encoding)
                 self._depth_image = self.prepare_depth_for_cpp(
@@ -349,13 +349,13 @@ if EmbodiedAgentsCallbacks is not None:
             super().callback(msg)
             # Get depth image if available
             if msg.depth.data:
-                if not self._depth_encoding:
+                if self._depth_encoding is None:
                     self._depth_encoding = process_encoding(msg.depth.encoding)
                 image_array = image_pre_processing(msg.depth, *self._depth_encoding)
                 self._depth_image = DetectionsCallback.prepare_depth_for_cpp(
                     image_array, *self._depth_encoding
                 )
-                if not self._img_size:
+                if self._img_size is None:
                     self._img_size = np.array(
                         self._depth_image.shape[:2], dtype=np.int32
                     )
@@ -545,7 +545,7 @@ if EmbodiedAgentsCallbacks is not None:
 
             # Get depth image if available
             if self.msg.depth.data:
-                if not self._depth_encoding:
+                if self._depth_encoding is None:
                     self._depth_encoding = process_encoding(self.msg.depth.encoding)
                 self._depth_image = image_pre_processing(
                     self.msg.depth, *self._depth_encoding
