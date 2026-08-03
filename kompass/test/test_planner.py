@@ -56,7 +56,6 @@ def make_planner_stub(**overrides) -> Planner:
     p.config = MagicMock()
     p.config.frames = MagicMock()
     p.config.frames.world = "map"
-    p.config.frames.odom = "odom"
     p.config.distance_tolerance = 0.1
     p.config.loop_rate = 1000.0
     p.config.topic_subscription_timeout = 0.01

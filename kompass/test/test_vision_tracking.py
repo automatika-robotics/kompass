@@ -34,6 +34,18 @@ from kompass_core.datatypes import LaserScanData
 # ---------------------------------------------------------------------------
 
 
+class _StubController(Controller):
+    """Controller whose TF listeners are plain writable attributes.
+
+    ``odom_tf_listener`` is a property on the real component that looks the
+    transform up through the node's shared TF buffer. These tests exercise
+    state handling, not TF plumbing, so the class attribute below shadows the
+    property and lets each test inject a mock listener directly.
+    """
+
+    odom_tf_listener = None
+
+
 def make_controller_stub(**overrides) -> Controller:
     """Build a bare Controller (with attached VisionFollower) and mock dependencies.
 
@@ -42,7 +54,7 @@ def make_controller_stub(**overrides) -> Controller:
     state (``_vision_controller``, ``_tracked_center``, detections, depth
     image) lives on ``c._vision_follower`` rather than on the controller.
     """
-    c = object.__new__(Controller)
+    c = object.__new__(_StubController)
 
     # Threading / queues
     c._main_goal_lock = threading.Lock()
@@ -64,13 +76,12 @@ def make_controller_stub(**overrides) -> Controller:
     c.config.topic_subscription_timeout = 0.1
     c.config.loop_rate = 100.0
     c.config.frames = MagicMock()
-    c.config.frames.odom = "odom"
-    c.config.frames.world = "odom"  # same-frame -> no TF needed
+    c.config.frames.world = "map"
 
-    # TF listener (property reads self._odom_tf_listener lazily; bypass by setting it directly)
+    # TF listener (the real property is shadowed by _StubController)
     tf_listener = MagicMock()
     tf_listener.transform = MagicMock()
-    c._odom_tf_listener = tf_listener
+    c.odom_tf_listener = tf_listener
 
     # IO fakes
     c.get_callback = MagicMock(return_value=None)
@@ -183,10 +194,9 @@ class TestTerminateVisionAction:
 
 class TestUpdateStateNonBlocking:
     def test_reads_state_without_transform_when_tf_missing(self):
-        """Non-blocking with frames differing and no TF: skip the wait loop and
-        read the raw odom-frame state (no transformation applied)."""
+        """Non-blocking with no TF available: skip the wait loop and read the
+        raw location-frame state (no transformation applied)."""
         c = make_controller_stub()
-        c.config.frames.odom = "odom"
         c.config.frames.world = "map"
         c.odom_tf_listener.transform = None
         state_cb = MagicMock()
@@ -211,7 +221,6 @@ class TestUpdateStateNonBlocking:
 
     def test_uses_cached_transform_when_available(self):
         c = make_controller_stub()
-        c.config.frames.odom = "odom"
         c.config.frames.world = "map"
         cached_tf = object()
         c.odom_tf_listener.transform = cached_tf
@@ -229,11 +238,13 @@ class TestUpdateStateNonBlocking:
         )
         assert c.robot_state == "STATE"
 
-    def test_same_frame_bypasses_tf_entirely(self):
+    def test_no_location_message_yet_reads_without_transform(self):
+        """Before the first location message the source frame is unknown, so
+        there is no listener at all: read the state untransformed rather than
+        blocking on a lookup that cannot be built yet."""
         c = make_controller_stub()
-        c.config.frames.odom = "odom"
-        c.config.frames.world = "odom"
-        c.odom_tf_listener.transform = None  # irrelevant
+        c.config.frames.world = "map"
+        c.odom_tf_listener = None
         state_cb = MagicMock()
         state_cb.get_output.return_value = "STATE"
         c.get_callback = MagicMock(
@@ -243,7 +254,9 @@ class TestUpdateStateNonBlocking:
         )
 
         c._update_state(block=False)
-        state_cb.get_output.assert_called_once_with(get_front=True, clear_last=True)
+        state_cb.get_output.assert_called_once_with(
+            transformation=None, get_front=True, clear_last=True
+        )
         assert c.robot_state == "STATE"
 
 
