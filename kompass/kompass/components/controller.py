@@ -842,10 +842,9 @@ class Controller(Component):
         if not state_callback:
             return None
         kw = {"get_front": True, "clear_last": True}
-        if self.config.frames.odom != self.config.frames.world:
-            kw["transformation"] = (
-                self.odom_tf_listener.transform if self.odom_tf_listener else None
-            )
+        kw["transformation"] = (
+            self.odom_tf_listener.transform if self.odom_tf_listener else None
+        )
         return state_callback.get_output(**kw)
 
     def _update_state(self, block: bool = True) -> None:
@@ -853,9 +852,10 @@ class Controller(Component):
         Updates node inputs from associated callbacks.
 
         :param block: If True, blocks up to ``topic_subscription_timeout`` waiting
-            for the odom->world TF when the two frames differ. Pass ``False`` from
-            fast control loops to read the latest cached transform without blocking;
-            if the TF is not yet available the update is skipped for this tick.
+            for a robot location message and then for the transform from its own
+            frame to the world frame. Pass ``False`` from fast control loops to
+            read the latest cached transform without blocking; if the TF is not
+            yet available the update is skipped for this tick.
         """
         if self.config._mode == ControllerMode.PATH_FOLLOWER:
             plan_callback = self.get_callback(TopicsKeys.GLOBAL_PLAN)
@@ -865,28 +865,55 @@ class Controller(Component):
 
         # In LOCAL frame mode robot state is irrelevant: sensor data and
         # tracked targets are reasoned about robot-relative.
-        if (
-            block
-            and self.config._frame_mode == FrameMode.GLOBAL
-            and self.config.frames.odom != self.config.frames.world
-        ):
+        if block and self.config._frame_mode == FrameMode.GLOBAL:
             timeout = 0.0
-            odom_listener = self.odom_tf_listener
+            step = 1 / self.config.loop_rate
+            state_callback = self.get_callback(TopicsKeys.ROBOT_LOCATION)
+
+            # The location frame is carried by the messages, so wait for one to
+            # arrive before waiting for its transform. Both waits share a single
+            # timeout budget.
             while (
-                not odom_listener.transform
+                state_callback
+                and not state_callback.got_msg
                 and timeout < self.config.topic_subscription_timeout
             ):
                 self.get_logger().warning(
-                    f"Waiting to get TF from {self.config.frames.odom} frame to {self.config.frames.world} frame...",
+                    "Waiting for a robot location message...", once=True
+                )
+                timeout += step
+                time.sleep(step)
+
+            if state_callback and state_callback.got_msg and not state_callback.frame_id:
+                # A bare Pose carries no header, so there is no frame to look up
+                # and nothing to transform: take the data as it arrived.
+                self.get_logger().warning(
+                    "Robot location messages carry no frame_id -> treating them as "
+                    f"already expressed in the '{self.config.frames.world}' frame",
                     once=True,
                 )
-                timeout += 1 / self.config.loop_rate
-                time.sleep(1 / self.config.loop_rate)
-            if not self.odom_tf_listener.transform:
-                self.get_logger().error(
-                    f"Could not get TF from {self.config.frames.odom} frame to {self.config.frames.world} frame after {self.config.topic_subscription_timeout} seconds"
-                )
-                return
+            else:
+                odom_listener = self.odom_tf_listener
+                while (
+                    odom_listener
+                    and not odom_listener.transform
+                    and timeout < self.config.topic_subscription_timeout
+                ):
+                    self.get_logger().warning(
+                        f"Waiting to get TF from {odom_listener.config.source_frame} "
+                        f"frame to {self.config.frames.world} frame...",
+                        once=True,
+                    )
+                    timeout += step
+                    time.sleep(step)
+
+                if not odom_listener or not odom_listener.transform:
+                    self.get_logger().error(
+                        "Could not get TF from the robot location frame to "
+                        f"'{self.config.frames.world}' frame after "
+                        f"{self.config.topic_subscription_timeout} seconds"
+                    )
+                    return
         self.robot_state = self._read_robot_state()
         if block:
             waited = 0.0
