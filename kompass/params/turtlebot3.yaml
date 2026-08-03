@@ -2,9 +2,7 @@
 
   frames:
     robot_base: "base_link"
-    odom: "map"
     world: "map"
-    scan: "LDS-01"
 
 mapper:
   loop_rate: 10.0
