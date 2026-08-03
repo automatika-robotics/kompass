@@ -187,20 +187,23 @@ class LocalMapper(Component):
         Updates node inputs from associated callbacks
         """
 
-        self.robot_state: Optional[RobotState] = self.get_callback(
-            TopicsKeys.ROBOT_LOCATION
-        ).get_output(
+        location_callback = self.get_callback(TopicsKeys.ROBOT_LOCATION)
+        self.robot_state: Optional[RobotState] = location_callback.get_output(
             transformation=self.odom_tf_listener.transform
             if self.odom_tf_listener
             else None
         )
 
         if self.odom_tf_listener and self.odom_tf_listener.got_transform:
-            # If the transform from odom to world is available, we can set the local map frame to world frame, as the local map will be built in the world frame
+            # The transform to the world frame is available, so robot_state has
+            # been transformed and the local map is built in the world frame
             self._local_map_frame = self.config.frames.world
         else:
-            # If the transform from odom to world is not available, we set the local map frame to odom frame, as the robot_state will be in the odom frame
-            self._local_map_frame = self.config.frames.odom
+            # No transform yet, so robot_state is still in whatever frame the
+            # location messages arrived in, and so is the local map
+            self._local_map_frame = (
+                location_callback.frame_id or self.config.frames.world
+            )
 
         # The sensor->body transform is applied by the callback itself
         callback = self.get_callback(TopicsKeys.SPATIAL_SENSOR)
