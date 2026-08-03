@@ -163,7 +163,7 @@ class LocalMapper(Component):
         )  # Default local map frame is world frame, will be updated to odom frame if the transform from odom to world is not available
 
         self.robot_height = RobotGeometry.get_height(
-            self.robot_geometry_type, self.config.robot.geometry_params
+            self.robot_geometry_type, self.robot.geometry_params
         )
 
         self.sensor_data: Optional[Union[LaserScanData, PointCloudData]] = None

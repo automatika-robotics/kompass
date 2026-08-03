@@ -258,9 +258,9 @@ class Planner(Component):
         self._depth_image_info: Optional[Dict] = None
 
         self.__robot = Robot(
-            robot_type=self.config.robot.model_type,
+            robot_type=self.robot.model_type,
             geometry_type=self.robot_geometry_type,
-            geometry_params=self.config.robot.geometry_params,
+            geometry_params=self.robot.geometry_params,
         )
 
         # Init OMPL with collision checking

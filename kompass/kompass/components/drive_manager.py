@@ -243,11 +243,11 @@ class DriveManager(Component):
         self._cmds_queue: Queue = Queue()
 
         self.robot_radius = RobotGeometry.get_radius(
-            self.robot_geometry_type, self.config.robot.geometry_params
+            self.robot_geometry_type, self.robot.geometry_params
         )
 
         self.robot_height = RobotGeometry.get_height(
-            self.robot_geometry_type, self.config.robot.geometry_params
+            self.robot_geometry_type, self.robot.geometry_params
         )
 
         if not self.robot_radius:
@@ -904,20 +904,20 @@ class DriveManager(Component):
         # Use a low pass filter based on maximum allowed acceleration if multi commands are available
         self._filtered_linear_commands_x = self.__filter_multi_cmds(
             output.linear_velocities.x,
-            self.config.robot.ctrl_vx_limits.max_acc,
-            self.config.robot.ctrl_vx_limits.max_vel,
+            self.robot.ctrl_vx_limits.max_acc,
+            self.robot.ctrl_vx_limits.max_vel,
         )
 
         self._filtered_linear_commands_y = self.__filter_multi_cmds(
             output.linear_velocities.y,
-            self.config.robot.ctrl_vy_limits.max_acc,
-            self.config.robot.ctrl_vy_limits.max_vel,
+            self.robot.ctrl_vy_limits.max_acc,
+            self.robot.ctrl_vy_limits.max_vel,
         )
 
         self._filtered_angular_commands = self.__filter_multi_cmds(
             output.angular_velocities.z,
-            self.config.robot.ctrl_omega_limits.max_acc,
-            self.config.robot.ctrl_omega_limits.max_vel,
+            self.robot.ctrl_omega_limits.max_acc,
+            self.robot.ctrl_omega_limits.max_vel,
         )
 
     def _check_bounds(self, target, previous, max_acc, max_decel, freq):
@@ -958,15 +958,15 @@ class DriveManager(Component):
         if self._check_bounds(
             output.linear.x,
             self._previous_command.linear.x,
-            self.config.robot.ctrl_vx_limits.max_acc,
-            self.config.robot.ctrl_vx_limits.max_decel,
+            self.robot.ctrl_vx_limits.max_acc,
+            self.robot.ctrl_vx_limits.max_decel,
             self.config.loop_rate,
         ):
             _cmd.linear.x = self._limit_command_acc(
                 output.linear.x,
                 self._previous_command.linear.x,
-                self.config.robot.ctrl_vx_limits.max_acc,
-                self.config.robot.ctrl_vx_limits.max_decel,
+                self.robot.ctrl_vx_limits.max_acc,
+                self.robot.ctrl_vx_limits.max_decel,
                 self.config.loop_rate,
             )
         else:
@@ -975,15 +975,15 @@ class DriveManager(Component):
         if self._check_bounds(
             output.linear.y,
             self._previous_command.linear.y,
-            self.config.robot.ctrl_vy_limits.max_acc,
-            self.config.robot.ctrl_vy_limits.max_decel,
+            self.robot.ctrl_vy_limits.max_acc,
+            self.robot.ctrl_vy_limits.max_decel,
             self.config.loop_rate,
         ):
             _cmd.linear.y = self._limit_command_acc(
                 output.linear.y,
                 self._previous_command.linear.y,
-                self.config.robot.ctrl_vy_limits.max_acc,
-                self.config.robot.ctrl_vy_limits.max_decel,
+                self.robot.ctrl_vy_limits.max_acc,
+                self.robot.ctrl_vy_limits.max_decel,
                 self.config.loop_rate,
             )
         else:
@@ -993,15 +993,15 @@ class DriveManager(Component):
         if self._check_bounds(
             output.angular.z,
             self._previous_command.angular.z,
-            self.config.robot.ctrl_omega_limits.max_acc,
-            self.config.robot.ctrl_omega_limits.max_decel,
+            self.robot.ctrl_omega_limits.max_acc,
+            self.robot.ctrl_omega_limits.max_decel,
             self.config.loop_rate,
         ):
             _cmd.angular.z = self._limit_command_acc(
                 output.angular.z,
                 self._previous_command.angular.z,
-                self.config.robot.ctrl_omega_limits.max_acc,
-                self.config.robot.ctrl_omega_limits.max_decel,
+                self.robot.ctrl_omega_limits.max_acc,
+                self.robot.ctrl_omega_limits.max_decel,
                 self.config.loop_rate,
             )
         else:
@@ -1068,28 +1068,28 @@ class DriveManager(Component):
         :rtype: bool
         """
 
-        if abs(output[0]) > self.config.robot.ctrl_vx_limits.max_vel:
+        if abs(output[0]) > self.robot.ctrl_vx_limits.max_vel:
             self.get_logger().debug(
-                f"Limiting linear velocity by allowed maximum {self.config.robot.ctrl_vx_limits.max_vel}"
+                f"Limiting linear velocity by allowed maximum {self.robot.ctrl_vx_limits.max_vel}"
             )
-            output[0] = np.sign(output[0]) * self.config.robot.ctrl_vx_limits.max_vel
-        elif abs(output[0]) < self.config.robot.ctrl_vx_limits.min_absolute_val:
+            output[0] = np.sign(output[0]) * self.robot.ctrl_vx_limits.max_vel
+        elif abs(output[0]) < self.robot.ctrl_vx_limits.min_absolute_val:
             output[0] = 0.0
 
-        if abs(output[1]) > self.config.robot.ctrl_vy_limits.max_vel:
+        if abs(output[1]) > self.robot.ctrl_vy_limits.max_vel:
             self.get_logger().debug(
-                f"Limiting linear Vy velocity by allowed maximum {self.config.robot.ctrl_vy_limits.max_vel}"
+                f"Limiting linear Vy velocity by allowed maximum {self.robot.ctrl_vy_limits.max_vel}"
             )
-            output[1] = np.sign(output[1]) * self.config.robot.ctrl_vy_limits.max_vel
-        elif abs(output[1]) < self.config.robot.ctrl_vy_limits.min_absolute_val:
+            output[1] = np.sign(output[1]) * self.robot.ctrl_vy_limits.max_vel
+        elif abs(output[1]) < self.robot.ctrl_vy_limits.min_absolute_val:
             output[1] = 0.0
 
-        if abs(output[2]) > self.config.robot.ctrl_omega_limits.max_vel:
+        if abs(output[2]) > self.robot.ctrl_omega_limits.max_vel:
             self.get_logger().debug(
-                f"Limiting angular velocity by allowed maximum {self.config.robot.ctrl_omega_limits.max_vel}"
+                f"Limiting angular velocity by allowed maximum {self.robot.ctrl_omega_limits.max_vel}"
             )
-            output[2] = np.sign(output[2]) * self.config.robot.ctrl_omega_limits.max_vel
-        elif abs(output[2]) < self.config.robot.ctrl_omega_limits.min_absolute_val:
+            output[2] = np.sign(output[2]) * self.robot.ctrl_omega_limits.max_vel
+        elif abs(output[2]) < self.robot.ctrl_omega_limits.min_absolute_val:
             output[2] = 0.0
         return output
 
@@ -1162,7 +1162,7 @@ class DriveManager(Component):
         self.get_logger().info("Got Proximity Sensor TF...")
 
         robot_shape = RobotGeometry.Type.to_kompass_cpp_lib(self.robot_geometry_type)
-        robot_dimensions = self.config.robot.geometry_params
+        robot_dimensions = self.robot.geometry_params
 
         # Get laserscan data to initialize the GPU based checker
         while not self.sensor_data:

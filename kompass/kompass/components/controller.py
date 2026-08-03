@@ -974,17 +974,17 @@ class Controller(Component):
 
         # INIT PATH CONTROLLER
         self._robot = Robot(
-            robot_type=self.config.robot.model_type,
+            robot_type=self.robot.model_type,
             geometry_type=self.robot_geometry_type,
-            geometry_params=self.config.robot.geometry_params,
+            geometry_params=self.robot.geometry_params,
             state=self.robot_state or RobotState(),
         )
 
         # SET robot control limits
         self._robot_ctr_limits = RobotCtrlLimits(
-            vx_limits=self.config.robot.ctrl_vx_limits,
-            vy_limits=self.config.robot.ctrl_vy_limits,
-            omega_limits=self.config.robot.ctrl_omega_limits,
+            vx_limits=self.robot.ctrl_vx_limits,
+            vy_limits=self.robot.ctrl_vy_limits,
+            omega_limits=self.robot.ctrl_omega_limits,
         )
 
         self._reached_end = False
