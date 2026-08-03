@@ -51,7 +51,7 @@ class DriveManagerConfig(ComponentConfig):
       - Filter (smooth) incoming velocity commands to limit the acceleration
 
     * - **cmd_tolerance**
-      - `float`, `0.1`
+      - `float`, `0.05`
       - Tolerance value when checking for reaching the command in closed loop
 
     * - **critical_zone_angle**
@@ -94,7 +94,7 @@ class DriveManagerConfig(ComponentConfig):
     smooth_commands: bool = field(default=False)
 
     cmd_tolerance: float = field(
-        default=0.01
+        default=0.05
     )  # tolerance value when checking for reaching the desired command in closed loop
 
     critical_zone_angle: float = field(

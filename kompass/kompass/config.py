@@ -48,15 +48,11 @@ class ComponentConfig(BaseComponentConfig):
       - Description
 
     * - **topic_subscription_timeout**
-      - float, `20.0`
+      - float, `5.0`
       - Timeout when waiting for an input topic to become available (s)
 
     * - **topic_try_wait_timeout**
-      - float, `0.1`
-      - Time interval when waiting for input topic to become available (s)
-
-    * - **topic_try_wait_timeout**
-      - float, `0.1`
+      - float, `0.05`
       - Time interval when waiting for input topic to become available (s)
 
     * - **core_log_level**
