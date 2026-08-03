@@ -172,6 +172,12 @@ class LocalMapper(Component):
             config=self.config.map_params, scan_model_config=self.config.scan_model
         )
 
+        # Sensor data is mapped in the robot body frame. The sensor's own frame
+        # comes from the incoming messages, so nothing has to be configured
+        self.transform_inputs_to(
+            TopicsKeys.SPATIAL_SENSOR, self.config.frames.robot_base, static_tf=True
+        )
+
         self.get_callback(TopicsKeys.SPATIAL_SENSOR).on_callback_execute(
             self._update_map_from_scan
         )
@@ -196,15 +202,9 @@ class LocalMapper(Component):
             # If the transform from odom to world is not available, we set the local map frame to odom frame, as the robot_state will be in the odom frame
             self._local_map_frame = self.config.frames.odom
 
+        # The sensor->body transform is applied by the callback itself
         callback = self.get_callback(TopicsKeys.SPATIAL_SENSOR)
-        if isinstance(callback, LaserScanCallback):
-            self.sensor_data = callback.get_output(
-                transformation=self.scan_tf_listener.transform
-                if self.scan_tf_listener
-                else None
-            )
-        elif isinstance(callback, PointCloudCallback):
-            self.sensor_data = callback.get_output()
+        self.sensor_data = callback.get_output()
 
     def publish_data(self):
         """

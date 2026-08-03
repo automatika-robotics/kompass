@@ -62,6 +62,18 @@ class VisionFollower:
             return None
         return self._vision_controller.optimal_path()
 
+    @property
+    def _depth_tf_listener(self):
+        """Transform listener from the depth camera frame to the robot body.
+
+        The camera frame is read from the camera info messages, so this is
+        None until the first one arrives.
+        """
+        cmp = self._component
+        return cmp.input_tf_listener(
+            TopicsKeys.DEPTH_CAM_INFO, cmp.config.frames.robot_base, static_tf=True
+        )
+
     def setup(self) -> bool:
         """Build the core vision controller. Stores it on success.
 
@@ -74,7 +86,11 @@ class VisionFollower:
         # Get the depth image transform if the input is provided
         if cmp.in_topic_name(TopicsKeys.DEPTH_CAM_INFO):
             while (
-                not (cmp.depth_tf_listener.got_transform and self.depth_image_info)
+                not (
+                    (depth_tf := self._depth_tf_listener)
+                    and depth_tf.got_transform
+                    and self.depth_image_info
+                )
                 and timeout < cmp.config.topic_subscription_timeout
             ):
                 self._update_inputs()
@@ -117,10 +133,11 @@ class VisionFollower:
                 "operate in GLOBAL frame with velocity tracking"
             )
 
+        depth_tf = self._depth_tf_listener
         config = ControlConfigClasses[cmp.algorithm](
             control_time_step=cmp.config.control_time_step,
-            camera_position_to_robot=cmp.depth_tf_listener.translation,
-            camera_rotation_to_robot=cmp.depth_tf_listener.rotation,
+            camera_position_to_robot=depth_tf.translation if depth_tf else None,
+            camera_rotation_to_robot=depth_tf.rotation if depth_tf else None,
             _use_local_coordinates=use_local,
         )
 

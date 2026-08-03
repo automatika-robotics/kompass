@@ -9,7 +9,6 @@ from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
 
 # ROS MSGS
 from nav_msgs.msg import Path
-from sensor_msgs.msg import PointCloud2
 from geometry_msgs.msg import PoseStamped
 
 # KOMPASS
@@ -804,19 +803,25 @@ class Controller(Component):
         self.custom_create_all_subscribers()
         self.custom_create_all_action_servers()
 
+    @property
+    def _sensor_tf_listener(self) -> Optional[TFListener]:
+        """Transform listener from the proximity sensor frame to the robot body.
+
+        Resolved from the sensor data's own frame, so it is None until the
+        first message arrives.
+        """
+        return self.input_tf_listener(
+            TopicsKeys.SPATIAL_SENSOR, self.config.frames.robot_base, static_tf=True
+        )
+
     def _update_sensor_data(self) -> None:
         """Update sensor data from the sensor callback"""
         if self.direct_sensor:
             self.local_map = None
             sensor_callback = self.get_callback(TopicsKeys.SPATIAL_SENSOR)
+            # The sensor->body transform is applied by the callback itself
             self.sensor_data = (
-                sensor_callback.get_output(
-                    transformation=self._sensor_tf_listener.transform
-                    if self._sensor_tf_listener
-                    else None
-                )
-                if sensor_callback
-                else None
+                sensor_callback.get_output() if sensor_callback else None
             )
         else:
             self.sensor_data = None
@@ -968,14 +973,12 @@ class Controller(Component):
         self._cmds_queue: Queue = Queue()
 
         if self.direct_sensor:
-            sensor_topic = self._inputs_list[
-                self._inputs_keys.index(TopicsKeys.SPATIAL_SENSOR)
-            ]
-            # Setup transform listener
-            self._sensor_tf_listener: TFListener = (
-                self.pc_tf_listener
-                if sensor_topic.msg_type._ros_type == PointCloud2
-                else self.scan_tf_listener
+            # Sensor data is used in the robot body frame. Its own frame comes
+            # from the incoming messages, whatever the sensor type
+            self.transform_inputs_to(
+                TopicsKeys.SPATIAL_SENSOR,
+                self.config.frames.robot_base,
+                static_tf=True,
             )
 
             self.sensor_data: Optional[Union[LaserScanData, PointCloudData]] = None
@@ -984,12 +987,13 @@ class Controller(Component):
 
         if self.config._mode == ControllerMode.PATH_FOLLOWER:
             config_kwargs = {}
-            if self.direct_sensor and self._sensor_tf_listener.got_transform:
+            sensor_tf = self._sensor_tf_listener if self.direct_sensor else None
+            if sensor_tf and sensor_tf.got_transform:
                 config_kwargs["proximity_sensor_position_to_robot"] = (
-                    self._sensor_tf_listener.translation
+                    sensor_tf.translation
                 )
                 config_kwargs["proximity_sensor_rotation_to_robot"] = (
-                    self._sensor_tf_listener.rotation
+                    sensor_tf.rotation
                 )
                 config_kwargs["control_time_step"] = self.config.control_time_step
             # Get default controller configuration and update it from user defined config

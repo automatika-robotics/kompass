@@ -8,7 +8,7 @@ from geometry_msgs.msg import Twist
 from kompass_core.datatypes import LaserScanData, PointCloudData
 from kompass_core.models import RobotGeometry, RobotState, RobotType
 from kompass_interfaces.msg import TwistArray
-from kompass_cpp.types import SensorInputType
+from kompass_cpp.types import SensorInputType, PointFieldType
 
 # KOMPASS ROS
 from ..config import BaseValidators, ComponentConfig, ComponentRunType
@@ -269,6 +269,13 @@ class DriveManager(Component):
         # Emergency checker gets initialized on activation to get the sensor transformation
         self._emergency_checker = None
 
+        # Every proximity sensor is handled in the robot body frame. Each one
+        # carries its own frame in its messages, so several sensors mounted in
+        # different places work without configuring any of them
+        self.transform_inputs_to(
+            TopicsKeys.SPATIAL_SENSOR, self.config.frames.robot_base, static_tf=True
+        )
+
         self._attach_callbacks_and_processors()
 
     def _attach_callbacks_and_processors(self):
@@ -393,19 +400,13 @@ class DriveManager(Component):
         for idx in range(num_sensors):
             callback = self.get_callback(TopicsKeys.SPATIAL_SENSOR, idx)
             if isinstance(callback, LaserScanCallback):
-                self.sensor_data: Optional[LaserScanData] = callback.get_output(
-                    transformation=self.scan_tf_listener.transform
-                    if self.scan_tf_listener
-                    else None,
-                )
+                # The sensor->body transform is applied by the callback itself
+                self.sensor_data: Optional[LaserScanData] = callback.get_output()
                 break
             elif isinstance(callback, PointCloudCallback):
                 self.__pc_callback = callback
                 self.sensor_data: Optional[PointCloudData] = (
                     self.__pc_callback.get_output(
-                        transformation=self.scan_tf_listener.transform
-                        if self.scan_tf_listener
-                        else None,
                         get_2d=True,
                         min_z=0.0,
                         max_z=self.robot_height,
@@ -1145,8 +1146,15 @@ class DriveManager(Component):
             self._emergency_checker = None
             return
 
-        # Get transformation from sensor to robot body
-        while not self.scan_tf_listener or not self.scan_tf_listener.transform:
+        # Get transformation from sensor to robot body. The sensor frame comes
+        # from the data itself, so this also waits for the first sensor message
+        sensor_tf = None
+        while not sensor_tf or not sensor_tf.transform:
+            sensor_tf = self.input_tf_listener(
+                TopicsKeys.SPATIAL_SENSOR,
+                self.config.frames.robot_base,
+                static_tf=True,
+            )
             self.get_logger().info("Waiting to get Proximity Sensor TF...", once=True)
             time.sleep(1 / self.config.loop_rate)
 
@@ -1182,7 +1190,7 @@ class DriveManager(Component):
             }
             if self.config.use_gpu:
                 # this parameter is only used in the GPU kernel
-                kwargs["cloud_field_type"] = self.__pc_callback.field_type
+                kwargs["cloud_field_type"] = PointFieldType.from_int(self.sensor_data.x_field_datatype)
 
         if self.config.use_gpu:
             try:
@@ -1191,8 +1199,8 @@ class DriveManager(Component):
                 self._emergency_checker = CriticalZoneCheckerGPU(
                     robot_shape=robot_shape,
                     robot_dimensions=robot_dimensions,
-                    sensor_position_body=self.scan_tf_listener.translation,
-                    sensor_rotation_body=self.scan_tf_listener.rotation,
+                    sensor_position_body=sensor_tf.translation,
+                    sensor_rotation_body=sensor_tf.rotation,
                     critical_angle=self.config.critical_zone_angle,
                     critical_distance=self.config.critical_zone_distance,
                     slowdown_distance=self.config.slowdown_zone_distance,
@@ -1235,8 +1243,8 @@ class DriveManager(Component):
         self._emergency_checker = CriticalZoneChecker(
             robot_shape=robot_shape,
             robot_dimensions=robot_dimensions,
-            sensor_position_body=self.scan_tf_listener.translation,
-            sensor_rotation_body=self.scan_tf_listener.rotation,
+            sensor_position_body=sensor_tf.translation,
+            sensor_rotation_body=sensor_tf.rotation,
             critical_angle=self.config.critical_zone_angle,
             critical_distance=self.config.critical_zone_distance,
             slowdown_distance=self.config.slowdown_zone_distance,
