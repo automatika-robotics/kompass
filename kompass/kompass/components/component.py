@@ -206,9 +206,22 @@ class Component(BaseComponent):
         """
         Getter of robot config
 
+        Every Kompass component reasons about the robot's body -- its size for
+        collision checking, its velocity envelope for control -- so a missing
+        robot config is an error rather than something to default around.
+
         :return: Robot configuration
         :rtype: RobotConfig
+        :raises ValueError: If no robot configuration has been set
         """
+        if self.config.robot is None:
+            raise ValueError(
+                f"Component '{self.node_name}' requires a robot configuration but "
+                "none is set. Provide one in the recipe, either for the whole stack "
+                "with 'launcher.robot = RobotConfig(...)', for this component with "
+                f"'{self.node_name}.config.robot = RobotConfig(...)', or by attaching "
+                "a robot plugin that supplies it."
+            )
         return self.config.robot
 
     @robot.setter
@@ -233,7 +246,7 @@ class Component(BaseComponent):
         :return: Robot geometry type
         :rtype: RobotGeometry.Type
         """
-        return RobotGeometry.Type.from_str(self.config.robot.geometry_type)
+        return RobotGeometry.Type.from_str(self.robot.geometry_type)
 
     @property
     def run_type(self) -> ComponentRunType:
