@@ -446,15 +446,19 @@ class Component(BaseComponent):
 
     @property
     def odom_tf_listener(self) -> Optional[TFListener]:
-        """Gets a transform listener for Odometry (from odom to world)
+        """Gets a transform listener from the robot location frame to the world.
 
-        :return:
-        :rtype: TFListener
+        The localization frame is not configured: it is read from the
+        ``header.frame_id`` of the location messages, so this is None until the
+        first one arrives. When the robot is already localized in the world
+        frame the lookup resolves to the identity transform, so "no odometry"
+        needs no special case.
+
+        :return: TF listener from the location frame to the world frame
+        :rtype: Optional[TFListener]
         """
-        if self.config.frames.odom == self.config.frames.world:
-            return None
-        return self.get_transform_listener(
-            self.config.frames.odom, self.config.frames.world
+        return self.input_tf_listener(
+            TopicsKeys.ROBOT_LOCATION, self.config.frames.world
         )
 
     def transform_inputs_to(
