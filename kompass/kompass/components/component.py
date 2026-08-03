@@ -11,6 +11,7 @@ from .ros import Topic, update_topics
 from itertools import groupby
 from .defaults import TopicsKeys
 from kompass_core import set_logging_level
+from ..robot import RobotGeometry
 
 
 def _parse_from_topics_dict(
@@ -219,6 +220,20 @@ class Component(BaseComponent):
         :type config: RobotConfig
         """
         self.config.robot = config
+
+    @property
+    def robot_geometry_type(self) -> RobotGeometry.Type:
+        """
+        Getter of the robot geometry as a kompass_core type
+
+        The description carries the geometry as a plain name, since Sugarcoat
+        does no geometry math. The kompass_core helpers compare geometries by
+        enum identity, so convert on the way in.
+
+        :return: Robot geometry type
+        :rtype: RobotGeometry.Type
+        """
+        return RobotGeometry.Type.from_str(self.config.robot.geometry_type)
 
     @property
     def run_type(self) -> ComponentRunType:
