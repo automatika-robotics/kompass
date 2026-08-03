@@ -109,16 +109,18 @@ class VisionFollower:
         )
 
         # In vision mode the frame is decided by what's available at setup time:
-        # if odom->world TF (or matching frames) is available we operate in
-        # GLOBAL, otherwise we fall back to LOCAL (robot-relative). Once set,
-        # _frame_mode drives state/sensor handling for the rest of the session.
-        # Reset to GLOBAL before probing so _update_state(block=True) actually
-        # waits for the TF (even if a prior session ended in LOCAL).
+        # if the location->world TF is available we operate in GLOBAL, otherwise
+        # we fall back to LOCAL (robot-relative). Once set, _frame_mode drives
+        # state/sensor handling for the rest of the session. Reset to GLOBAL
+        # before probing so _update_state(block=True) actually waits for the TF
+        # (even if a prior session ended in LOCAL). A robot already localized in
+        # the world frame resolves to the identity transform, so it needs no
+        # special case here.
         cmp.config._frame_mode = FrameMode.GLOBAL
         cmp._update_state(block=True)
         has_tf = (
             cmp.odom_tf_listener is not None and cmp.odom_tf_listener.got_transform
-        ) or (cmp.config.frames.odom == cmp.config.frames.world)
+        )
         cmp.config._frame_mode = FrameMode.GLOBAL if has_tf else FrameMode.LOCAL
         use_local = cmp.config._frame_mode == FrameMode.LOCAL
 
