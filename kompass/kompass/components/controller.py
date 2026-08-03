@@ -935,17 +935,6 @@ class Controller(Component):
         if plan_callback:
             plan_callback.on_callback_execute(self._set_path_to_controller)
 
-        if self.direct_sensor:
-            # If direct sensor information is used set maximum range for PointCloud data
-            sensor_callback = self.get_callback(TopicsKeys.SPATIAL_SENSOR)
-            if isinstance(sensor_callback, PointCloudCallback):
-                sensor_callback.max_range = (
-                    self.config.prediction_horizon * self.robot.ctrl_vx_limits.max_vel
-                )
-                self.get_logger().info(
-                    f"Setting PointCloud max range to robot max forward horizon '{sensor_callback.max_range}' to limit computations"
-                )
-
     def _set_path_to_controller(self, msg, **_) -> None:
         """
         Set a new plan to the controller/follower
@@ -1337,8 +1326,8 @@ class Controller(Component):
         dist: float = self.robot_state.distance(goal_point)
         return dist <= self._path_controller._config.goal_dist_tolerance
 
-    def _execution_once(self):
-        """Intialize controller post activation"""
+    def _execute_once(self):
+        """Initialize controller post activation"""
         if self.config._mode == ControllerMode.VISION_FOLLOWER:
             # Set up the vision controller eagerly to avoid first-call overhead
             # in the action server.
