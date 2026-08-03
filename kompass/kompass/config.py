@@ -1,7 +1,6 @@
 """Configuration classes for a Component and a robot in Kompass"""
 
 import math
-import warnings
 from typing import Union
 
 import numpy as np
@@ -22,6 +21,7 @@ from ros_sugar.config import (
     BaseComponentConfig,
     BaseConfig,
     ComponentRunType,
+    RobotFrames,
 )
 
 __all__ = [
@@ -30,75 +30,8 @@ __all__ = [
     "BaseConfig",
     "ComponentRunType",
     "BaseComponentConfig",
+    "RobotFrames",
 ]
-
-
-def _warn_if_optical_frame(_, attribute, value):
-    """Warn when an RGB/depth camera frame name looks like a ROS optical frame.
-
-    The ``rgb`` and ``depth`` fields are expected to refer to the *physical*
-    camera link (e.g. ``camera_link``, ``camera_depth_link``), not the
-    z-forward optical frame typically published by ROS drivers as
-    ``*_optical_frame``. Using the optical frame here usually means the
-    camera→body transform will be off by the link↔optical rotation.
-    """
-    if value and "optical" in value.lower():
-        warnings.warn(
-            f"RobotFrames.{attribute.name}='{value}' looks like a ROS optical "
-            f"frame; this field expects the physical camera link (e.g. "
-            f"'camera_link'), not the optical frame. Check that the camera "
-            f"driver publishes the link you intended.",
-            UserWarning,
-            stacklevel=3,
-        )
-
-
-@define(kw_only=True)
-class RobotFrames(BaseAttrs):
-    """
-    Class for robot coordinate frames configuration
-    ```{list-table}
-    :widths: 10 20 70
-    :header-rows: 1
-
-    * - Frame
-      - Default
-      - Description
-
-    * - **world**
-      - "map"
-      - Reference world frame
-
-    * - **robot_base**
-      - "base_link"
-      - Robot base link frame
-
-    * - **odom**
-      - "odom"
-      - Robot odometry frame
-
-    * - **scan**
-      - "base_link"
-      - LaseScan sensor base frame
-
-    * - **rgb**
-      - "camera_link"
-      - RGB camera base frame
-
-    * - **depth**
-      - "camera_depth_link"
-      - Depth camera base frame
-
-    ```
-    """
-
-    robot_base: str = field(default="base_link")
-    odom: str = field(default="odom")
-    world: str = field(default="map")
-    scan: str = field(default="base_link")
-    rgb: str = field(default="camera_link", validator=_warn_if_optical_frame)
-    depth: str = field(default="camera_depth_link", validator=_warn_if_optical_frame)
-    point_cloud: str = field(default="point_cloud_link")
 
 
 @define(kw_only=True)
@@ -196,10 +129,6 @@ class ComponentConfig(BaseComponentConfig):
       - RobotConfig, `RobotConfig()`
       - Robot configuration parameters. See [RobotConfig](#kompass.config.RobotConfig) class for details.
 
-    * - **frames**
-      - RobotFrames, `RobotFrames()`
-      - Robot TF frames configuration. See [RobotFrames](#kompass.config.RobotFrames) class for details.
-
     * - **topic_subscription_timeout**
       - float, `20.0`
       - Timeout when waiting for an input topic to become available (s)
@@ -220,9 +149,6 @@ class ComponentConfig(BaseComponentConfig):
 
     # Robot config
     robot: RobotConfig = field(default=Factory(RobotConfig))
-
-    # Robot Frames
-    frames: RobotFrames = field(default=Factory(RobotFrames))
 
     topic_subscription_timeout: float = field(
         default=5.0, validator=BaseValidators.in_range(min_value=1e-3, max_value=1e9)
