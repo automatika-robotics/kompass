@@ -975,7 +975,7 @@ class Controller(Component):
         # INIT PATH CONTROLLER
         self._robot = Robot(
             robot_type=self.config.robot.model_type,
-            geometry_type=self.config.robot.geometry_type,
+            geometry_type=self.robot_geometry_type,
             geometry_params=self.config.robot.geometry_params,
             state=self.robot_state or RobotState(),
         )

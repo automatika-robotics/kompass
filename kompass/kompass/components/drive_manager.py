@@ -6,7 +6,8 @@ from attrs import define, field
 from functools import partial
 from geometry_msgs.msg import Twist
 from kompass_core.datatypes import LaserScanData, PointCloudData
-from kompass_core.models import RobotGeometry, RobotState, RobotType
+from kompass_core.models import RobotGeometry, RobotState
+from ..robot import RobotType
 from kompass_interfaces.msg import TwistArray
 from kompass_cpp.types import SensorInputType, PointFieldType
 
@@ -242,11 +243,11 @@ class DriveManager(Component):
         self._cmds_queue: Queue = Queue()
 
         self.robot_radius = RobotGeometry.get_radius(
-            self.config.robot.geometry_type, self.config.robot.geometry_params
+            self.robot_geometry_type, self.config.robot.geometry_params
         )
 
         self.robot_height = RobotGeometry.get_height(
-            self.config.robot.geometry_type, self.config.robot.geometry_params
+            self.robot_geometry_type, self.config.robot.geometry_params
         )
 
         if not self.robot_radius:
@@ -1160,9 +1161,7 @@ class DriveManager(Component):
 
         self.get_logger().info("Got Proximity Sensor TF...")
 
-        robot_shape = RobotGeometry.Type.to_kompass_cpp_lib(
-            self.config.robot.geometry_type
-        )
+        robot_shape = RobotGeometry.Type.to_kompass_cpp_lib(self.robot_geometry_type)
         robot_dimensions = self.config.robot.geometry_params
 
         # Get laserscan data to initialize the GPU based checker

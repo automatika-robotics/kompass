@@ -85,13 +85,19 @@ class Planner(Component):
     ```python
         from kompass.components import Planner, PlannerConfig
         from kompass.config import ComponentRunType
-        from kompass_core.models import RobotType, Robot, LinearCtrlLimits, AngularCtrlLimits
+        from kompass.robot import (
+            RobotConfig,
+            RobotType,
+            RobotGeometryType,
+            LinearCtrlLimits,
+            AngularCtrlLimits,
+        )
         import numpy as np
 
         # Configure your robot
         my_robot = RobotConfig(
                     model_type=RobotType.DIFFERENTIAL_DRIVE,
-                    geometry_type=RobotGeometry.Type.CYLINDER,
+                    geometry_type=RobotGeometryType.CYLINDER,
                     geometry_params=np.array([0.1, 0.3]),
                     ctrl_vx_limits=LinearCtrlLimits(max_vel=1.0, max_acc=1.5, max_decel=2.5),
                     ctrl_omega_limits=AngularCtrlLimits(
@@ -253,7 +259,7 @@ class Planner(Component):
 
         self.__robot = Robot(
             robot_type=self.config.robot.model_type,
-            geometry_type=self.config.robot.geometry_type,
+            geometry_type=self.robot_geometry_type,
             geometry_params=self.config.robot.geometry_params,
         )
 

@@ -197,7 +197,7 @@ class MapServer(Component):
         self._grid_res: Optional[float] = None
         self._grid_origin: Optional[Pose] = None
         self.robot_height = RobotGeometry.get_height(
-            self.config.robot.geometry_type, self.config.robot.geometry_params
+            self.robot_geometry_type, self.config.robot.geometry_params
         )
 
     def create_all_timers(self):
