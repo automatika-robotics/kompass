@@ -156,6 +156,7 @@ class Planner(Component):
                 ComponentRunType.TIMED,
                 ComponentRunType.ACTION_SERVER,
                 ComponentRunType.EVENT,
+                ComponentRunType.SERVER,
             ],
             **kwargs,
         )
