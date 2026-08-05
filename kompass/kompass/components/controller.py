@@ -12,8 +12,8 @@ from nav_msgs.msg import Path
 from geometry_msgs.msg import PoseStamped
 
 # KOMPASS
-from kompass_core.models import Robot, RobotCtrlLimits, RobotState
-from kompass_core.datatypes import LaserScanData, PointCloudData
+from kompass_core.models import Robot, RobotState
+from ros_sugar.io import LaserScanData, PointCloudData
 from kompass_core.utils.geometry import from_euler_to_quaternion
 from kompass_core.control import (
     ControlClasses,
@@ -970,11 +970,7 @@ class Controller(Component):
         )
 
         # SET robot control limits
-        self._robot_ctr_limits = RobotCtrlLimits(
-            vx_limits=self.robot.ctrl_vx_limits,
-            vy_limits=self.robot.ctrl_vy_limits,
-            omega_limits=self.robot.ctrl_omega_limits,
-        )
+        self._robot_ctr_limits = self.robot_ctrl_limits
 
         self._reached_end = False
         self._lat_dist_error: float = 0.0
@@ -1110,15 +1106,19 @@ class Controller(Component):
             )
             return PathControlStatus.WAITING_INPUTS
 
-        laser_scan = None
-        point_cloud = None
+        ranges = None
+        angles = None
+        points = None
         local_map = None
 
         if self.direct_sensor:
             if isinstance(self.sensor_data, LaserScanData):
-                laser_scan = self.sensor_data
-            else:
-                point_cloud = self.sensor_data
+                ranges = self.sensor_data.ranges
+                angles = self.sensor_data.angles
+            elif isinstance(self.sensor_data, PointCloudData):
+                # The controller works on cartesian obstacle points, decoded
+                # from the raw buffer by the container and cached there
+                points = self.sensor_data.xyz
         else:
             local_map = self.local_map
 
@@ -1128,8 +1128,9 @@ class Controller(Component):
 
         cmd_found: bool = self._path_controller.loop_step(
             current_state=self.robot_state,  # type: ignore
-            laser_scan=laser_scan,
-            point_cloud=point_cloud,
+            ranges=ranges,
+            angles=angles,
+            points=points,
             local_map=local_map,
             local_map_resolution=getattr(self, "local_map_resolution", None),
             debug=self.config.debug,
