@@ -1,6 +1,5 @@
-# The robot description lives in Sugarcoat; kompass_core keeps the runtime
-# types that wrap the C++ library (control limits adapter, geometry math).
-from kompass_core.models import RobotCtrlLimits, RobotGeometry
+# The robot description a recipe declares.
+
 from .config import (
     RobotConfig,
     RobotFrames,
@@ -14,8 +13,6 @@ from .config import (
 __all__ = [
     "RobotConfig",
     "RobotFrames",
-    "RobotCtrlLimits",
-    "RobotGeometry",
     "RobotType",
     "RobotGeometryType",
     "LinearCtrlLimits",
