@@ -75,7 +75,6 @@ def make_path_controller_stub(**overrides) -> Controller:
     c.config.topic_subscription_timeout = 0.01
     c.config.loop_rate = 1000.0
     c.config.debug = False
-    c.config.prediction_horizon = 1.0
     # The algorithm setter on the real config is a converter; stub the enum directly
     from kompass_core.control import ControllersID
     c.config.algorithm = ControllersID.DWA
