@@ -12,7 +12,7 @@ from nav_msgs.msg import OccupancyGrid
 from geometry_msgs.msg import Pose
 import sensor_msgs_py.point_cloud2 as pc2
 from kompass_core.models import RobotGeometry
-from kompass_core.datatypes import get_occupancy_grid_from_pcd, get_points_from_pcd
+from kompass_core.utils import get_occupancy_grid_from_pcd, get_points_from_pcd
 
 # KOMPASS ROS
 from rclpy.callback_groups import ReentrantCallbackGroup
