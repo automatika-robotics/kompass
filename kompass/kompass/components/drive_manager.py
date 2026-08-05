@@ -478,9 +478,11 @@ class DriveManager(Component):
             self.get_publisher(TopicsKeys.FINAL_COMMAND).publish([0.0, 0.0, 0.0])
             return
         # Publish command with slowdown
-        self.get_publisher(TopicsKeys.FINAL_COMMAND).publish(
-            [vx_out * slowdown_val, vy_out * slowdown_val, omega_out * slowdown_val]
-        )
+        self.get_publisher(TopicsKeys.FINAL_COMMAND).publish([
+            vx_out * slowdown_val,
+            vy_out * slowdown_val,
+            omega_out * slowdown_val,
+        ])
 
     def execute_cmd_closed_loop(self, output: Twist, max_time: float):
         """Execute a control command in closed loop
@@ -528,25 +530,27 @@ class DriveManager(Component):
             self._publish_cmd(vx_out, vy_out, omega_out)
             time.sleep(_step)
 
-    @component_action(description={
-        "type": "function",
-        "function": {
-            "name": "move_forward",
-            "description": "Move the robot forward by a given distance while checking for obstacles. "
-            "The robot will stop early if an obstacle is detected in the forward direction. "
-            "Use when the user asks the robot to move forward, advance, or go straight ahead.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "max_distance": {
-                        "type": "number",
-                        "description": "Distance to move forward in meters. Map user instructions like 'move forward 1 meter' to max_distance=1.0.",
+    @component_action(
+        description={
+            "type": "function",
+            "function": {
+                "name": "move_forward",
+                "description": "Move the robot forward by a given distance while checking for obstacles. "
+                "The robot will stop early if an obstacle is detected in the forward direction. "
+                "Use when the user asks the robot to move forward, advance, or go straight ahead.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "max_distance": {
+                            "type": "number",
+                            "description": "Distance to move forward in meters. Map user instructions like 'move forward 1 meter' to max_distance=1.0.",
+                        },
                     },
+                    "required": ["max_distance"],
                 },
-                "required": ["max_distance"],
             },
-        },
-    })
+        }
+    )
     def move_forward(self, max_distance: float, **_) -> bool:
         """Moves the robot forward if the forward direction is clear of obstacles
 
@@ -600,25 +604,27 @@ class DriveManager(Component):
         # Return true if unblocking forward is done
         return traveled_distance >= max_distance
 
-    @component_action(description={
-        "type": "function",
-        "function": {
-            "name": "move_backward",
-            "description": "Move the robot backward by a given distance while checking for obstacles behind it. "
-            "The robot will stop early if an obstacle is detected in the backward direction. "
-            "Use when the user asks the robot to move back, reverse, or go backwards.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "max_distance": {
-                        "type": "number",
-                        "description": "Distance to move backward in meters. Map user instructions like 'go back 0.5 meters' to max_distance=0.5.",
+    @component_action(
+        description={
+            "type": "function",
+            "function": {
+                "name": "move_backward",
+                "description": "Move the robot backward by a given distance while checking for obstacles behind it. "
+                "The robot will stop early if an obstacle is detected in the backward direction. "
+                "Use when the user asks the robot to move back, reverse, or go backwards.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "max_distance": {
+                            "type": "number",
+                            "description": "Distance to move backward in meters. Map user instructions like 'go back 0.5 meters' to max_distance=0.5.",
+                        },
                     },
+                    "required": ["max_distance"],
                 },
-                "required": ["max_distance"],
             },
-        },
-    })
+        }
+    )
     def move_backward(self, max_distance: float, **_) -> bool:
         """Moves the robot backwards if the backward direction is clear of obstacles
 
@@ -671,31 +677,33 @@ class DriveManager(Component):
         # Return true if unblocking forward is done
         return traveled_distance >= max_distance
 
-    @component_action(description={
-        "type": "function",
-        "function": {
-            "name": "rotate_in_place",
-            "description": "Rotate the robot in place by a given angle. Checks that the area around the robot is clear before rotating. "
-            "Will not work for Ackermann-type robots (car-like steering). "
-            "Use when the user asks the robot to turn, rotate, spin, or face a different direction.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "max_rotation": {
-                        "type": "number",
-                        "description": "Maximum rotation angle in radians. Convert user requests from degrees to radians "
-                        "(e.g. 'turn 90 degrees' -> max_rotation=1.5708). Positive values rotate counter-clockwise.",
+    @component_action(
+        description={
+            "type": "function",
+            "function": {
+                "name": "rotate_in_place",
+                "description": "Rotate the robot in place by a given angle. Checks that the area around the robot is clear before rotating. "
+                "Will not work for Ackermann-type robots (car-like steering). "
+                "Use when the user asks the robot to turn, rotate, spin, or face a different direction.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "max_rotation": {
+                            "type": "number",
+                            "description": "Maximum rotation angle in radians. Convert user requests from degrees to radians "
+                            "(e.g. 'turn 90 degrees' -> max_rotation=1.5708). Positive values rotate counter-clockwise.",
+                        },
+                        "safety_margin": {
+                            "type": "number",
+                            "description": "Minimum clearance around the robot in meters required to perform the rotation. "
+                            "Defaults to 5% of the robot radius if not specified.",
+                        },
                     },
-                    "safety_margin": {
-                        "type": "number",
-                        "description": "Minimum clearance around the robot in meters required to perform the rotation. "
-                        "Defaults to 5% of the robot radius if not specified.",
-                    },
+                    "required": ["max_rotation"],
                 },
-                "required": ["max_rotation"],
             },
-        },
-    })
+        }
+    )
     def rotate_in_place(
         self, max_rotation: float, safety_margin: Optional[float] = None, **_
     ) -> bool:
@@ -763,9 +771,11 @@ class DriveManager(Component):
             if slowdown_factor == 0.0:
                 unblocking = False
             else:
-                self.get_publisher(TopicsKeys.FINAL_COMMAND).publish(
-                    [0.0, 0.0, self.robot.ctrl_omega_limits.max_vel / 2]
-                )
+                self.get_publisher(TopicsKeys.FINAL_COMMAND).publish([
+                    0.0,
+                    0.0,
+                    self.robot.ctrl_omega_limits.max_vel / 2,
+                ])
                 traveled_radius += self.robot.ctrl_omega_limits.max_vel / (
                     2 * self.config.loop_rate
                 )
@@ -774,45 +784,47 @@ class DriveManager(Component):
         # Return true if unblocking forward is done
         return traveled_radius >= max_rotation
 
-    @component_action(description={
-        "type": "function",
-        "function": {
-            "name": "move_to_unblock",
-            "description": "Attempt to free the robot when it is stuck or blocked by obstacles. "
-            "Tries moving forward first, then backward, then rotating in place until one succeeds. "
-            "Requires sensor data (LaserScan or PointCloud) to check surroundings. "
-            "Use when the robot is stuck, blocked, or unable to proceed along its path.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "max_distance_forward": {
-                        "type": "number",
-                        "description": "Maximum forward distance to try in meters. Defaults to 2x the robot radius.",
+    @component_action(
+        description={
+            "type": "function",
+            "function": {
+                "name": "move_to_unblock",
+                "description": "Attempt to free the robot when it is stuck or blocked by obstacles. "
+                "Tries moving forward first, then backward, then rotating in place until one succeeds. "
+                "Requires sensor data (LaserScan or PointCloud) to check surroundings. "
+                "Use when the robot is stuck, blocked, or unable to proceed along its path.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "max_distance_forward": {
+                            "type": "number",
+                            "description": "Maximum forward distance to try in meters. Defaults to 2x the robot radius.",
+                        },
+                        "max_distance_backwards": {
+                            "type": "number",
+                            "description": "Maximum backward distance to try in meters. Defaults to 2x the robot radius.",
+                        },
+                        "max_rotation": {
+                            "type": "number",
+                            "description": "Maximum rotation angle to try in radians. Defaults to pi/2 (~90 degrees).",
+                        },
+                        "rotation_safety_margin": {
+                            "type": "number",
+                            "description": "Clearance required around the robot to attempt rotation in meters. Defaults to 5% of robot radius.",
+                        },
                     },
-                    "max_distance_backwards": {
-                        "type": "number",
-                        "description": "Maximum backward distance to try in meters. Defaults to 2x the robot radius.",
-                    },
-                    "max_rotation": {
-                        "type": "number",
-                        "description": "Maximum rotation angle to try in radians. Defaults to pi/2 (~90 degrees).",
-                    },
-                    "rotation_safety_margin": {
-                        "type": "number",
-                        "description": "Clearance required around the robot to attempt rotation in meters. Defaults to 5% of robot radius.",
-                    },
+                    "required": [],
                 },
-                "required": [],
             },
-        },
-    })
+        }
+    )
     def move_to_unblock(
         self,
         max_distance_forward: Optional[float] = None,
         max_distance_backwards: Optional[float] = None,
         max_rotation: float = np.pi / 2,
         rotation_safety_margin: Optional[float] = None,
-        **_
+        **_,
     ) -> bool:
         """Moves the robot forward/backward or rotate in place to get out of blocking spots
 
@@ -1110,7 +1122,9 @@ class DriveManager(Component):
             self.get_publisher(TopicsKeys.EMERGENCY).publish(False)
 
         if speed_factor == 0.0:
-            self.get_logger().warning("Emergency stop is ON, no commands will be executed")
+            self.get_logger().warning(
+                "Emergency stop is ON, no commands will be executed"
+            )
             return
 
         # Publish commands in the queue
@@ -1198,6 +1212,10 @@ class DriveManager(Component):
                 f"'{type(self.sensor_data).__name__}' -> Safety Stop is disabled!"
             )
             self._emergency_checker = None
+            # Set failure based on the fact that the spatial sensor is not providing valid data
+            self.health_status.set_fail_system(
+                topic_names=[self.in_topic_name(TopicsKeys.SPATIAL_SENSOR)]
+            )
             return
 
         if self.config.use_gpu:
