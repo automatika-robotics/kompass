@@ -99,33 +99,32 @@ def _get_allowed_number(
 def update_topics(
     topics_dict: Dict[TopicsKeys, Union[Topic, List[Topic], None]], **kwargs
 ) -> Dict[TopicsKeys, Union[Topic, List[Topic], None]]:
-    """Update a dictionary of topics given keyword arguments
+    """Get a new dictionary of topics updated with the given keyword arguments
+
+    The given dictionary is left unchanged
 
     :param topics_dict: Topic dictionary {topic_key_name: Topic}
     :type topics_dict: Dict[str, Topic]
     :return: Updated topics
     :rtype: Dict[str, Topic]
     """
-    if "allowed_config" in kwargs.keys():
-        allowed_config = kwargs["allowed_config"]
-        kwargs.pop("allowed_config")
-        # try:
-        for key, value in kwargs.items():
-            try:
-                topic_key = TopicsKeys(key)
-            except ValueError as e:
-                raise ValueError(
-                    f"Error updating topics: '{key}' is not a valid topic key. Allowed keys are: {list(allowed_config.keys())}"
-                ) from e
-            if _get_allowed_number(topic_key, value, allowed_config):
-                topics_dict[topic_key] = value
-    else:
-        for key, value in kwargs.items():
-            try:
-                topic_key = TopicsKeys(key)
-            except ValueError as e:
-                raise ValueError(
-                    f"Error updating topics: '{key}' is not a valid topic key. Allowed keys are: {list(allowed_config.keys())}"
-                ) from e
-            topics_dict[topic_key] = value
-    return topics_dict
+    allowed_config = kwargs.pop("allowed_config", None)
+    allowed_keys = (
+        list(allowed_config.keys()) if allowed_config else list(TopicsKeys)
+    )
+    # Copy the given topics (along with any list values) to keep it unchanged
+    updated_dict = {
+        key: list(value) if isinstance(value, list) else value
+        for key, value in topics_dict.items()
+    }
+    for key, value in kwargs.items():
+        try:
+            topic_key = TopicsKeys(key)
+        except ValueError as e:
+            raise ValueError(
+                f"Error updating topics: '{key}' is not a valid topic key. Allowed keys are: {allowed_keys}"
+            ) from e
+        if allowed_config and not _get_allowed_number(topic_key, value, allowed_config):
+            continue
+        updated_dict[topic_key] = value
+    return updated_dict

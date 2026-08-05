@@ -2,7 +2,7 @@ import time
 import json
 from typing import Dict, List, Optional, Union, Tuple
 from ros_sugar.core import ComponentFallbacks, BaseComponent
-from ros_sugar.tf import TFListener, TFListenerConfig
+from ros_sugar.tf import TFListener
 from ros_sugar.io import Publisher, AllowedTopics
 
 from ..callbacks import GenericCallback
@@ -11,6 +11,16 @@ from .ros import Topic, update_topics
 from itertools import groupby
 from .defaults import TopicsKeys
 from kompass_core import set_logging_level
+
+# The runtime counterparts of the robot description: the C++ library defines
+# these, the description in Sugarcoat declares them, and this module is where
+# the two are matched up
+from kompass_core.models import (
+    AngularCtrlLimits as CoreAngularCtrlLimits,
+    LinearCtrlLimits as CoreLinearCtrlLimits,
+    RobotCtrlLimits,
+    RobotGeometry,
+)
 
 
 def _parse_from_topics_dict(
@@ -205,9 +215,22 @@ class Component(BaseComponent):
         """
         Getter of robot config
 
+        Every Kompass component reasons about the robot's body -- its size for
+        collision checking, its velocity envelope for control -- so a missing
+        robot config is an error rather than something to default around.
+
         :return: Robot configuration
         :rtype: RobotConfig
+        :raises ValueError: If no robot configuration has been set
         """
+        if self.config.robot is None:
+            raise ValueError(
+                f"Component '{self.node_name}' requires a robot configuration but "
+                "none is set. Provide one in the recipe, either for the whole stack "
+                "with 'launcher.robot = RobotConfig(...)', for this component with "
+                f"'{self.node_name}.config.robot = RobotConfig(...)', or by attaching "
+                "a robot plugin that supplies it."
+            )
         return self.config.robot
 
     @robot.setter
@@ -219,6 +242,51 @@ class Component(BaseComponent):
         :type config: RobotConfig
         """
         self.config.robot = config
+
+    @property
+    def robot_geometry_type(self) -> RobotGeometry.Type:
+        """
+        Getter of the robot geometry as the type the algorithms take
+
+        The description carries the geometry as a plain name, since Sugarcoat
+        does no geometry math. The algorithms take the type the C++ library
+        defines, so convert on the way in.
+
+        :return: Robot geometry type
+        :rtype: RobotGeometry.Type
+        """
+        return RobotGeometry.from_str(self.robot.geometry_type)
+
+    @property
+    def robot_ctrl_limits(self) -> RobotCtrlLimits:
+        """
+        Getter of the robot velocity envelope as the type the algorithms take
+
+        Counterpart of ``robot_geometry_type`` for the control limits: the
+        description declares them, the C++ library enforces them, and this is
+        the one place the two are matched up.
+
+        :return: Robot control limits
+        :rtype: RobotCtrlLimits
+        """
+        return RobotCtrlLimits(
+            vx_limits=CoreLinearCtrlLimits(
+                max_vel=self.robot.ctrl_vx_limits.max_vel,
+                max_acc=self.robot.ctrl_vx_limits.max_acc,
+                max_decel=self.robot.ctrl_vx_limits.max_decel,
+            ),
+            vy_limits=CoreLinearCtrlLimits(
+                max_vel=self.robot.ctrl_vy_limits.max_vel,
+                max_acc=self.robot.ctrl_vy_limits.max_acc,
+                max_decel=self.robot.ctrl_vy_limits.max_decel,
+            ),
+            omega_limits=CoreAngularCtrlLimits(
+                max_omega=self.robot.ctrl_omega_limits.max_vel,
+                max_ang=self.robot.ctrl_omega_limits.max_steer,
+                max_acc=self.robot.ctrl_omega_limits.max_acc,
+                max_decel=self.robot.ctrl_omega_limits.max_decel,
+            ),
+        )
 
     @property
     def run_type(self) -> ComponentRunType:
@@ -446,81 +514,70 @@ class Component(BaseComponent):
 
     @property
     def odom_tf_listener(self) -> Optional[TFListener]:
-        """Gets a transform listener for Odometry (from odom to world)
+        """Gets a transform listener from the robot location frame to the world.
 
-        :return:
-        :rtype: TFListener
+        The localization frame is not configured: it is read from the
+        ``header.frame_id`` of the location messages, so this is None until the
+        first one arrives. When the robot is already localized in the world
+        frame the lookup resolves to the identity transform, so "no odometry"
+        needs no special case.
+
+        :return: TF listener from the location frame to the world frame
+        :rtype: Optional[TFListener]
         """
-        if not hasattr(self, "_odom_tf_listener"):
-            if self.config.frames.odom != self.config.frames.world:
-                self._odom_tf_listener = self.get_transform_listener(
-                    source_frame=self.config.frames.odom,
-                    goal_frame=self.config.frames.world,
-                )
-            else:
-                self._odom_tf_listener = None
-        return self._odom_tf_listener
+        return self.input_tf_listener(
+            TopicsKeys.ROBOT_LOCATION, self.config.frames.world
+        )
 
-    @property
-    def scan_tf_listener(self) -> TFListener:
-        """Gets a transform listener for LaserScan (from scan to robot base)
+    def transform_inputs_to(
+        self, topic_key: TopicsKeys, goal_frame: str, static_tf: bool = False
+    ) -> None:
+        """Ask for every input under a key to be delivered in a given frame.
 
-        :return:
-        :rtype: TFListener
-        """
-        if not hasattr(self, "_scan_tf_listener"):
-            self._scan_tf_listener = self.get_transform_listener(
-                source_frame=self.config.frames.scan,
-                goal_frame=self.config.frames.robot_base,
-                static_tf=True,
-            )
-        return self._scan_tf_listener
+        Handles keys bound to several topics (such as multiple proximity
+        sensors), each of which carries its own source frame in its messages.
 
-    @property
-    def depth_tf_listener(self) -> TFListener:
-        """Gets a transform listener for LaserScan (from scan to robot base)
-
-        :return:
-        :rtype: TFListener
-        """
-        if not hasattr(self, "_depth_tf_listener"):
-            self._depth_tf_listener = self.get_transform_listener(
-                source_frame=self.config.frames.depth,
-                goal_frame=self.config.frames.robot_base,
-                static_tf=True,
-            )
-        return self._depth_tf_listener
-
-    @property
-    def pc_tf_listener(self) -> TFListener:
-        """Gets a transform listener for LaserScan (from scan to robot base)
-
-        :return:
-        :rtype: TFListener
-        """
-        if not hasattr(self, "_pc_tf_listener"):
-            self._pc_tf_listener = self.get_transform_listener(
-                source_frame=self.config.frames.point_cloud,
-                goal_frame=self.config.frames.robot_base,
-                static_tf=True,
-            )
-        return self._pc_tf_listener
-
-    def get_transform_listener(self, **kwargs) -> TFListener:
-        """Gets a transform listener
-
-        :param src_frame: Source coordinates frame
-        :type src_frame: str
-        :param goal_frame: Goal coordinates frame
+        :param topic_key: Key of the component input topic(s)
+        :type topic_key: TopicsKeys
+        :param goal_frame: Frame the data should be expressed in
         :type goal_frame: str
-
-        :return: TF listener object
-        :rtype: TFListener
+        :param static_tf: Whether the sensors are rigidly mounted
+        :type static_tf: bool
         """
-        # Configure transform source and goal frames
-        tf_config = TFListenerConfig(**kwargs)
-        tf_listener: TFListener = self.create_tf_listener(tf_config)
-        return tf_listener
+        names = self.in_topic_name(topic_key)
+        if not names:
+            return
+        for name in names if isinstance(names, list) else [names]:
+            self.transform_input_to(name, goal_frame, static_tf=static_tf)
+
+    def input_tf_listener(
+        self, topic_key: TopicsKeys, goal_frame: str, static_tf: bool = False
+    ) -> Optional[TFListener]:
+        """Gets a transform listener from an input's own frame to a given frame.
+
+        The source frame is not configured anywhere: it is read from the
+        ``header.frame_id`` of the data itself. This is the counterpart of
+        ``transform_input_to``, for algorithms that need the transform (its
+        translation and rotation) rather than transformed data.
+
+        :param topic_key: Key of the component input topic
+        :type topic_key: TopicsKeys
+        :param goal_frame: Frame to transform into, usually one of ``config.frames``
+        :type goal_frame: str
+        :param static_tf: Whether the sensor is rigidly mounted
+        :type static_tf: bool
+
+        :return: TF listener, or None until the first message on that input
+            arrives. Data already in the goal frame yields a listener that
+            resolves to the identity transform.
+        :rtype: Optional[TFListener]
+        """
+        callback = self.get_callback(topic_key)
+        if not callback or not callback.frame_id:
+            return None
+        return self.get_transform_listener(
+            callback.frame_id, goal_frame, static_tf=static_tf
+        )
 
     def _wait_for_tf(self, tf_listener: TFListener, description: str = "") -> bool:
         """Block up to ``config.topic_subscription_timeout`` waiting for a

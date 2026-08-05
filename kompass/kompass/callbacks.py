@@ -7,17 +7,10 @@ from ros_sugar.io import GenericCallback, OccupancyGridCallback
 from ros_sugar.io import OdomCallback as BaseOdomCallback
 from ros_sugar.io import PointCallback as BasePointCallback
 from ros_sugar.io import PoseCallback as BasePoseCallback
-from ros_sugar.io import get_logger
-from kompass_core.datatypes import (
-    LaserScanData,
-    PointCloudData,
-)
-from kompass_core.utils import geometry as GeometryUtils
+from ros_sugar.io import LaserScanCallback, PointCloudCallback
 from kompass_core.models import RobotState
-from kompass_cpp.types import PointFieldType
 
 from nav_msgs.msg import Odometry
-from sensor_msgs.msg import LaserScan
 from tf2_ros import TransformStamped
 from geometry_msgs.msg import Point, Pose
 
@@ -35,6 +28,7 @@ __all__ = [
     "PoseCallback",
     "PoseStampedCallback",
     "LaserScanCallback",
+    "PointCloudCallback",
     "OccupancyGridCallback",
     "TrackingsCallback",
     "DetectionsCallback",
@@ -389,195 +383,6 @@ class CameraInfoCallback(GenericCallback):
             "focal_length": np.array([cam_intrinsics[0], cam_intrinsics[4]]),
             "principal_point": np.array([cam_intrinsics[2], cam_intrinsics[5]]),
         }
-
-
-class LaserScanCallback(GenericCallback):
-    """ROS2 LaserScan Callback Handler to process and transform sensor_msgs/LaserScan data"""
-
-    def __init__(
-        self,
-        input_topic,
-        node_name: Optional[str] = None,
-        transformation: Optional[TransformStamped] = None,
-    ) -> None:
-        """__init__.
-
-        :param input_topic:
-        :param node_name:
-        :type node_name: Optional[str]
-        :param transformation:
-        :type transformation: Optional[TransformStamped]
-        :rtype: None
-        """
-        super().__init__(input_topic, node_name)
-        self.__tf = transformation
-
-    @property
-    def transformation(self) -> Optional[TransformStamped]:
-        """Getter of the laserscan transformation
-
-        :return: Frame transformation
-        :rtype: Optional[TransformStamped]
-        """
-        return self.__tf
-
-    @transformation.setter
-    def transformation(self, transform: TransformStamped):
-        """
-        Sets a new transformation value
-
-        :param transform: Detected transform from source to desired goal frame
-        :type transform: TransformStamped
-        """
-        self.__tf = transform
-
-    def _get_output(
-        self,
-        transformation: Optional[TransformStamped] = None,
-        **_,
-    ) -> Optional[LaserScanData]:
-        """
-        Gets the laserscan data by applying the transformation if given.
-        :returns:   Topic content
-        :rtype:     Optional[LaserScanData]
-        """
-        if not self.msg:
-            return None
-        if transformation or self.transformation:
-            laser_scan_data = self._transform(
-                self.msg, transformation or self.transformation
-            )
-        else:
-            laser_scan_data = self._process(self.msg)
-
-        return laser_scan_data
-
-    def _process(self, msg: LaserScan) -> LaserScanData:
-        """
-        Takes LaserScan ROS message and converts it to LaserScanData
-        :return: LaserScanData
-        """
-        _no_nan_ranges = np.nan_to_num(msg.ranges, nan=msg.range_max)
-        ranges = _no_nan_ranges.clip(min=0.0, max=msg.range_max)
-
-        return LaserScanData(
-            angle_min=msg.angle_min,
-            angle_max=msg.angle_max,
-            angle_increment=msg.angle_increment,
-            time_increment=msg.time_increment,
-            scan_time=msg.scan_time,
-            range_min=msg.range_min,
-            range_max=msg.range_max,
-            ranges=ranges,
-            intensities=np.array(msg.intensities),
-        )
-
-    def _transform(self, msg: LaserScan, transform: TransformStamped) -> LaserScanData:
-        """
-        Applies a transform to a given LaserScan message and converts it to LaserScanData
-
-        :param msg: LaserScan message in source frame
-        :type msg: LaserScan
-        :param transform: LaserScan transform from current to goal frame
-        :type transform: TransformStamped
-
-        :return: LaserScanData in goal frame
-        :rtype: LaserScanData
-        """
-        laserscan_transformed = LaserScanData()
-
-        trans = transform.transform.translation
-        quat = transform.transform.rotation
-
-        _no_nan_ranges = np.nan_to_num(msg.ranges, nan=msg.range_max)
-        ranges = _no_nan_ranges.clip(min=0.0, max=msg.range_max)
-
-        # Get the transformed laser scan data
-        laserscan_transformed = (
-            GeometryUtils.get_laserscan_transformed_polar_coordinates(
-                angle_min=msg.angle_min,
-                angle_max=msg.angle_max,
-                angle_increment=msg.angle_increment,
-                laser_scan_ranges=ranges,
-                max_scan_range=msg.range_max,
-                translation=[trans.x, trans.y, trans.z],
-                rotation=[quat.x, quat.y, quat.z, quat.w],
-            )
-        )
-
-        laserscan_transformed.time_increment = msg.time_increment
-        laserscan_transformed.scan_time = msg.scan_time
-
-        return laserscan_transformed
-
-
-class PointCloudCallback(GenericCallback):
-    """ROS2 PointCloud Callback Handler to process and transform sensor_msgs/PointCloud2 data"""
-
-    def __init__(
-        self,
-        input_topic,
-        node_name: Optional[str] = None,
-    ) -> None:
-        """__init__.
-
-        :param input_topic:
-        :param node_name:
-        :type node_name: Optional[str]
-        :rtype: None
-        """
-        super().__init__(input_topic, node_name)
-        self.__x_field_datatype: Optional[PointFieldType] = None
-
-    @property
-    def field_type(self) -> Optional[PointFieldType]:
-        """Getter of the point cloud fields datatype (from the X field)
-
-        :return: Data type
-        :rtype: Optional[PointFieldType]
-        """
-        return self.__x_field_datatype
-
-    def _get_output(
-        self,
-        **_,
-    ) -> Optional[PointCloudData]:
-        """Gets the PointCloud2 message data in 2D or 3D by applying the transformation if given.
-
-        :return: Return PointCloudData
-        :rtype: Optional[PointCloudData]
-        """
-        if not self.msg:
-            return None
-
-        if self.msg.is_bigendian:
-            raise TypeError("Bigendian data is not supported")
-
-        pc = PointCloudData(
-            point_step=self.msg.point_step,
-            row_step=self.msg.row_step,
-            data=np.array(self.msg.data, dtype=np.int8),
-            height=self.msg.height,
-            width=self.msg.width,
-        )
-
-        for field in self.msg.fields:
-            if field.name == "x":
-                pc.x_offset = field.offset
-                # Get the x field point type
-                self.__x_field_datatype = PointFieldType.from_int(field.datatype)
-            elif field.name == "y":
-                pc.y_offset = field.offset
-            elif field.name == "z":
-                pc.z_offset = field.offset
-
-        if pc.x_offset is None or pc.y_offset is None or pc.z_offset is None:
-            get_logger(self.node_name).warning(
-                "Offsets for x, y, z are not found, point cloud data is null"
-            )
-            return None
-
-        return pc
 
 
 class TwistStampedCallback(GenericCallback):

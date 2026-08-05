@@ -25,7 +25,7 @@ from ..config import BaseValidators, ComponentConfig, ComponentRunType
 from ..data_types import Path as KompassPath
 from ..callbacks import PointsOfInterestCallback, DetectionsCallback
 from .ros import Topic, update_topics, ActionClientHandler
-from .component import Component
+from .component import Component, TFListener
 from .defaults import (
     TopicsKeys,
     planner_allowed_inputs,
@@ -85,13 +85,19 @@ class Planner(Component):
     ```python
         from kompass.components import Planner, PlannerConfig
         from kompass.config import ComponentRunType
-        from kompass_core.models import RobotType, Robot, LinearCtrlLimits, AngularCtrlLimits
+        from kompass.robot import (
+            RobotConfig,
+            RobotType,
+            RobotGeometryType,
+            LinearCtrlLimits,
+            AngularCtrlLimits,
+        )
         import numpy as np
 
         # Configure your robot
         my_robot = RobotConfig(
                     model_type=RobotType.DIFFERENTIAL_DRIVE,
-                    geometry_type=RobotGeometry.Type.CYLINDER,
+                    geometry_type=RobotGeometryType.CYLINDER,
                     geometry_params=np.array([0.1, 0.3]),
                     ctrl_vx_limits=LinearCtrlLimits(max_vel=1.0, max_acc=1.5, max_decel=2.5),
                     ctrl_omega_limits=AngularCtrlLimits(
@@ -150,6 +156,7 @@ class Planner(Component):
                 ComponentRunType.TIMED,
                 ComponentRunType.ACTION_SERVER,
                 ComponentRunType.EVENT,
+                ComponentRunType.SERVER,
             ],
             **kwargs,
         )
@@ -252,9 +259,9 @@ class Planner(Component):
         self._depth_image_info: Optional[Dict] = None
 
         self.__robot = Robot(
-            robot_type=self.config.robot.model_type,
-            geometry_type=self.config.robot.geometry_type,
-            geometry_params=self.config.robot.geometry_params,
+            robot_type=self.robot.model_type,
+            geometry_type=self.robot_geometry_type,
+            geometry_params=self.robot.geometry_params,
         )
 
         # Init OMPL with collision checking
@@ -410,7 +417,7 @@ class Planner(Component):
                         msg, callback=_cb, goal_index=_idx
                     )
                 )
-        if require_cam_info and not self.got_input(TopicsKeys.DEPTH_CAM_INFO):
+        if require_cam_info and not self.in_topic_name(TopicsKeys.DEPTH_CAM_INFO):
             raise ValueError(
                 f"At least one of the goal point callbacks is a {callback.__class__.__name__} which requires depth camera info input. Please provide a topic for {TopicsKeys.DEPTH_CAM_INFO} to ensure proper functionality."
             )
@@ -711,13 +718,26 @@ class Planner(Component):
                 to_robot_state=True, robot_state=self.robot_state
             )
 
+    @property
+    def _depth_tf_listener(self) -> Optional[TFListener]:
+        """Transform listener from the depth camera frame to the robot body.
+
+        The camera frame is read from the camera info messages, so this is
+        None until the first one arrives.
+        """
+        return self.input_tf_listener(
+            TopicsKeys.DEPTH_CAM_INFO, self.config.frames.robot_base, static_tf=True
+        )
+
     def __setup_depth_detector(self) -> Optional[DepthDetector]:
         """Setup and configure a DepthDetector for usage with Vision-based goals"""
         timeout = 0.0
         # Get the depth image transform if the input is provided
         if self.in_topic_name(TopicsKeys.DEPTH_CAM_INFO):
             while (
-                not self.depth_tf_listener.got_transform or not self._depth_image_info
+                not (depth_tf := self._depth_tf_listener)
+                or not depth_tf.got_transform
+                or not self._depth_image_info
             ) and timeout <= self.config.topic_subscription_timeout:
                 # Depth image cam info
                 if not self._depth_image_info:
@@ -740,9 +760,12 @@ class Planner(Component):
             )
             return None
 
-        if not self.depth_tf_listener.got_transform:
+        depth_tf = self._depth_tf_listener
+        if not depth_tf or not depth_tf.got_transform:
             self.get_logger().error(
-                f"Could not obtain transformation between the Depth camera frame '{self.depth_tf_listener.config.source_frame}' to the robot body frame '{self.depth_tf_listener.config.goal_frame}'"
+                "Could not obtain transformation between the Depth camera frame "
+                f"'{depth_tf.config.source_frame if depth_tf else 'unknown'}' to the "
+                f"robot body frame '{self.config.frames.robot_base}'"
             )
             return None
 
@@ -758,8 +781,8 @@ class Planner(Component):
 
         return DepthDetector(
             depth_range=self.config.depth_range,
-            camera_in_body_translation=self.depth_tf_listener.translation,
-            camera_in_body_rotation=self.depth_tf_listener.rotation,
+            camera_in_body_translation=depth_tf.translation,
+            camera_in_body_rotation=depth_tf.rotation,
             focal_length=self._depth_image_info["focal_length"]
             if self._depth_image_info
             else None,

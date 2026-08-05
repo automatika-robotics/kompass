@@ -3,10 +3,9 @@ import os
 from kompass.robot import (
     AngularCtrlLimits,
     LinearCtrlLimits,
-    RobotGeometry,
+    RobotGeometryType,
     RobotType,
     RobotConfig,
-    RobotFrames,
 )
 from kompass.control import ControllersID, MapConfig
 from automatika_ros_sugar.msg import ComponentStatus
@@ -23,11 +22,13 @@ from kompass.components import (
     MapServerConfig,
     TopicsKeys,
 )
-from kompass.ros import Topic, Launcher, Event, Action, actions
+from kompass.ros import Topic, Launcher, Event, Action, actions, ServiceClientConfig
 
 from ament_index_python.packages import (
     get_package_share_directory,
 )
+
+from kompass_interfaces.srv import StartPathRecording
 
 
 def kompass_bringup():
@@ -38,7 +39,7 @@ def kompass_bringup():
     # Setup your robot configuration
     my_robot = RobotConfig(
         model_type=RobotType.DIFFERENTIAL_DRIVE,
-        geometry_type=RobotGeometry.Type.CYLINDER,
+        geometry_type=RobotGeometryType.CYLINDER,
         geometry_params=np.array([0.08, 0.3]),
         ctrl_vx_limits=LinearCtrlLimits(max_vel=0.4, max_acc=1.5, max_decel=2.5),
         ctrl_omega_limits=AngularCtrlLimits(
@@ -50,6 +51,7 @@ def kompass_bringup():
     planner_config = PlannerConfig(loop_rate=1.0)
     planner = Planner(component_name="planner", config=planner_config)
     planner.run_type = "ActionServer"  # Run the planner as an ActionServer to receive goals from the UI or other components
+
     clicked_point_topic = Topic(name="/clicked_point", msg_type="PointStamped")
     planner.inputs(goal_point=clicked_point_topic)
 
@@ -80,12 +82,12 @@ def kompass_bringup():
 
     # Configure a Local Mapper
     local_mapper_config = LocalMapperConfig(
+        loop_rate=5,
         map_params=MapConfig(
             width=4.0,
             height=4.0,
             resolution=0.1,
-            max_points_per_line=256,
-        )
+        ),
     )
     local_mapper = LocalMapper(component_name="mapper", config=local_mapper_config)
     local_mapper.inputs(sensor_data=Topic(name="/scan", msg_type="LaserScan"))
@@ -126,8 +128,8 @@ def kompass_bringup():
         args=(
             clicked_point_topic.msg.point.x,
             clicked_point_topic.msg.point.y,
-            0.05,    # Goal distance tolerance
-            0.2,   # Goal angle tolerance (in radians)
+            0.05,  # Goal distance tolerance
+            0.2,  # Goal angle tolerance (in radians)
         ),
     )
 
@@ -142,29 +144,35 @@ def kompass_bringup():
 
     # Setup the launcher
     launcher = Launcher(config_file=config_file)
-
     # Add Kompass components
     launcher.add_pkg(
         components=[map_server, controller, planner, driver, local_mapper],
         events_actions=events_actions,
         multiprocessing=True,
-        package_name="kompass"      # ROS2 package name for the Kompass components
+        package_name="kompass",  # ROS2 package name for the Kompass components
     )
 
     # Get odom from localizer filtered odom for all components
-    odom_topic = Topic(name="/odometry/filtered", msg_type="Odometry")      # Robot odometry topic published in global frame (map) by the localizer
+    odom_topic = Topic(
+        name="/odometry/filtered", msg_type="Odometry"
+    )  # Robot odometry topic published in global frame (map) by the localizer
     launcher.inputs(location=odom_topic)
 
     # Set the robot config for all components
     launcher.robot = my_robot
-    launcher.frames = RobotFrames(
-        world="map", odom="map", scan="LDS-01"
-    )
+
     # Enable the UI
     # Inputs: Planner action server
     # Outputs: Static Map, Global Plan, Robot Odometry
+    start_path_recording = ServiceClientConfig(
+        name=f"{planner.node_name}/start_path_recording", srv_type=StartPathRecording
+    )
     launcher.enable_ui(
-        inputs=[planner.ui_main_action_input],
+        inputs=[
+            planner.ui_main_action_input,
+            clicked_point_topic,
+            start_path_recording,
+        ],
         outputs=[
             map_server.get_out_topic(TopicsKeys.GLOBAL_MAP),
             odom_topic,

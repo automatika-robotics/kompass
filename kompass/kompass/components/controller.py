@@ -9,12 +9,11 @@ from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
 
 # ROS MSGS
 from nav_msgs.msg import Path
-from sensor_msgs.msg import PointCloud2
 from geometry_msgs.msg import PoseStamped
 
 # KOMPASS
-from kompass_core.models import Robot, RobotCtrlLimits, RobotState
-from kompass_core.datatypes import LaserScanData, PointCloudData
+from kompass_core.models import Robot, RobotState
+from ros_sugar.io import LaserScanData, PointCloudData
 from kompass_core.utils.geometry import from_euler_to_quaternion
 from kompass_core.control import (
     ControlClasses,
@@ -36,7 +35,6 @@ from .ros import (
     update_topics,
 )
 from ..utils import component_action
-from ..callbacks import PointCloudCallback
 
 # KOMPASS MSGS/SRVS/ACTIONS
 from .component import Component, TFListener
@@ -804,19 +802,25 @@ class Controller(Component):
         self.custom_create_all_subscribers()
         self.custom_create_all_action_servers()
 
+    @property
+    def _sensor_tf_listener(self) -> Optional[TFListener]:
+        """Transform listener from the proximity sensor frame to the robot body.
+
+        Resolved from the sensor data's own frame, so it is None until the
+        first message arrives.
+        """
+        return self.input_tf_listener(
+            TopicsKeys.SPATIAL_SENSOR, self.config.frames.robot_base, static_tf=True
+        )
+
     def _update_sensor_data(self) -> None:
         """Update sensor data from the sensor callback"""
         if self.direct_sensor:
             self.local_map = None
             sensor_callback = self.get_callback(TopicsKeys.SPATIAL_SENSOR)
+            # The sensor->body transform is applied by the callback itself
             self.sensor_data = (
-                sensor_callback.get_output(
-                    transformation=self._sensor_tf_listener.transform
-                    if self._sensor_tf_listener
-                    else None
-                )
-                if sensor_callback
-                else None
+                sensor_callback.get_output() if sensor_callback else None
             )
         else:
             self.sensor_data = None
@@ -837,10 +841,9 @@ class Controller(Component):
         if not state_callback:
             return None
         kw = {"get_front": True, "clear_last": True}
-        if self.config.frames.odom != self.config.frames.world:
-            kw["transformation"] = (
-                self.odom_tf_listener.transform if self.odom_tf_listener else None
-            )
+        kw["transformation"] = (
+            self.odom_tf_listener.transform if self.odom_tf_listener else None
+        )
         return state_callback.get_output(**kw)
 
     def _update_state(self, block: bool = True) -> None:
@@ -848,9 +851,10 @@ class Controller(Component):
         Updates node inputs from associated callbacks.
 
         :param block: If True, blocks up to ``topic_subscription_timeout`` waiting
-            for the odom->world TF when the two frames differ. Pass ``False`` from
-            fast control loops to read the latest cached transform without blocking;
-            if the TF is not yet available the update is skipped for this tick.
+            for a robot location message and then for the transform from its own
+            frame to the world frame. Pass ``False`` from fast control loops to
+            read the latest cached transform without blocking; if the TF is not
+            yet available the update is skipped for this tick.
         """
         if self.config._mode == ControllerMode.PATH_FOLLOWER:
             plan_callback = self.get_callback(TopicsKeys.GLOBAL_PLAN)
@@ -860,28 +864,55 @@ class Controller(Component):
 
         # In LOCAL frame mode robot state is irrelevant: sensor data and
         # tracked targets are reasoned about robot-relative.
-        if (
-            block
-            and self.config._frame_mode == FrameMode.GLOBAL
-            and self.config.frames.odom != self.config.frames.world
-        ):
+        if block and self.config._frame_mode == FrameMode.GLOBAL:
             timeout = 0.0
-            odom_listener = self.odom_tf_listener
+            step = 1 / self.config.loop_rate
+            state_callback = self.get_callback(TopicsKeys.ROBOT_LOCATION)
+
+            # The location frame is carried by the messages, so wait for one to
+            # arrive before waiting for its transform. Both waits share a single
+            # timeout budget.
             while (
-                not odom_listener.transform
+                state_callback
+                and not state_callback.got_msg
                 and timeout < self.config.topic_subscription_timeout
             ):
                 self.get_logger().warning(
-                    f"Waiting to get TF from {self.config.frames.odom} frame to {self.config.frames.world} frame...",
+                    "Waiting for a robot location message...", once=True
+                )
+                timeout += step
+                time.sleep(step)
+
+            if state_callback and state_callback.got_msg and not state_callback.frame_id:
+                # A bare Pose carries no header, so there is no frame to look up
+                # and nothing to transform: take the data as it arrived.
+                self.get_logger().warning(
+                    "Robot location messages carry no frame_id -> treating them as "
+                    f"already expressed in the '{self.config.frames.world}' frame",
                     once=True,
                 )
-                timeout += 1 / self.config.loop_rate
-                time.sleep(1 / self.config.loop_rate)
-            if not self.odom_tf_listener.transform:
-                self.get_logger().error(
-                    f"Could not get TF from {self.config.frames.odom} frame to {self.config.frames.world} frame after {self.config.topic_subscription_timeout} seconds"
-                )
-                return
+            else:
+                odom_listener = self.odom_tf_listener
+                while (
+                    odom_listener
+                    and not odom_listener.transform
+                    and timeout < self.config.topic_subscription_timeout
+                ):
+                    self.get_logger().warning(
+                        f"Waiting to get TF from {odom_listener.config.source_frame} "
+                        f"frame to {self.config.frames.world} frame...",
+                        once=True,
+                    )
+                    timeout += step
+                    time.sleep(step)
+
+                if not odom_listener or not odom_listener.transform:
+                    self.get_logger().error(
+                        "Could not get TF from the robot location frame to "
+                        f"'{self.config.frames.world}' frame after "
+                        f"{self.config.topic_subscription_timeout} seconds"
+                    )
+                    return
         self.robot_state = self._read_robot_state()
         if block:
             waited = 0.0
@@ -902,17 +933,6 @@ class Controller(Component):
         plan_callback = self.get_callback(TopicsKeys.GLOBAL_PLAN)
         if plan_callback:
             plan_callback.on_callback_execute(self._set_path_to_controller)
-
-        if self.direct_sensor:
-            # If direct sensor information is used set maximum range for PointCloud data
-            sensor_callback = self.get_callback(TopicsKeys.SPATIAL_SENSOR)
-            if isinstance(sensor_callback, PointCloudCallback):
-                sensor_callback.max_range = (
-                    self.config.prediction_horizon * self.robot.ctrl_vx_limits.max_vel
-                )
-                self.get_logger().info(
-                    f"Setting PointCloud max range to robot max forward horizon '{sensor_callback.max_range}' to limit computations"
-                )
 
     def _set_path_to_controller(self, msg, **_) -> None:
         """
@@ -942,18 +962,14 @@ class Controller(Component):
 
         # INIT PATH CONTROLLER
         self._robot = Robot(
-            robot_type=self.config.robot.model_type,
-            geometry_type=self.config.robot.geometry_type,
-            geometry_params=self.config.robot.geometry_params,
+            robot_type=self.robot.model_type,
+            geometry_type=self.robot_geometry_type,
+            geometry_params=self.robot.geometry_params,
             state=self.robot_state or RobotState(),
         )
 
         # SET robot control limits
-        self._robot_ctr_limits = RobotCtrlLimits(
-            vx_limits=self.config.robot.ctrl_vx_limits,
-            vy_limits=self.config.robot.ctrl_vy_limits,
-            omega_limits=self.config.robot.ctrl_omega_limits,
-        )
+        self._robot_ctr_limits = self.robot_ctrl_limits
 
         self._reached_end = False
         self._lat_dist_error: float = 0.0
@@ -968,14 +984,12 @@ class Controller(Component):
         self._cmds_queue: Queue = Queue()
 
         if self.direct_sensor:
-            sensor_topic = self._inputs_list[
-                self._inputs_keys.index(TopicsKeys.SPATIAL_SENSOR)
-            ]
-            # Setup transform listener
-            self._sensor_tf_listener: TFListener = (
-                self.pc_tf_listener
-                if sensor_topic.msg_type._ros_type == PointCloud2
-                else self.scan_tf_listener
+            # Sensor data is used in the robot body frame. Its own frame comes
+            # from the incoming messages, whatever the sensor type
+            self.transform_inputs_to(
+                TopicsKeys.SPATIAL_SENSOR,
+                self.config.frames.robot_base,
+                static_tf=True,
             )
 
             self.sensor_data: Optional[Union[LaserScanData, PointCloudData]] = None
@@ -984,12 +998,13 @@ class Controller(Component):
 
         if self.config._mode == ControllerMode.PATH_FOLLOWER:
             config_kwargs = {}
-            if self.direct_sensor and self._sensor_tf_listener.got_transform:
+            sensor_tf = self._sensor_tf_listener if self.direct_sensor else None
+            if sensor_tf and sensor_tf.got_transform:
                 config_kwargs["proximity_sensor_position_to_robot"] = (
-                    self._sensor_tf_listener.translation
+                    sensor_tf.translation
                 )
                 config_kwargs["proximity_sensor_rotation_to_robot"] = (
-                    self._sensor_tf_listener.rotation
+                    sensor_tf.rotation
                 )
                 config_kwargs["control_time_step"] = self.config.control_time_step
             # Get default controller configuration and update it from user defined config
@@ -1090,15 +1105,19 @@ class Controller(Component):
             )
             return PathControlStatus.WAITING_INPUTS
 
-        laser_scan = None
-        point_cloud = None
+        ranges = None
+        angles = None
+        points = None
         local_map = None
 
         if self.direct_sensor:
             if isinstance(self.sensor_data, LaserScanData):
-                laser_scan = self.sensor_data
-            else:
-                point_cloud = self.sensor_data
+                ranges = self.sensor_data.ranges
+                angles = self.sensor_data.angles
+            elif isinstance(self.sensor_data, PointCloudData):
+                # The controller works on cartesian obstacle points, decoded
+                # from the raw buffer by the container and cached there
+                points = self.sensor_data.xyz
         else:
             local_map = self.local_map
 
@@ -1108,8 +1127,9 @@ class Controller(Component):
 
         cmd_found: bool = self._path_controller.loop_step(
             current_state=self.robot_state,  # type: ignore
-            laser_scan=laser_scan,
-            point_cloud=point_cloud,
+            ranges=ranges,
+            angles=angles,
+            points=points,
             local_map=local_map,
             local_map_resolution=getattr(self, "local_map_resolution", None),
             debug=self.config.debug,
@@ -1243,7 +1263,6 @@ class Controller(Component):
                 self._lat_dist_error
             )
             feedback_msg.global_path_deviation.orientation_error = self._ori_error
-            feedback_msg.prediction_horizon = self.config.prediction_horizon
 
             self.get_logger().info(
                 "Controlling Path — lat_err=%.3f, ori_err=%.3f"
@@ -1306,8 +1325,8 @@ class Controller(Component):
         dist: float = self.robot_state.distance(goal_point)
         return dist <= self._path_controller._config.goal_dist_tolerance
 
-    def _execution_once(self):
-        """Intialize controller post activation"""
+    def _execute_once(self):
+        """Initialize controller post activation"""
         if self.config._mode == ControllerMode.VISION_FOLLOWER:
             # Set up the vision controller eagerly to avoid first-call overhead
             # in the action server.

@@ -11,14 +11,14 @@ from kompass_core.mapping import LocalMapper as LocalMapperHandler
 from kompass_core.datatypes.scan_model import ScanModelConfig
 from kompass_core.datatypes.pose import PoseData
 from kompass_core.models import RobotState
-from kompass_core.datatypes import LaserScanData, PointCloudData
+from ros_sugar.io import LaserScanData, PointCloudData
 from kompass_core.models import RobotGeometry
 
 # KOMPASS ROS
 from ..config import ComponentConfig
 from .ros import Topic, update_topics
 from .component import Component
-from ..callbacks import LaserScanCallback, PointCloudCallback
+
 from .defaults import (
     TopicsKeys,
     mapper_allowed_inputs,
@@ -163,13 +163,19 @@ class LocalMapper(Component):
         )  # Default local map frame is world frame, will be updated to odom frame if the transform from odom to world is not available
 
         self.robot_height = RobotGeometry.get_height(
-            self.config.robot.geometry_type, self.config.robot.geometry_params
+            self.robot_geometry_type, self.robot.geometry_params
         )
 
         self.sensor_data: Optional[Union[LaserScanData, PointCloudData]] = None
 
         self._local_map_builder = LocalMapperHandler(
             config=self.config.map_params, scan_model_config=self.config.scan_model
+        )
+
+        # Sensor data is mapped in the robot body frame. The sensor's own frame
+        # comes from the incoming messages, so nothing has to be configured
+        self.transform_inputs_to(
+            TopicsKeys.SPATIAL_SENSOR, self.config.frames.robot_base, static_tf=True
         )
 
         self.get_callback(TopicsKeys.SPATIAL_SENSOR).on_callback_execute(
@@ -181,30 +187,27 @@ class LocalMapper(Component):
         Updates node inputs from associated callbacks
         """
 
-        self.robot_state: Optional[RobotState] = self.get_callback(
-            TopicsKeys.ROBOT_LOCATION
-        ).get_output(
+        location_callback = self.get_callback(TopicsKeys.ROBOT_LOCATION)
+        self.robot_state: Optional[RobotState] = location_callback.get_output(
             transformation=self.odom_tf_listener.transform
             if self.odom_tf_listener
             else None
         )
 
         if self.odom_tf_listener and self.odom_tf_listener.got_transform:
-            # If the transform from odom to world is available, we can set the local map frame to world frame, as the local map will be built in the world frame
+            # The transform to the world frame is available, so robot_state has
+            # been transformed and the local map is built in the world frame
             self._local_map_frame = self.config.frames.world
         else:
-            # If the transform from odom to world is not available, we set the local map frame to odom frame, as the robot_state will be in the odom frame
-            self._local_map_frame = self.config.frames.odom
-
-        callback = self.get_callback(TopicsKeys.SPATIAL_SENSOR)
-        if isinstance(callback, LaserScanCallback):
-            self.sensor_data = callback.get_output(
-                transformation=self.scan_tf_listener.transform
-                if self.scan_tf_listener
-                else None
+            # No transform yet, so robot_state is still in whatever frame the
+            # location messages arrived in, and so is the local map
+            self._local_map_frame = (
+                location_callback.frame_id or self.config.frames.world
             )
-        elif isinstance(callback, PointCloudCallback):
-            self.sensor_data = callback.get_output()
+
+        # The sensor->body transform is applied by the callback itself
+        callback = self.get_callback(TopicsKeys.SPATIAL_SENSOR)
+        self.sensor_data = callback.get_output()
 
     def publish_data(self):
         """
@@ -249,7 +252,16 @@ class LocalMapper(Component):
         pose_robot_in_world.qz = np.sin(self.robot_state.yaw / 2)
         pose_robot_in_world.qw = np.cos(self.robot_state.yaw / 2)
 
-        self._local_map_builder.update_from_scan(pose_robot_in_world, self.sensor_data)
+        if isinstance(self.sensor_data, LaserScanData):
+            self._local_map_builder.update_from_laserscan(
+                pose_robot_in_world,
+                ranges=self.sensor_data.ranges,
+                angles=self.sensor_data.angles,
+            )
+        else:
+            self._local_map_builder.update_from_pointcloud(
+                pose_robot_in_world, **self.sensor_data.asdict()
+            )
 
     def _execution_step(self):
         """

@@ -20,7 +20,7 @@ from geometry_msgs.msg import (
     PoseStamped as ROSPoseStamped,
     TwistStamped as ROSTwistStamped,
 )
-from kompass_core.datatypes import LaserScanData
+from ros_sugar.io import LaserScanData
 from nav_msgs.msg import Odometry as ROSOdometry
 from nav_msgs.msg import Path as ROSPath
 from kompass_core.models import RobotState

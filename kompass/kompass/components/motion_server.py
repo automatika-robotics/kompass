@@ -422,28 +422,28 @@ class MotionServer(Component):
                     "name": "linear_step_mid",
                     "test": np.full(
                         (number_of_steps, 2),
-                        [self.config.robot.ctrl_vx_limits.max_vel / 2, 0.0],
+                        [self.robot.ctrl_vx_limits.max_vel / 2, 0.0],
                     ),
                 },
                 {
                     "name": "linear_step_inv",
                     "test": np.full(
                         (number_of_steps, 2),
-                        [-self.config.robot.ctrl_vx_limits.max_vel / 2, 0.0],
+                        [-self.robot.ctrl_vx_limits.max_vel / 2, 0.0],
                     ),
                 },
                 {
                     "name": "ang_step_mid",
                     "test": np.full(
                         (number_of_steps, 2),
-                        [0.0, self.config.robot.ctrl_omega_limits.max_vel / 2],
+                        [0.0, self.robot.ctrl_omega_limits.max_vel / 2],
                     ),
                 },
                 {
                     "name": "ang_step_inv",
                     "test": np.full(
                         (number_of_steps, 2),
-                        [0.0, -self.config.robot.ctrl_omega_limits.max_vel / 2],
+                        [0.0, -self.robot.ctrl_omega_limits.max_vel / 2],
                     ),
                 },
             ]
@@ -454,8 +454,8 @@ class MotionServer(Component):
                     "test": np.full(
                         (number_of_steps, 2),
                         [
-                            self.config.robot.ctrl_vx_limits.max_vel / 2,
-                            self.config.robot.ctrl_omega_limits.max_vel / 2,
+                            self.robot.ctrl_vx_limits.max_vel / 2,
+                            self.robot.ctrl_omega_limits.max_vel / 2,
                         ],
                     ),
                 },
@@ -464,8 +464,8 @@ class MotionServer(Component):
                     "test": np.full(
                         (number_of_steps, 2),
                         [
-                            -self.config.robot.ctrl_vx_limits.max_vel / 2,
-                            self.config.robot.ctrl_omega_limits.max_vel / 2,
+                            -self.robot.ctrl_vx_limits.max_vel / 2,
+                            self.robot.ctrl_omega_limits.max_vel / 2,
                         ],
                     ),
                 },
@@ -474,8 +474,8 @@ class MotionServer(Component):
                     "test": np.full(
                         (number_of_steps, 2),
                         [
-                            self.config.robot.ctrl_vx_limits.max_vel / 2,
-                            -self.config.robot.ctrl_omega_limits.max_vel / 2,
+                            self.robot.ctrl_vx_limits.max_vel / 2,
+                            -self.robot.ctrl_omega_limits.max_vel / 2,
                         ],
                     ),
                 },
@@ -484,8 +484,8 @@ class MotionServer(Component):
                     "test": np.full(
                         (number_of_steps, 2),
                         [
-                            -self.config.robot.ctrl_vx_limits.max_vel / 2,
-                            -self.config.robot.ctrl_omega_limits.max_vel / 2,
+                            -self.robot.ctrl_vx_limits.max_vel / 2,
+                            -self.robot.ctrl_omega_limits.max_vel / 2,
                         ],
                     ),
                 },
