@@ -11,7 +11,16 @@ from .ros import Topic, update_topics
 from itertools import groupby
 from .defaults import TopicsKeys
 from kompass_core import set_logging_level
-from ..robot import RobotGeometry
+
+# The runtime counterparts of the robot description: the C++ library defines
+# these, the description in Sugarcoat declares them, and this module is where
+# the two are matched up
+from kompass_core.models import (
+    AngularCtrlLimits as CoreAngularCtrlLimits,
+    LinearCtrlLimits as CoreLinearCtrlLimits,
+    RobotCtrlLimits,
+    RobotGeometry,
+)
 
 
 def _parse_from_topics_dict(
@@ -237,16 +246,47 @@ class Component(BaseComponent):
     @property
     def robot_geometry_type(self) -> RobotGeometry.Type:
         """
-        Getter of the robot geometry as a kompass_core type
+        Getter of the robot geometry as the type the algorithms take
 
         The description carries the geometry as a plain name, since Sugarcoat
-        does no geometry math. The kompass_core helpers compare geometries by
-        enum identity, so convert on the way in.
+        does no geometry math. The algorithms take the type the C++ library
+        defines, so convert on the way in.
 
         :return: Robot geometry type
         :rtype: RobotGeometry.Type
         """
-        return RobotGeometry.Type.from_str(self.robot.geometry_type)
+        return RobotGeometry.from_str(self.robot.geometry_type)
+
+    @property
+    def robot_ctrl_limits(self) -> RobotCtrlLimits:
+        """
+        Getter of the robot velocity envelope as the type the algorithms take
+
+        Counterpart of ``robot_geometry_type`` for the control limits: the
+        description declares them, the C++ library enforces them, and this is
+        the one place the two are matched up.
+
+        :return: Robot control limits
+        :rtype: RobotCtrlLimits
+        """
+        return RobotCtrlLimits(
+            vx_limits=CoreLinearCtrlLimits(
+                max_vel=self.robot.ctrl_vx_limits.max_vel,
+                max_acc=self.robot.ctrl_vx_limits.max_acc,
+                max_decel=self.robot.ctrl_vx_limits.max_decel,
+            ),
+            vy_limits=CoreLinearCtrlLimits(
+                max_vel=self.robot.ctrl_vy_limits.max_vel,
+                max_acc=self.robot.ctrl_vy_limits.max_acc,
+                max_decel=self.robot.ctrl_vy_limits.max_decel,
+            ),
+            omega_limits=CoreAngularCtrlLimits(
+                max_omega=self.robot.ctrl_omega_limits.max_vel,
+                max_ang=self.robot.ctrl_omega_limits.max_steer,
+                max_acc=self.robot.ctrl_omega_limits.max_acc,
+                max_decel=self.robot.ctrl_omega_limits.max_decel,
+            ),
+        )
 
     @property
     def run_type(self) -> ComponentRunType:
