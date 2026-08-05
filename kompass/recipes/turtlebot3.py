@@ -3,7 +3,7 @@ import os
 from kompass.robot import (
     AngularCtrlLimits,
     LinearCtrlLimits,
-    RobotGeometry,
+    RobotGeometryType,
     RobotType,
     RobotConfig,
 )
@@ -39,7 +39,7 @@ def kompass_bringup():
     # Setup your robot configuration
     my_robot = RobotConfig(
         model_type=RobotType.DIFFERENTIAL_DRIVE,
-        geometry_type=RobotGeometry.Type.CYLINDER,
+        geometry_type=RobotGeometryType.CYLINDER,
         geometry_params=np.array([0.08, 0.3]),
         ctrl_vx_limits=LinearCtrlLimits(max_vel=0.4, max_acc=1.5, max_decel=2.5),
         ctrl_omega_limits=AngularCtrlLimits(
