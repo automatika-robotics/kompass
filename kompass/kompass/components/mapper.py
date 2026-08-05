@@ -11,7 +11,7 @@ from kompass_core.mapping import LocalMapper as LocalMapperHandler
 from kompass_core.datatypes.scan_model import ScanModelConfig
 from kompass_core.datatypes.pose import PoseData
 from kompass_core.models import RobotState
-from kompass_core.datatypes import LaserScanData, PointCloudData
+from ros_sugar.io import LaserScanData, PointCloudData
 from kompass_core.models import RobotGeometry
 
 # KOMPASS ROS
@@ -252,7 +252,16 @@ class LocalMapper(Component):
         pose_robot_in_world.qz = np.sin(self.robot_state.yaw / 2)
         pose_robot_in_world.qw = np.cos(self.robot_state.yaw / 2)
 
-        self._local_map_builder.update_from_scan(pose_robot_in_world, self.sensor_data)
+        if isinstance(self.sensor_data, LaserScanData):
+            self._local_map_builder.update_from_laserscan(
+                pose_robot_in_world,
+                ranges=self.sensor_data.ranges,
+                angles=self.sensor_data.angles,
+            )
+        else:
+            self._local_map_builder.update_from_pointcloud(
+                pose_robot_in_world, **self.sensor_data.asdict()
+            )
 
     def _execution_step(self):
         """

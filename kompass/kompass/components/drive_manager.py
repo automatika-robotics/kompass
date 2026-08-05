@@ -5,7 +5,7 @@ from queue import Queue, Empty
 from attrs import define, field
 from functools import partial
 from geometry_msgs.msg import Twist
-from kompass_core.datatypes import LaserScanData, PointCloudData
+from ros_sugar.io import LaserScanData, PointCloudData
 from kompass_core.models import RobotGeometry, RobotState
 from ..robot import RobotType
 from kompass_interfaces.msg import TwistArray
@@ -1161,7 +1161,7 @@ class DriveManager(Component):
 
         self.get_logger().info("Got Proximity Sensor TF...")
 
-        robot_shape = RobotGeometry.Type.to_kompass_cpp_lib(self.robot_geometry_type)
+        robot_shape = self.robot_geometry_type
         robot_dimensions = self.robot.geometry_params
 
         # Get laserscan data to initialize the GPU based checker
@@ -1189,7 +1189,16 @@ class DriveManager(Component):
             }
             if self.config.use_gpu:
                 # this parameter is only used in the GPU kernel
-                kwargs["cloud_field_type"] = PointFieldType.from_int(self.sensor_data.x_field_datatype)
+                kwargs["cloud_field_type"] = PointFieldType.from_int(
+                    self.sensor_data.x_field_datatype
+                )
+        else:
+            self.get_logger().error(
+                f"Cannot initialize CriticalZoneChecker for sensor data of type "
+                f"'{type(self.sensor_data).__name__}' -> Safety Stop is disabled!"
+            )
+            self._emergency_checker = None
+            return
 
         if self.config.use_gpu:
             try:
