@@ -2,8 +2,8 @@
 Changelog for package kompass
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+0.7.0 (2026-08-05)
+------------------
 * (chore) Updates minimum required kompass-core version
 * (feature) Adds import error message on broken imports for backward compatibility
 * (fix) Handles multi-input case in failure source setting
