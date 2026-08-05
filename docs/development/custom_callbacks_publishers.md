@@ -27,8 +27,8 @@ Publishing (output):
 ### Concrete Example: Controller Data Flow
 
 1. **Input**: `sensor_msgs/LaserScan` arrives on `/scan` topic.
-2. **Callback**: `LaserScanCallback` converts it to `kompass_core.datatypes.LaserScanData`.
-3. **Algorithm**: DWA controller reads `LaserScanData` along with `RobotState` (from odometry) and a reference `Path`.
+2. **Callback**: `LaserScanCallback` converts it to `ros_sugar.io.LaserScanData`.
+3. **Algorithm**: the Controller component hands the scan's `ranges` and `angles` to the DWA controller, along with `RobotState` (from odometry) and a reference `Path`.
 4. **Output**: DWA computes velocity commands; `Twist.convert(vx, vy, omega)` creates `geometry_msgs/Twist`.
 5. **Publish**: Result is published on `/control` topic.
 
@@ -58,14 +58,24 @@ Kompass extends the standard ros-sugar types with navigation-specific processing
 `Trackings` and `Detections` require the optional `automatika_embodied_agents` package.
 :::
 
-### kompass-core Data Types
+### Callback Output Types
 
-The callback outputs above use data structures from `kompass_core` -- these are pure Python/C++ types with **no ROS dependency**, keeping `kompass-core` framework-agnostic:
+Sensor payloads are carried by Sugarcoat's containers, which sit closest to the ROS message:
+
+- **`LaserScanData`** (`ros_sugar.io`) -- structured laser scan with angle/range arrays.
+- **`PointCloudData`** (`ros_sugar.io`) -- raw PointCloud2 buffer plus its layout, with cartesian points decoded lazily via `.xyz`.
+
+The navigation types come from `kompass_core` -- pure Python/C++ with **no ROS dependency**, keeping `kompass-core` framework-agnostic:
 
 - **`RobotState`** (`kompass_core.models`) -- position (x, y, yaw), velocity (vx, vy, omega), and speed.
-- **`LaserScanData`** (`kompass_core.datatypes`) -- structured laser scan with angle/range arrays.
-- **`PointCloudData`** (`kompass_core.datatypes`) -- 3D point cloud representation with field offsets.
 - **`Bbox2D`** (`kompass_core.datatypes`) -- 2D bounding box for vision-based tracking.
+
+:::{note}
+`kompass-core` has no sensor container of its own: its algorithms take the
+fields directly (`ranges`/`angles`, or the raw cloud buffer and its layout), so
+a sensor payload is never re-wrapped on its way from the ROS message to the
+C++ kernels.
+:::
 
 ## Creating a Custom Callback
 
@@ -326,7 +336,7 @@ At runtime, the Controller component looks up the corresponding config class fro
 
 `kompass-core` algorithms that operate on spatial data (local mapping, DWA obstacle checking, etc.) can leverage GPU acceleration through [AdaptiveCpp](https://github.com/AdaptiveCpp/AdaptiveCpp) (SYCL). The acceleration is transparent to the data type layer:
 
-- The same `LaserScanData` / `PointCloudData` types are used regardless of CPU or GPU execution.
+- The same `LaserScanData` / `PointCloudData` containers are used regardless of CPU or GPU execution.
 - GPU memory transfers are handled internally by `kompass-core`'s C++ layer.
 - No code changes are needed in the Kompass Python layer to enable GPU acceleration.
 
