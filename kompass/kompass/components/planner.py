@@ -417,9 +417,7 @@ class Planner(Component):
                         msg, callback=_cb, goal_index=_idx
                     )
                 )
-        if require_cam_info and not self.got_all_inputs(
-            inputs_to_check=[self.in_topic_name(TopicsKeys.DEPTH_CAM_INFO)]
-        ):
+        if require_cam_info and not self.in_topic_name(TopicsKeys.DEPTH_CAM_INFO):
             raise ValueError(
                 f"At least one of the goal point callbacks is a {callback.__class__.__name__} which requires depth camera info input. Please provide a topic for {TopicsKeys.DEPTH_CAM_INFO} to ensure proper functionality."
             )
