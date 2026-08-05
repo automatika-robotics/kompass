@@ -26,7 +26,7 @@ from kompass.components.controller import (
 )
 from kompass.components._vision_follower import VisionFollower
 from kompass.components.defaults import TopicsKeys
-from kompass_core.datatypes import LaserScanData
+from ros_sugar.io import LaserScanData
 
 
 # ---------------------------------------------------------------------------

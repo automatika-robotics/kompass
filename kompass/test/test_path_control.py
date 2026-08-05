@@ -17,7 +17,7 @@ from queue import Queue
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
-from kompass_core.datatypes import LaserScanData
+from ros_sugar.io import LaserScanData, PointCloudData
 from kompass_core.models import RobotState
 
 from kompass.components.controller import (
@@ -208,8 +208,23 @@ class TestPathControlStatus:
         c._path_control()
 
         kwargs = _get_mangled(c, "path_controller").loop_step.call_args.kwargs
-        assert kwargs["laser_scan"] is scan
-        assert kwargs["point_cloud"] is None
+        assert kwargs["ranges"] is scan.ranges
+        assert kwargs["angles"] is scan.angles
+        assert kwargs["points"] is None
+        assert kwargs["local_map"] is None
+
+    def test_direct_sensor_routes_point_cloud(self):
+        c = make_path_controller_stub()
+        c.config.use_direct_sensor = True
+        cloud = MagicMock(spec=PointCloudData)
+        c.sensor_data = cloud
+
+        c._path_control()
+
+        kwargs = _get_mangled(c, "path_controller").loop_step.call_args.kwargs
+        assert kwargs["points"] is cloud.xyz
+        assert kwargs["ranges"] is None
+        assert kwargs["angles"] is None
         assert kwargs["local_map"] is None
 
     def test_non_direct_sensor_routes_local_map(self):
@@ -223,8 +238,9 @@ class TestPathControlStatus:
         kwargs = _get_mangled(c, "path_controller").loop_step.call_args.kwargs
         assert kwargs["local_map"] is c.local_map
         assert kwargs["local_map_resolution"] == 0.05
-        assert kwargs["laser_scan"] is None
-        assert kwargs["point_cloud"] is None
+        assert kwargs["ranges"] is None
+        assert kwargs["angles"] is None
+        assert kwargs["points"] is None
 
 
 # ---------------------------------------------------------------------------
