@@ -35,7 +35,6 @@ from .ros import (
     update_topics,
 )
 from ..utils import component_action
-from ..callbacks import PointCloudCallback
 
 # KOMPASS MSGS/SRVS/ACTIONS
 from .component import Component, TFListener
@@ -1264,7 +1263,6 @@ class Controller(Component):
                 self._lat_dist_error
             )
             feedback_msg.global_path_deviation.orientation_error = self._ori_error
-            feedback_msg.prediction_horizon = self.config.prediction_horizon
 
             self.get_logger().info(
                 "Controlling Path — lat_err=%.3f, ori_err=%.3f"

@@ -18,7 +18,7 @@ from kompass_core.models import RobotGeometry
 from ..config import ComponentConfig
 from .ros import Topic, update_topics
 from .component import Component
-from ..callbacks import LaserScanCallback, PointCloudCallback
+
 from .defaults import (
     TopicsKeys,
     mapper_allowed_inputs,
