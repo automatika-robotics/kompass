@@ -2,6 +2,38 @@
 Changelog for package kompass
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* (chore) Updates minimum required kompass-core version
+* (feature) Adds import error message on broken imports for backward compatibility
+* (fix) Handles multi-input case in failure source setting
+* (fix) Fixes input check in planner
+* (refactor) Import LaserScanData from Sugarcoat
+* (fix) Fixes checking if input is available and removes call of deleted method
+* (feature) Declares failure on non-valid spatial sensor data type in emergency stop check
+* (refactor) Imports pointcloud utilities from the refactored kompass_core module
+* (fix) Uses new RobotGeometryType refactored class in recipe
+* (refactor) Uses upstreamed LaserScanData and PointCloudData from Sugarcoat
+* (refactor) Passes ranges, angle and points to the core controller instead of removed LaserScanData and PointCloudData
+* (refactor) Updates component to use refactored AugularCtrlLimits, LinearCtrlLimits and RobotType from kompass-core
+* (refactor) Cleans up imports for refactored types in kompass-core
+* (fix) Removes usage of deleted config params and fixes method name typo
+* (fix) Makes update_topics non-mutating to avoid mutating stack defaults
+* (fix) Adds missing allowed SERVER runtype to Planner
+* (refactor) Updates all components to access RobotConfig from self.robot instead of Optional self.config.robot
+* (refactor) Updates robot property to raise an error if None RobotConfig is provided to a Kompass component
+* (refactor) Updates recipe and config files with new RobotFrames
+* (feature) Adds property to get kompass_core geometry type from RobotConfig
+* (refactor) Moves RobotConfig to Sugarcoat
+* (fix) Fixes wait condition for robot location to handle non-stamped types
+* (fix) Removes 'odom' as the backup frame for the map and uses the robot location message frame_id instead
+* (refactor) Updates components to use the new transformation lookup method inside the callback
+* (refactor) Removes specific tf listeners and updates to use a generic tf input listener
+* (refactor) Uses LaserScan and PointCloud callbacks upstreamed to Sugarcoat
+* (refactor) Upstreams RobotFrames to Sugarcoat
+* (fix) Fixes None value check for ndarray type
+* Contributors: ahr, mkabtoul
+
 0.6.0 (2026-06-05)
 ------------------
 * (chore) Bumps required sugarcoat version
