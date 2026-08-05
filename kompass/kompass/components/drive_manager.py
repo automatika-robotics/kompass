@@ -1213,8 +1213,13 @@ class DriveManager(Component):
             )
             self._emergency_checker = None
             # Set failure based on the fact that the spatial sensor is not providing valid data
+            # The key can be bound to several sensors, so the name(s) come back
+            # as a list in that case
+            sensor_names = self.in_topic_name(TopicsKeys.SPATIAL_SENSOR) or []
             self.health_status.set_fail_system(
-                topic_names=[self.in_topic_name(TopicsKeys.SPATIAL_SENSOR)]
+                topic_names=sensor_names
+                if isinstance(sensor_names, list)
+                else [sensor_names]
             )
             return
 
