@@ -270,12 +270,9 @@ class DriveManager(Component):
         # Emergency checker gets initialized on activation to get the sensor transformation
         self._emergency_checker = None
 
-        # Every proximity sensor is handled in the robot body frame. Each one
-        # carries its own frame in its messages, so several sensors mounted in
-        # different places work without configuring any of them
-        self.transform_inputs_to(
-            TopicsKeys.SPATIAL_SENSOR, self.config.frames.robot_base, static_tf=True
-        )
+        # NOTE: proximity sensor data transformation is deliberately NOT set to the callback here.
+        # CriticalZoneChecker takes its input in the sensor frame and applies
+        # the sensor->body transform itself (it is handed at construction),
 
         self._attach_callbacks_and_processors()
 
@@ -401,18 +398,15 @@ class DriveManager(Component):
         for idx in range(num_sensors):
             callback = self.get_callback(TopicsKeys.SPATIAL_SENSOR, idx)
             if isinstance(callback, LaserScanCallback):
-                # The sensor->body transform is applied by the callback itself
+                # Left in the sensor frame: CriticalZoneChecker transforms it
                 self.sensor_data: Optional[LaserScanData] = callback.get_output()
                 break
             elif isinstance(callback, PointCloudCallback):
                 self.__pc_callback = callback
+                # Raw sensor-frame buffer, undecoded. The height band and the
+                # sensor->body transform are both applied by the checker
                 self.sensor_data: Optional[PointCloudData] = (
-                    self.__pc_callback.get_output(
-                        get_2d=True,
-                        min_z=0.0,
-                        max_z=self.robot_height,
-                        discard_underground=True,
-                    )
+                    self.__pc_callback.get_output()
                 )
                 break
         # If laserscan is not available and safety_stop is enabled -> raise an emergency stop flog to block publishing
@@ -1178,6 +1172,13 @@ class DriveManager(Component):
         robot_shape = self.robot_geometry_type
         robot_dimensions = self.robot.geometry_params
 
+        # The checker gates point heights on the raw sensor-frame z, before it
+        # applies the sensor->body transform, so the body-frame band we want
+        # (ground .. robot top) has to be shifted down by the sensor height
+        sensor_height = float(sensor_tf.translation[2])
+        min_height = -sensor_height
+        max_height = self.robot_height - sensor_height
+
         # Get laserscan data to initialize the GPU based checker
         while not self.sensor_data:
             self.get_logger().info(
@@ -1235,8 +1236,8 @@ class DriveManager(Component):
                     critical_angle=self.config.critical_zone_angle,
                     critical_distance=self.config.critical_zone_distance,
                     slowdown_distance=self.config.slowdown_zone_distance,
-                    max_height=self.robot_height,
-                    min_height=-self.robot_height,
+                    max_height=max_height,
+                    min_height=min_height,
                     range_max=3 * self.config.slowdown_zone_distance,
                     **kwargs,
                 )
@@ -1279,8 +1280,8 @@ class DriveManager(Component):
             critical_angle=self.config.critical_zone_angle,
             critical_distance=self.config.critical_zone_distance,
             slowdown_distance=self.config.slowdown_zone_distance,
-            max_height=self.robot_height,
-            min_height=-self.robot_height,
+            max_height=max_height,
+            min_height=min_height,
             range_max=3 * self.config.slowdown_zone_distance,
             **kwargs,
         )
