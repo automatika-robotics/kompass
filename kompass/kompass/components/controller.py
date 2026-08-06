@@ -1,6 +1,6 @@
 from typing import Optional, Union, List, Dict, Any
 import time
-from attrs import define, field
+from attrs import define, field, fields
 from queue import Queue, Empty
 import numpy as np
 
@@ -13,7 +13,7 @@ from geometry_msgs.msg import PoseStamped
 
 # KOMPASS
 from kompass_core.models import Robot, RobotState
-from ros_sugar.io import LaserScanData, PointCloudData
+from ros_sugar.io import LaserScanData, PointCloudCallback, PointCloudData
 from kompass_core.utils.geometry import from_euler_to_quaternion
 from kompass_core.control import (
     ControlClasses,
@@ -812,18 +812,22 @@ class Controller(Component):
         """Transform listener from the proximity sensor frame to the robot body.
 
         Resolved from the sensor data's own frame, so it is None until the
-        first message arrives.
+        first message arrives. This is the mount pose the core needs to place a
+        laser scan; it is not used to transform the data here.
         """
         return self.input_tf_listener(
             TopicsKeys.SPATIAL_SENSOR, self.config.frames.robot_base, static_tf=True
         )
 
     def _update_sensor_data(self) -> None:
-        """Update sensor data from the sensor callback"""
+        """Update sensor data from the sensor callback.
+
+        A laser scan is left in the sensor frame; a point cloud is delivered in
+        the world frame by its callback. See ``init_variables`` for why.
+        """
         if self.direct_sensor:
             self.local_map = None
             sensor_callback = self.get_callback(TopicsKeys.SPATIAL_SENSOR)
-            # The sensor->body transform is applied by the callback itself
             self.sensor_data = (
                 sensor_callback.get_output() if sensor_callback else None
             )
@@ -1021,43 +1025,107 @@ class Controller(Component):
         # Command queue to send controller command list to the robot
         self._cmds_queue: Queue = Queue()
 
-        if self.direct_sensor:
-            # Sensor data is used in the robot body frame. Its own frame comes
-            # from the incoming messages, whatever the sensor type
-            self.transform_inputs_to(
-                TopicsKeys.SPATIAL_SENSOR,
-                self.config.frames.robot_base,
-                static_tf=True,
-            )
+        self.sensor_data: Optional[Union[LaserScanData, PointCloudData]] = None
 
-            self.sensor_data: Optional[Union[LaserScanData, PointCloudData]] = None
+        # Obstacle inputs are handed to the core in the frame it expects for
+        # that input type, and the core does the rest:
+        #
+        #  - a laser scan stays in the **sensor frame**. The core lifts it into
+        #    the world itself, from the mount pose it is given at construction
+        #    and the robot's world pose. So no transform is requested here.
+        #  - cartesian obstacles, whether a decoded point cloud or local map
+        #    cells, are handed over in the **world frame** and used untouched.
+        #
+        # Both are registered regardless of `use_direct_sensor`, since it can be
+        # flipped at runtime and only the subscribed input ever resolves one.
+        if isinstance(
+            self.get_callback(TopicsKeys.SPATIAL_SENSOR), PointCloudCallback
+        ):
+            self.transform_inputs_to(
+                TopicsKeys.SPATIAL_SENSOR, self.config.frames.world
+            )
+        self.transform_inputs_to(TopicsKeys.LOCAL_MAP, self.config.frames.world)
 
         self._path_controller: Optional[ControllerType] = None
+        # The sensor mount pose is only knowable once a scan has arrived, and
+        # the core takes it at construction -> see _apply_sensor_mount_pose
+        self._sensor_mount_pose_set: bool = False
 
         if self.config._mode == ControllerMode.PATH_FOLLOWER:
-            config_kwargs = {}
-            sensor_tf = self._sensor_tf_listener if self.direct_sensor else None
-            if sensor_tf and sensor_tf.got_transform:
-                config_kwargs["proximity_sensor_position_to_robot"] = (
-                    sensor_tf.translation
-                )
-                config_kwargs["proximity_sensor_rotation_to_robot"] = (
-                    sensor_tf.rotation
-                )
-                config_kwargs["control_time_step"] = self.config.control_time_step
-            # Get default controller configuration and update it from user defined config
-            _controller_config = self._configure_algorithm(
-                ControlConfigClasses[self.algorithm](**config_kwargs)
-            )
+            self._build_path_controller()
 
-            self._path_controller = ControlClasses[self.algorithm](
-                robot=self._robot,
-                config=_controller_config,
-                ctrl_limits=self._robot_ctr_limits,
-                config_file=self._config_file,
-                config_root_name=f"{self.node_name}.{self.config.algorithm}",
-                control_time_step=self.config.control_time_step,
+    def _build_path_controller(self, **config_kwargs) -> None:
+        """(Re)build the core algorithm object.
+
+        :param config_kwargs: Algorithm config overrides, used to pass the
+            sensor mount pose once it is known
+        """
+        config_class = ControlConfigClasses[self.algorithm]
+        # The config classes do not share a common set of fields: only DWA and
+        # PurePursuit carry a proximity sensor pose, so anything the selected
+        # one does not declare is dropped rather than raising
+        accepted = {attribute.name.lstrip("_") for attribute in fields(config_class)}
+        dropped = set(config_kwargs) - accepted
+        if dropped:
+            self.get_logger().debug(
+                f"'{self.algorithm}' config takes no {sorted(dropped)} -> ignored"
             )
+        # Get default controller configuration and update it from user defined config
+        _controller_config = self._configure_algorithm(
+            config_class(**{
+                name: value
+                for name, value in config_kwargs.items()
+                if name in accepted
+            })
+        )
+
+        self._path_controller = ControlClasses[self.algorithm](
+            robot=self._robot,
+            config=_controller_config,
+            ctrl_limits=self._robot_ctr_limits,
+            config_file=self._config_file,
+            config_root_name=f"{self.node_name}.{self.config.algorithm}",
+            control_time_step=self.config.control_time_step,
+        )
+
+    def _apply_sensor_mount_pose(self) -> None:
+        """Hand the sensor-to-body mount pose to the core, once it is known.
+
+        Only a laser scan needs it: it reaches the core in the sensor frame, so
+        the core cannot place it without the mount pose. The pose comes from the
+        scan's own ``frame_id``, so it cannot be resolved before the first
+        message, and the core takes it at construction -- hence the one-time
+        rebuild here rather than at ``init_variables`` time.
+        """
+        if self._sensor_mount_pose_set or self._path_controller is None:
+            return
+
+        if not self.direct_sensor or not isinstance(self.sensor_data, LaserScanData):
+            # Cartesian obstacles arrive in the world frame; no mount pose to apply
+            self._sensor_mount_pose_set = True
+            return
+
+        sensor_tf = self._sensor_tf_listener
+        if not sensor_tf or not sensor_tf.got_transform:
+            self.get_logger().warning(
+                "Waiting for the transform from the laser scan frame to "
+                f"'{self.config.frames.robot_base}' to place the scan...",
+                throttle_duration_sec=5.0,
+            )
+            return
+
+        self._build_path_controller(
+            proximity_sensor_position_to_robot=sensor_tf.translation,
+            proximity_sensor_rotation_to_robot=sensor_tf.rotation,
+        )
+        self._sensor_mount_pose_set = True
+        # The rebuild dropped the path the previous object was tracking
+        if self.plan is not None:
+            self._path_controller.set_path(global_path=self.plan)
+        self.get_logger().info(
+            "Applied the laser scan mount pose to the "
+            f"'{self.algorithm}' controller"
+        )
 
     def _stop_robot(self):
         """
@@ -1135,6 +1203,7 @@ class Controller(Component):
 
         self._update_state(block=True)
         self._update_sensor_data()
+        self._apply_sensor_mount_pose()
 
         if not self.robot_state:
             self.get_logger().warning(
@@ -1243,18 +1312,10 @@ class Controller(Component):
                 goal_handle.abort()
                 return result
 
-            # Get default controller configuration and update it from user defined config
-            _controller_config = self._configure_algorithm(
-                ControlConfigClasses[self.algorithm]()
-            )
-
-            self._path_controller = ControlClasses[self.algorithm](
-                robot=self._robot,
-                config=_controller_config,
-                ctrl_limits=self._robot_ctr_limits,
-                config_file=self._config_file,
-                config_root_name=f"{self.node_name}.{self.config.algorithm}",
-            )
+            # A different algorithm means a fresh object, so the mount pose has
+            # to be handed to it again on the next control step
+            self._sensor_mount_pose_set = False
+            self._build_path_controller()
             self.get_logger().info(f"Initialized '{self.algorithm}' controller")
         else:
             self.get_logger().warning(
