@@ -1269,6 +1269,8 @@ class DriveManager(Component):
                 self.get_logger().warning(
                     "GPU use is enabled but CriticalZoneCheckerGPU implementation is not found -> Using CPU implementation instead"
                 )
+                # GPU-only ctor param; the CPU checker does not accept it
+                kwargs.pop("cloud_field_type", None)
 
         from kompass_cpp.utils import CriticalZoneChecker
 
