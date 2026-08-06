@@ -298,6 +298,11 @@ class Controller(Component):
             )
         # Create subscribers
         for callback in self.callbacks.values():
+            # Callbacks are rebuilt above, so the resolvers behind
+            # transform_inputs_to have to be re-attached to the new ones.
+            # Frame handling applies to plugin-fed non-ROS inputs too
+            self._attach_transform_provider(callback.input_topic.name, callback)
+
             # Inputs bound to a non-ROS robot plugin transport are fed through
             # the feedback bus, not a ROS subscription
             if callback.input_topic.name in self._external_topics:
@@ -934,16 +939,44 @@ class Controller(Component):
         if plan_callback:
             plan_callback.on_callback_execute(self._set_path_to_controller)
 
-    def _set_path_to_controller(self, msg, **_) -> None:
+    def _plan_tf_available(self) -> bool:
+        """Whether the last global plan could be expressed in the world frame.
+
+        :return: True if the plan is safe to hand to the core
+        :rtype: bool
+        """
+        plan_callback = self.get_callback(TopicsKeys.GLOBAL_PLAN)
+        if not plan_callback:
+            return False
+        plan_frame = plan_callback.frame_id
+        # A plan with no frame_id is taken at face value, matching how a
+        # headerless robot location message is handled
+        if not plan_frame or plan_frame == self.config.frames.world:
+            return True
+        if plan_callback.transformation:
+            return True
+        self.get_logger().error(
+            f"Global plan is published in the '{plan_frame}' frame but its "
+            f"transform to '{self.config.frames.world}' is not available "
+            "-> dropping this plan"
+        )
+        return False
+
+    def _set_path_to_controller(self, output, **_) -> None:
         """
         Set a new plan to the controller/follower
+
+        The plan arrives already expressed in the world frame: the component
+        asks for this input in ``frames.world`` and the callback transforms it.
         """
+        if output is None or not self._plan_tf_available():
+            return
         self._reached_end = False
         if self._path_controller:
-            self._path_controller.set_path(global_path=msg)
-        if len(msg.poses) > 1:
+            self._path_controller.set_path(global_path=output)
+        if len(output.poses) > 1:
             self._goal_point = RobotState(
-                x=msg.poses[-1].pose.position.x, y=msg.poses[-1].pose.position.y
+                x=output.poses[-1].pose.position.x, y=output.poses[-1].pose.position.y
             )
         else:
             self._goal_point = None
@@ -959,6 +992,11 @@ class Controller(Component):
             None  # robot current state - to be updated from odom
         )
         self.plan: Optional[Path] = None  # robot plan (global path)
+
+        # The plan is tracked against the robot state, which is brought into
+        # the world frame, so the two have to agree. The plan carries its own
+        # frame in its messages, so nothing has to be configured
+        self.transform_inputs_to(TopicsKeys.GLOBAL_PLAN, self.config.frames.world)
 
         # INIT PATH CONTROLLER
         self._robot = Robot(
@@ -1237,6 +1275,9 @@ class Controller(Component):
         # Note: This will automatically end the vision target tracking action if it is ongoing
         self.config._mode = ControllerMode.PATH_FOLLOWER
 
+        if not self._plan_tf_available():
+            goal_handle.abort()
+            return result
         self._path_controller.set_path(self.plan)  # type: ignore
 
         self._reached_end: bool = False
