@@ -833,9 +833,7 @@ class Controller(Component):
         if self.direct_sensor:
             self.local_map = None
             sensor_callback = self.get_callback(TopicsKeys.SPATIAL_SENSOR)
-            self.sensor_data = (
-                sensor_callback.get_output() if sensor_callback else None
-            )
+            self.sensor_data = sensor_callback.get_output() if sensor_callback else None
         else:
             self.sensor_data = None
             map_callback = self.get_callback(TopicsKeys.LOCAL_MAP)
@@ -1068,9 +1066,7 @@ class Controller(Component):
             sensor mount pose once it is known
         """
         config_class = ControlConfigClasses[self.algorithm]
-        # The config classes do not share a common set of fields: only DWA and
-        # PurePursuit carry a proximity sensor pose, so anything the selected
-        # one does not declare is dropped rather than raising
+        # Check for acceptance since the config classes do not all share the same common set of fields
         accepted = {attribute.name.lstrip("_") for attribute in fields(config_class)}
         dropped = set(config_kwargs) - accepted
         if dropped:
@@ -1078,13 +1074,13 @@ class Controller(Component):
                 f"'{self.algorithm}' config takes no {sorted(dropped)} -> ignored"
             )
         # Get default controller configuration and update it from user defined config
-        _controller_config = self._configure_algorithm(
-            config_class(**{
-                name: value
-                for name, value in config_kwargs.items()
-                if name in accepted
-            })
-        )
+        _controller_config = self._configure_algorithm(config_class())
+
+        # Update with given config arguments, if any.
+        # This is used to pass the sensor mount pose once it is known.
+        for name, value in config_kwargs.items():
+            if name in accepted:
+                setattr(_controller_config, name, value)
 
         self._path_controller = ControlClasses[self.algorithm](
             robot=self._robot,
@@ -1107,8 +1103,10 @@ class Controller(Component):
         if self._sensor_mount_pose_set or self._path_controller is None:
             return
 
-        if not self.direct_sensor or not isinstance(self.sensor_data, LaserScanData):
-            # Cartesian obstacles arrive in the world frame; no mount pose to apply
+        if not self.direct_sensor or not isinstance(
+            self.get_callback(TopicsKeys.SPATIAL_SENSOR), LaserScanCallback
+        ):
+            # If a map is being used or direct sensor data is not laserscan, the core does not need a mount pose and can be built once at init time
             self._sensor_mount_pose_set = True
             return
 
@@ -1129,10 +1127,6 @@ class Controller(Component):
         # The rebuild dropped the path the previous object was tracking
         if self.plan is not None:
             self._path_controller.set_path(global_path=self.plan)
-        self.get_logger().info(
-            "Applied the laser scan mount pose to the "
-            f"'{self.algorithm}' controller"
-        )
 
     def _stop_robot(self):
         """
