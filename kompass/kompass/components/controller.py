@@ -1031,17 +1031,29 @@ class Controller(Component):
                 throttle_duration_sec=5.0,
             )
             return
-        plan = output
-        self.plan = plan
-        self._reached_end = False
-        if self._path_controller:
+        self._install_plan(output)
+
+    def _install_plan(self, plan: Path) -> bool:
+        """Hand a world-frame plan to the core and take the goal point from it.
+
+        Shared by the arrival hook and the retry in ``_path_control`` so the
+        two cannot drift: a plan that reaches the core must always bring its
+        goal point with it, or ``reached_point`` judges against a stale one.
+
+        :param plan: Global plan, already in the world frame
+        :type plan: Path
+        """
+        if len(plan.poses) > 1 and self._path_controller is not None:
+            self.plan = plan
+            self._reached_end = False
             self._path_controller.set_path(global_path=plan)
-        if len(plan.poses) > 1:
             self._goal_point = RobotState(
                 x=plan.poses[-1].pose.position.x, y=plan.poses[-1].pose.position.y
             )
+            return True
         else:
             self._goal_point = None
+            return False
 
     def init_variables(self):
         """
@@ -1257,22 +1269,22 @@ class Controller(Component):
             return PathControlStatus.IDLE
 
         if not self._path_controller.path:
-            # No global path -> nothing to control toward
-            return PathControlStatus.IDLE
+            plan = self._read_plan()
+            # No plan is set to the controller -> read plan from callback
+            if (plan is None) or (not self._install_plan(plan)):
+                # Plan is not available or rejected by the core, which needs at least two poses
+                return PathControlStatus.IDLE
 
         self._update_state(block=True)
         obstacles_deliverable = self._update_sensor_data()
         self._apply_sensor_mount_pose()
 
-        if not obstacles_deliverable:
-            # Obstacles exist but could not be put in the frame the core reads
-            return PathControlStatus.WAITING_INPUTS
-
-        if not self.robot_state:
+        if not obstacles_deliverable or not self.robot_state:
             self.get_logger().warning(
-                f"Robot state unavailable after {self.config.topic_subscription_timeout}s -> skipping control step",
-                throttle_duration_sec=5.0,
-            )
+                            f"State or sensor data unavailable after {self.config.topic_subscription_timeout}s -> skipping control step",
+                            throttle_duration_sec=5.0,
+                        )
+            # Obstacles exist but could not be put in the frame the core reads
             return PathControlStatus.WAITING_INPUTS
 
         ranges = None
