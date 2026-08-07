@@ -3,6 +3,7 @@ import json
 from typing import Dict, List, Optional, Union, Tuple
 from ros_sugar.core import ComponentFallbacks, BaseComponent
 from ros_sugar.tf import TFListener
+from tf2_ros import TransformStamped
 from ros_sugar.io import Publisher, AllowedTopics
 
 from ..callbacks import GenericCallback
@@ -578,6 +579,54 @@ class Component(BaseComponent):
         return self.get_transform_listener(
             callback.frame_id, goal_frame, static_tf=static_tf
         )
+
+    def resolve_input_tf(
+        self,
+        topic_key: TopicsKeys,
+        goal_frame: Optional[str] = None,
+        idx: int = 0,
+    ) -> Tuple[bool, Optional[TransformStamped]]:
+        """Resolve, right now, the transform taking an input into a given frame.
+
+        The transform stored on a callback is refreshed only when a message
+        arrives, so an input published before its TF came up keeps a stale empty
+        transform for as long as nothing republishes. Looking the transform up
+        here instead means a late TF is picked up on the next read.
+
+        Unlike ``input_tf_listener`` this answers the question a consumer
+        actually has -- can I use this data in the frame I need, and with what
+        transform -- separating "already in the goal frame" from "cannot be put
+        there yet", so data is never quietly used in the frame it arrived in.
+
+        Pass the returned transform to the callback's ``get_output`` to have the
+        data delivered in the goal frame.
+
+        :param topic_key: Key of the component input topic
+        :type topic_key: TopicsKeys
+        :param goal_frame: Frame to deliver the data in, defaults to the
+            configured world frame
+        :type goal_frame: Optional[str]
+        :param idx: Index of the input, for keys bound to several topics
+        :type idx: int
+
+        :return: Whether the input can be delivered in the goal frame, and the
+            transform to ask for it with (None when none is needed)
+        :rtype: Tuple[bool, Optional[TransformStamped]]
+        """
+        goal = goal_frame or self.config.frames.world
+        callback = self.get_callback(topic_key, idx)
+        # No frame to reason about: nothing to look up and nothing to transform,
+        # so the data is taken as it arrived
+        if not callback or not callback.frame_id:
+            return True, None
+
+        if callback.frame_id == goal:
+            return True, None
+
+        tf_listener = self.get_transform_listener(callback.frame_id, goal)
+        if not tf_listener.got_transform:
+            return False, None
+        return True, tf_listener.transform
 
     def _wait_for_tf(self, tf_listener: TFListener, description: str = "") -> bool:
         """Block up to ``config.topic_subscription_timeout`` waiting for a
