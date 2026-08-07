@@ -657,6 +657,7 @@ class Controller(Component):
             get_logger(self.node_name).warning(
                 f"Cannot use Local Map with {self.algorithm} - Setting 'direct_sensor' to True"
             )
+            self._sensor_mount_pose_set = False
             self.config.use_direct_sensor = True
             return
         self.config.use_direct_sensor = value
