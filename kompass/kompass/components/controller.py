@@ -824,28 +824,71 @@ class Controller(Component):
             TopicsKeys.SPATIAL_SENSOR, self.config.frames.robot_base, static_tf=True
         )
 
-    def _update_sensor_data(self) -> None:
+    def _update_sensor_data(self) -> bool:
         """Update sensor data from the sensor callback.
 
-        A laser scan is left in the sensor frame; a point cloud is delivered in
-        the world frame by its callback. See ``init_variables`` for why.
+        A laser scan is left in the sensor frame, since the core places it from
+        the mount pose. Cartesian obstacles -- a point cloud or local map cells
+        -- are asked for in the world frame, and dropped rather than handed over
+        unconverted if they cannot be put there.
+
+        :return: Whether the obstacle input could be delivered in the frame the
+            core expects. False leaves the controller without obstacles for this
+            step rather than placing them wrongly
+        :rtype: bool
         """
         if self.direct_sensor:
             self.local_map = None
             sensor_callback = self.get_callback(TopicsKeys.SPATIAL_SENSOR)
-            self.sensor_data = sensor_callback.get_output() if sensor_callback else None
-        else:
-            self.sensor_data = None
-            map_callback = self.get_callback(TopicsKeys.LOCAL_MAP)
-            if map_callback:
-                self.local_map: Optional[np.ndarray] = map_callback.get_output()
-                _metadata = map_callback.get_output(get_metadata=True)
-                self.local_map_resolution = (
-                    _metadata["resolution"] if _metadata else None
+            if not sensor_callback:
+                self.sensor_data = None
+                return True
+
+            if not isinstance(sensor_callback, PointCloudCallback):
+                # A laser scan belongs in the sensor frame
+                self.sensor_data = sensor_callback.get_output()
+                return True
+
+            deliverable, transform = self.resolve_input_tf(TopicsKeys.SPATIAL_SENSOR)
+            if not deliverable:
+                self.sensor_data = None
+                self.get_logger().error(
+                    f"Point cloud is published in the '{sensor_callback.frame_id}' "
+                    f"frame but its transform to '{self.config.frames.world}' is "
+                    "not available -> dropping it rather than placing obstacles "
+                    "in the wrong frame",
+                    throttle_duration_sec=5.0,
                 )
-            else:
-                self.local_map = None
-                self.local_map_resolution = None
+                return False
+            self.sensor_data = sensor_callback.get_output(transformation=transform)
+            return True
+
+        self.sensor_data = None
+        map_callback = self.get_callback(TopicsKeys.LOCAL_MAP)
+        if not map_callback:
+            self.local_map = None
+            self.local_map_resolution = None
+            return True
+
+        # Metadata is read off the message itself, so it needs no transform
+        _metadata = map_callback.get_output(get_metadata=True)
+        self.local_map_resolution = _metadata["resolution"] if _metadata else None
+
+        deliverable, transform = self.resolve_input_tf(TopicsKeys.LOCAL_MAP)
+        if not deliverable:
+            self.local_map = None
+            self.get_logger().error(
+                f"Local map is published in the '{map_callback.frame_id}' frame "
+                f"but its transform to '{self.config.frames.world}' is not "
+                "available -> dropping it rather than placing obstacles in the "
+                "wrong frame",
+                throttle_duration_sec=5.0,
+            )
+            return False
+        self.local_map: Optional[np.ndarray] = map_callback.get_output(
+            transformation=transform
+        )
+        return True
 
     def _read_robot_state(self) -> Optional[RobotState]:
         """Helper method to read the robot state from the location topic"""
@@ -869,10 +912,7 @@ class Controller(Component):
             yet available the update is skipped for this tick.
         """
         if self.config._mode == ControllerMode.PATH_FOLLOWER:
-            plan_callback = self.get_callback(TopicsKeys.GLOBAL_PLAN)
-            self.plan: Optional[Path] = (
-                plan_callback.get_output() if plan_callback else None
-            )
+            self.plan: Optional[Path] = self._read_plan()
 
         # In LOCAL frame mode robot state is irrelevant: sensor data and
         # tracked targets are reasoned about robot-relative.
@@ -950,31 +990,30 @@ class Controller(Component):
         if plan_callback:
             plan_callback.on_callback_execute(self._set_path_to_controller)
 
-    def _plan_tf_available(self) -> bool:
-        """Whether the last global plan could be expressed in the world frame.
+    def _read_plan(self) -> Optional[Path]:
+        """Read the global plan, in the world frame the core tracks against.
 
-        :return: True if the plan is safe to hand to the core
-        :rtype: bool
+        The single place a plan is fetched, so every consumer gets the same
+        guarantee: either the plan is in the world frame, or there is no plan.
+
+        :return: The plan in the world frame, or None if there is none or it
+            cannot be brought there yet
+        :rtype: Optional[Path]
         """
         plan_callback = self.get_callback(TopicsKeys.GLOBAL_PLAN)
         if not plan_callback:
-            # No subscription to ask about the frame. That is the same
-            # not-knowing as a plan without a frame_id, so it is taken at face
-            # value rather than treated as a plan in the wrong frame
-            return True
-        plan_frame = plan_callback.frame_id
-        # A plan with no frame_id is taken at face value, matching how a
-        # headerless robot location message is handled
-        if not plan_frame or plan_frame == self.config.frames.world:
-            return True
-        if plan_callback.transformation:
-            return True
-        self.get_logger().error(
-            f"Global plan is published in the '{plan_frame}' frame but its "
-            f"transform to '{self.config.frames.world}' is not available "
-            "-> dropping this plan"
-        )
-        return False
+            return None
+
+        deliverable, transform = self.resolve_input_tf(TopicsKeys.GLOBAL_PLAN)
+        if not deliverable:
+            self.get_logger().error(
+                f"Global plan is published in the '{plan_callback.frame_id}' "
+                f"frame but its transform to '{self.config.frames.world}' is "
+                "not available -> dropping this plan",
+                throttle_duration_sec=5.0,
+            )
+            return None
+        return plan_callback.get_output(transformation=transform)
 
     def _set_path_to_controller(self, output, **_) -> None:
         """
@@ -983,14 +1022,22 @@ class Controller(Component):
         The plan arrives already expressed in the world frame: the component
         asks for this input in ``frames.world`` and the callback transforms it.
         """
-        if output is None or not self._plan_tf_available():
+        deliverable, _ = self.resolve_input_tf(TopicsKeys.GLOBAL_PLAN)
+        if output is None or not deliverable:
+            self.get_logger().error(
+                "Global plan cannot be expressed in the "
+                f"'{self.config.frames.world}' frame -> dropping this plan",
+                throttle_duration_sec=5.0,
+            )
             return
+        plan = output
+        self.plan = plan
         self._reached_end = False
         if self._path_controller:
-            self._path_controller.set_path(global_path=output)
-        if len(output.poses) > 1:
+            self._path_controller.set_path(global_path=plan)
+        if len(plan.poses) > 1:
             self._goal_point = RobotState(
-                x=output.poses[-1].pose.position.x, y=output.poses[-1].pose.position.y
+                x=plan.poses[-1].pose.position.x, y=plan.poses[-1].pose.position.y
             )
         else:
             self._goal_point = None
@@ -1127,9 +1174,16 @@ class Controller(Component):
             proximity_sensor_rotation_to_robot=sensor_tf.rotation,
         )
         self._sensor_mount_pose_set = True
-        # The rebuild dropped the path the previous object was tracking
+        # The rebuild dropped the path the previous object was tracking.
+        # `self.plan` is the guarded world-frame read refreshed by
+        # `_update_state` just above, so this cannot install a wrong-frame path
         if self.plan is not None:
             self._path_controller.set_path(global_path=self.plan)
+        else:
+            self.get_logger().warning(
+                "No global plan available while applying the scan mount pose "
+                "-> the rebuilt controller starts without a path"
+            )
 
     def _stop_robot(self):
         """
@@ -1206,8 +1260,12 @@ class Controller(Component):
             return PathControlStatus.IDLE
 
         self._update_state(block=True)
-        self._update_sensor_data()
+        obstacles_deliverable = self._update_sensor_data()
         self._apply_sensor_mount_pose()
+
+        if not obstacles_deliverable:
+            # Obstacles exist but could not be put in the frame the core reads
+            return PathControlStatus.WAITING_INPUTS
 
         if not self.robot_state:
             self.get_logger().warning(
@@ -1340,9 +1398,17 @@ class Controller(Component):
         # Note: This will automatically end the vision target tracking action if it is ongoing
         self.config._mode = ControllerMode.PATH_FOLLOWER
 
-        if not self._plan_tf_available():
+        deliverable, _ = self.resolve_input_tf(TopicsKeys.GLOBAL_PLAN)
+        if not deliverable:
+            self.get_logger().error(
+                "Global plan is not available in the world frame -> Aborting"
+            )
             goal_handle.abort()
             return result
+        # Refresh where possible: in ACTION_SERVER mode nothing has run
+        # _update_state yet, so `self.plan` may be stale at this point
+        if (_plan := self._read_plan()) is not None:
+            self.plan = _plan
         self._path_controller.set_path(self.plan)  # type: ignore
 
         self._reached_end: bool = False
