@@ -416,7 +416,7 @@ class DriveManager(Component):
             and not self.config.use_without_scan_sensor
         ):
             self.get_logger().warning(
-                "LaserScan data is not available -> disabling command publish to robot. To use the DriveManager without safety stop set 'disable_safety_stop' to 'True'",
+                "Proximity sensor data is not available -> blocking command publishing to robot.",
                 once=True,
             )
             self.slow_down_factor["unavailable_data"] = 0.0
@@ -457,7 +457,7 @@ class DriveManager(Component):
                         z_offset=self.sensor_data.z_offset,
                         forward=(vx_out >= 0.0),
                     )
-                    self.get_logger().info(
+                    self.get_logger().debug(
                         f"PointCloud emergency check forward={(vx_out >= 0.0)} returned {self.slow_down_factor['scan_data']}"
                     )
             slowdown_val: float = min(self.slow_down_factor.values())
@@ -836,7 +836,7 @@ class DriveManager(Component):
         """
         if not self.sensor_data:
             self.get_logger().error(
-                "Scan unavailable - Unblocking functionality requires LaserScan information"
+                "Proximity sensor data unavailable - Unblocking functionality requires LaserScan or PointCloud information"
             )
             return False
 
@@ -1164,7 +1164,7 @@ class DriveManager(Component):
                 self.config.frames.robot_base,
                 static_tf=True,
             )
-            self.get_logger().info("Waiting to get Proximity Sensor TF...", once=True)
+            self.get_logger().info("Checking for Proximity Sensor TF...", once=True)
             time.sleep(1 / self.config.loop_rate)
 
         self.get_logger().info("Got Proximity Sensor TF...")
@@ -1182,7 +1182,7 @@ class DriveManager(Component):
         # Get laserscan data to initialize the GPU based checker
         while not self.sensor_data:
             self.get_logger().info(
-                "Waiting to get laserscan data to initialize CriticalZoneChecker..",
+                "Waiting to get proximity sensor data to initialize CriticalZoneChecker..",
                 once=True,
             )
             self._update_state()
