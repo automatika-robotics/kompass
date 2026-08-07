@@ -13,7 +13,12 @@ from geometry_msgs.msg import PoseStamped
 
 # KOMPASS
 from kompass_core.models import Robot, RobotState
-from ros_sugar.io import LaserScanData, PointCloudCallback, PointCloudData
+from ros_sugar.io import (
+    LaserScanData,
+    PointCloudCallback,
+    LaserScanCallback,
+    PointCloudData,
+)
 from kompass_core.utils.geometry import from_euler_to_quaternion
 from kompass_core.control import (
     ControlClasses,
@@ -892,7 +897,11 @@ class Controller(Component):
                 timeout += step
                 time.sleep(step)
 
-            if state_callback and state_callback.got_msg and not state_callback.frame_id:
+            if (
+                state_callback
+                and state_callback.got_msg
+                and not state_callback.frame_id
+            ):
                 # A bare Pose carries no header, so there is no frame to look up
                 # and nothing to transform: take the data as it arrived.
                 self.get_logger().warning(
@@ -1038,9 +1047,7 @@ class Controller(Component):
         #
         # Both are registered regardless of `use_direct_sensor`, since it can be
         # flipped at runtime and only the subscribed input ever resolves one.
-        if isinstance(
-            self.get_callback(TopicsKeys.SPATIAL_SENSOR), PointCloudCallback
-        ):
+        if isinstance(self.get_callback(TopicsKeys.SPATIAL_SENSOR), PointCloudCallback):
             self.transform_inputs_to(
                 TopicsKeys.SPATIAL_SENSOR, self.config.frames.world
             )
