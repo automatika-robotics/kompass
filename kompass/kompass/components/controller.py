@@ -1042,18 +1042,29 @@ class Controller(Component):
 
         :param plan: Global plan, already in the world frame
         :type plan: Path
+
+        :return: Whether the core came away with a path to track
+        :rtype: bool
         """
-        if len(plan.poses) > 1 and self._path_controller is not None:
-            self.plan = plan
-            self._reached_end = False
-            self._path_controller.set_path(global_path=plan)
+        self.plan = plan
+        self._reached_end = False
+
+        if len(plan.poses) > 1:
             self._goal_point = RobotState(
                 x=plan.poses[-1].pose.position.x, y=plan.poses[-1].pose.position.y
             )
-            return True
         else:
+            # Fewer than two poses is "no goal"
             self._goal_point = None
+
+        if self._path_controller is None:
             return False
+
+        # Handed over whatever its length: the core clears its own current path
+        # when given fewer than two poses, and that is the only way a stale
+        # path gets dropped. Skipping the call leaves the robot tracking it
+        self._path_controller.set_path(global_path=plan)
+        return bool(self._path_controller.path)
 
     def init_variables(self):
         """
