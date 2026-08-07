@@ -60,6 +60,8 @@ def make_path_controller_stub(**overrides) -> Controller:
     _set_mangled(c, "lat_dist_error", 0.0)
     _set_mangled(c, "ori_error", 0.0)
     _set_mangled(c, "goal_point", RobotState(x=10.0, y=0.0))
+    # Latch for the one-time rebuild that hands the core the sensor mount pose
+    _set_mangled(c, "sensor_mount_pose_set", False)
 
     c.robot_state = RobotState(x=0.0, y=0.0, yaw=0.0)
     c.plan = None
