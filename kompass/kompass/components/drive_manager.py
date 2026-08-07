@@ -440,26 +440,39 @@ class DriveManager(Component):
             if self._emergency_checker:
                 self._update_state()
                 # Check emergency stop from Lidar in the direction of the command
-                if isinstance(self.sensor_data, LaserScanData):
-                    self.slow_down_factor["scan_data"] = self._emergency_checker.check(
-                        ranges=self.sensor_data.ranges,
-                        forward=(vx_out >= 0.0),
+                try:
+                    if isinstance(self.sensor_data, LaserScanData):
+                        self.slow_down_factor["scan_data"] = (
+                            self._emergency_checker.check(
+                                ranges=self.sensor_data.ranges,
+                                forward=(vx_out >= 0.0),
+                            )
+                        )
+                    elif isinstance(self.sensor_data, PointCloudData):
+                        self.slow_down_factor["scan_data"] = (
+                            self._emergency_checker.check(
+                                data=self.sensor_data.data,
+                                point_step=self.sensor_data.point_step,
+                                row_step=self.sensor_data.row_step,
+                                height=self.sensor_data.height,
+                                width=self.sensor_data.width,
+                                x_offset=self.sensor_data.x_offset,
+                                y_offset=self.sensor_data.y_offset,
+                                z_offset=self.sensor_data.z_offset,
+                                forward=(vx_out >= 0.0),
+                            )
+                        )
+                        self.get_logger().debug(
+                            f"PointCloud emergency check forward={(vx_out >= 0.0)} returned {self.slow_down_factor['scan_data']}"
+                        )
+                except Exception as e:
+                    # A checker that cannot evaluate the sensor data (e.g.
+                    # malformed cloud metadata) must stop the robot and keep the
+                    # component alive
+                    self.get_logger().error(
+                        f"CriticalZoneChecker failed on incoming sensor data: {e} -> Triggering emergency stop"
                     )
-                elif isinstance(self.sensor_data, PointCloudData):
-                    self.slow_down_factor["scan_data"] = self._emergency_checker.check(
-                        data=self.sensor_data.data,
-                        point_step=self.sensor_data.point_step,
-                        row_step=self.sensor_data.row_step,
-                        height=self.sensor_data.height,
-                        width=self.sensor_data.width,
-                        x_offset=self.sensor_data.x_offset,
-                        y_offset=self.sensor_data.y_offset,
-                        z_offset=self.sensor_data.z_offset,
-                        forward=(vx_out >= 0.0),
-                    )
-                    self.get_logger().debug(
-                        f"PointCloud emergency check forward={(vx_out >= 0.0)} returned {self.slow_down_factor['scan_data']}"
-                    )
+                    self.slow_down_factor["scan_data"] = 0.0
             slowdown_val: float = min(self.slow_down_factor.values())
         else:
             slowdown_val = slowdown_factor
@@ -566,23 +579,30 @@ class DriveManager(Component):
             # Check if max_distance forward is clear
             self._update_state()
             slowdown_factor = 1.0
-            if isinstance(self.sensor_data, LaserScanData):
-                slowdown_factor = self._emergency_checker.check(
-                    ranges=self.sensor_data.ranges,
-                    forward=True,
+            try:
+                if isinstance(self.sensor_data, LaserScanData):
+                    slowdown_factor = self._emergency_checker.check(
+                        ranges=self.sensor_data.ranges,
+                        forward=True,
+                    )
+                elif isinstance(self.sensor_data, PointCloudData):
+                    slowdown_factor = self._emergency_checker.check(
+                        data=self.sensor_data.data,
+                        point_step=self.sensor_data.point_step,
+                        row_step=self.sensor_data.row_step,
+                        height=self.sensor_data.height,
+                        width=self.sensor_data.width,
+                        x_offset=self.sensor_data.x_offset,
+                        y_offset=self.sensor_data.y_offset,
+                        z_offset=self.sensor_data.z_offset,
+                        forward=True,
+                    )
+            except Exception as e:
+                # Cannot evaluate the data -> treat the direction as blocked
+                self.get_logger().error(
+                    f"CriticalZoneChecker failed on incoming sensor data: {e} -> Treating direction as blocked"
                 )
-            elif isinstance(self.sensor_data, PointCloudData):
-                slowdown_factor = self._emergency_checker.check(
-                    data=self.sensor_data.data,
-                    point_step=self.sensor_data.point_step,
-                    row_step=self.sensor_data.row_step,
-                    height=self.sensor_data.height,
-                    width=self.sensor_data.width,
-                    x_offset=self.sensor_data.x_offset,
-                    y_offset=self.sensor_data.y_offset,
-                    z_offset=self.sensor_data.z_offset,
-                    forward=True,
-                )
+                slowdown_factor = 0.0
             if slowdown_factor == 0.0:
                 unblocking = False
             else:
@@ -639,23 +659,30 @@ class DriveManager(Component):
             # Check if max_distance behind the robot is clear
             self._update_state()
             slowdown_factor = 1.0
-            if isinstance(self.sensor_data, LaserScanData):
-                slowdown_factor = self._emergency_checker.check(
-                    ranges=self.sensor_data.ranges,
-                    forward=False,
+            try:
+                if isinstance(self.sensor_data, LaserScanData):
+                    slowdown_factor = self._emergency_checker.check(
+                        ranges=self.sensor_data.ranges,
+                        forward=False,
+                    )
+                elif isinstance(self.sensor_data, PointCloudData):
+                    slowdown_factor = self._emergency_checker.check(
+                        data=self.sensor_data.data,
+                        point_step=self.sensor_data.point_step,
+                        row_step=self.sensor_data.row_step,
+                        height=self.sensor_data.height,
+                        width=self.sensor_data.width,
+                        x_offset=self.sensor_data.x_offset,
+                        y_offset=self.sensor_data.y_offset,
+                        z_offset=self.sensor_data.z_offset,
+                        forward=False,
+                    )
+            except Exception as e:
+                # Cannot evaluate the data -> treat the direction as blocked
+                self.get_logger().error(
+                    f"CriticalZoneChecker failed on incoming sensor data: {e} -> Treating direction as blocked"
                 )
-            elif isinstance(self.sensor_data, PointCloudData):
-                slowdown_factor = self._emergency_checker.check(
-                    data=self.sensor_data.data,
-                    point_step=self.sensor_data.point_step,
-                    row_step=self.sensor_data.row_step,
-                    height=self.sensor_data.height,
-                    width=self.sensor_data.width,
-                    x_offset=self.sensor_data.x_offset,
-                    y_offset=self.sensor_data.y_offset,
-                    z_offset=self.sensor_data.z_offset,
-                    forward=False,
-                )
+                slowdown_factor = 0.0
             if slowdown_factor == 0.0:
                 unblocking = False
             else:
