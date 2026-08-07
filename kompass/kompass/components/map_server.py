@@ -311,7 +311,7 @@ class MapServer(Component):
         occupied_thresh = float(map_metadata["occupied_thresh"])
         free_thresh = float(map_metadata["free_thresh"])
 
-        img = cv2.imread(file_root / Path(image_path), -1)
+        img = cv2.imread(str(file_root / Path(image_path)), -1)
 
         if img is None:
             raise FileNotFoundError(f"No valid map is found at: {image_path}")
