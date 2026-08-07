@@ -644,6 +644,10 @@ class Controller(Component):
         :param value: Use direct sensor data flag
         :type value: bool
         """
+        # Reset sensor mount pose if the direct sensor flag is changed
+        if value != self.config.use_direct_sensor:
+            self._sensor_mount_pose_set = False
+
         # Note: Only DWA takes local map
         if (
             self.algorithm
@@ -657,7 +661,6 @@ class Controller(Component):
             get_logger(self.node_name).warning(
                 f"Cannot use Local Map with {self.algorithm} - Setting 'direct_sensor' to True"
             )
-            self._sensor_mount_pose_set = False
             self.config.use_direct_sensor = True
             return
         self.config.use_direct_sensor = value
