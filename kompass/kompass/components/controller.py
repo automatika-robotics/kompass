@@ -958,7 +958,10 @@ class Controller(Component):
         """
         plan_callback = self.get_callback(TopicsKeys.GLOBAL_PLAN)
         if not plan_callback:
-            return False
+            # No subscription to ask about the frame. That is the same
+            # not-knowing as a plan without a frame_id, so it is taken at face
+            # value rather than treated as a plan in the wrong frame
+            return True
         plan_frame = plan_callback.frame_id
         # A plan with no frame_id is taken at face value, matching how a
         # headerless robot location message is handled
