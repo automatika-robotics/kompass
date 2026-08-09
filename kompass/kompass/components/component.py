@@ -586,20 +586,12 @@ class Component(BaseComponent):
         goal_frame: Optional[str] = None,
         idx: int = 0,
     ) -> Tuple[bool, Optional[TransformStamped]]:
-        """Resolve, right now, the transform taking an input into a given frame.
+        """Resolve, at call time, the transform taking an input into a given frame.
 
-        The transform stored on a callback is refreshed only when a message
-        arrives, so an input published before its TF came up keeps a stale empty
-        transform for as long as nothing republishes. Looking the transform up
-        here instead means a late TF is picked up on the next read.
-
-        Unlike ``input_tf_listener`` this answers the question a consumer
-        actually has -- can I use this data in the frame I need, and with what
-        transform -- separating "already in the goal frame" from "cannot be put
-        there yet", so data is never quietly used in the frame it arrived in.
-
-        Pass the returned transform to the callback's ``get_output`` to have the
-        data delivered in the goal frame.
+        Unlike the transform cached on a callback (refreshed only on message
+        arrival), this looks the TF up live, so a TF that came up late is still
+        picked up. Pass the returned transform to the callback's ``get_output``
+        to deliver the data in the goal frame.
 
         :param topic_key: Key of the component input topic
         :type topic_key: TopicsKeys

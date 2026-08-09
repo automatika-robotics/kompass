@@ -831,10 +831,8 @@ class Controller(Component):
     def _update_sensor_data(self) -> bool:
         """Update sensor data from the sensor callback.
 
-        A laser scan is left in the sensor frame, since the core places it from
-        the mount pose. Cartesian obstacles -- a point cloud or local map cells
-        -- are asked for in the world frame, and dropped rather than handed over
-        unconverted if they cannot be put there.
+        A laser scan is left in the sensor frame. Cartesian obstacles, a point
+        cloud or local map cells are asked for in the world frame.
 
         :return: Whether the obstacle input could be delivered in the frame the
             core expects. False leaves the controller without obstacles for this
@@ -997,8 +995,7 @@ class Controller(Component):
     def _read_plan(self) -> Optional[Path]:
         """Read the global plan, in the world frame the core tracks against.
 
-        The single place a plan is fetched, so every consumer gets the same
-        guarantee: either the plan is in the world frame, or there is no plan.
+        The plan is either in the world frame, or there is no plan.
 
         :return: The plan in the world frame, or None if there is none or it
             cannot be brought there yet
@@ -1039,9 +1036,8 @@ class Controller(Component):
     def _install_plan(self, plan: Path) -> bool:
         """Hand a world-frame plan to the core and take the goal point from it.
 
-        Shared by the arrival hook and the retry in ``_path_control`` so the
-        two cannot drift: a plan that reaches the core must always bring its
-        goal point with it, or ``reached_point`` judges against a stale one.
+        Shared by the arrival hook and the retry in ``_path_control``.
+        A plan that reaches the core must always bring its goal point with it.
 
         :param plan: Global plan, already in the world frame
         :type plan: Path
@@ -1063,8 +1059,8 @@ class Controller(Component):
         if self._path_controller is None:
             return False
 
-        # Handed over whatever its length: the core clears its own current path
-        # when given fewer than two poses, and that is the only way a stale
+        # NOTE: Handed over whatever its length. The core clears its own current
+        # path when given fewer than two poses, and that is the only way a stale
         # path gets dropped. Skipping the call leaves the robot tracking it
         self._path_controller.set_path(global_path=plan)
         return bool(self._path_controller.path)
@@ -1081,7 +1077,7 @@ class Controller(Component):
         )
         self.plan: Optional[Path] = None  # robot plan (global path)
 
-        # The plan is tracked against the robot state, which is brought into
+        # NOTE: The plan is tracked against the robot state, which is brought into
         # the world frame, so the two have to agree. The plan carries its own
         # frame in its messages, so nothing has to be configured
         self.transform_inputs_to(TopicsKeys.GLOBAL_PLAN, self.config.frames.world)
@@ -1102,8 +1098,7 @@ class Controller(Component):
         self._ori_error: float = 0.0
 
         # Vision tracking lifecycle helper (owns _vision_controller, detections,
-        # depth image and tracked-target state). Always instantiated; dormant
-        # in path follower mode.
+        # depth image and tracked-target state). Dormant in path follower mode.
         self._vision_follower = VisionFollower(self)
 
         # Command queue to send controller command list to the robot
@@ -1111,7 +1106,7 @@ class Controller(Component):
 
         self.sensor_data: Optional[Union[LaserScanData, PointCloudData]] = None
 
-        # Obstacle inputs are handed to the core in the frame it expects for
+        # NOTE: Obstacle inputs are handed to the core in the frame it expects for
         # that input type, and the core does the rest:
         #
         #  - a laser scan stays in the **sensor frame**. The core lifts it into
