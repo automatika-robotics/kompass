@@ -1,6 +1,6 @@
 from typing import Optional, Union, List, Dict, Any
 import time
-from attrs import define, field
+from attrs import define, field, fields
 from queue import Queue, Empty
 import numpy as np
 
@@ -13,7 +13,12 @@ from geometry_msgs.msg import PoseStamped
 
 # KOMPASS
 from kompass_core.models import Robot, RobotState
-from ros_sugar.io import LaserScanData, PointCloudData
+from ros_sugar.io import (
+    LaserScanData,
+    PointCloudCallback,
+    LaserScanCallback,
+    PointCloudData,
+)
 from kompass_core.utils.geometry import from_euler_to_quaternion
 from kompass_core.control import (
     ControlClasses,
@@ -298,6 +303,11 @@ class Controller(Component):
             )
         # Create subscribers
         for callback in self.callbacks.values():
+            # Callbacks are rebuilt above, so the resolvers behind
+            # transform_inputs_to have to be re-attached to the new ones.
+            # Frame handling applies to plugin-fed non-ROS inputs too
+            self._attach_transform_provider(callback.input_topic.name, callback)
+
             # Inputs bound to a non-ROS robot plugin transport are fed through
             # the feedback bus, not a ROS subscription
             if callback.input_topic.name in self._external_topics:
@@ -634,6 +644,10 @@ class Controller(Component):
         :param value: Use direct sensor data flag
         :type value: bool
         """
+        # Reset sensor mount pose if the direct sensor flag is changed
+        if value != self.config.use_direct_sensor:
+            self._sensor_mount_pose_set = False
+
         # Note: Only DWA takes local map
         if (
             self.algorithm
@@ -807,33 +821,76 @@ class Controller(Component):
         """Transform listener from the proximity sensor frame to the robot body.
 
         Resolved from the sensor data's own frame, so it is None until the
-        first message arrives.
+        first message arrives. This is the mount pose the core needs to place a
+        laser scan; it is not used to transform the data here.
         """
         return self.input_tf_listener(
             TopicsKeys.SPATIAL_SENSOR, self.config.frames.robot_base, static_tf=True
         )
 
-    def _update_sensor_data(self) -> None:
-        """Update sensor data from the sensor callback"""
+    def _update_sensor_data(self) -> bool:
+        """Update sensor data from the sensor callback.
+
+        A laser scan is left in the sensor frame. Cartesian obstacles, a point
+        cloud or local map cells are asked for in the world frame.
+
+        :return: Whether the obstacle input could be delivered in the frame the
+            core expects. False leaves the controller without obstacles for this
+            step rather than placing them wrongly
+        :rtype: bool
+        """
         if self.direct_sensor:
             self.local_map = None
             sensor_callback = self.get_callback(TopicsKeys.SPATIAL_SENSOR)
-            # The sensor->body transform is applied by the callback itself
-            self.sensor_data = (
-                sensor_callback.get_output() if sensor_callback else None
-            )
-        else:
-            self.sensor_data = None
-            map_callback = self.get_callback(TopicsKeys.LOCAL_MAP)
-            if map_callback:
-                self.local_map: Optional[np.ndarray] = map_callback.get_output()
-                _metadata = map_callback.get_output(get_metadata=True)
-                self.local_map_resolution = (
-                    _metadata["resolution"] if _metadata else None
+            if not sensor_callback:
+                self.sensor_data = None
+                return True
+
+            if not isinstance(sensor_callback, PointCloudCallback):
+                # A laser scan belongs in the sensor frame
+                self.sensor_data = sensor_callback.get_output()
+                return True
+
+            deliverable, transform = self.resolve_input_tf(TopicsKeys.SPATIAL_SENSOR)
+            if not deliverable:
+                self.sensor_data = None
+                self.get_logger().error(
+                    f"Point cloud is published in the '{sensor_callback.frame_id}' "
+                    f"frame but its transform to '{self.config.frames.world}' is "
+                    "not available -> dropping it rather than placing obstacles "
+                    "in the wrong frame",
+                    throttle_duration_sec=5.0,
                 )
-            else:
-                self.local_map = None
-                self.local_map_resolution = None
+                return False
+            self.sensor_data = sensor_callback.get_output(transformation=transform)
+            return True
+
+        self.sensor_data = None
+        map_callback = self.get_callback(TopicsKeys.LOCAL_MAP)
+        if not map_callback:
+            self.local_map = None
+            self.local_map_resolution = None
+            return True
+
+        # Metadata is read off the message itself, so it needs no transform
+        _metadata = map_callback.get_output(get_metadata=True)
+        self.local_map_resolution = _metadata["resolution"] if _metadata else None
+
+        deliverable, transform = self.resolve_input_tf(TopicsKeys.LOCAL_MAP)
+        if not deliverable:
+            self.local_map = None
+            self.get_logger().error(
+                f"Local map is published in the '{map_callback.frame_id}' frame "
+                f"but its transform to '{self.config.frames.world}' is not "
+                "available -> dropping it rather than placing obstacles in the "
+                "wrong frame",
+                throttle_duration_sec=5.0,
+            )
+            return False
+        self.local_map: Optional[np.ndarray] = map_callback.get_output(
+            transformation=transform
+        )
+        return True
 
     def _read_robot_state(self) -> Optional[RobotState]:
         """Helper method to read the robot state from the location topic"""
@@ -857,10 +914,7 @@ class Controller(Component):
             yet available the update is skipped for this tick.
         """
         if self.config._mode == ControllerMode.PATH_FOLLOWER:
-            plan_callback = self.get_callback(TopicsKeys.GLOBAL_PLAN)
-            self.plan: Optional[Path] = (
-                plan_callback.get_output() if plan_callback else None
-            )
+            self.plan: Optional[Path] = self._read_plan()
 
         # In LOCAL frame mode robot state is irrelevant: sensor data and
         # tracked targets are reasoned about robot-relative.
@@ -883,7 +937,11 @@ class Controller(Component):
                 timeout += step
                 time.sleep(step)
 
-            if state_callback and state_callback.got_msg and not state_callback.frame_id:
+            if (
+                state_callback
+                and state_callback.got_msg
+                and not state_callback.frame_id
+            ):
                 # A bare Pose carries no header, so there is no frame to look up
                 # and nothing to transform: take the data as it arrived.
                 self.get_logger().warning(
@@ -934,19 +992,78 @@ class Controller(Component):
         if plan_callback:
             plan_callback.on_callback_execute(self._set_path_to_controller)
 
-    def _set_path_to_controller(self, msg, **_) -> None:
+    def _read_plan(self) -> Optional[Path]:
+        """Read the global plan, in the world frame the core tracks against.
+
+        The plan is either in the world frame, or there is no plan.
+
+        :return: The plan in the world frame, or None if there is none or it
+            cannot be brought there yet
+        :rtype: Optional[Path]
+        """
+        plan_callback = self.get_callback(TopicsKeys.GLOBAL_PLAN)
+        if not plan_callback:
+            return None
+
+        deliverable, transform = self.resolve_input_tf(TopicsKeys.GLOBAL_PLAN)
+        if not deliverable:
+            self.get_logger().error(
+                f"Global plan is published in the '{plan_callback.frame_id}' "
+                f"frame but its transform to '{self.config.frames.world}' is "
+                "not available -> dropping this plan",
+                throttle_duration_sec=5.0,
+            )
+            return None
+        return plan_callback.get_output(transformation=transform)
+
+    def _set_path_to_controller(self, output, **_) -> None:
         """
         Set a new plan to the controller/follower
+
+        The plan arrives already expressed in the world frame: the component
+        asks for this input in ``frames.world`` and the callback transforms it.
         """
+        deliverable, _ = self.resolve_input_tf(TopicsKeys.GLOBAL_PLAN)
+        if output is None or not deliverable:
+            self.get_logger().error(
+                "Global plan cannot be expressed in the "
+                f"'{self.config.frames.world}' frame -> dropping this plan",
+                throttle_duration_sec=5.0,
+            )
+            return
+        self._install_plan(output)
+
+    def _install_plan(self, plan: Path) -> bool:
+        """Hand a world-frame plan to the core and take the goal point from it.
+
+        Shared by the arrival hook and the retry in ``_path_control``.
+        A plan that reaches the core must always bring its goal point with it.
+
+        :param plan: Global plan, already in the world frame
+        :type plan: Path
+
+        :return: Whether the core came away with a path to track
+        :rtype: bool
+        """
+        self.plan = plan
         self._reached_end = False
-        if self._path_controller:
-            self._path_controller.set_path(global_path=msg)
-        if len(msg.poses) > 1:
+
+        if len(plan.poses) > 1:
             self._goal_point = RobotState(
-                x=msg.poses[-1].pose.position.x, y=msg.poses[-1].pose.position.y
+                x=plan.poses[-1].pose.position.x, y=plan.poses[-1].pose.position.y
             )
         else:
+            # Fewer than two poses is "no goal"
             self._goal_point = None
+
+        if self._path_controller is None:
+            return False
+
+        # NOTE: Handed over whatever its length. The core clears its own current
+        # path when given fewer than two poses, and that is the only way a stale
+        # path gets dropped. Skipping the call leaves the robot tracking it
+        self._path_controller.set_path(global_path=plan)
+        return bool(self._path_controller.path)
 
     def init_variables(self):
         """
@@ -959,6 +1076,11 @@ class Controller(Component):
             None  # robot current state - to be updated from odom
         )
         self.plan: Optional[Path] = None  # robot plan (global path)
+
+        # NOTE: The plan is tracked against the robot state, which is brought into
+        # the world frame, so the two have to agree. The plan carries its own
+        # frame in its messages, so nothing has to be configured
+        self.transform_inputs_to(TopicsKeys.GLOBAL_PLAN, self.config.frames.world)
 
         # INIT PATH CONTROLLER
         self._robot = Robot(
@@ -976,49 +1098,113 @@ class Controller(Component):
         self._ori_error: float = 0.0
 
         # Vision tracking lifecycle helper (owns _vision_controller, detections,
-        # depth image and tracked-target state). Always instantiated; dormant
-        # in path follower mode.
+        # depth image and tracked-target state). Dormant in path follower mode.
         self._vision_follower = VisionFollower(self)
 
         # Command queue to send controller command list to the robot
         self._cmds_queue: Queue = Queue()
 
-        if self.direct_sensor:
-            # Sensor data is used in the robot body frame. Its own frame comes
-            # from the incoming messages, whatever the sensor type
-            self.transform_inputs_to(
-                TopicsKeys.SPATIAL_SENSOR,
-                self.config.frames.robot_base,
-                static_tf=True,
-            )
+        self.sensor_data: Optional[Union[LaserScanData, PointCloudData]] = None
 
-            self.sensor_data: Optional[Union[LaserScanData, PointCloudData]] = None
+        # NOTE: Obstacle inputs are handed to the core in the frame it expects for
+        # that input type, and the core does the rest:
+        #
+        #  - a laser scan stays in the **sensor frame**. The core lifts it into
+        #    the world itself, from the mount pose it is given at construction
+        #    and the robot's world pose. So no transform is requested here.
+        #  - cartesian obstacles, whether a decoded point cloud or local map
+        #    cells, are handed over in the **world frame** and used untouched.
+        #
+        # Both are registered regardless of `use_direct_sensor`, since it can be
+        # flipped at runtime and only the subscribed input ever resolves one.
+        if isinstance(self.get_callback(TopicsKeys.SPATIAL_SENSOR), PointCloudCallback):
+            self.transform_inputs_to(
+                TopicsKeys.SPATIAL_SENSOR, self.config.frames.world
+            )
+        self.transform_inputs_to(TopicsKeys.LOCAL_MAP, self.config.frames.world)
 
         self._path_controller: Optional[ControllerType] = None
+        # The sensor mount pose is only knowable once a scan has arrived, and
+        # the core takes it at construction -> see _apply_sensor_mount_pose
+        self._sensor_mount_pose_set: bool = False
 
         if self.config._mode == ControllerMode.PATH_FOLLOWER:
-            config_kwargs = {}
-            sensor_tf = self._sensor_tf_listener if self.direct_sensor else None
-            if sensor_tf and sensor_tf.got_transform:
-                config_kwargs["proximity_sensor_position_to_robot"] = (
-                    sensor_tf.translation
-                )
-                config_kwargs["proximity_sensor_rotation_to_robot"] = (
-                    sensor_tf.rotation
-                )
-                config_kwargs["control_time_step"] = self.config.control_time_step
-            # Get default controller configuration and update it from user defined config
-            _controller_config = self._configure_algorithm(
-                ControlConfigClasses[self.algorithm](**config_kwargs)
-            )
+            self._build_path_controller()
 
-            self._path_controller = ControlClasses[self.algorithm](
-                robot=self._robot,
-                config=_controller_config,
-                ctrl_limits=self._robot_ctr_limits,
-                config_file=self._config_file,
-                config_root_name=f"{self.node_name}.{self.config.algorithm}",
-                control_time_step=self.config.control_time_step,
+    def _build_path_controller(self, **config_kwargs) -> None:
+        """(Re)build the core algorithm object.
+
+        :param config_kwargs: Algorithm config overrides, used to pass the
+            sensor mount pose once it is known
+        """
+        config_class = ControlConfigClasses[self.algorithm]
+        # Check for acceptance since the config classes do not all share the same common set of fields
+        accepted = {attribute.name.lstrip("_") for attribute in fields(config_class)}
+        dropped = set(config_kwargs) - accepted
+        if dropped:
+            self.get_logger().debug(
+                f"'{self.algorithm}' config takes no {sorted(dropped)} -> ignored"
+            )
+        # Get default controller configuration and update it from user defined config
+        _controller_config = self._configure_algorithm(config_class())
+
+        # Update with given config arguments, if any.
+        # This is used to pass the sensor mount pose once it is known.
+        for name, value in config_kwargs.items():
+            if name in accepted:
+                setattr(_controller_config, name, value)
+
+        self._path_controller = ControlClasses[self.algorithm](
+            robot=self._robot,
+            config=_controller_config,
+            ctrl_limits=self._robot_ctr_limits,
+            config_file=self._config_file,
+            config_root_name=f"{self.node_name}.{self.config.algorithm}",
+            control_time_step=self.config.control_time_step,
+        )
+
+    def _apply_sensor_mount_pose(self) -> None:
+        """Hand the sensor-to-body mount pose to the core, once it is known.
+
+        Only a laser scan needs it: it reaches the core in the sensor frame, so
+        the core cannot place it without the mount pose. The pose comes from the
+        scan's own ``frame_id``, so it cannot be resolved before the first
+        message, and the core takes it at construction -- hence the one-time
+        rebuild here rather than at ``init_variables`` time.
+        """
+        if self._sensor_mount_pose_set or self._path_controller is None:
+            return
+
+        if not self.direct_sensor or not isinstance(
+            self.get_callback(TopicsKeys.SPATIAL_SENSOR), LaserScanCallback
+        ):
+            # If a map is being used or direct sensor data is not laserscan, the core does not need a mount pose and can be built once at init time
+            self._sensor_mount_pose_set = True
+            return
+
+        sensor_tf = self._sensor_tf_listener
+        if not sensor_tf or not sensor_tf.got_transform:
+            self.get_logger().warning(
+                "Waiting for the transform from the laser scan frame to "
+                f"'{self.config.frames.robot_base}' to place the scan...",
+                throttle_duration_sec=5.0,
+            )
+            return
+
+        self._build_path_controller(
+            proximity_sensor_position_to_robot=sensor_tf.translation,
+            proximity_sensor_rotation_to_robot=sensor_tf.rotation,
+        )
+        self._sensor_mount_pose_set = True
+        # The rebuild dropped the path the previous object was tracking.
+        # `self.plan` is the guarded world-frame read refreshed by
+        # `_update_state` just above, so this cannot install a wrong-frame path
+        if self.plan is not None:
+            self._path_controller.set_path(global_path=self.plan)
+        else:
+            self.get_logger().warning(
+                "No global plan available while applying the scan mount pose "
+                "-> the rebuilt controller starts without a path"
             )
 
     def _stop_robot(self):
@@ -1092,17 +1278,22 @@ class Controller(Component):
             return PathControlStatus.IDLE
 
         if not self._path_controller.path:
-            # No global path -> nothing to control toward
-            return PathControlStatus.IDLE
+            plan = self._read_plan()
+            # No plan is set to the controller -> read plan from callback
+            if (plan is None) or (not self._install_plan(plan)):
+                # Plan is not available or rejected by the core, which needs at least two poses
+                return PathControlStatus.IDLE
 
         self._update_state(block=True)
-        self._update_sensor_data()
+        obstacles_deliverable = self._update_sensor_data()
+        self._apply_sensor_mount_pose()
 
-        if not self.robot_state:
+        if not obstacles_deliverable or not self.robot_state:
             self.get_logger().warning(
-                f"Robot state unavailable after {self.config.topic_subscription_timeout}s -> skipping control step",
-                throttle_duration_sec=5.0,
-            )
+                            f"State or sensor data unavailable after {self.config.topic_subscription_timeout}s -> skipping control step",
+                            throttle_duration_sec=5.0,
+                        )
+            # Obstacles exist but could not be put in the frame the core reads
             return PathControlStatus.WAITING_INPUTS
 
         ranges = None
@@ -1205,18 +1396,10 @@ class Controller(Component):
                 goal_handle.abort()
                 return result
 
-            # Get default controller configuration and update it from user defined config
-            _controller_config = self._configure_algorithm(
-                ControlConfigClasses[self.algorithm]()
-            )
-
-            self._path_controller = ControlClasses[self.algorithm](
-                robot=self._robot,
-                config=_controller_config,
-                ctrl_limits=self._robot_ctr_limits,
-                config_file=self._config_file,
-                config_root_name=f"{self.node_name}.{self.config.algorithm}",
-            )
+            # A different algorithm means a fresh object, so the mount pose has
+            # to be handed to it again on the next control step
+            self._sensor_mount_pose_set = False
+            self._build_path_controller()
             self.get_logger().info(f"Initialized '{self.algorithm}' controller")
         else:
             self.get_logger().warning(
@@ -1237,6 +1420,17 @@ class Controller(Component):
         # Note: This will automatically end the vision target tracking action if it is ongoing
         self.config._mode = ControllerMode.PATH_FOLLOWER
 
+        deliverable, _ = self.resolve_input_tf(TopicsKeys.GLOBAL_PLAN)
+        if not deliverable:
+            self.get_logger().error(
+                "Global plan is not available in the world frame -> Aborting"
+            )
+            goal_handle.abort()
+            return result
+        # Refresh where possible: in ACTION_SERVER mode nothing has run
+        # _update_state yet, so `self.plan` may be stale at this point
+        if (_plan := self._read_plan()) is not None:
+            self.plan = _plan
         self._path_controller.set_path(self.plan)  # type: ignore
 
         self._reached_end: bool = False

@@ -6,7 +6,7 @@ from importlib.metadata import version, PackageNotFoundError
 from packaging import version as pkg_version
 
 # Minimum required versions
-MIN_KOMPASS_CORE_VERSION = "0.8.2"
+MIN_KOMPASS_CORE_VERSION = "0.8.3"
 MIN_SUGARCOAT_VERSION = "0.8.0"
 
 
