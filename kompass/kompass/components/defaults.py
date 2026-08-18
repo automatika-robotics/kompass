@@ -203,7 +203,10 @@ driver_default_outputs: Dict[TopicsKeys, Topic] = {
 
 # LOCAL MAPPER
 mapper_allowed_inputs: Dict[TopicsKeys, AllowedTopics] = {
-    TopicsKeys.SPATIAL_SENSOR: AllowedTopics(types=["LaserScan", "PointCloud2"]),
+    # Either one LaserScan or up to 11 PointCloud2 sensors (fused into one grid)
+    TopicsKeys.SPATIAL_SENSOR: AllowedTopics(
+        types=["LaserScan", "PointCloud2"], number_required=1, number_optional=10
+    ),
     TopicsKeys.ROBOT_LOCATION: AllowedTopics(types=["Odometry", "PoseStamped", "Pose"]),
 }
 

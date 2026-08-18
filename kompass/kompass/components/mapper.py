@@ -1,4 +1,6 @@
-from typing import Optional, Dict, Union
+from typing import Dict, List, Optional, Tuple
+import time
+from functools import partial
 from attrs import define, field, Factory
 import numpy as np
 
@@ -11,11 +13,13 @@ from kompass_core.mapping import LocalMapper as LocalMapperHandler
 from kompass_core.datatypes.scan_model import ScanModelConfig
 from kompass_core.datatypes.pose import PoseData
 from kompass_core.models import RobotState
-from ros_sugar.io import LaserScanData, PointCloudData
+from ros_sugar.io import LaserScanData
 from kompass_core.models import RobotGeometry
+from kompass_cpp.types import PointFieldType, SensorConfig
 
 # KOMPASS ROS
-from ..config import ComponentConfig
+from ..config import BaseValidators, ComponentConfig
+from ..callbacks import LaserScanCallback, PointCloudCallback
 from .ros import Topic, update_topics
 from .component import Component
 
@@ -36,6 +40,9 @@ class LocalMapperConfig(ComponentConfig):
 
     map_params: MapConfig = field(default=Factory(MapConfig))
     scan_model: ScanModelConfig = field(default=Factory(ScanModelConfig))
+    sensor_data_timeout: float = field(
+        default=0.2, validator=BaseValidators.in_range(min_value=1e-3, max_value=1e3)
+    )  # Maximum sensor message age (seconds) before its cloud is skipped in the fused update
 
 
 class LocalMapper(Component):
@@ -44,7 +51,7 @@ class LocalMapper(Component):
 
 
     ```{note}
-    Current implementation supports LaserScan sensor data to create an Occupancy Grid local map. PointCloud and semantic information will be supported in an upcoming release
+    Supported sensor input is either ONE LaserScan topic or up to 11 PointCloud2 topics. Multiple point clouds (e.g. front + back 3D lidars) are fused into a single occupancy grid: each sensor's mount transform is applied inside the core and free space is carved from each sensor's own origin
     ```
 
 
@@ -76,8 +83,8 @@ class LocalMapper(Component):
 
     * - **sensor_data**
       - Direct sensor input
-      - `LaserScan`
-      - 1
+      - `LaserScan, PointCloud2`
+      - 1 to 11
       - `Topic(name="/scan", msg_type="LaserScan")`
 
     ```
@@ -101,8 +108,8 @@ class LocalMapper(Component):
 
     ## Usage Example:
     ```python
-        from kompass_core.mapping import LocalMapperConfig
-        from kompass.components import LocalMapper, MapperConfig
+        from kompass.components import LocalMapper, LocalMapperConfig
+        from kompass_core.mapping import MapConfig as MapperConfig
 
         # Select map parameters
         map_params = MapperConfig(width=5.0, height=5.0, resolution=0.2) # 5mX5m map with 0.2m/cell resolution
@@ -158,16 +165,48 @@ class LocalMapper(Component):
             None  # robot current state - to be updated from odom
         )
 
-        self._local_map_frame: str = (
-            self.config.frames.world
-        )  # Default local map frame is world frame, will be updated to odom frame if the transform from odom to world is not available
+        self._local_map_frame: str = self.config.frames.world  # Default local map frame is world frame, will be updated to odom frame if the transform from odom to world is not available
 
         self.robot_height = RobotGeometry.get_height(
             self.robot_geometry_type, self.robot.geometry_params
         )
 
-        self.sensor_data: Optional[Union[LaserScanData, PointCloudData]] = None
+        self.sensor_data: Optional[LaserScanData] = None
 
+        # Classify the spatial sensor topics
+        pc_callbacks: List[PointCloudCallback] = []
+        pc_indices: List[int] = []
+        scan_callbacks: List[LaserScanCallback] = []
+        num_sensors = self._inputs_keys.count(TopicsKeys.SPATIAL_SENSOR)
+        for idx in range(num_sensors):
+            callback = self.get_callback(TopicsKeys.SPATIAL_SENSOR, idx)
+            # N PointCloud2 topics -> multi-sensor pointcloud mode
+            # mount transforms applied inside
+            if isinstance(callback, PointCloudCallback):
+                pc_callbacks.append(callback)
+                pc_indices.append(idx)
+            # laserscan mode (data pre-transformed into the body frame by the callback)
+            elif isinstance(callback, LaserScanCallback):
+                scan_callbacks.append(callback)
+
+        self._pc_callbacks: Tuple[PointCloudCallback, ...] = tuple(pc_callbacks)
+        self._pc_indices: List[int] = pc_indices
+        self._pc_last_msg: List[float] = []
+        self._sensor_timeout: float = self.config.sensor_data_timeout
+        self._scan_callback: Optional[LaserScanCallback] = None
+        # one laserscan XOR N pointclouds
+        self._invalid_sensor_setup: bool = not (
+            (pc_callbacks and not scan_callbacks)
+            or (len(scan_callbacks) == 1 and not pc_callbacks)
+        )
+        self._local_map_builder: Optional[LocalMapperHandler] = None
+
+        if self._invalid_sensor_setup or pc_callbacks:
+            # Pointcloud mode. The handler is built at activation
+            return
+
+        # Laserscan mode (single sensor)
+        self._scan_callback = scan_callbacks[0]
         self._local_map_builder = LocalMapperHandler(
             config=self.config.map_params, scan_model_config=self.config.scan_model
         )
@@ -178,9 +217,7 @@ class LocalMapper(Component):
             TopicsKeys.SPATIAL_SENSOR, self.config.frames.robot_base, static_tf=True
         )
 
-        self.get_callback(TopicsKeys.SPATIAL_SENSOR).on_callback_execute(
-            self._update_map_from_scan
-        )
+        self._scan_callback.on_callback_execute(self._update_map_from_scan)
 
     def _update_state(self) -> None:
         """
@@ -205,9 +242,9 @@ class LocalMapper(Component):
                 location_callback.frame_id or self.config.frames.world
             )
 
-        # The sensor->body transform is applied by the callback itself
-        callback = self.get_callback(TopicsKeys.SPATIAL_SENSOR)
-        self.sensor_data = callback.get_output()
+        # In laserscan mode the sensor->body transform is applied by the callback
+        if self._scan_callback is not None:
+            self.sensor_data = self._scan_callback.get_output()
 
     def publish_data(self):
         """
@@ -241,34 +278,168 @@ class LocalMapper(Component):
             resolution=self.config.map_params.resolution,
         )
 
-    def _update_map_from_scan(self, *_, **__):
-        """Update local map from scan"""
-        if self.sensor_data is None or self.robot_state is None:
-            return
-
+    def _robot_pose_in_world(self) -> PoseData:
+        """Builds the planar robot pose used to center the local map"""
         pose_robot_in_world = PoseData()
         pose_robot_in_world.x = self.robot_state.x
         pose_robot_in_world.y = self.robot_state.y
         pose_robot_in_world.qz = np.sin(self.robot_state.yaw / 2)
         pose_robot_in_world.qw = np.cos(self.robot_state.yaw / 2)
+        return pose_robot_in_world
 
-        if isinstance(self.sensor_data, LaserScanData):
-            self._local_map_builder.update_from_laserscan(
-                pose_robot_in_world,
-                ranges=self.sensor_data.ranges,
-                angles=self.sensor_data.angles,
+    def _update_map_from_scan(self, *_, **__):
+        """Update local map from laserscan data (callback-driven)"""
+        if self.sensor_data is None or self.robot_state is None:
+            return
+
+        self._local_map_builder.update_from_laserscan(
+            self._robot_pose_in_world(),
+            ranges=self.sensor_data.ranges,
+            angles=self.sensor_data.angles,
+        )
+
+    def _update_map_from_clouds(self):
+        """Fuses the current point clouds into the local map (tick-driven).
+
+        A sensor with no fresh data (older than `sensor_data_timeout`)
+        contributes a None slot. If NO sensor has fresh data the update is skipped
+        entirely, keeping the last grid instead of wiping it.
+        """
+        if self.robot_state is None:
+            return
+        now = time.monotonic()
+        clouds: List[Optional[dict]] = []
+        fresh = 0
+        for i, callback in enumerate(self._pc_callbacks):
+            pc = (
+                callback.get_output()
+                if now - self._pc_last_msg[i] <= self._sensor_timeout
+                else None
             )
-        else:
-            self._local_map_builder.update_from_pointcloud(
-                pose_robot_in_world, **self.sensor_data.asdict()
+            if pc is None:
+                clouds.append(None)
+                continue
+            # Metadata-only view of the raw buffer (zero-copy contract)
+            clouds.append({
+                "data": pc.data,
+                "point_step": pc.point_step,
+                "row_step": pc.row_step,
+                "height": pc.height,
+                "width": pc.width,
+                "x_offset": pc.x_offset,
+                "y_offset": pc.y_offset,
+                "z_offset": pc.z_offset,
+            })
+            fresh += 1
+        if not fresh:
+            return
+        self._local_map_builder.update_from_pointclouds(
+            self._robot_pose_in_world(), clouds=clouds
+        )
+
+    def _wait_sensor_tf(self, idx: int):
+        """Blocks until the static transform from spatial sensor `idx`'s own
+        frame (read from the data itself) to the robot base is available
+
+        :param idx: Index of the spatial sensor topic
+        :type idx: int
+        """
+        sensor_tf = None
+        while not sensor_tf or not sensor_tf.transform:
+            sensor_tf = self.input_tf_listener(
+                TopicsKeys.SPATIAL_SENSOR,
+                self.config.frames.robot_base,
+                static_tf=True,
+                idx=idx,
             )
+            self.get_logger().info("Checking for sensor TF...", once=True)
+            time.sleep(1 / self.config.loop_rate)
+        return sensor_tf
+
+    def _wait_first_sensor_output(self, callback):
+        """Blocks until the given sensor callback delivers its first output
+
+        :param callback: Sensor topic callback
+        """
+        output = callback.get_output()
+        while output is None:
+            self.get_logger().info(
+                "Waiting for sensor data to initialize the local mapper..",
+                once=True,
+            )
+            time.sleep(1 / self.config.loop_rate)
+            output = callback.get_output()
+        return output
+
+    def _stamp_pc_arrival(self, sensor_idx: int, **_):
+        """Record a pointcloud sensor message arrival (staleness gating)"""
+        self._pc_last_msg[sensor_idx] = time.monotonic()
+
+    def _execute_once(self):
+        """Actions to be executed once at the start of the component execution"""
+        super()._execute_once()
+
+        if self._invalid_sensor_setup:
+            self.get_logger().error(
+                "LocalMapper supports either ONE LaserScan sensor or N PointCloud2 "
+                "sensors, not a mix or multiple laserscans -> Mapping is disabled!"
+            )
+            sensor_names = self.in_topic_name(TopicsKeys.SPATIAL_SENSOR) or []
+            self.health_status.set_fail_system(
+                topic_names=sensor_names
+                if isinstance(sensor_names, list)
+                else [sensor_names]
+            )
+            return
+
+        if not self._pc_callbacks:
+            # Laserscan mode. Handler already built at init
+            return
+
+        # Multi-sensor pointcloud mode. One SensorConfig per sensor (mount
+        # pose from TF, point field encoding from the sensor's first message)
+        sensor_configs = []
+        for callback, idx in zip(self._pc_callbacks, self._pc_indices, strict=True):
+            sensor_tf = self._wait_sensor_tf(idx)
+            cloud = self._wait_first_sensor_output(callback)
+            sensor_configs.append(
+                SensorConfig(
+                    position=sensor_tf.translation,
+                    rotation=sensor_tf.rotation,
+                    cloud_field_type=PointFieldType.from_int(cloud.x_field_datatype),
+                )
+            )
+        self._local_map_builder = LocalMapperHandler(
+            config=self.config.map_params,
+            scan_model_config=self.config.scan_model,
+            sensors=sensor_configs,
+        )
+
+        # Arrival stamps for staleness gating
+        now = time.monotonic()
+        self._pc_last_msg = [now] * len(self._pc_callbacks)
+        for i, callback in enumerate(self._pc_callbacks):
+            callback.on_callback_execute(
+                partial(self._stamp_pc_arrival, sensor_idx=i), get_processed=False
+            )
+        self.get_logger().info(
+            f"LocalMapper initialized with {len(self._pc_callbacks)} pointcloud sensor(s)"
+        )
 
     def _execution_step(self):
         """
         LocalMapper main execution step
         """
+        if self._local_map_builder is None:
+            # Pointcloud mode before activation completes (or invalid setup)
+            return
+
         # Get inputs from callbacks
         self._update_state()
+
+        # Per tick for (Multi) PointCloud case
+        if self._pc_callbacks:
+            self._update_map_from_clouds()
 
         # Check if all inputs are available
         if self.got_all_inputs():
