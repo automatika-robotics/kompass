@@ -17,9 +17,11 @@ helper sets at setup time based on TF availability.
 from __future__ import annotations
 
 import time
-from typing import TYPE_CHECKING, Dict, Optional
+from typing import TYPE_CHECKING, Optional
 
 import numpy as np
+
+from ros_sugar.io import CameraIntrinsics
 
 from kompass_core.control import (
     ControlClasses,
@@ -46,7 +48,7 @@ class VisionFollower:
         self._tracked_center: Optional[np.ndarray] = None
         self.vision_detections: Optional[Bbox2D] = None
         self.depth_image: Optional[np.ndarray] = None
-        self.depth_image_info: Optional[Dict] = None
+        self.depth_image_info: Optional[CameraIntrinsics] = None
 
     # ------------------------------------------------------------------
     # Public API consumed by the Controller component
@@ -155,10 +157,16 @@ class VisionFollower:
             robot=cmp._robot,
             ctrl_limits=cmp._robot_ctr_limits,
             config=_controller_config,
-            camera_focal_length=self.depth_image_info["focal_length"]
+            camera_focal_length=np.array([
+                self.depth_image_info.fx,
+                self.depth_image_info.fy,
+            ])
             if self.depth_image_info
             else None,
-            camera_principal_point=self.depth_image_info["principal_point"]
+            camera_principal_point=np.array([
+                self.depth_image_info.cx,
+                self.depth_image_info.cy,
+            ])
             if self.depth_image_info
             else None,
         )

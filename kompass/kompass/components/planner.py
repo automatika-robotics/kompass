@@ -13,6 +13,7 @@ from std_msgs.msg import Header
 from kompass_core.models import Robot, RobotState
 from kompass_core.vision import DepthDetector
 from kompass_core.third_party.ompl.planner import OMPLGeometric
+from ros_sugar.io import CameraIntrinsics
 
 # KOMPASS INTERFACES
 from kompass_interfaces.action import PlanPath as PlanPathAction
@@ -256,7 +257,7 @@ class Planner(Component):
         self.map: Optional[np.ndarray] = None
         self.map_data: Optional[Dict] = None
         self.reached_end: bool = False
-        self._depth_image_info: Optional[Dict] = None
+        self._depth_image_info: Optional[CameraIntrinsics] = None
 
         self.__robot = Robot(
             robot_type=self.robot.model_type,
@@ -744,7 +745,7 @@ class Planner(Component):
                     depth_img_info_callback = self.get_callback(
                         TopicsKeys.DEPTH_CAM_INFO
                     )
-                    self._depth_image_info: Optional[dict] = (
+                    self._depth_image_info: Optional[CameraIntrinsics] = (
                         depth_img_info_callback.get_output()
                         if depth_img_info_callback
                         else None
@@ -783,10 +784,16 @@ class Planner(Component):
             depth_range=self.config.depth_range,
             camera_in_body_translation=depth_tf.translation,
             camera_in_body_rotation=depth_tf.rotation,
-            focal_length=self._depth_image_info["focal_length"]
+            focal_length=np.array([
+                self._depth_image_info.fx,
+                self._depth_image_info.fy,
+            ])
             if self._depth_image_info
             else None,
-            principal_point=self._depth_image_info["principal_point"]
+            principal_point=np.array([
+                self._depth_image_info.cx,
+                self._depth_image_info.cy,
+            ])
             if self._depth_image_info
             else None,
             depth_conversion_factor=self.config.depth_conversion_factor,

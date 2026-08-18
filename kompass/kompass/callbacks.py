@@ -346,47 +346,8 @@ class PoseStampedCallback(PoseCallback):
         return center_state
 
 
-class CameraInfoCallback(GenericCallback):
-    """ROS2 Image Callback Handler to process sensor_msgs/CameraInfo data"""
-
-    def __init__(
-        self,
-        input_topic,
-        node_name: Optional[str] = None,
-    ) -> None:
-        """__init__.
-
-        :param input_topic:
-        :param node_name:
-        :type node_name: Optional[str]
-        :param transformation:
-        :type transformation: Optional[TransformStamped]
-        :rtype: None
-        """
-        super().__init__(input_topic, node_name)
-
-    def _get_output(
-        self,
-        **_,
-    ) -> Optional[dict]:
-        """
-        Gets the CameraInfo data by applying the transformation if given.
-        :returns:   Topic content
-        :rtype:     Optional[dict]
-        """
-        if not self.msg:
-            return None
-
-        cam_intrinsics = self.msg.k
-
-        return {
-            "focal_length": np.array([cam_intrinsics[0], cam_intrinsics[4]]),
-            "principal_point": np.array([cam_intrinsics[2], cam_intrinsics[5]]),
-        }
-
-
 class TwistStampedCallback(GenericCallback):
-    def __init__(self, input_topic, node_name = ""):
+    def __init__(self, input_topic, node_name=""):
         super().__init__(input_topic, node_name)
 
     def _get_output(self, **_):
