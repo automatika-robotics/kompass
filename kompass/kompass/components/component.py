@@ -552,7 +552,11 @@ class Component(BaseComponent):
             self.transform_input_to(name, goal_frame, static_tf=static_tf)
 
     def input_tf_listener(
-        self, topic_key: TopicsKeys, goal_frame: str, static_tf: bool = False
+        self,
+        topic_key: TopicsKeys,
+        goal_frame: str,
+        static_tf: bool = False,
+        idx: int = 0,
     ) -> Optional[TFListener]:
         """Gets a transform listener from an input's own frame to a given frame.
 
@@ -567,13 +571,15 @@ class Component(BaseComponent):
         :type goal_frame: str
         :param static_tf: Whether the sensor is rigidly mounted
         :type static_tf: bool
+        :param idx: Index of the input, for keys bound to several topics
+        :type idx: int
 
         :return: TF listener, or None until the first message on that input
             arrives. Data already in the goal frame yields a listener that
             resolves to the identity transform.
         :rtype: Optional[TFListener]
         """
-        callback = self.get_callback(topic_key)
+        callback = self.get_callback(topic_key, idx)
         if not callback or not callback.frame_id:
             return None
         return self.get_transform_listener(
