@@ -329,10 +329,32 @@ class Component(BaseComponent):
         return self._outputs_keys
 
     # INPUTS/OUTPUTS AND CONFIGURATION
+    def _ensure_not_launched(self, method_name: str) -> None:
+        """Guards topic reconfiguration against running components.
+
+        :param method_name: Name of the reconfiguration method, for the error
+        :type method_name: str
+        :raises RuntimeError: If the component has live ROS entities
+        """
+        launched = any(
+            getattr(callback, "_subscriber", None) is not None
+            for callback in self.callbacks.values()
+        ) or any(
+            getattr(publisher, "_publisher", None) is not None
+            for publisher in self.publishers_dict.values()
+        )
+        if launched:
+            raise RuntimeError(
+                f"Cannot reconfigure '{method_name}' of component "
+                f"'{self.node_name}' after launch. Configure topics before "
+                "bringup, or restart the component."
+            )
+
     def inputs(self, **kwargs):
         """
         Set component input streams (topics) : kwargs[topic_keyword]=Topic()
         """
+        self._ensure_not_launched("inputs")
         if self.__allowed_inputs:
             kwargs["allowed_config"] = self.__allowed_inputs
         old_dict = (
@@ -345,11 +367,19 @@ class Component(BaseComponent):
         # Update the list containing all the Topics (without None values)
         self._inputs_list = self._reparse_inputs_callbacks(_inputs)
         self.in_topics = [topic for topic in self._inputs_list if topic]
+        # Rebuild the callbacks from the NEW topics
+        self.callbacks = {
+            in_topic.name: in_topic.msg_type.callback(
+                in_topic, node_name=self.node_name
+            )
+            for in_topic in self.in_topics
+        }
 
     def outputs(self, **kwargs):
         """
         Set component output streams (topics)
         """
+        self._ensure_not_launched("outputs")
         if self.__allowed_outputs:
             kwargs["allowed_config"] = self.__allowed_outputs
         old_dict = (
@@ -361,6 +391,11 @@ class Component(BaseComponent):
         (self._outputs_keys, _outputs) = _parse_from_topics_dict(topics_dict)
         self._outputs_list = self._reparse_outputs_converts(_outputs)
         self.out_topics = [topic for topic in self._outputs_list if topic]
+        # Rebuild the publishers from the NEW topics
+        self.publishers_dict = {
+            out_topic.name: Publisher(out_topic, node_name=self.node_name)
+            for out_topic in self.out_topics
+        }
 
     def set_input(self, **kwargs) -> bool:
         """Set value of an input(s) topic
@@ -746,12 +781,29 @@ class Component(BaseComponent):
         """
         try:
             topic_names: Union[str, List[str], None] = self.in_topic_name(key)
-            if isinstance(topic_names, List):
-                return self.callbacks[topic_names[idx]]
-            return self.callbacks[topic_names] if topic_names else None
-        except Exception as e:
+        except ValueError as e:
             raise KeyError(
-                f"Unknown input '{key}' for component '{self.node_name}'"
+                f"Unknown input key '{key}' for component '{self.node_name}'"
+            ) from e
+        if isinstance(topic_names, List):
+            if idx >= len(topic_names):
+                raise KeyError(
+                    f"Input '{key}' of component '{self.node_name}' has "
+                    f"{len(topic_names)} topics; index {idx} is out of range"
+                )
+            topic_name = topic_names[idx]
+        else:
+            topic_name = topic_names
+        if topic_name is None:
+            return None
+        try:
+            return self.callbacks[topic_name]
+        except KeyError as e:
+            raise KeyError(
+                f"Input '{key}' of component '{self.node_name}' maps to topic "
+                f"'{topic_name}' but no callback exists for it (callbacks: "
+                f"{list(self.callbacks)}) - the input topics and callbacks "
+                "are out of sync"
             ) from e
 
     def get_publisher(self, key: Union[str, TopicsKeys], idx: int = 0) -> Publisher:
@@ -767,12 +819,31 @@ class Component(BaseComponent):
         """
         try:
             topic_names: Union[str, List[str], None] = self.out_topic_name(key)
-            if isinstance(topic_names, List):
-                return self.publishers_dict[topic_names[idx]]
-            return self.publishers_dict[topic_names]
-        except Exception as e:
+        except ValueError as e:
             raise KeyError(
-                f"Unknown output '{key}' for component '{self.node_name}'"
+                f"Unknown output key '{key}' for component '{self.node_name}'"
+            ) from e
+        if isinstance(topic_names, List):
+            if idx >= len(topic_names):
+                raise KeyError(
+                    f"Output '{key}' of component '{self.node_name}' has "
+                    f"{len(topic_names)} topics; index {idx} is out of range"
+                )
+            topic_name = topic_names[idx]
+        else:
+            topic_name = topic_names
+        if topic_name is None:
+            raise KeyError(
+                f"Output '{key}' of component '{self.node_name}' has no topic set"
+            )
+        try:
+            return self.publishers_dict[topic_name]
+        except KeyError as e:
+            raise KeyError(
+                f"Output '{key}' of component '{self.node_name}' maps to topic "
+                f"'{topic_name}' but no publisher exists for it (publishers: "
+                f"{list(self.publishers_dict)}) - the output topics and "
+                "publishers are out of sync"
             ) from e
 
     def callbacks_inputs_check(
