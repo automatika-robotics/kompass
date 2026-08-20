@@ -306,6 +306,12 @@ class LocalMapper(Component):
         entirely, keeping the last grid instead of wiping it.
         """
         if self.robot_state is None:
+            self.get_logger().warn(
+                "Robot state is not available, skipping local map update!"
+            )
+            self.health_status.set_fail_system(
+                topic_names=[self.get_in_topic(TopicsKeys.ROBOT_LOCATION).name]
+            )
             return
         now = time.monotonic()
         clouds: List[Optional[dict]] = []
@@ -332,44 +338,37 @@ class LocalMapper(Component):
             })
             fresh += 1
         if not fresh:
+            self.get_logger().warn(
+                "New sensor data is not available, skipping local map update!"
+            )
             return
         self._local_map_builder.update_from_pointclouds(
             self._robot_pose_in_world(), clouds=clouds
         )
 
-    def _wait_sensor_tf(self, idx: int):
-        """Blocks until the static transform from spatial sensor `idx`'s own
-        frame (read from the data itself) to the robot base is available
-
-        :param idx: Index of the spatial sensor topic
-        :type idx: int
-        """
-        sensor_tf = None
-        while not sensor_tf or not sensor_tf.transform:
-            sensor_tf = self.input_tf_listener(
-                TopicsKeys.SPATIAL_SENSOR,
-                self.config.frames.robot_base,
-                static_tf=True,
-                idx=idx,
-            )
-            self.get_logger().info("Checking for sensor TF...", once=True)
-            time.sleep(1 / self.config.loop_rate)
-        return sensor_tf
-
-    def _wait_first_sensor_output(self, callback):
+    def _wait_first_sensor_output_and_tf(self, callback) -> tuple:
         """Blocks until the given sensor callback delivers its first output
 
         :param callback: Sensor topic callback
         """
         output = callback.get_output()
-        while output is None:
+        _timeout = 0.0
+        while output is None and _timeout <= self.config.topic_subscription_timeout:
             self.get_logger().info(
                 "Waiting for sensor data to initialize the local mapper..",
                 once=True,
             )
-            time.sleep(1 / self.config.loop_rate)
+            time.sleep(self.config.topic_try_wait_timeout)
+            _timeout += self.config.topic_try_wait_timeout
             output = callback.get_output()
-        return output
+        # Get TF
+        if not output or not callback.frame_id:
+            static_tf = None
+        else:
+            static_tf = self.get_transform_listener(
+                callback.frame_id, self.config.frames.robot_base, static_tf=True
+            )
+        return (output, static_tf)
 
     def _stamp_pc_arrival(self, sensor_idx: int, **_):
         """Record a pointcloud sensor message arrival (staleness gating)"""
@@ -390,6 +389,7 @@ class LocalMapper(Component):
                 if isinstance(sensor_names, list)
                 else [sensor_names]
             )
+            self.health_status_publisher.publish(self.health_status())
             return
 
         if not self._pc_callbacks:
@@ -399,9 +399,30 @@ class LocalMapper(Component):
         # Multi-sensor pointcloud mode. One SensorConfig per sensor (mount
         # pose from TF, point field encoding from the sensor's first message)
         sensor_configs = []
-        for callback, idx in zip(self._pc_callbacks, self._pc_indices, strict=True):
-            sensor_tf = self._wait_sensor_tf(idx)
-            cloud = self._wait_first_sensor_output(callback)
+        for callback, _ in zip(self._pc_callbacks, self._pc_indices, strict=True):
+            cloud, sensor_tf = self._wait_first_sensor_output_and_tf(callback)
+            if not cloud:
+                self.get_logger().error(
+                    f"Failed to initialize LocalMapper, PointCloud2 sensor {callback.input_topic.name} did not deliver any data -> Declaring fail and attempting again in {1 / self.config.loop_rate:.1f} seconds!"
+                )
+                self.health_status.set_fail_system(
+                    topic_names=[callback.input_topic.name]
+                )
+                self.health_status_publisher.publish(self.health_status())
+                time.sleep(1 / self.config.loop_rate)
+                return self._execute_once()  # Try again next tick
+
+            if not sensor_tf or not sensor_tf.transform:
+                self.get_logger().error(
+                    f"Sensor TF for {callback.input_topic.name} is not available -> Declaring fail and attempting again in {1 / self.config.loop_rate:.1f} seconds!"
+                )
+                self.health_status.set_fail_system(
+                    topic_names=[callback.input_topic.name]
+                )
+                self.health_status_publisher.publish(self.health_status())
+                time.sleep(1 / self.config.loop_rate)
+                return self._execute_once()  # Try again next tick
+
             sensor_configs.append(
                 SensorConfig(
                     position=sensor_tf.translation,
