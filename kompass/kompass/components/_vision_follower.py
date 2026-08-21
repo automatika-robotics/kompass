@@ -85,6 +85,8 @@ class VisionFollower:
         """
         cmp = self._component
         timeout = 0.0
+        # Re-acquire the intrinsics per setup
+        self.depth_image_info = None
         # Get the depth image transform if the input is provided
         if cmp.in_topic_name(TopicsKeys.DEPTH_CAM_INFO):
             while (
@@ -282,10 +284,14 @@ class VisionFollower:
             vision_callback.get_output(clear_last=True) if vision_callback else None
         )
         self.depth_image = vision_callback.depth_image if vision_callback else None
-        depth_img_info_callback = cmp.get_callback(TopicsKeys.DEPTH_CAM_INFO)
-        self.depth_image_info = (
-            depth_img_info_callback.get_output() if depth_img_info_callback else None
-        )
+        # Intrinsics are only consumed at setup(). Stop reading it once acquired
+        if self.depth_image_info is None:
+            depth_img_info_callback = cmp.get_callback(TopicsKeys.DEPTH_CAM_INFO)
+            self.depth_image_info = (
+                depth_img_info_callback.get_output()
+                if depth_img_info_callback
+                else None
+            )
 
     def _acquire_initial_target(self, label: str, pose_x: int, pose_y: int) -> bool:
         """Set the initial target on the kompass_core controller.
