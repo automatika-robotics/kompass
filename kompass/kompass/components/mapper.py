@@ -306,7 +306,7 @@ class LocalMapper(Component):
         entirely, keeping the last grid instead of wiping it.
         """
         if self.robot_state is None:
-            self.get_logger().warn(
+            self.get_logger().warning(
                 "Robot state is not available, skipping local map update!"
             )
             self.health_status.set_fail_system(
@@ -338,7 +338,7 @@ class LocalMapper(Component):
             })
             fresh += 1
         if not fresh:
-            self.get_logger().warn(
+            self.get_logger().warning(
                 "New sensor data is not available, skipping local map update!"
             )
             return
