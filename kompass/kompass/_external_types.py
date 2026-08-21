@@ -1,4 +1,4 @@
-from typing import Optional, Dict, List, Tuple, Union, Any
+from typing import Optional, List, Tuple, Union, Any
 import numpy as np
 from rclpy.logging import get_logger
 
@@ -6,7 +6,7 @@ from kompass_core.datatypes import Bbox2D, PointsOfInterest
 from kompass_core.vision import DepthDetector
 from kompass_core.models import RobotState
 from .ros import GenericCallback
-from .utils import image_pre_processing, process_encoding
+from .utils import depth_image_metadata, image_pre_processing
 
 # Conditional import to get EmbodiedAgents vision types callbacks
 try:
@@ -20,6 +20,22 @@ __all__ = [
     "DetectionsCallback",
     "PointsOfInterestCallback",
 ]
+
+
+def _depth_view_and_meta(depth_msg, meta):
+    """Zero-copy depth view + cached (dtype, scale) metadata.
+
+    The raw camera buffer crosses to kompass-core untouched (uint16
+    millimeters or float32 meters). The scale maps raw units to meters and reaches
+    the core through the follower/detector's ``depth_conversion_factor`` config.
+
+    :param depth_msg: sensor_msgs/Image depth message
+    :param meta: Previously cached (dtype, scale) or None on first message
+    :return: (depth view, (dtype, scale))
+    """
+    if meta is None:
+        meta = depth_image_metadata(depth_msg.encoding)
+    return image_pre_processing(depth_msg, meta[0], 1), meta
 
 
 # EmbodiedAgents Conditional Callback Classes
@@ -49,51 +65,16 @@ if EmbodiedAgentsCallbacks is not None:
             # Initial time of the first detection is used to reset ROS time to zero on the first detection and avoid sending large timestamps to core
             self._initial_time = 0.0
             self._depth_image: Optional[np.ndarray] = None
-            self._depth_encoding: Optional[Dict] = None
+            self._depth_meta: Optional[Tuple[np.dtype, float]] = None
             self._label: Optional[str] = None
             self._buffer_items: int = 0
             self._max_buffer_size = buffer_size
-            self._feature_items: int = (
-                4  # (top_left_corner_x, top_left_corner_y, size_x, size_y)
-            )
+            self._feature_items: int = 4  # (center_x, center_y, size_x, size_y)
             self._detections_buffer = np.ones((
                 buffer_size,
                 self._feature_items,
             ))  # num_detections x num_features
             self._depth_detector: Optional[DepthDetector] = None
-
-        @classmethod
-        def prepare_depth_for_cpp(cls, image_array, orig_dtype, channels) -> np.ndarray:
-            """
-            Converts a dynamic ROS Image message into a uint16,
-            Fortran-contiguous, 2D numpy array for C++ bindings.
-            """
-            if channels > 1:
-                get_logger("Callback").error(
-                    f"Expects a 2D depth image, but received a "
-                    f"{channels}-channel image."
-                )
-
-            # Conserve data by handling floats vs. integers
-            if np.issubdtype(orig_dtype, np.floating):
-                # Floats (32FC1, 64FC1) are for values in meters.
-                # Scrub invalid data and scale to millimeters.
-                clean_depth = np.nan_to_num(
-                    image_array, nan=0.0, posinf=0.0, neginf=0.0
-                )
-                depth_scaled = clean_depth * 1000.0
-            else:
-                # Integers (16UC1, 8UC1) are typically already in millimeters or raw units.
-                # If it's a signed integer (16SC1), clip negative values to 0 to avoid wrap-around
-                # when casting to unsigned uint16.
-                depth_scaled = np.clip(image_array, a_min=0, a_max=None)
-
-            # Cast to uint16 and force Fortran memory layout
-            depth_cpp_ready = np.require(
-                depth_scaled, dtype=np.uint16, requirements=["F"]
-            )
-
-            return depth_cpp_ready
 
         def set_depth_detector(self, depth_detector: DepthDetector) -> None:
             """Sets the depth detector to be used with the points of interest
@@ -158,13 +139,10 @@ if EmbodiedAgentsCallbacks is not None:
             # Clear old detections
             self._detected_boxes = []
 
-            # Get depth image if available
+            # Get depth image if available (raw zero-copy view)
             if msg.depth.data:
-                if self._depth_encoding is None:
-                    self._depth_encoding = process_encoding(msg.depth.encoding)
-                image_array = image_pre_processing(msg.depth, *self._depth_encoding)
-                self._depth_image = self.prepare_depth_for_cpp(
-                    image_array, *self._depth_encoding
+                self._depth_image, self._depth_meta = _depth_view_and_meta(
+                    msg.depth, self._depth_meta
                 )
 
             # Get timestamp for tracking
@@ -230,6 +208,12 @@ if EmbodiedAgentsCallbacks is not None:
             """
             return self._depth_image
 
+        @property
+        def depth_scale(self) -> Optional[float]:
+            """Raw-depth-to-meters scale from the encoding (see
+            depth_conversion_factor), None until a depth image arrives"""
+            return self._depth_meta[1] if self._depth_meta else None
+
         def _get_output_state(
             self, boxes: List[Bbox2D], robot_state: Optional[RobotState]
         ):
@@ -287,9 +271,14 @@ if EmbodiedAgentsCallbacks is not None:
                     )
                     if detection_at_index is None:
                         return None
+                    # Buffer rows hold (center, size) -> convert to corner
                     average_box = Bbox2D(
                         top_left_corner=np.array(
-                            [average_det[0], average_det[1]], dtype=np.int32
+                            [
+                                average_det[0] - average_det[2] / 2,
+                                average_det[1] - average_det[3] / 2,
+                            ],
+                            dtype=np.int32,
                         ),
                         size=np.array(
                             [
@@ -329,7 +318,7 @@ if EmbodiedAgentsCallbacks is not None:
             self._img_size: Optional[np.ndarray] = None
             self._depth_image: Optional[np.ndarray] = None
             self._depth_detector: Optional[DepthDetector] = None
-            self._depth_encoding: Optional[Dict] = None
+            self._depth_meta: Optional[Tuple[np.dtype, float]] = None
 
         def set_depth_detector(self, depth_detector: DepthDetector) -> None:
             """Sets the depth detector to be used with the points of interest
@@ -347,17 +336,16 @@ if EmbodiedAgentsCallbacks is not None:
             :type msg: Any
             """
             super().callback(msg)
-            # Get depth image if available
+            # Get depth image if available (raw zero-copy view)
             if msg.depth.data:
-                if self._depth_encoding is None:
-                    self._depth_encoding = process_encoding(msg.depth.encoding)
-                image_array = image_pre_processing(msg.depth, *self._depth_encoding)
-                self._depth_image = DetectionsCallback.prepare_depth_for_cpp(
-                    image_array, *self._depth_encoding
+                self._depth_image, self._depth_meta = _depth_view_and_meta(
+                    msg.depth, self._depth_meta
                 )
                 if self._img_size is None:
+                    # Image size convention is (width, height); shape is (rows, cols)
                     self._img_size = np.array(
-                        self._depth_image.shape[:2], dtype=np.int32
+                        [self._depth_image.shape[1], self._depth_image.shape[0]],
+                        dtype=np.int32,
                     )
 
         def _get_output(
@@ -429,6 +417,9 @@ if EmbodiedAgentsCallbacks is not None:
             self._id: Optional[int] = None
             self._initial_time = 0.0
             self._depth_image: Optional[np.ndarray] = None
+            self._depth_meta: Optional[Tuple[np.dtype, float]] = None
+            # Frame id of the camera the buffered trackings came from
+            self._img_frame_id: Optional[str] = None
 
         def callback(self, msg) -> None:
             """
@@ -466,11 +457,12 @@ if EmbodiedAgentsCallbacks is not None:
             average_det = np.sum(last_detections * weights, axis=0) / np.sum(weights)
 
             timestamp = self.msg.header.stamp.sec + 1e-9 * self.msg.header.stamp.nanosec
+            # Buffer rows hold (center, size, vel) -> convert to corner
             box = Bbox2D(
                 top_left_corner=np.array(
                     [
-                        average_det[0],
-                        average_det[1],
+                        average_det[0] - average_det[2] / 2,
+                        average_det[1] - average_det[3] / 2,
                     ],
                     dtype=np.int32,
                 ),
@@ -533,6 +525,12 @@ if EmbodiedAgentsCallbacks is not None:
             """
             return self._depth_image
 
+        @property
+        def depth_scale(self) -> Optional[float]:
+            """Raw-depth-to-meters scale from the encoding (see
+            depth_conversion_factor), None until a depth image arrives"""
+            return self._depth_meta[1] if self._depth_meta else None
+
         def _process_raw_data(self) -> None:
             """Process new raw trackings data and add it to buffer if available"""
             # Remove a buffer item
@@ -543,20 +541,17 @@ if EmbodiedAgentsCallbacks is not None:
                 self._buffer_items = max(self._buffer_items - 1, 0)
                 return
 
-            # Get depth image if available
+            # Get depth image if available (raw zero-copy view)
             if self.msg.depth.data:
-                if self._depth_encoding is None:
-                    self._depth_encoding = process_encoding(self.msg.depth.encoding)
-                self._depth_image = image_pre_processing(
-                    self.msg.depth, *self._depth_encoding
+                self._depth_image, self._depth_meta = _depth_view_and_meta(
+                    self.msg.depth, self._depth_meta
                 )
 
             # Get requested item from trackings using id or label
             label_index = None
             id_index = None
-            # for tracking_id, tracking_label in zip(self.msg.ids, self.msg.labels):
-            if self._id and self._id in self.msg.ids:
-                id_index = self.msg.ids.index(id)
+            if self._id is not None and self._id in self.msg.ids:
+                id_index = self.msg.ids.index(self._id)
             elif self._label and self._label in self.msg.labels:
                 label_index = self.msg.labels.index(self._label)
 
@@ -566,34 +561,30 @@ if EmbodiedAgentsCallbacks is not None:
                 self._buffer_items = max(self._buffer_items - 1, 0)
                 return
 
-            id_index = id_index or label_index
+            id_index = id_index if id_index is not None else label_index
 
             bbox_2d = self.msg.boxes[id_index]
 
-            # Update the source image data if available
+            # If tracking source camera changes, clear buffers
             if self.msg.image.data:
-                if (
-                    not self._img_metadata
-                    or self.msg.image.header.frame_id != self._img_metadata.frame_id
-                ):
-                    # If a new image meta data is detected -> clear the buffer (the detection is coming from a new camera -> clear old camera data)
-                    self._detections_buffer = np.ones((
-                        self._max_buffer_size,
-                        self._feature_items,
-                    ))
-                    self._buffer_items = 0
-
+                frame_id = self.msg.image.header.frame_id
             elif self.msg.compressed_image.data:
-                if (
-                    not self._img_metadata
-                    or self.msg.compressed_image.header.frame_id
-                    != self._img_metadata.frame_id
-                ):
+                frame_id = self.msg.compressed_image.header.frame_id
+            else:
+                frame_id = None
+            if frame_id is not None and frame_id != self._img_frame_id:
+                if self._img_frame_id is not None:
+                    get_logger(self.node_name).warning(
+                        f"Trackings source camera changed from "
+                        f"'{self._img_frame_id}' to '{frame_id}' -> clearing "
+                        "buffered detections"
+                    )
                     self._detections_buffer = np.ones((
                         self._max_buffer_size,
                         self._feature_items,
                     ))
                     self._buffer_items = 0
+                self._img_frame_id = frame_id
 
             # Add new detection to the buffer
             self._detections_buffer[-1:] = [
