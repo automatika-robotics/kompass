@@ -791,6 +791,9 @@ class Controller(Component):
 
         self.custom_create_all_subscribers()
         self.custom_create_all_action_servers()
+        # Set up the vision controller eagerly to avoid first-call overhead
+        # in the action server.
+        self._vision_follower.setup()
 
     def _activate_follower_mode(self):
         """Activate path following mode by creating all missing subscriptions"""
@@ -1518,13 +1521,6 @@ class Controller(Component):
             return True
         dist: float = self.robot_state.distance(goal_point)
         return dist <= self._path_controller._config.goal_dist_tolerance
-
-    def _execute_once(self):
-        """Initialize controller post activation"""
-        if self.config._mode == ControllerMode.VISION_FOLLOWER:
-            # Set up the vision controller eagerly to avoid first-call overhead
-            # in the action server.
-            self._vision_follower.setup()
 
     def _execution_step(self):
         """
