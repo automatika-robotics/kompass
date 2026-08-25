@@ -66,6 +66,21 @@ class _State:
     yaw = 0.5
 
 
+class _HealthStatus:
+    """Records the health failures the mapper reports"""
+
+    def __init__(self):
+        self.failed_topics = []
+
+    def set_fail_system(self, topic_names):
+        self.failed_topics.extend(topic_names)
+
+
+class _Topic:
+    def __init__(self, name):
+        self.name = name
+
+
 class _Stub:
     _update_map_from_clouds = LocalMapper._update_map_from_clouds
     _robot_pose_in_world = LocalMapper._robot_pose_in_world
@@ -78,9 +93,13 @@ class _Stub:
         self._local_map_builder = _Builder()
         self.robot_state = _State()
         self._logger = _Logger()
+        self.health_status = _HealthStatus()
 
     def get_logger(self):
         return self._logger
+
+    def get_in_topic(self, key):
+        return _Topic(str(key))
 
 
 def test_fresh_clouds_are_fused_with_metadata_dicts():
@@ -116,3 +135,5 @@ def test_missing_robot_state_skips_the_update():
     stub.robot_state = None
     stub._update_map_from_clouds()
     assert stub._local_map_builder.calls == []
+    # The skip must be reported as a system failure, not swallowed silently
+    assert stub.health_status.failed_topics
