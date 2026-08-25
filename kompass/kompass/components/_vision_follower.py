@@ -112,19 +112,15 @@ class VisionFollower:
             "Got Depth camera to body TF -> Setting up Vision Follower controller"
         )
 
-        # In vision mode the frame is decided by what's available at setup time:
-        # if the location->world TF is available we operate in GLOBAL, otherwise
-        # we fall back to LOCAL (robot-relative). Once set, _frame_mode drives
-        # state/sensor handling for the rest of the session. Reset to GLOBAL
-        # before probing so _update_state(block=True) actually waits for the TF
-        # (even if a prior session ended in LOCAL). A robot already localized in
-        # the world frame resolves to the identity transform, so it needs no
-        # special case here.
+        # NOTE: If the location->world TF is available the follower tracks in GLOBAL,
+        # otherwise it falls back to LOCAL (robot-relative). The mode is reset to
+        # GLOBAL before probing because _update_state(block=True) only waits for
+        # the TF in GLOBAL mode, and setup() can re-enter while the mode is still
+        # LOCAL. A robot already localized in the world frame resolves to the identity
+        # transform, so it needs no special case here.
         cmp.config._frame_mode = FrameMode.GLOBAL
         cmp._update_state(block=True)
-        has_tf = (
-            cmp.odom_tf_listener is not None and cmp.odom_tf_listener.got_transform
-        )
+        has_tf = cmp.odom_tf_listener is not None and cmp.odom_tf_listener.got_transform
         cmp.config._frame_mode = FrameMode.GLOBAL if has_tf else FrameMode.LOCAL
         use_local = cmp.config._frame_mode == FrameMode.LOCAL
 
@@ -178,6 +174,23 @@ class VisionFollower:
         )
         return True
 
+    def _refresh_frame_mode(self) -> bool:
+        """Upgrade a LOCAL-frame controller to GLOBAL once localization exists.
+
+        Controller built before localization came up (LOCAL) must be rebuilt to
+        track in the world frame. Returns False only if the rebuild was needed and failed.
+        """
+        cmp = self._component
+        if cmp.config._frame_mode != FrameMode.LOCAL:
+            return True
+        if not (cmp.odom_tf_listener and cmp.odom_tf_listener.got_transform):
+            return True
+        cmp.get_logger().info(
+            "Global localization became available -> rebuilding vision "
+            "follower to track in GLOBAL frame"
+        )
+        return self.setup()
+
     def execute_action(self, goal_handle) -> TrackVisionTarget.Result:
         """Run the vision tracking action to completion."""
         cmp = self._component
@@ -189,6 +202,12 @@ class VisionFollower:
 
         if not self._vision_controller and not self.setup():
             cmp.get_logger().error("Could not initialize controller -> ABORTING ACTION")
+            return self._terminate_action(goal_handle, result, start_time, "abort")
+
+        if not self._refresh_frame_mode():
+            cmp.get_logger().error(
+                "Could not rebuild controller for GLOBAL frame -> ABORTING ACTION"
+            )
             return self._terminate_action(goal_handle, result, start_time, "abort")
 
         if not self._acquire_initial_target(
