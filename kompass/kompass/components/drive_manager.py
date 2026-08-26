@@ -8,7 +8,7 @@ from geometry_msgs.msg import Twist
 from kompass_core.models import RobotGeometry, RobotState
 from ..robot import RobotType
 from kompass_interfaces.msg import TwistArray
-from kompass_cpp.types import SensorInputType, PointFieldType, SensorConfig
+from kompass_cpp.types import SensorInputType
 
 # KOMPASS ROS
 from ..config import BaseValidators, ComponentConfig, ComponentRunType
@@ -566,16 +566,7 @@ class DriveManager(Component):
                 clouds.append(None)
                 continue
             # Metadata-only view of the raw buffer (zero-copy contract)
-            clouds.append({
-                "data": pc.data,
-                "point_step": pc.point_step,
-                "row_step": pc.row_step,
-                "height": pc.height,
-                "width": pc.width,
-                "x_offset": pc.x_offset,
-                "y_offset": pc.y_offset,
-                "z_offset": pc.z_offset,
-            })
+            clouds.append(pc.buffer_layout())
             fresh += 1
         return clouds, fresh
 
@@ -1192,44 +1183,6 @@ class DriveManager(Component):
             # Execute cmd in open loop -> Publish once
             self._publish_cmd(cmd[0], cmd[1], cmd[2])
 
-    def _wait_sensor_tf(self, idx: int):
-        """Blocks until the static transform from spatial sensor `idx`'s own
-        frame (read from the data itself) to the robot base is available.
-
-        :param idx: Index of the spatial sensor topic
-        :type idx: int
-
-        :return: The sensor's TF listener holding the acquired transform
-        """
-        sensor_tf = None
-        while not sensor_tf or not sensor_tf.transform:
-            sensor_tf = self.input_tf_listener(
-                TopicsKeys.SPATIAL_SENSOR,
-                self.config.frames.robot_base,
-                static_tf=True,
-                idx=idx,
-            )
-            self.get_logger().info("Checking for Proximity Sensor TF...", once=True)
-            time.sleep(1 / self.config.loop_rate)
-        return sensor_tf
-
-    def _wait_first_sensor_output(self, callback):
-        """Blocks until the given sensor callback delivers its first output
-
-        :param callback: Sensor topic callback
-
-        :return: First sensor output (LaserScanData or PointCloudData)
-        """
-        output = callback.get_output()
-        while output is None:
-            self.get_logger().info(
-                "Waiting to get proximity sensor data to initialize CriticalZoneChecker..",
-                once=True,
-            )
-            time.sleep(1 / self.config.loop_rate)
-            output = callback.get_output()
-        return output
-
     def _make_checker(self, **kwargs):
         """Constructs a critical zone checker: GPU implementation when enabled
         and available, with a CPU fallback
@@ -1312,34 +1265,22 @@ class DriveManager(Component):
         if pc_callbacks:
             # One SensorConfig per pointcloud sensor. Get mount pose from TF, point
             # field encoding from the sensor's first message
-            sensor_configs = []
-            for callback, idx in zip(pc_callbacks, pc_indices, strict=True):
-                sensor_tf = self._wait_sensor_tf(idx)
-                cloud = self._wait_first_sensor_output(callback)
-                sensor_configs.append(
-                    SensorConfig(
-                        position=sensor_tf.translation,
-                        rotation=sensor_tf.rotation,
-                        cloud_field_type=PointFieldType.from_int(
-                            cloud.x_field_datatype
-                        ),
-                    )
-                )
+            sensor_configs = [
+                self.wait_sensor_config(TopicsKeys.SPATIAL_SENSOR, idx)
+                for idx in pc_indices
+            ]
             self._pc_checker = self._make_checker(
                 input_type=SensorInputType.POINTCLOUD,
                 sensor_configs=sensor_configs,
                 **common_kwargs,
             )
         if scan_callback is not None:
-            sensor_tf = self._wait_sensor_tf(scan_idx)
-            scan = self._wait_first_sensor_output(scan_callback)
+            sensor = self.wait_sensor_config(TopicsKeys.SPATIAL_SENSOR, scan_idx)
+            # Get first scan. The wait above guarantees a decoded first scan
+            scan = scan_callback.get_output()
             self._scan_checker = self._make_checker(
                 input_type=SensorInputType.LASERSCAN,
-                sensor_configs=[
-                    SensorConfig(
-                        position=sensor_tf.translation, rotation=sensor_tf.rotation
-                    )
-                ],
+                sensor_configs=[sensor],
                 scan_angles=scan.angles,
                 **common_kwargs,
             )
