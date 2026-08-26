@@ -43,12 +43,15 @@ class TopicsKeys(StrEnum):
     * - SPATIAL_SENSOR
       - sensor_data
       - Raw data from robot's spatial sensors (e.g., LIDAR, depth sensors)
-    * - VISION_TRACKINGS
-      - vision_tracking
-      - Visual tracking data from robot's cameras or vision systems
+    * - VISION_DETECTIONS
+      - vision_detections
+      - Visual detections or trackings from robot's cameras or vision systems
     * - DEPTH_CAM_INFO
       - depth_camera_info
       - Depth camera information which includes camera intrinsics parameters
+    * - VISION_DEPTH
+      - vision_depth
+      - Depth source for lifting vision detections to 3D. A depth image aligned with the detection camera or a point cloud (e.g. 3D LiDAR)
     * - LOCAL_PLAN
       - local_plan
       - Short-term path plan considering immediate surroundings
@@ -96,6 +99,7 @@ class TopicsKeys(StrEnum):
     SPATIAL_SENSOR = "sensor_data"
     VISION_DETECTIONS = "vision_detections"
     DEPTH_CAM_INFO = "depth_camera_info"
+    VISION_DEPTH = "vision_depth"
     # Calculated
     LOCAL_PLAN = "local_plan"
     PATH_SAMPLES = "path_samples"
@@ -119,6 +123,7 @@ controller_allowed_inputs: Dict[TopicsKeys, AllowedTopics] = {
     TopicsKeys.LOCAL_MAP: AllowedTopics(types=["OccupancyGrid"]),
     TopicsKeys.VISION_DETECTIONS: AllowedTopics(types=["Detections", "Trackings"]),
     TopicsKeys.DEPTH_CAM_INFO: AllowedTopics(types=["CameraInfo"]),
+    TopicsKeys.VISION_DEPTH: AllowedTopics(types=["Image", "PointCloud2"]),
 }
 
 controller_allowed_outputs: Dict[TopicsKeys, AllowedTopics] = {
@@ -140,6 +145,7 @@ controller_default_inputs: Dict[TopicsKeys, Optional[Topic]] = {
     TopicsKeys.ROBOT_LOCATION: Topic(name="/odom", msg_type="Odometry"),
     TopicsKeys.VISION_DETECTIONS: None,  # No default topic is assigned. Should be provided by the user to use the vision tracking action
     TopicsKeys.DEPTH_CAM_INFO: None,  # No default topic is assigned. Should be provided by the user to use the vision tracking action
+    TopicsKeys.VISION_DEPTH: None,  # No default topic is assigned. Optional: a depth image or point cloud used to lift the detections (instead embedded depth in the detections message)
 }
 
 # Create default outputs - Used if no outputs config is provided to the controller
@@ -265,6 +271,7 @@ planner_allowed_inputs: Dict[TopicsKeys, AllowedTopics] = {
     ),
     TopicsKeys.ROBOT_LOCATION: AllowedTopics(types=["Odometry", "PoseStamped", "Pose"]),
     TopicsKeys.DEPTH_CAM_INFO: AllowedTopics(types=["CameraInfo"]),
+    TopicsKeys.VISION_DEPTH: AllowedTopics(types=["Image", "PointCloud2"]),
 }
 
 planner_allowed_outputs: Dict[TopicsKeys, AllowedTopics] = {
@@ -274,7 +281,7 @@ planner_allowed_outputs: Dict[TopicsKeys, AllowedTopics] = {
 
 
 # Default values for inputs / outputs
-planner_default_inputs: Dict[TopicsKeys, Topic] = {
+planner_default_inputs: Dict[TopicsKeys, Optional[Topic]] = {
     TopicsKeys.GLOBAL_MAP: Topic(
         name="/map",
         msg_type="OccupancyGrid",
@@ -283,6 +290,7 @@ planner_default_inputs: Dict[TopicsKeys, Topic] = {
     TopicsKeys.GOAL_POINT: Topic(name="/goal", msg_type="PointStamped"),
     TopicsKeys.ROBOT_LOCATION: Topic(name="/odom", msg_type="Odometry"),
     TopicsKeys.DEPTH_CAM_INFO: None,  # No default topic is assigned. Should be provided by the user to use PointsOfInterest as planner goals
+    TopicsKeys.VISION_DEPTH: None,  # No default topic is assigned. Optional: a depth image or point cloud used to lift the vision goals (instead of depth embedded in their message)
 }
 
 planner_default_outputs: Dict[TopicsKeys, Topic] = {
