@@ -15,6 +15,7 @@ import pytest
 pytest.importorskip("rclpy")
 
 from kompass.components.mapper import LocalMapper  # noqa: E402
+from ros_sugar.io import PointCloudData  # noqa: E402
 
 
 class _Logger:
@@ -36,18 +37,20 @@ class _Callback:
         return self._output
 
 
-class _CloudData:
-    def __init__(self):
-        buffer = np.zeros((4, 4), dtype=np.float32)
-        buffer[:, 0] = 2.0
-        self.data = buffer.reshape(-1).view(np.uint8)
-        self.point_step = 16
-        self.row_step = 64
-        self.height = 1
-        self.width = 4
-        self.x_offset = 0
-        self.y_offset = 4
-        self.z_offset = 8
+def _CloudData() -> PointCloudData:
+    """A real PointCloudData, as PointCloudCallback hands it out (the gather relies on its buffer_layout())"""
+    buffer = np.zeros((4, 4), dtype=np.float32)
+    buffer[:, 0] = 2.0
+    return PointCloudData(
+        data=buffer.reshape(-1).view(np.uint8),
+        point_step=16,
+        row_step=64,
+        height=1,
+        width=4,
+        x_offset=0,
+        y_offset=4,
+        z_offset=8,
+    )
 
 
 class _Builder:
