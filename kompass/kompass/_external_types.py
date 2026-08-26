@@ -1,4 +1,4 @@
-from typing import Optional, List, Tuple, Union, Any
+from typing import Optional, List, Tuple, Union, Any, Dict
 import numpy as np
 from rclpy.logging import get_logger
 
@@ -38,10 +38,161 @@ def _depth_view_and_meta(depth_msg, meta):
     return image_pre_processing(depth_msg, meta[0], 1), meta
 
 
+def _stamp_seconds(stamp) -> float:
+    """ROS time stamp as seconds"""
+    return stamp.sec + 1e-9 * stamp.nanosec
+
+
+def _lift_to_state(
+    detector: DepthDetector,
+    depth: Union[np.ndarray, Dict[str, Any]],
+    target: Union[List[Bbox2D], PointsOfInterest],
+    robot_state: RobotState,
+) -> Optional[RobotState]:
+    """Lifts 2D boxes or points of interest to 3D through the given depth
+    source and returns the first result as a robot state (its x, y in the
+    world frame).
+
+    :param detector: Depth detector configured with the camera
+    :type detector: DepthDetector
+    :param depth: Aligned depth image, or a point cloud as its layout keywords
+    :type depth: Union[np.ndarray, Dict[str, Any]]
+    :param target: 2D boxes or points of interest in the camera image
+    :type target: Union[List[Bbox2D], PointsOfInterest]
+    :param robot_state: Robot pose in the world frame
+    :type robot_state: RobotState
+    :return: Position of the first lifted target, None when nothing lifted
+    :rtype: Optional[RobotState]
+    """
+    source = {"depth_img": depth} if isinstance(depth, np.ndarray) else depth
+    boxes_3d = detector.compute_3d_detections(
+        **source,
+        input=target,
+        robot_x=robot_state.x,
+        robot_y=robot_state.y,
+        robot_yaw=robot_state.yaw,
+        robot_speed=robot_state.speed,
+    )
+    if not boxes_3d:
+        return None
+    center = boxes_3d[0].center
+    return RobotState(x=center[0], y=center[1])
+
+
+class _ExternalDepthMixin:
+    """Optional depth source subscribed separately from the detections.
+
+    When the component is given a ``VISION_DEPTH`` input, the depth comes from
+    that topic. It can be a depth image aligned with the detection camera, or a
+    point cloud handed to the core as its PointCloud2 layout. The external source
+    takes precedence over the embedded depth and is paired with the
+    detections by message stamp.
+    """
+
+    _depth_source: Optional[GenericCallback] = None
+    _depth_max_age: float = 0.0
+    _depth_camera_frame: Optional[str] = None
+
+    def set_depth_source(
+        self,
+        callback: GenericCallback,
+        max_age: float,
+        img_size: Optional[np.ndarray] = None,
+        camera_frame: Optional[str] = None,
+    ) -> None:
+        """Use a separately subscribed depth input to lift the detections.
+
+        :param callback: Callback of the depth input: an Image callback
+            (aligned depth image) or a PointCloud callback
+        :type callback: GenericCallback
+        :param max_age: Largest stamp difference (s) between the detections
+            and the depth for the two to be paired
+        :type max_age: float
+        :param img_size: Size (width, height) of the detection image, from
+            the camera intrinsics. Seeds the size the boxes need when the
+            detections message carries no image of its own
+        :type img_size: Optional[np.ndarray]
+        :param camera_frame: Frame the camera intrinsics describe. A depth
+            image in any other frame is not registered to the detection camera
+            and is rejected as depth (reported at error level)
+        :type camera_frame: Optional[str]
+        """
+        self._depth_source = callback
+        self._depth_max_age = max_age
+        self._depth_camera_frame = camera_frame
+        if img_size is not None and self._img_size is None:
+            self._img_size = np.asarray(img_size, dtype=np.int32)
+
+    @property
+    def depth(self) -> Optional[Union[np.ndarray, Dict[str, Any]]]:
+        """Depth to lift this callback's detections with. The separate depth
+        input when one is set, else the depth embedded in the message.
+
+        The separate input is used only when its not stale and its stamp is within
+        ``max_age`` of the detections' stamp.
+
+        :return: The aligned depth image view, a point cloud as its
+            PointCloud2 layout keywords, or None when no depth is usable
+        :rtype: Optional[Union[np.ndarray, Dict[str, Any]]]
+        """
+        source = self._depth_source
+        if source is None:
+            return self._depth_image
+        if self.msg is None or source.msg is None:
+            return None
+        # get age between msgs
+        age = abs(
+            _stamp_seconds(self.msg.header.stamp)
+            - _stamp_seconds(source.msg.header.stamp)
+        )
+        if age > self._depth_max_age:
+            get_logger(self.node_name or "VisionDepthSource").warning(
+                f"Depth on '{source.input_topic.name}' is {age:.3f}s away from "
+                f"the detections, beyond vision_depth_max_age={self._depth_max_age}s "
+                "-> no depth this tick",
+                throttle_duration_sec=1.0,
+            )
+            return None
+        output = source.get_output()
+        if output is None:
+            return None
+        # for aligned depth image
+        if isinstance(output, np.ndarray):
+            # discard any depth image in a mismatched frame
+            if not self._depth_frame_is_registered(source.frame_id):
+                return None
+            return output
+        # TODO: forward height/width as the image size check once the core's
+        # organized-cloud path exists
+        # for pointclouds
+        return output.buffer_layout()
+
+    def _depth_frame_is_registered(self, frame_id: Optional[str]) -> bool:
+        """Whether the depth image is in the frame the camera intrinsics
+        describe. A mismatch is reported (throttled, the condition persists)
+        and treated as no depth."""
+        if (
+            not frame_id
+            or not self._depth_camera_frame
+            or frame_id == self._depth_camera_frame
+        ):
+            return True
+        get_logger(self.node_name or "VisionDepthSource").error(
+            f"Depth image on '{self._depth_source.input_topic.name}' is in frame "
+            f"'{frame_id}' while the camera intrinsics are for "
+            f"'{self._depth_camera_frame}'. The depth image must be registered to "
+            "the detection camera -> no depth this tick",
+            throttle_duration_sec=5.0,
+        )
+        return False
+
+
 # EmbodiedAgents Conditional Callback Classes
 if EmbodiedAgentsCallbacks is not None:
 
-    class DetectionsCallback(EmbodiedAgentsCallbacks.DetectionsCallback):
+    class DetectionsCallback(
+        _ExternalDepthMixin, EmbodiedAgentsCallbacks.DetectionsCallback
+    ):
         """ROS2 Detections Callback Handler to process and transform automatika_agents_interfaces/Detections data"""
 
         def __init__(
@@ -62,7 +213,8 @@ if EmbodiedAgentsCallbacks is not None:
             super().__init__(input_topic, node_name)
             self._detected_boxes: List[Tuple[str, Bbox2D]] = []
             self._img_size: Optional[np.ndarray] = None
-            # Initial time of the first detection is used to reset ROS time to zero on the first detection and avoid sending large timestamps to core
+            # Initial time of the first detection is used to reset ROS time to
+            # zero on the first detection and avoid sending large timestamps to core
             self._initial_time = 0.0
             self._depth_image: Optional[np.ndarray] = None
             self._depth_meta: Optional[Tuple[np.dtype, float]] = None
@@ -217,23 +369,11 @@ if EmbodiedAgentsCallbacks is not None:
         def _get_output_state(
             self, boxes: List[Bbox2D], robot_state: Optional[RobotState]
         ):
-            if (
-                not self._depth_detector
-                or self.depth_image is None
-                or robot_state is None
-            ):
+            depth = self.depth
+            if not self._depth_detector or depth is None or robot_state is None:
                 return None
             try:
-                box_3d = self._depth_detector.compute_3d_detections(
-                    depth_img=self._depth_image,
-                    input=boxes,
-                    robot_x=robot_state.x,
-                    robot_y=robot_state.y,
-                    robot_yaw=robot_state.yaw,
-                    robot_speed=robot_state.speed,
-                )
-                points_center = box_3d[0].center
-                return RobotState(x=points_center[0], y=points_center[1])
+                return _lift_to_state(self._depth_detector, depth, boxes, robot_state)
             except KeyError:
                 return None
 
@@ -292,13 +432,15 @@ if EmbodiedAgentsCallbacks is not None:
                     )
                     average_box.set_img_size(detection_at_index.img_size)
                     if to_robot_state:
-                        return self._get_output_state([average_box])
+                        return self._get_output_state([average_box], **kwargs)
                     return [average_box]
             except KeyError:
                 return None
 
-    class PointsOfInterestCallback(EmbodiedAgentsCallbacks.PointsOfInterestCallback):
-        """ROS2 Detections Callback Handler to process and transform automatika_agents_interfaces/Detections data"""
+    class PointsOfInterestCallback(
+        _ExternalDepthMixin, EmbodiedAgentsCallbacks.PointsOfInterestCallback
+    ):
+        """ROS2 Points of interest Callback Handler to process and transform automatika_agents_interfaces/PointsOfInterest data"""
 
         def __init__(
             self,
@@ -358,34 +500,26 @@ if EmbodiedAgentsCallbacks is not None:
             :returns:   Topic content
             :rtype:     Union[ROSTrackings, np.ndarray, None]
             """
-            if (
-                not self._depth_detector
-                or self._depth_image is None
-                or robot_state is None
-            ):
+            depth = self.depth
+            if not self._depth_detector or depth is None or robot_state is None:
                 return None
             points = []
 
             for point in self.msg.points:
                 points.append(np.array([point.x, point.y], dtype=np.int32))
             try:
-                box_3d = self._depth_detector.compute_3d_detections(
-                    depth_img=self._depth_image,
-                    input=PointsOfInterest(
-                        points=points,
-                        img_size=self._img_size,
-                    ),
-                    robot_x=robot_state.x,
-                    robot_y=robot_state.y,
-                    robot_yaw=robot_state.yaw,
-                    robot_speed=robot_state.speed,
+                return _lift_to_state(
+                    self._depth_detector,
+                    depth,
+                    PointsOfInterest(points=points, img_size=self._img_size),
+                    robot_state,
                 )
-                points_center = box_3d[0].center
-                return RobotState(x=points_center[0], y=points_center[1])
             except KeyError:
                 return None
 
-    class TrackingsCallback(EmbodiedAgentsCallbacks.DetectionsCallback):
+    class TrackingsCallback(
+        _ExternalDepthMixin, EmbodiedAgentsCallbacks.DetectionsCallback
+    ):
         """ROS2 Trackings Callback Handler to process and transform automatika_agents_interfaces/Trackings data"""
 
         def __init__(
