@@ -68,18 +68,6 @@ class VisionFollower:
             return None
         return self._vision_controller.optimal_path()
 
-    @property
-    def _depth_tf_listener(self):
-        """Transform listener from the depth camera frame to the robot body.
-
-        The camera frame is read from the camera info messages, so this is
-        None until the first one arrives.
-        """
-        cmp = self._component
-        return cmp.input_tf_listener(
-            TopicsKeys.DEPTH_CAM_INFO, cmp.config.frames.robot_base, static_tf=True
-        )
-
     def setup(self) -> bool:
         """Build the core vision controller. Stores it on success.
 
@@ -88,31 +76,22 @@ class VisionFollower:
         we fall back to LOCAL (robot-relative).
         """
         cmp = self._component
-        timeout = 0.0
         # Re-acquire the intrinsics per setup
         self.depth_image_info = None
-        # TODO: cmp.wait_input_tf(TopicsKeys.DEPTH_CAM_INFO, timeout=...) can
-        # replace the TF part of this wait; only the intrinsics poll would stay
-        # Get the depth image transform if the input is provided
+        depth_tf = None
         if cmp.in_topic_name(TopicsKeys.DEPTH_CAM_INFO):
-            while (
-                not (
-                    (depth_tf := self._depth_tf_listener)
-                    and depth_tf.got_transform
-                    and self.depth_image_info
+            # The camera's mount pose is the TF of the frame its CameraInfo names
+            depth_tf = cmp.wait_input_tf(
+                TopicsKeys.DEPTH_CAM_INFO, timeout=cmp.config.topic_subscription_timeout
+            )
+            if depth_tf is None:
+                return False
+            self._update_inputs()
+            if self.depth_image_info is None:
+                cmp.get_logger().error(
+                    f"Depth camera info on '{cmp.in_topic_name(TopicsKeys.DEPTH_CAM_INFO)}' could not be read"
                 )
-                and timeout < cmp.config.topic_subscription_timeout
-            ):
-                self._update_inputs()
-                cmp.get_logger().info(
-                    "Waiting to get Depth camera to body TF to initialize Vision Follower...",
-                    once=True,
-                )
-                time.sleep(1 / cmp.config.loop_rate)
-                timeout += 1 / cmp.config.loop_rate
-
-        if timeout >= cmp.config.topic_subscription_timeout:
-            return False
+                return False
 
         cmp.get_logger().info(
             "Got Depth camera to body TF -> Setting up Vision Follower controller"
@@ -160,7 +139,6 @@ class VisionFollower:
                 "operate in GLOBAL frame with velocity tracking"
             )
 
-        depth_tf = self._depth_tf_listener
         config = ControlConfigClasses[cmp.algorithm](
             control_time_step=cmp.config.control_time_step,
             camera_position_to_robot=depth_tf.translation if depth_tf else None,

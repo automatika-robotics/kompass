@@ -30,7 +30,7 @@ from ..callbacks import (
     PointCloudCallback,
 )
 from .ros import Topic, update_topics, ActionClientHandler
-from .component import Component, TFListener
+from .component import Component
 from .defaults import (
     TopicsKeys,
     planner_allowed_inputs,
@@ -750,42 +750,9 @@ class Planner(Component):
                 to_robot_state=True, robot_state=self.robot_state
             )
 
-    @property
-    def _depth_tf_listener(self) -> Optional[TFListener]:
-        """Transform listener from the depth camera frame to the robot body.
-
-        The camera frame is read from the camera info messages, so this is
-        None until the first one arrives.
-        """
-        return self.input_tf_listener(
-            TopicsKeys.DEPTH_CAM_INFO, self.config.frames.robot_base, static_tf=True
-        )
-
     def __setup_depth_detector(self) -> Optional[DepthDetector]:
         """Setup and configure a DepthDetector for usage with Vision-based goals"""
-        timeout = 0.0
-        # TODO: self.wait_input_tf(TopicsKeys.DEPTH_CAM_INFO, timeout=...) can
-        # replace the TF part of this wait; only the intrinsics poll would stay
-        # Get the depth image transform if the input is provided
-        if self.in_topic_name(TopicsKeys.DEPTH_CAM_INFO):
-            while (
-                not (depth_tf := self._depth_tf_listener)
-                or not depth_tf.got_transform
-                or not self._depth_image_info
-            ) and timeout <= self.config.topic_subscription_timeout:
-                # Depth image cam info
-                if not self._depth_image_info:
-                    depth_img_info_callback = self.get_callback(
-                        TopicsKeys.DEPTH_CAM_INFO
-                    )
-                    self._depth_image_info: Optional[CameraIntrinsics] = (
-                        depth_img_info_callback.get_output()
-                        if depth_img_info_callback
-                        else None
-                    )
-                time.sleep(1 / self.config.loop_rate)
-                timeout += 1 / self.config.loop_rate
-        else:
+        if not self.in_topic_name(TopicsKeys.DEPTH_CAM_INFO):
             self.get_logger().error(
                 f"Depth camera info topic '{self.in_topic_name(TopicsKeys.DEPTH_CAM_INFO)}' is not provided, cannot initialize Vision Depth Detector required for vision-based planner goals. Please provide an input topic for {TopicsKeys.DEPTH_CAM_INFO} to ensure proper functionality."
             )
@@ -794,18 +761,21 @@ class Planner(Component):
             )
             return None
 
-        depth_tf = self._depth_tf_listener
-        if not depth_tf or not depth_tf.got_transform:
+        # The camera's mount pose is the TF of the frame its CameraInfo names
+        depth_tf = self.wait_input_tf(
+            TopicsKeys.DEPTH_CAM_INFO, timeout=self.config.topic_subscription_timeout
+        )
+        if depth_tf is None:
             self.get_logger().error(
-                "Could not obtain transformation between the Depth camera frame "
-                f"'{depth_tf.config.source_frame if depth_tf else 'unknown'}' to the "
-                f"robot body frame '{self.config.frames.robot_base}'"
+                f"Could not get the depth camera info on '{self.in_topic_name(TopicsKeys.DEPTH_CAM_INFO)}' and its TF to the robot body frame '{self.config.frames.robot_base}'"
             )
             return None
-
+        self._depth_image_info: Optional[CameraIntrinsics] = self.get_callback(
+            TopicsKeys.DEPTH_CAM_INFO
+        ).get_output()
         if not self._depth_image_info:
             self.get_logger().error(
-                f"Depth camera info topic '{self.in_topic_name(TopicsKeys.DEPTH_CAM_INFO)}' did not publish any message. TIMEOUT."
+                f"Depth camera info on '{self.in_topic_name(TopicsKeys.DEPTH_CAM_INFO)}' could not be read"
             )
             return None
 
