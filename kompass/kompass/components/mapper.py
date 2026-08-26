@@ -15,7 +15,6 @@ from kompass_core.datatypes.pose import PoseData
 from kompass_core.models import RobotState
 from ros_sugar.io import LaserScanData
 from kompass_core.models import RobotGeometry
-from kompass_cpp.types import PointFieldType, SensorConfig
 
 # KOMPASS ROS
 from ..config import BaseValidators, ComponentConfig
@@ -326,16 +325,7 @@ class LocalMapper(Component):
                 clouds.append(None)
                 continue
             # Metadata-only view of the raw buffer (zero-copy contract)
-            clouds.append({
-                "data": pc.data,
-                "point_step": pc.point_step,
-                "row_step": pc.row_step,
-                "height": pc.height,
-                "width": pc.width,
-                "x_offset": pc.x_offset,
-                "y_offset": pc.y_offset,
-                "z_offset": pc.z_offset,
-            })
+            clouds.append(pc.buffer_layout())
             fresh += 1
         if not fresh:
             self.get_logger().warning(
@@ -345,30 +335,6 @@ class LocalMapper(Component):
         self._local_map_builder.update_from_pointclouds(
             self._robot_pose_in_world(), clouds=clouds
         )
-
-    def _wait_first_sensor_output_and_tf(self, callback) -> tuple:
-        """Blocks until the given sensor callback delivers its first output
-
-        :param callback: Sensor topic callback
-        """
-        output = callback.get_output()
-        _timeout = 0.0
-        while output is None and _timeout <= self.config.topic_subscription_timeout:
-            self.get_logger().info(
-                "Waiting for sensor data to initialize the local mapper..",
-                once=True,
-            )
-            time.sleep(self.config.topic_try_wait_timeout)
-            _timeout += self.config.topic_try_wait_timeout
-            output = callback.get_output()
-        # Get TF
-        if not output or not callback.frame_id:
-            static_tf = None
-        else:
-            static_tf = self.get_transform_listener(
-                callback.frame_id, self.config.frames.robot_base, static_tf=True
-            )
-        return (output, static_tf)
 
     def _stamp_pc_arrival(self, sensor_idx: int, **_):
         """Record a pointcloud sensor message arrival (staleness gating)"""
@@ -399,37 +365,23 @@ class LocalMapper(Component):
         # Multi-sensor pointcloud mode. One SensorConfig per sensor (mount
         # pose from TF, point field encoding from the sensor's first message)
         sensor_configs = []
-        for callback, _ in zip(self._pc_callbacks, self._pc_indices, strict=True):
-            cloud, sensor_tf = self._wait_first_sensor_output_and_tf(callback)
-            if not cloud:
-                self.get_logger().error(
-                    f"Failed to initialize LocalMapper, PointCloud2 sensor {callback.input_topic.name} did not deliver any data -> Declaring fail and attempting again in {1 / self.config.loop_rate:.1f} seconds!"
-                )
-                self.health_status.set_fail_system(
-                    topic_names=[callback.input_topic.name]
-                )
-                self.health_status_publisher.publish(self.health_status())
-                time.sleep(1 / self.config.loop_rate)
-                return self._execute_once()  # Try again next tick
-
-            if not sensor_tf or not sensor_tf.transform:
-                self.get_logger().error(
-                    f"Sensor TF for {callback.input_topic.name} is not available -> Declaring fail and attempting again in {1 / self.config.loop_rate:.1f} seconds!"
-                )
-                self.health_status.set_fail_system(
-                    topic_names=[callback.input_topic.name]
-                )
-                self.health_status_publisher.publish(self.health_status())
-                time.sleep(1 / self.config.loop_rate)
-                return self._execute_once()  # Try again next tick
-
-            sensor_configs.append(
-                SensorConfig(
-                    position=sensor_tf.translation,
-                    rotation=sensor_tf.rotation,
-                    cloud_field_type=PointFieldType.from_int(cloud.x_field_datatype),
-                )
+        for callback, idx in zip(self._pc_callbacks, self._pc_indices):
+            sensor = self.wait_sensor_config(
+                TopicsKeys.SPATIAL_SENSOR,
+                idx,
+                timeout=self.config.topic_subscription_timeout,
             )
+            if sensor is None:
+                self.get_logger().error(
+                    f"Failed to initialize LocalMapper, PointCloud2 sensor {callback.input_topic.name} did not deliver any data or its TF to the robot base is not available -> Declaring fail and attempting again in {1 / self.config.loop_rate:.1f} seconds!"
+                )
+                self.health_status.set_fail_system(
+                    topic_names=[callback.input_topic.name]
+                )
+                self.health_status_publisher.publish(self.health_status())
+                time.sleep(1 / self.config.loop_rate)
+                return self._execute_once()  # Try again next tick
+            sensor_configs.append(sensor)
         self._local_map_builder = LocalMapperHandler(
             config=self.config.map_params,
             scan_model_config=self.config.scan_model,
