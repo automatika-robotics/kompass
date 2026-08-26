@@ -45,7 +45,7 @@ def _stamp_seconds(stamp) -> float:
 
 def _lift_to_state(
     detector: DepthDetector,
-    depth: Union[np.ndarray, Dict[str, Any]],
+    depth: Dict[str, Any],
     target: Union[List[Bbox2D], PointsOfInterest],
     robot_state: RobotState,
 ) -> Optional[RobotState]:
@@ -55,8 +55,9 @@ def _lift_to_state(
 
     :param detector: Depth detector configured with the camera
     :type detector: DepthDetector
-    :param depth: Aligned depth image, or a point cloud as its layout keywords
-    :type depth: Union[np.ndarray, Dict[str, Any]]
+    :param depth: Depth source as the detector's keyword arguments (see
+        ``_ExternalDepthMixin.depth``)
+    :type depth: Dict[str, Any]
     :param target: 2D boxes or points of interest in the camera image
     :type target: Union[List[Bbox2D], PointsOfInterest]
     :param robot_state: Robot pose in the world frame
@@ -64,9 +65,8 @@ def _lift_to_state(
     :return: Position of the first lifted target, None when nothing lifted
     :rtype: Optional[RobotState]
     """
-    source = {"depth_img": depth} if isinstance(depth, np.ndarray) else depth
     boxes_3d = detector.compute_3d_detections(
-        **source,
+        **depth,
         input=target,
         robot_x=robot_state.x,
         robot_y=robot_state.y,
@@ -124,22 +124,26 @@ class _ExternalDepthMixin:
             self._img_size = np.asarray(img_size, dtype=np.int32)
 
     @property
-    def depth(self) -> Optional[Union[np.ndarray, Dict[str, Any]]]:
-        """Depth to lift this callback's detections with. The separate depth
-        input when one is set, else the depth embedded in the message.
+    def depth(self) -> Dict[str, Any]:
+        """Depth to lift this callback's detections with, as the keyword
+        arguments every core entry takes. ``depth_image=<view>`` for an
+        aligned depth image, the PointCloud2 buffer layout for a point cloud,
+        or an empty dict when no depth is usable this tick.
 
-        The separate input is used only when its not stale and its stamp is within
-        ``max_age`` of the detections' stamp.
+        The separate depth input is used when one is set, else the depth
+        embedded in the message. The separate input is used only when its
+        stamp is within ``max_age`` of the detections' stamp.
 
-        :return: The aligned depth image view, a point cloud as its
-            PointCloud2 layout keywords, or None when no depth is usable
-        :rtype: Optional[Union[np.ndarray, Dict[str, Any]]]
+        :return: Keyword arguments for the core, empty when there is no depth
+        :rtype: Dict[str, Any]
         """
         source = self._depth_source
         if source is None:
-            return self._depth_image
+            return (
+                {} if self._depth_image is None else {"depth_image": self._depth_image}
+            )
         if self.msg is None or source.msg is None:
-            return None
+            return {}
         # get age between msgs
         age = abs(
             _stamp_seconds(self.msg.header.stamp)
@@ -152,16 +156,16 @@ class _ExternalDepthMixin:
                 "-> no depth this tick",
                 throttle_duration_sec=1.0,
             )
-            return None
+            return {}
         output = source.get_output()
         if output is None:
-            return None
+            return {}
         # for aligned depth image
         if isinstance(output, np.ndarray):
             # discard any depth image in a mismatched frame
             if not self._depth_frame_is_registered(source.frame_id):
-                return None
-            return output
+                return {}
+            return {"depth_image": output}
         # TODO: forward height/width as the image size check once the core's
         # organized-cloud path exists
         # for pointclouds
@@ -370,7 +374,7 @@ if EmbodiedAgentsCallbacks is not None:
             self, boxes: List[Bbox2D], robot_state: Optional[RobotState]
         ):
             depth = self.depth
-            if not self._depth_detector or depth is None or robot_state is None:
+            if not self._depth_detector or not depth or robot_state is None:
                 return None
             try:
                 return _lift_to_state(self._depth_detector, depth, boxes, robot_state)
@@ -501,7 +505,7 @@ if EmbodiedAgentsCallbacks is not None:
             :rtype:     Union[ROSTrackings, np.ndarray, None]
             """
             depth = self.depth
-            if not self._depth_detector or depth is None or robot_state is None:
+            if not self._depth_detector or not depth or robot_state is None:
                 return None
             points = []
 
