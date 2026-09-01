@@ -92,6 +92,16 @@ class _ExternalDepthMixin:
     _depth_source: Optional[GenericCallback] = None
     _depth_max_age: float = 0.0
     _depth_camera_frame: Optional[str] = None
+    _detections_stamp: Optional[float] = None
+
+    def callback(self, msg) -> None:
+        """Record the detections stamp at message arrival before handing the
+        message to the base callback. The follower consumes the detections
+        with ``clear_last=True``, so the stamp used for the depth pairing must
+        survive the message being cleared."""
+        super().callback(msg)  # type: ignore[misc]
+        if msg is not None:
+            self._detections_stamp = _stamp_seconds(msg.header.stamp)
 
     def set_depth_source(
         self,
@@ -142,13 +152,10 @@ class _ExternalDepthMixin:
             return (
                 {} if self._depth_image is None else {"depth_image": self._depth_image}
             )
-        if self.msg is None or source.msg is None:
+        if self._detections_stamp is None or source.msg is None:
             return {}
-        # get age between msgs
-        age = abs(
-            _stamp_seconds(self.msg.header.stamp)
-            - _stamp_seconds(source.msg.header.stamp)
-        )
+        # Age between the last received detections and the depth.
+        age = abs(self._detections_stamp - _stamp_seconds(source.msg.header.stamp))
         if age > self._depth_max_age:
             get_logger(self.node_name or "VisionDepthSource").warning(
                 f"Depth on '{source.input_topic.name}' is {age:.3f}s away from "

@@ -38,14 +38,24 @@ def _source(output, stamp_seconds: float, frame_id: str = "camera_optical"):
     )
 
 
-class _Detections(_ExternalDepthMixin):
-    """The state the mixin relies on, as the vision callbacks keep it"""
+class _CallbackBase:
+    """What GenericCallback contributes to message delivery: storing ``msg``"""
+
+    def callback(self, msg):
+        self.msg = msg
+
+
+class _Detections(_ExternalDepthMixin, _CallbackBase):
+    """The state the mixin relies on, as the vision callbacks keep it.
+    Messages arrive through ``callback`` exactly like on the real callbacks,
+    so the mixin's arrival hook is exercised."""
 
     def __init__(self, stamp_seconds: float = 10.0, embedded=None):
-        self.msg = _message(stamp_seconds)
+        self.msg = None
         self._depth_image = embedded
         self._img_size = None
         self.node_name = "test"
+        self.callback(_message(stamp_seconds))
 
 
 def _cloud(n: int = 4) -> PointCloudData:
@@ -129,6 +139,29 @@ def test_point_cloud_is_handed_over_as_its_layout():
     }
     # The raw buffer is passed through, not copied
     assert layout["data"] is cloud.data
+
+
+def test_depth_pairing_survives_consuming_the_detections():
+    """The follower takes the detections with ``clear_last=True`` before it
+    reads ``depth`` (consume-once, so a seconds-old detection is not re-fed to
+    the tracker every tick), and that clears ``msg``. The pairing stamp is
+    cached when the message arrives, so the depth must still be handed over
+    afterwards. This is the M20 field failure of 2026-09-01."""
+    cloud = _cloud()
+    detections = _Detections(stamp_seconds=10.0)
+    detections.set_depth_source(_source(cloud, 10.1), max_age=0.2)
+    detections.msg = None  # what clear_last_msg() does on the real callback
+    assert detections.depth == cloud.buffer_layout()
+
+
+def test_no_detections_received_yet_means_no_depth():
+    detections = _Detections.__new__(_Detections)
+    detections.msg = None
+    detections._depth_image = None
+    detections._img_size = None
+    detections.node_name = "test"
+    detections.set_depth_source(_source(_cloud(), 10.1), max_age=0.2)
+    assert detections.depth == {}
 
 
 def test_image_size_is_seeded_from_the_intrinsics_only_when_unknown():
@@ -274,6 +307,10 @@ def test_detections_are_lifted_from_a_lidar_cloud_end_to_end():
     detections.callback(det_msg)
 
     robot = RobotState(x=1.0, y=-2.0, yaw=0.0, speed=0.0)
+    # Consume the detections first, as the follower loop does: the pairing
+    # must not depend on the message still being stored on the callback.
+    assert detections.get_output(clear_last=True) is not None
+    assert detections.msg is None
     goal = detections.get_output(to_robot_state=True, robot_state=robot)
     assert goal is not None
     assert goal.x == pytest.approx(1.0 + cluster_center[0], abs=0.05)
