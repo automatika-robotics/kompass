@@ -395,58 +395,31 @@ if EmbodiedAgentsCallbacks is not None:
             **kwargs,
         ) -> Union[None, List[Bbox2D]]:
             """
-            Gets the trackings data
-            :returns:   Topic content
-            :rtype:     Union[ROSTrackings, np.ndarray, None]
+            Gets the detected boxes, all of them, or only those carrying
+            ``label`` (None when the label is not among the current
+            detections). With ``to_robot_state`` the boxes are lifted to a
+            robot state instead.
+            :returns:   Boxes, a lifted state, or None
+            :rtype:     Union[None, List[Bbox2D], RobotState]
             """
             if not label:
                 all_boxes = [box for _, box in self._detected_boxes]
                 if to_robot_state:
                     return self._get_output_state(all_boxes, **kwargs)
                 return all_boxes
-            try:
-                self._label = label
-                if self._buffer_items <= 0:
-                    return None
-                else:
-                    last_detections = self._detections_buffer[-self._buffer_items :]
-                    # Create weights array: [1, 2, ..., n]
-                    weights = np.arange(1, self._buffer_items + 1).reshape(-1, 1)
-                    # Multiply each row by its weight then divide by the sum
-                    average_det = np.sum(last_detections * weights, axis=0) / np.sum(
-                        weights
-                    )
-                    detection_at_index = next(
-                        (box for lbl, box in self._detected_boxes if lbl == label),
-                        None,
-                    )
-                    if detection_at_index is None:
-                        return None
-                    # Buffer rows hold (center, size) -> convert to corner
-                    average_box = Bbox2D(
-                        top_left_corner=np.array(
-                            [
-                                average_det[0] - average_det[2] / 2,
-                                average_det[1] - average_det[3] / 2,
-                            ],
-                            dtype=np.int32,
-                        ),
-                        size=np.array(
-                            [
-                                average_det[2],
-                                average_det[3],
-                            ],
-                            dtype=np.int32,
-                        ),
-                        timestamp=detection_at_index.timestamp,  # Gets last timestamp
-                        label=label,
-                    )
-                    average_box.set_img_size(detection_at_index.img_size)
-                    if to_robot_state:
-                        return self._get_output_state([average_box], **kwargs)
-                    return [average_box]
-            except KeyError:
+            self._label = label
+            # NOTE: The buffer count only tracks how recently detections arrived and
+            # decremented by empty messages, so a label query after a run of
+            # empty frames reports no target
+            if self._buffer_items <= 0:
                 return None
+            # The boxes carrying the label, in descending score order
+            boxes = [box for lbl, box in self._detected_boxes if lbl == label]
+            if not boxes:
+                return None
+            if to_robot_state:
+                return self._get_output_state(boxes, **kwargs)
+            return boxes
 
     class PointsOfInterestCallback(
         _ExternalDepthMixin, EmbodiedAgentsCallbacks.PointsOfInterestCallback
