@@ -255,13 +255,17 @@ class VisionFollower:
             # Refresh inputs non-blocking; follower tolerates missing frames via
             # its internal target_wait_timeout / enable_search.
             self._update_inputs()
-            cmp._update_state(block=False)
 
-            found_ctrl = self._vision_controller.loop_step(
-                detections_2d=self.vision_detections or [],
-                current_state=cmp.robot_state,
-                **self.depth,
-            )
+            if not self.depth:
+                found_ctrl = False
+            else:
+                cmp._update_state(block=False)
+
+                found_ctrl = self._vision_controller.loop_step(
+                    detections_2d=self.vision_detections or [],
+                    current_state=cmp.robot_state,
+                    **self.depth,
+                )
 
             if not found_ctrl:
                 cmp.get_logger().warning(
@@ -320,14 +324,28 @@ class VisionFollower:
     # Internal helpers
     # ------------------------------------------------------------------
 
-    def _update_inputs(self) -> None:
+    def _update_inputs(self, label=None) -> None:
         """Refresh detections and depth metadata from input callbacks."""
         cmp = self._component
         vision_callback = cmp.get_callback(TopicsKeys.VISION_DETECTIONS)
-        self.vision_detections = (
-            vision_callback.get_output(clear_last=True) if vision_callback else None
-        )
-        self.depth = vision_callback.depth if vision_callback else {}
+        # Get detections and depth
+        self.vision_detections = None
+        self.depth = None
+        timeout = 0.0
+        while (
+            not self.depth or self.vision_detections is None
+        ) and timeout < cmp.config.topic_subscription_timeout:
+            self.vision_detections = (
+                vision_callback.get_output(clear_last=False, label=label)
+                if vision_callback
+                else None
+            )
+            self.depth = vision_callback.depth if vision_callback else {}
+            timeout += 1 / cmp.config.loop_rate
+            time.sleep(1 / cmp.config.loop_rate)
+
+        vision_callback.clear_last_msg()
+
         # Intrinsics are only consumed at setup(). Stop reading it once acquired
         if self.depth_image_info is None:
             depth_img_info_callback = cmp.get_callback(TopicsKeys.DEPTH_CAM_INFO)
@@ -348,21 +366,8 @@ class VisionFollower:
         # for it when we're operating in GLOBAL.
         needs_state = cmp.config._frame_mode == FrameMode.GLOBAL
         if label != "":
-            target_2d = None
-            vision_callback = cmp.get_callback(TopicsKeys.VISION_DETECTIONS)
-            timeout = 0.0
-            while not target_2d and timeout < cmp.config.topic_subscription_timeout:
-                self._update_inputs()
-                target_2d = (
-                    vision_callback.get_output(label=label) if vision_callback else None
-                )
-                cmp.get_logger().info(
-                    f"Waiting to get target {label} from vision detections...",
-                    once=True,
-                )
-                timeout += 1 / cmp.config.loop_rate
-                time.sleep(1 / cmp.config.loop_rate)
-            if not target_2d:
+            self._update_inputs(label=label)
+            if not self.vision_detections:
                 cmp.get_logger().error(
                     f"Could not find target {label} in vision detections"
                 )
@@ -383,7 +388,7 @@ class VisionFollower:
                 f"Got initial target {label}, setting to controller..."
             )
             found_target = self._vision_controller.set_initial_tracking_2d_target(
-                target_box=target_2d[0],
+                target_box=self.vision_detections[0],
                 current_state=cmp.robot_state,
                 **self.depth,
             )
@@ -396,13 +401,7 @@ class VisionFollower:
                     algorithm_names=[cmp.algorithm.value]
                 )
                 return False
-            timeout = 0.0
-            while (
-                not self.depth or self.vision_detections is None
-            ) and timeout < cmp.config.topic_subscription_timeout:
-                self._update_inputs()
-                timeout += 1 / cmp.config.loop_rate
-                time.sleep(1 / cmp.config.loop_rate)
+            self._update_inputs()
             if not self.depth or self.vision_detections is None:
                 cmp.get_logger().error(
                     f"Could not get initial vision detections to setup the vision follower controller after {cmp.config.topic_subscription_timeout} seconds"
