@@ -25,7 +25,6 @@ from nav_msgs.msg import Odometry as ROSOdometry
 from nav_msgs.msg import Path as ROSPath
 from kompass_core.models import RobotState
 from sensor_msgs.msg import LaserScan as ROSLaserScan
-from sensor_msgs.msg import PointCloud2 as ROSPointCloud2
 
 from kompass_interfaces.msg import TwistArray as ROSTwistArray
 from importlib.util import find_spec
@@ -38,7 +37,6 @@ from .callbacks import (
     PointStampedCallback,
     PoseCallback,
     PoseStampedCallback,
-    PointCloudCallback,
     TrackingsCallback,
     DetectionsCallback,
     TwistStampedCallback,
@@ -142,13 +140,6 @@ class LaserScan(BaseLaserScan):
         msg.intensities = output.intensities
 
         return msg
-
-
-class PointCloud2(SupportedType):
-    """Class to support ROS2 sensor_msgs/msg/PointCloud2 message"""
-
-    _ros_type = ROSPointCloud2
-    callback = PointCloudCallback
 
 
 class PointStamped(BasePointStamped):
