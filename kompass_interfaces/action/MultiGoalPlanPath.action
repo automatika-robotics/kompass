@@ -1,0 +1,60 @@
+# Plan and execute a sequence of goal waypoints, one at a time.
+#
+# Each waypoint is driven to completion before the next is started. At a
+# reached waypoint the mission can dwell for a fixed time, wait for an external
+# condition to go true, or both. What happens when that condition never arrives
+# is chosen by the caller.
+
+geometry_msgs/Pose[] goals      # Waypoints, visited in the order given
+string frame_id                 # Frame the waypoints are in; empty means the configured world frame
+
+string algorithm_name           # Planning algorithm to use; empty means the planner's configured default
+
+PathTrackingError end_tolerance # Arrival tolerance, applied at every waypoint
+
+# Seconds to dwell at a reached waypoint before starting the next:
+#   empty     -> no dwell
+#   1 entry   -> the same dwell at every waypoint
+#   N entries -> one per waypoint, must match the length of 'goals'
+float64[] pause_duration
+
+# Topic to wait on at a reached waypoint before continuing, published as
+# std_msgs/Bool. Empty means no condition. Any dwell above is served first.
+#
+# Named per mission rather than configured on the component: a step's success
+# condition carries its topic as plain data and is subscribed when the step
+# runs, so there is nothing to declare in advance.
+string pause_condition_topic
+
+# Seconds to wait for that condition before applying the policy below.
+# Zero or negative waits indefinitely.
+float64 condition_timeout
+
+uint8 ON_TIMEOUT_CONTINUE=0         # Stop waiting and start the next waypoint
+uint8 ON_TIMEOUT_RETURN_TO_START=1  # Drop the remaining waypoints, navigate back to the pose held at mission start
+uint8 ON_TIMEOUT_ABORT=2            # Drop the remaining waypoints and hold position
+uint8 on_timeout
+---
+# Result
+uint8 OUTCOME_COMPLETED=0   # Every waypoint reached
+uint8 OUTCOME_CANCELED=1    # Canceled by the client
+uint8 OUTCOME_TIMED_OUT=2   # A pause condition timed out under an aborting policy
+uint8 OUTCOME_FAILED=3      # Planning or navigation failed
+uint8 outcome
+
+bool[] reached_waypoints    # One per goal, in order; false for any not attempted
+int32 last_reached_index    # Index of the last waypoint reached, -1 if none were
+PathTrackingError end_displacement  # Error at the last waypoint reached
+---
+# Feedback
+uint8 STATE_NAVIGATING=0
+uint8 STATE_PAUSED_DWELL=1
+uint8 STATE_PAUSED_CONDITION=2
+uint8 STATE_RETURNING_TO_START=3
+uint8 state
+
+uint32 current_index        # Waypoint being worked on
+uint32 total                # Number of waypoints in the mission
+geometry_msgs/Pose current_goal         # The waypoint being worked on
+geometry_msgs/PoseStamped current_pose  # Robot current position
+float64 time_paused         # Seconds spent in the current pause, zero while navigating

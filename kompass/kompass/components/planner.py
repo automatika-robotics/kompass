@@ -13,6 +13,7 @@ from std_msgs.msg import Header
 from kompass_core.models import Robot, RobotState
 from kompass_core.vision import DepthDetector
 from kompass_core.third_party.ompl.planner import OMPLGeometric
+from ros_sugar.io import CameraIntrinsics
 
 # KOMPASS INTERFACES
 from kompass_interfaces.action import PlanPath as PlanPathAction
@@ -23,9 +24,13 @@ from kompass_interfaces.srv import PlanPath as PlanPathSrv
 # KOMPASS ROS
 from ..config import BaseValidators, ComponentConfig, ComponentRunType
 from ..data_types import Path as KompassPath
-from ..callbacks import PointsOfInterestCallback, DetectionsCallback
+from ..callbacks import (
+    PointsOfInterestCallback,
+    DetectionsCallback,
+    PointCloudCallback,
+)
 from .ros import Topic, update_topics, ActionClientHandler
-from .component import Component, TFListener
+from .component import Component
 from .defaults import (
     TopicsKeys,
     planner_allowed_inputs,
@@ -56,6 +61,11 @@ class PlannerConfig(ComponentConfig):
         # Automatically cast incoming lists/arrays to float32
         converter=lambda x: np.array(x, dtype=np.float32),
     )
+    # Separate depth input, paired with the vision goal message. Both publishers
+    # must stamp with the same clock.
+    vision_depth_max_age: float = field(
+        default=0.2, validator=BaseValidators.in_range(min_value=0.0, max_value=1e3)
+    )
 
 
 class Planner(Component):
@@ -67,6 +77,8 @@ class Planner(Component):
                  Default: ``` Topic(name="/map", msg_type="OccupancyGrid" qos_profile=QoSConfig(durability=qos.DurabilityPolicy.TRANSIENT_LOCAL))```
     - *location*: the robot current location.<br /> Default ```Topic(name="/odom", msg_type="Odometry")```
     - *goal_point*: 2D navigation goal point on the map.<br /> Default ``` Topic(name="/goal", msg_type="PointStamped") ```
+    - *depth_camera_info*: Intrinsics of the camera behind vision goals (``PointsOfInterest`` or ``Detections``), required for those goal types.<br /> Default ``` None ```
+    - *vision_depth*: Optional depth source for lifting vision goals to 3D instead of the depth embedded in their message: a depth ``Image`` aligned with the detection camera or a ``PointCloud2`` (e.g. 3D LiDAR).<br /> Default ``` None ```
 
     ## Outputs:
     - *plan*: Path to reach the goal point from start location.<br /> Default ``` Topic(name="/plan", msg_type="Path")```
@@ -256,7 +268,7 @@ class Planner(Component):
         self.map: Optional[np.ndarray] = None
         self.map_data: Optional[Dict] = None
         self.reached_end: bool = False
-        self._depth_image_info: Optional[Dict] = None
+        self._depth_image_info: Optional[CameraIntrinsics] = None
 
         self.__robot = Robot(
             robot_type=self.robot.model_type,
@@ -335,7 +347,27 @@ class Planner(Component):
                         f"Setting up Depth Detector for input goals on topic {callback.input_topic.name}"
                     )
                     callback.set_depth_detector(depth_detector)
+                    self.__attach_depth_source(callback)
                 break
+
+    def __attach_depth_source(self, callback) -> None:
+        """Sensor fusion to point a vision goal callback at the separate depth
+        input, when one is configured, so the goals are lifted with it instead of
+        the depth embedded in their message"""
+        depth_source = self.get_callback(TopicsKeys.VISION_DEPTH)
+        if depth_source is None:
+            return
+        info = self._depth_image_info
+        callback.set_depth_source(
+            depth_source,
+            self.config.vision_depth_max_age,
+            img_size=np.array([info.width, info.height], dtype=np.int32),
+            camera_frame=info.frame_id,
+        )
+        self.get_logger().info(
+            f"Vision goals on '{callback.input_topic.name}' are lifted with the "
+            f"depth from '{depth_source.input_topic.name}'"
+        )
 
     def trigger_main_action_server(
         self,
@@ -718,40 +750,9 @@ class Planner(Component):
                 to_robot_state=True, robot_state=self.robot_state
             )
 
-    @property
-    def _depth_tf_listener(self) -> Optional[TFListener]:
-        """Transform listener from the depth camera frame to the robot body.
-
-        The camera frame is read from the camera info messages, so this is
-        None until the first one arrives.
-        """
-        return self.input_tf_listener(
-            TopicsKeys.DEPTH_CAM_INFO, self.config.frames.robot_base, static_tf=True
-        )
-
     def __setup_depth_detector(self) -> Optional[DepthDetector]:
         """Setup and configure a DepthDetector for usage with Vision-based goals"""
-        timeout = 0.0
-        # Get the depth image transform if the input is provided
-        if self.in_topic_name(TopicsKeys.DEPTH_CAM_INFO):
-            while (
-                not (depth_tf := self._depth_tf_listener)
-                or not depth_tf.got_transform
-                or not self._depth_image_info
-            ) and timeout <= self.config.topic_subscription_timeout:
-                # Depth image cam info
-                if not self._depth_image_info:
-                    depth_img_info_callback = self.get_callback(
-                        TopicsKeys.DEPTH_CAM_INFO
-                    )
-                    self._depth_image_info: Optional[dict] = (
-                        depth_img_info_callback.get_output()
-                        if depth_img_info_callback
-                        else None
-                    )
-                time.sleep(1 / self.config.loop_rate)
-                timeout += 1 / self.config.loop_rate
-        else:
+        if not self.in_topic_name(TopicsKeys.DEPTH_CAM_INFO):
             self.get_logger().error(
                 f"Depth camera info topic '{self.in_topic_name(TopicsKeys.DEPTH_CAM_INFO)}' is not provided, cannot initialize Vision Depth Detector required for vision-based planner goals. Please provide an input topic for {TopicsKeys.DEPTH_CAM_INFO} to ensure proper functionality."
             )
@@ -760,18 +761,21 @@ class Planner(Component):
             )
             return None
 
-        depth_tf = self._depth_tf_listener
-        if not depth_tf or not depth_tf.got_transform:
+        # The camera's mount pose is the TF of the frame its CameraInfo names
+        depth_tf = self.wait_input_tf(
+            TopicsKeys.DEPTH_CAM_INFO, timeout=self.config.topic_subscription_timeout
+        )
+        if depth_tf is None:
             self.get_logger().error(
-                "Could not obtain transformation between the Depth camera frame "
-                f"'{depth_tf.config.source_frame if depth_tf else 'unknown'}' to the "
-                f"robot body frame '{self.config.frames.robot_base}'"
+                f"Could not get the depth camera info on '{self.in_topic_name(TopicsKeys.DEPTH_CAM_INFO)}' and its TF to the robot body frame '{self.config.frames.robot_base}'"
             )
             return None
-
+        self._depth_image_info: Optional[CameraIntrinsics] = self.get_callback(
+            TopicsKeys.DEPTH_CAM_INFO
+        ).get_output()
         if not self._depth_image_info:
             self.get_logger().error(
-                f"Depth camera info topic '{self.in_topic_name(TopicsKeys.DEPTH_CAM_INFO)}' did not publish any message. TIMEOUT."
+                f"Depth camera info on '{self.in_topic_name(TopicsKeys.DEPTH_CAM_INFO)}' could not be read"
             )
             return None
 
@@ -779,18 +783,43 @@ class Planner(Component):
             f"Got Depth camera to body TF -> {self._depth_image_info} Setting up Vision Depth Detector"
         )
 
-        return DepthDetector(
+        detector = DepthDetector(
             depth_range=self.config.depth_range,
             camera_in_body_translation=depth_tf.translation,
             camera_in_body_rotation=depth_tf.rotation,
-            focal_length=self._depth_image_info["focal_length"]
+            focal_length=np.array([
+                self._depth_image_info.fx,
+                self._depth_image_info.fy,
+            ])
             if self._depth_image_info
             else None,
-            principal_point=self._depth_image_info["principal_point"]
+            principal_point=np.array([
+                self._depth_image_info.cx,
+                self._depth_image_info.cy,
+            ])
             if self._depth_image_info
             else None,
             depth_conversion_factor=self.config.depth_conversion_factor,
         )
+
+        # External point cloud sensor
+        # TODO: an organized cloud from a stereo camera (height > 1) is in the
+        # camera frame and does not need the mount TF of a separate sensor;
+        # when the core gains the pixel-indexed path, pass the camera pose here
+        # and skip the TF wait
+        if isinstance(self.get_callback(TopicsKeys.VISION_DEPTH), PointCloudCallback):
+            cloud_sensor = self.wait_sensor_config(
+                TopicsKeys.VISION_DEPTH,
+                timeout=self.config.topic_subscription_timeout,
+            )
+            if cloud_sensor is None:
+                self.get_logger().error(
+                    f"Point cloud depth input '{self.in_topic_name(TopicsKeys.VISION_DEPTH)}' is not usable, cannot initialize the Vision Depth Detector"
+                )
+                return None
+            detector.set_point_cloud_sensor(cloud_sensor)
+
+        return detector
 
     def _plan_on_goal_core(
         self, goal_state: RobotState, goal_index: int = 0, **_

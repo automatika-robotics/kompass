@@ -87,6 +87,10 @@ class ControllerConfig(ComponentConfig):
     * - **ctrl_publish_type**
       - `CmdPublishType | str`, `TWIST_ARRAY`
       - How to publish the control commands
+
+    * - **vision_depth_max_age**
+      - `float`, `0.2`
+      - Largest stamp difference (s) between the vision detections and the separate depth input (`vision_depth`) for the two to be paired; older depth is not used
     ```
     """
 
@@ -103,6 +107,11 @@ class ControllerConfig(ComponentConfig):
         default=False
     )  # Turn on debug mode -> published additional data visualization
     use_direct_sensor: bool = field(default=False)
+    # Separate depth input paired with the detections. Both publishers must stamp
+    # with the same clock.
+    vision_depth_max_age: float = field(
+        default=0.2, validator=BaseValidators.in_range(min_value=0.0, max_value=1e3)
+    )
     ctrl_publish_type: Union[str, CmdPublishType] = field(
         default=CmdPublishType.TWIST_ARRAY,
         converter=lambda value: (
@@ -155,10 +164,20 @@ class Controller(Component):
       - 1
       - `Topic(name="/local_map/occupancy_layer", msg_type="OccupancyGrid")`
 
-    * - vision_tracking
+    * - vision_detections
       - [`automatika_embodied_agents.msg.Trackings`](https://github.com/automatika-robotics/ros-agents/tree/main/agents_interfaces/msg), [`automatika_embodied_agents.msg.Detections2D`](https://github.com/automatika-robotics/ros-agents/tree/main/agents_interfaces/msg)
       - 1
-      - `Topic(name="/trackings", msg_type="Trackings")`
+      - `None` (required for the vision tracking action)
+
+    * - depth_camera_info
+      - [`sensor_msgs.msg.CameraInfo`](https://docs.ros.org/en/noetic/api/sensor_msgs/html/msg/CameraInfo.html)
+      - 1
+      - `None` (required for the vision tracking action)
+
+    * - vision_depth
+      - [`sensor_msgs.msg.Image`](https://docs.ros.org/en/noetic/api/sensor_msgs/html/msg/Image.html) (depth image aligned with the detection camera), [`sensor_msgs.msg.PointCloud2`](http://docs.ros.org/en/noetic/api/sensor_msgs/html/msg/PointCloud2.html)
+      - 1
+      - `None` (optional: lifts the detections to 3D instead of the depth embedded in the detections message)
     ```
 
     ## Outputs:
@@ -791,6 +810,9 @@ class Controller(Component):
 
         self.custom_create_all_subscribers()
         self.custom_create_all_action_servers()
+        # Set up the vision controller eagerly to avoid first-call overhead
+        # in the action server.
+        self._vision_follower.setup()
 
     def _activate_follower_mode(self):
         """Activate path following mode by creating all missing subscriptions"""
@@ -1355,6 +1377,7 @@ class Controller(Component):
         return [
             self.in_topic_name(TopicsKeys.VISION_DETECTIONS),
             self.in_topic_name(TopicsKeys.DEPTH_CAM_INFO),
+            self.in_topic_name(TopicsKeys.VISION_DEPTH),
         ]
 
     def _end_vision_tracking_srv_callback(
@@ -1518,13 +1541,6 @@ class Controller(Component):
             return True
         dist: float = self.robot_state.distance(goal_point)
         return dist <= self._path_controller._config.goal_dist_tolerance
-
-    def _execute_once(self):
-        """Initialize controller post activation"""
-        if self.config._mode == ControllerMode.VISION_FOLLOWER:
-            # Set up the vision controller eagerly to avoid first-call overhead
-            # in the action server.
-            self._vision_follower.setup()
 
     def _execution_step(self):
         """

@@ -270,6 +270,9 @@ class TestVisionTrackingCallback:
         c._update_state = MagicMock()
         c._publish = MagicMock()
         c._vision_follower._update_inputs = MagicMock()
+        # _update_inputs is a no-op here, so give the loop the depth it now
+        # requires before it calls loop_step
+        c._vision_follower.depth = {"depth_image": MagicMock()}
         c._vision_follower.setup = MagicMock(return_value=True)
         c._vision_follower._acquire_initial_target = MagicMock(return_value=True)
 

@@ -17,9 +17,11 @@ helper sets at setup time based on TF availability.
 from __future__ import annotations
 
 import time
-from typing import TYPE_CHECKING, Dict, Optional
+from typing import TYPE_CHECKING, Any, Dict, Optional
 
 import numpy as np
+
+from ros_sugar.io import CameraIntrinsics
 
 from kompass_core.control import (
     ControlClasses,
@@ -30,6 +32,7 @@ from kompass_core.control import (
 from kompass_core.datatypes import Bbox2D
 from kompass_interfaces.action import TrackVisionTarget
 
+from ..callbacks import PointCloudCallback
 from ._modes import ControllerMode, FrameMode
 from .defaults import TopicsKeys
 
@@ -45,8 +48,11 @@ class VisionFollower:
         self._vision_controller: Optional[ControllerType] = None
         self._tracked_center: Optional[np.ndarray] = None
         self.vision_detections: Optional[Bbox2D] = None
-        self.depth_image: Optional[np.ndarray] = None
-        self.depth_image_info: Optional[Dict] = None
+        # Depth used to lift the detections. An aligned depth image or a point cloud's
+        # buffer layout. From the detections message or from the separate depth input.
+        # Empty when there is no usable depth
+        self.depth: Dict[str, Any] = {}
+        self.depth_image_info: Optional[CameraIntrinsics] = None
 
     # ------------------------------------------------------------------
     # Public API consumed by the Controller component
@@ -62,18 +68,6 @@ class VisionFollower:
             return None
         return self._vision_controller.optimal_path()
 
-    @property
-    def _depth_tf_listener(self):
-        """Transform listener from the depth camera frame to the robot body.
-
-        The camera frame is read from the camera info messages, so this is
-        None until the first one arrives.
-        """
-        cmp = self._component
-        return cmp.input_tf_listener(
-            TopicsKeys.DEPTH_CAM_INFO, cmp.config.frames.robot_base, static_tf=True
-        )
-
     def setup(self) -> bool:
         """Build the core vision controller. Stores it on success.
 
@@ -82,45 +76,55 @@ class VisionFollower:
         we fall back to LOCAL (robot-relative).
         """
         cmp = self._component
-        timeout = 0.0
-        # Get the depth image transform if the input is provided
+        # Re-acquire the intrinsics per setup
+        self.depth_image_info = None
+        depth_tf = None
         if cmp.in_topic_name(TopicsKeys.DEPTH_CAM_INFO):
-            while (
-                not (
-                    (depth_tf := self._depth_tf_listener)
-                    and depth_tf.got_transform
-                    and self.depth_image_info
+            # The camera's mount pose is the TF of the frame its CameraInfo names
+            depth_tf = cmp.wait_input_tf(
+                TopicsKeys.DEPTH_CAM_INFO, timeout=cmp.config.topic_subscription_timeout
+            )
+            if depth_tf is None:
+                return False
+            self._update_inputs()
+            if self.depth_image_info is None:
+                cmp.get_logger().error(
+                    f"Depth camera info on '{cmp.in_topic_name(TopicsKeys.DEPTH_CAM_INFO)}' could not be read"
                 )
-                and timeout < cmp.config.topic_subscription_timeout
-            ):
-                self._update_inputs()
-                cmp.get_logger().info(
-                    "Waiting to get Depth camera to body TF to initialize Vision Follower...",
-                    once=True,
-                )
-                time.sleep(1 / cmp.config.loop_rate)
-                timeout += 1 / cmp.config.loop_rate
-
-        if timeout >= cmp.config.topic_subscription_timeout:
-            return False
+                return False
 
         cmp.get_logger().info(
             "Got Depth camera to body TF -> Setting up Vision Follower controller"
         )
 
-        # In vision mode the frame is decided by what's available at setup time:
-        # if the location->world TF is available we operate in GLOBAL, otherwise
-        # we fall back to LOCAL (robot-relative). Once set, _frame_mode drives
-        # state/sensor handling for the rest of the session. Reset to GLOBAL
-        # before probing so _update_state(block=True) actually waits for the TF
-        # (even if a prior session ended in LOCAL). A robot already localized in
-        # the world frame resolves to the identity transform, so it needs no
-        # special case here.
+        # For pointcloud as depth input
+        # TODO: an organized cloud from a stereo camera (height > 1) is in the
+        # camera frame and does not need the mount TF of a separate sensor;
+        # when the core gains the pixel-indexed path, pass the camera pose here
+        # and skip the TF wait
+        depth_source = cmp.get_callback(TopicsKeys.VISION_DEPTH)
+        cloud_sensor = None
+        if cmp.algorithm == ControllersID.VISION_DEPTH and isinstance(
+            depth_source, PointCloudCallback
+        ):
+            cloud_sensor = cmp.wait_sensor_config(
+                TopicsKeys.VISION_DEPTH, timeout=cmp.config.topic_subscription_timeout
+            )
+            if cloud_sensor is None:
+                cmp.get_logger().error(
+                    f"Point cloud depth input '{cmp.in_topic_name(TopicsKeys.VISION_DEPTH)}' is not usable -> cannot initialize the Vision Follower"
+                )
+                return False
+
+        # NOTE: If the location->world TF is available the follower tracks in GLOBAL,
+        # otherwise it falls back to LOCAL (robot-relative). The mode is reset to
+        # GLOBAL before probing because _update_state(block=True) only waits for
+        # the TF in GLOBAL mode, and setup() can re-enter while the mode is still
+        # LOCAL. A robot already localized in the world frame resolves to the identity
+        # transform, so it needs no special case here.
         cmp.config._frame_mode = FrameMode.GLOBAL
         cmp._update_state(block=True)
-        has_tf = (
-            cmp.odom_tf_listener is not None and cmp.odom_tf_listener.got_transform
-        )
+        has_tf = cmp.odom_tf_listener is not None and cmp.odom_tf_listener.got_transform
         cmp.config._frame_mode = FrameMode.GLOBAL if has_tf else FrameMode.LOCAL
         use_local = cmp.config._frame_mode == FrameMode.LOCAL
 
@@ -135,7 +139,6 @@ class VisionFollower:
                 "operate in GLOBAL frame with velocity tracking"
             )
 
-        depth_tf = self._depth_tf_listener
         config = ControlConfigClasses[cmp.algorithm](
             control_time_step=cmp.config.control_time_step,
             camera_position_to_robot=depth_tf.translation if depth_tf else None,
@@ -155,18 +158,63 @@ class VisionFollower:
             robot=cmp._robot,
             ctrl_limits=cmp._robot_ctr_limits,
             config=_controller_config,
-            camera_focal_length=self.depth_image_info["focal_length"]
+            camera_focal_length=np.array([
+                self.depth_image_info.fx,
+                self.depth_image_info.fy,
+            ])
             if self.depth_image_info
             else None,
-            camera_principal_point=self.depth_image_info["principal_point"]
+            camera_principal_point=np.array([
+                self.depth_image_info.cx,
+                self.depth_image_info.cy,
+            ])
             if self.depth_image_info
             else None,
         )
+
+        if cloud_sensor is not None:
+            self._vision_controller.set_point_cloud_sensor(cloud_sensor)
+            cmp.get_logger().info(
+                f"Vision detections are lifted with Point cloud depth input from "
+                f"'{cmp.in_topic_name(TopicsKeys.VISION_DEPTH)}'"
+            )
+        if depth_source is not None and detections_callback:
+            # The separate depth input takes precedence over the depth embedded
+            # in the detections message
+            info = self.depth_image_info
+            detections_callback.set_depth_source(
+                depth_source,
+                cmp.config.vision_depth_max_age,
+                img_size=np.array([info.width, info.height], dtype=np.int32)
+                if info
+                else None,
+                camera_frame=info.frame_id if info else None,
+            )
+            cmp.get_logger().info(
+                f"Vision detections are lifted with the depth from '{depth_source.input_topic.name}'"
+            )
 
         cmp.get_logger().info(
             f"Vision Controller '{cmp.algorithm}' is initialized and ready to use"
         )
         return True
+
+    def _refresh_frame_mode(self) -> bool:
+        """Upgrade a LOCAL-frame controller to GLOBAL once localization exists.
+
+        Controller built before localization came up (LOCAL) must be rebuilt to
+        track in the world frame. Returns False only if the rebuild was needed and failed.
+        """
+        cmp = self._component
+        if cmp.config._frame_mode != FrameMode.LOCAL:
+            return True
+        if not (cmp.odom_tf_listener and cmp.odom_tf_listener.got_transform):
+            return True
+        cmp.get_logger().info(
+            "Global localization became available -> rebuilding vision "
+            "follower to track in GLOBAL frame"
+        )
+        return self.setup()
 
     def execute_action(self, goal_handle) -> TrackVisionTarget.Result:
         """Run the vision tracking action to completion."""
@@ -177,8 +225,14 @@ class VisionFollower:
         result = TrackVisionTarget.Result()
         start_time = time.time()
 
-        if not self._vision_controller or not self.setup():
+        if not self._vision_controller and not self.setup():
             cmp.get_logger().error("Could not initialize controller -> ABORTING ACTION")
+            return self._terminate_action(goal_handle, result, start_time, "abort")
+
+        if not self._refresh_frame_mode():
+            cmp.get_logger().error(
+                "Could not rebuild controller for GLOBAL frame -> ABORTING ACTION"
+            )
             return self._terminate_action(goal_handle, result, start_time, "abort")
 
         if not self._acquire_initial_target(
@@ -201,13 +255,17 @@ class VisionFollower:
             # Refresh inputs non-blocking; follower tolerates missing frames via
             # its internal target_wait_timeout / enable_search.
             self._update_inputs()
-            cmp._update_state(block=False)
 
-            found_ctrl = self._vision_controller.loop_step(
-                detections_2d=self.vision_detections or [],
-                current_state=cmp.robot_state,
-                depth_image=self.depth_image,
-            )
+            if not self.depth:
+                found_ctrl = False
+            else:
+                cmp._update_state(block=False)
+
+                found_ctrl = self._vision_controller.loop_step(
+                    detections_2d=self.vision_detections or [],
+                    current_state=cmp.robot_state,
+                    **self.depth,
+                )
 
             if not found_ctrl:
                 cmp.get_logger().warning(
@@ -266,18 +324,36 @@ class VisionFollower:
     # Internal helpers
     # ------------------------------------------------------------------
 
-    def _update_inputs(self) -> None:
+    def _update_inputs(self, label=None) -> None:
         """Refresh detections and depth metadata from input callbacks."""
         cmp = self._component
         vision_callback = cmp.get_callback(TopicsKeys.VISION_DETECTIONS)
-        self.vision_detections = (
-            vision_callback.get_output(clear_last=True) if vision_callback else None
-        )
-        self.depth_image = vision_callback.depth_image if vision_callback else None
-        depth_img_info_callback = cmp.get_callback(TopicsKeys.DEPTH_CAM_INFO)
-        self.depth_image_info = (
-            depth_img_info_callback.get_output() if depth_img_info_callback else None
-        )
+        # Get detections and depth
+        self.vision_detections = None
+        self.depth = None
+        timeout = 0.0
+        while (
+            not self.depth or self.vision_detections is None
+        ) and timeout < cmp.config.topic_subscription_timeout:
+            self.vision_detections = (
+                vision_callback.get_output(clear_last=False, label=label)
+                if vision_callback
+                else None
+            )
+            self.depth = vision_callback.depth if vision_callback else {}
+            timeout += 1 / cmp.config.loop_rate
+            time.sleep(1 / cmp.config.loop_rate)
+
+        vision_callback.clear_last_msg()
+
+        # Intrinsics are only consumed at setup(). Stop reading it once acquired
+        if self.depth_image_info is None:
+            depth_img_info_callback = cmp.get_callback(TopicsKeys.DEPTH_CAM_INFO)
+            self.depth_image_info = (
+                depth_img_info_callback.get_output()
+                if depth_img_info_callback
+                else None
+            )
 
     def _acquire_initial_target(self, label: str, pose_x: int, pose_y: int) -> bool:
         """Set the initial target on the kompass_core controller.
@@ -290,21 +366,8 @@ class VisionFollower:
         # for it when we're operating in GLOBAL.
         needs_state = cmp.config._frame_mode == FrameMode.GLOBAL
         if label != "":
-            target_2d = None
-            vision_callback = cmp.get_callback(TopicsKeys.VISION_DETECTIONS)
-            timeout = 0.0
-            while not target_2d and timeout < cmp.config.topic_subscription_timeout:
-                self._update_inputs()
-                target_2d = (
-                    vision_callback.get_output(label=label) if vision_callback else None
-                )
-                cmp.get_logger().info(
-                    f"Waiting to get target {label} from vision detections...",
-                    once=True,
-                )
-                timeout += 1 / cmp.config.loop_rate
-                time.sleep(1 / cmp.config.loop_rate)
-            if not target_2d:
+            self._update_inputs(label=label)
+            if not self.vision_detections:
                 cmp.get_logger().error(
                     f"Could not find target {label} in vision detections"
                 )
@@ -325,9 +388,9 @@ class VisionFollower:
                 f"Got initial target {label}, setting to controller..."
             )
             found_target = self._vision_controller.set_initial_tracking_2d_target(
-                target_box=target_2d[0],
+                target_box=self.vision_detections[0],
                 current_state=cmp.robot_state,
-                aligned_depth_image=self.depth_image,
+                **self.depth,
             )
         else:
             if cmp.algorithm == ControllersID.VISION_IMG:
@@ -338,14 +401,8 @@ class VisionFollower:
                     algorithm_names=[cmp.algorithm.value]
                 )
                 return False
-            timeout = 0.0
-            while (
-                self.depth_image is None or self.vision_detections is None
-            ) and timeout < cmp.config.topic_subscription_timeout:
-                self._update_inputs()
-                timeout += 1 / cmp.config.loop_rate
-                time.sleep(1 / cmp.config.loop_rate)
-            if self.depth_image is None or self.vision_detections is None:
+            self._update_inputs()
+            if not self.depth or self.vision_detections is None:
                 cmp.get_logger().error(
                     f"Could not get initial vision detections to setup the vision follower controller after {cmp.config.topic_subscription_timeout} seconds"
                 )
@@ -357,7 +414,7 @@ class VisionFollower:
                 pose_x,
                 pose_y,
                 self.vision_detections,
-                self.depth_image,
+                **self.depth,
             )
         return found_target
 

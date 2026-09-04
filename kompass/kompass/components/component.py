@@ -12,6 +12,7 @@ from .ros import Topic, update_topics
 from itertools import groupby
 from .defaults import TopicsKeys
 from kompass_core import set_logging_level
+from kompass_cpp.types import PointFieldType, SensorConfig
 
 # The runtime counterparts of the robot description: the C++ library defines
 # these, the description in Sugarcoat declares them, and this module is where
@@ -329,10 +330,32 @@ class Component(BaseComponent):
         return self._outputs_keys
 
     # INPUTS/OUTPUTS AND CONFIGURATION
+    def _ensure_not_launched(self, method_name: str) -> None:
+        """Guards topic reconfiguration against running components.
+
+        :param method_name: Name of the reconfiguration method, for the error
+        :type method_name: str
+        :raises RuntimeError: If the component has live ROS entities
+        """
+        launched = any(
+            getattr(callback, "_subscriber", None) is not None
+            for callback in self.callbacks.values()
+        ) or any(
+            getattr(publisher, "_publisher", None) is not None
+            for publisher in self.publishers_dict.values()
+        )
+        if launched:
+            raise RuntimeError(
+                f"Cannot reconfigure '{method_name}' of component "
+                f"'{self.node_name}' after launch. Configure topics before "
+                "bringup, or restart the component."
+            )
+
     def inputs(self, **kwargs):
         """
         Set component input streams (topics) : kwargs[topic_keyword]=Topic()
         """
+        self._ensure_not_launched("inputs")
         if self.__allowed_inputs:
             kwargs["allowed_config"] = self.__allowed_inputs
         old_dict = (
@@ -345,11 +368,19 @@ class Component(BaseComponent):
         # Update the list containing all the Topics (without None values)
         self._inputs_list = self._reparse_inputs_callbacks(_inputs)
         self.in_topics = [topic for topic in self._inputs_list if topic]
+        # Rebuild the callbacks from the NEW topics
+        self.callbacks = {
+            in_topic.name: in_topic.msg_type.callback(
+                in_topic, node_name=self.node_name
+            )
+            for in_topic in self.in_topics
+        }
 
     def outputs(self, **kwargs):
         """
         Set component output streams (topics)
         """
+        self._ensure_not_launched("outputs")
         if self.__allowed_outputs:
             kwargs["allowed_config"] = self.__allowed_outputs
         old_dict = (
@@ -361,6 +392,11 @@ class Component(BaseComponent):
         (self._outputs_keys, _outputs) = _parse_from_topics_dict(topics_dict)
         self._outputs_list = self._reparse_outputs_converts(_outputs)
         self.out_topics = [topic for topic in self._outputs_list if topic]
+        # Rebuild the publishers from the NEW topics
+        self.publishers_dict = {
+            out_topic.name: Publisher(out_topic, node_name=self.node_name)
+            for out_topic in self.out_topics
+        }
 
     def set_input(self, **kwargs) -> bool:
         """Set value of an input(s) topic
@@ -552,7 +588,11 @@ class Component(BaseComponent):
             self.transform_input_to(name, goal_frame, static_tf=static_tf)
 
     def input_tf_listener(
-        self, topic_key: TopicsKeys, goal_frame: str, static_tf: bool = False
+        self,
+        topic_key: TopicsKeys,
+        goal_frame: str,
+        static_tf: bool = False,
+        idx: int = 0,
     ) -> Optional[TFListener]:
         """Gets a transform listener from an input's own frame to a given frame.
 
@@ -567,13 +607,15 @@ class Component(BaseComponent):
         :type goal_frame: str
         :param static_tf: Whether the sensor is rigidly mounted
         :type static_tf: bool
+        :param idx: Index of the input, for keys bound to several topics
+        :type idx: int
 
         :return: TF listener, or None until the first message on that input
             arrives. Data already in the goal frame yields a listener that
             resolves to the identity transform.
         :rtype: Optional[TFListener]
         """
-        callback = self.get_callback(topic_key)
+        callback = self.get_callback(topic_key, idx)
         if not callback or not callback.frame_id:
             return None
         return self.get_transform_listener(
@@ -620,26 +662,100 @@ class Component(BaseComponent):
             return False, None
         return True, tf_listener.transform
 
-    def _wait_for_tf(self, tf_listener: TFListener, description: str = "") -> bool:
-        """Block up to ``config.topic_subscription_timeout`` waiting for a
-        transform to arrive on the given listener.
+    def wait_input_tf(
+        self,
+        topic_key: TopicsKeys,
+        idx: int = 0,
+        timeout: Optional[float] = None,
+        static_tf: bool = True,
+    ) -> Optional[TFListener]:
+        """Block until an input has delivered its first message and the
+        transform from the input's own frame to the robot base is available.
+        The first message is names the input's frame.
 
-        :param tf_listener: Transform listener to poll
-        :param description: Short label for the TF, used in the waiting log
-        :return: True if the transform was acquired before timing out
+        :param topic_key: Key of the component input topic
+        :type topic_key: TopicsKeys
+        :param idx: Index of the input, for keys bound to several topics
+        :type idx: int
+        :param timeout: Seconds to wait before giving up, None waits
+            indefinitely
+        :type timeout: Optional[float]
+        :param static_tf: Whether the input's frame is rigidly mounted
+        :type static_tf: bool
+
+        :return: The listener holding the transform, or None when the timeout
+            passed
+        :rtype: Optional[TFListener]
         """
-        timeout = 0.0
-        while (
-            not tf_listener.got_transform
-            and timeout < self.config.topic_subscription_timeout
-        ):
+        callback = self.get_callback(topic_key, idx)
+        name = callback.input_topic.name if callback else str(topic_key)
+        robot_base = self.config.frames.robot_base
+        waited = 0.0
+        tf_listener = None
+        while timeout is None or waited < timeout:
+            tf_listener = self.input_tf_listener(
+                topic_key, robot_base, static_tf=static_tf, idx=idx
+            )
+            if tf_listener is not None and tf_listener.got_transform:
+                return tf_listener
             self.get_logger().info(
-                f"Waiting for {description or 'requested'} TF...",
+                f"Waiting for input '{name}' to deliver data and for its TF to "
+                f"the robot base frame '{robot_base}'...",
                 once=True,
             )
-            time.sleep(1 / self.config.loop_rate)
-            timeout += 1 / self.config.loop_rate
-        return tf_listener.got_transform
+            time.sleep(self.config.topic_try_wait_timeout)
+            waited += self.config.topic_try_wait_timeout
+        missing = (
+            "its first message"
+            if tf_listener is None
+            else f"its TF to the robot base frame '{robot_base}'"
+        )
+        self.get_logger().warning(
+            f"Input '{name}': {missing} is still not available after {timeout} seconds"
+        )
+        return None
+
+    def wait_sensor_config(
+        self, topic_key: TopicsKeys, idx: int = 0, timeout: Optional[float] = None
+    ) -> Optional[SensorConfig]:
+        """Describe a spatial sensor input (LaserScan or PointCloud2) as the
+        core's ``SensorConfig``. Its mount pose from the transform of its own
+        frame to the robot base and, for a point cloud, the encoding of its
+        x/y/z fields read from the first message.
+
+        :param topic_key: Key of the sensor input topic
+        :type topic_key: TopicsKeys
+        :param idx: Index of the input, for keys bound to several topics
+        :type idx: int
+        :param timeout: Seconds to wait before giving up, None waits
+            indefinitely
+        :type timeout: Optional[float]
+
+        :return: The sensor description, or None when the timeout passed or
+            the first message could not be decoded
+        :rtype: Optional[SensorConfig]
+        """
+        tf_listener = self.wait_input_tf(topic_key, idx, timeout=timeout)
+        if tf_listener is None:
+            return None
+        callback = self.get_callback(topic_key, idx)
+        # Get a message out
+        output = callback.get_output()
+        if output is None:
+            self.get_logger().warning(
+                f"Sensor '{callback.input_topic.name}' delivered a message that "
+                "could not be decoded (e.g. a point cloud without x/y/z fields)"
+            )
+            return None
+        # Only point clouds carry a field encoding. Gets ignored for laser scan
+        field_type = getattr(output, "x_field_datatype", None)
+        return SensorConfig(
+            position=tf_listener.translation,
+            rotation=tf_listener.rotation,
+            cloud_field_type=PointFieldType.from_int(field_type)
+            if field_type is not None
+            else PointFieldType.FLOAT32,
+        )
 
     def in_topic_name(self, key: Union[str, TopicsKeys]) -> Union[str, List[str], None]:
         """Get the topic(s) name(s) corresponding to an input key name
@@ -740,12 +856,29 @@ class Component(BaseComponent):
         """
         try:
             topic_names: Union[str, List[str], None] = self.in_topic_name(key)
-            if isinstance(topic_names, List):
-                return self.callbacks[topic_names[idx]]
-            return self.callbacks[topic_names] if topic_names else None
-        except Exception as e:
+        except ValueError as e:
             raise KeyError(
-                f"Unknown input '{key}' for component '{self.node_name}'"
+                f"Unknown input key '{key}' for component '{self.node_name}'"
+            ) from e
+        if isinstance(topic_names, List):
+            if idx >= len(topic_names):
+                raise KeyError(
+                    f"Input '{key}' of component '{self.node_name}' has "
+                    f"{len(topic_names)} topics; index {idx} is out of range"
+                )
+            topic_name = topic_names[idx]
+        else:
+            topic_name = topic_names
+        if topic_name is None:
+            return None
+        try:
+            return self.callbacks[topic_name]
+        except KeyError as e:
+            raise KeyError(
+                f"Input '{key}' of component '{self.node_name}' maps to topic "
+                f"'{topic_name}' but no callback exists for it (callbacks: "
+                f"{list(self.callbacks)}) - the input topics and callbacks "
+                "are out of sync"
             ) from e
 
     def get_publisher(self, key: Union[str, TopicsKeys], idx: int = 0) -> Publisher:
@@ -761,12 +894,31 @@ class Component(BaseComponent):
         """
         try:
             topic_names: Union[str, List[str], None] = self.out_topic_name(key)
-            if isinstance(topic_names, List):
-                return self.publishers_dict[topic_names[idx]]
-            return self.publishers_dict[topic_names]
-        except Exception as e:
+        except ValueError as e:
             raise KeyError(
-                f"Unknown output '{key}' for component '{self.node_name}'"
+                f"Unknown output key '{key}' for component '{self.node_name}'"
+            ) from e
+        if isinstance(topic_names, List):
+            if idx >= len(topic_names):
+                raise KeyError(
+                    f"Output '{key}' of component '{self.node_name}' has "
+                    f"{len(topic_names)} topics; index {idx} is out of range"
+                )
+            topic_name = topic_names[idx]
+        else:
+            topic_name = topic_names
+        if topic_name is None:
+            raise KeyError(
+                f"Output '{key}' of component '{self.node_name}' has no topic set"
+            )
+        try:
+            return self.publishers_dict[topic_name]
+        except KeyError as e:
+            raise KeyError(
+                f"Output '{key}' of component '{self.node_name}' maps to topic "
+                f"'{topic_name}' but no publisher exists for it (publishers: "
+                f"{list(self.publishers_dict)}) - the output topics and "
+                "publishers are out of sync"
             ) from e
 
     def callbacks_inputs_check(
