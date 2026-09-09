@@ -1112,9 +1112,6 @@ class Controller(Component):
             state=self.robot_state or RobotState(),
         )
 
-        # SET robot control limits
-        self._robot_ctr_limits = self.robot_ctrl_limits
-
         self._reached_end = False
         self._lat_dist_error: float = 0.0
         self._ori_error: float = 0.0
@@ -1179,7 +1176,7 @@ class Controller(Component):
         self._path_controller = ControlClasses[self.algorithm](
             robot=self._robot,
             config=_controller_config,
-            ctrl_limits=self._robot_ctr_limits,
+            ctrl_limits=self.robot_ctrl_limits,
             config_file=self._config_file,
             config_root_name=f"{self.node_name}.{self.config.algorithm}",
             control_time_step=self.config.control_time_step,
