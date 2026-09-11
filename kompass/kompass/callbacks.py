@@ -120,7 +120,7 @@ class OdomCallback(BaseOdomCallback):
             msg.pose.pose.orientation.z, msg.pose.pose.orientation.w
         )
 
-        speed = np.sqrt(msg.twist.twist.linear.y**2 + msg.twist.twist.linear.y**2)
+        speed = np.hypot(msg.twist.twist.linear.x, msg.twist.twist.linear.y)
 
         return RobotState(
             x=msg.pose.pose.position.x,

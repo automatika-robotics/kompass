@@ -1,19 +1,60 @@
-"""Unit tests for selecting detections by label on ``DetectionsCallback``:
-the box handed to the vision follower for a label must be that label's own
-box, whatever else the message contains and in whatever order.
+"""Correctness unit tests for the message conversions in ``kompass.callbacks``.
 
-Exercised with real embodied-agents messages through the real callback;
-importing the modules requires rclpy/ros_sugar on the path.
+Exercised on real ROS messages through the real callbacks; no node or
+executor is needed, but importing the modules requires rclpy/ros_sugar on
+the path. The detection tests additionally need the embodied-agents
+messages and are skipped without them.
 """
 
 import pytest
 
 pytest.importorskip("rclpy")
-ea_msgs = pytest.importorskip("automatika_embodied_agents.msg")
+from nav_msgs.msg import Odometry  # noqa: E402
 
-import kompass.components  # noqa: E402, F401  (resolves the package import order)
-from kompass.callbacks import DetectionsCallback  # noqa: E402
-from kompass.components.ros import Topic  # noqa: E402
+try:
+    from automatika_embodied_agents import msg as ea_msgs
+except ImportError:  # pragma: no cover - depends on the installed workspace
+    ea_msgs = None
+
+# The components package must be imported before the callbacks module, as the
+# two import each other and only that order resolves
+import kompass.components  # noqa: E402, F401
+from kompass.callbacks import DetectionsCallback, OdomCallback  # noqa: E402
+from kompass.ros import Topic  # noqa: E402
+
+needs_ea_msgs = pytest.mark.skipif(
+    ea_msgs is None, reason="embodied-agents messages are not on the path"
+)
+
+
+# --- OdomCallback: Odometry -> RobotState -----------------------------------
+
+
+def test_odom_speed_is_the_planar_speed():
+    """The state's speed is the norm of both linear components.
+
+    Regression: the speed used to be computed from the lateral component
+    twice, so a differential-drive robot moving straight ahead reported a
+    speed of zero to every controller that reads it.
+    """
+    callback = OdomCallback(
+        input_topic=Topic(name="/odom", msg_type="Odometry"), node_name="odom_test"
+    )
+    msg = Odometry()
+    msg.pose.pose.orientation.w = 1.0
+    msg.twist.twist.linear.x = 0.3
+    msg.twist.twist.linear.y = 0.4
+
+    state = callback._process(msg)
+
+    assert state.vx == pytest.approx(0.3)
+    assert state.vy == pytest.approx(0.4)
+    assert state.speed == pytest.approx(0.5)
+
+
+# --- DetectionsCallback: selecting detections by label ----------------------
+# The box handed to the vision follower for a label must be that label's own
+# box, whatever else the message contains and in whatever order.
 
 
 def _box(x0, y0, x1, y1):
@@ -39,17 +80,18 @@ def _corners(box):
     return (x0, y0, x0 + w, y0 + h)
 
 
-def _callback():
+def _detections_callback():
     return DetectionsCallback(
         Topic(name="/detections", msg_type="Detections"), node_name="test"
     )
 
 
+@needs_ea_msgs
 def test_label_query_returns_that_labels_own_box():
     """Regression: the M20 bottle test (2026-09-03). With the bottle third of
     six detections the follower was handed the geometry of the last box in
     the message (a tv monitor at the far wall) and lifted it to 4 m."""
-    callback = _callback()
+    callback = _detections_callback()
     callback.callback(
         _message(
             ("person", _box(131, 70, 269, 505)),
@@ -64,8 +106,9 @@ def test_label_query_returns_that_labels_own_box():
     assert boxes[0].label == "bottle"
 
 
+@needs_ea_msgs
 def test_label_query_returns_every_instance_in_message_order():
-    callback = _callback()
+    callback = _detections_callback()
     callback.callback(
         _message(
             ("bottle", _box(386, 438, 409, 538)),
@@ -80,8 +123,9 @@ def test_label_query_returns_every_instance_in_message_order():
     ]
 
 
+@needs_ea_msgs
 def test_label_absent_or_no_recent_detections_gives_none():
-    callback = _callback()
+    callback = _detections_callback()
     callback.callback(_message(("chair", _box(468, 267, 534, 390))))
     assert callback.get_output(label="bottle") is None
     # An empty frame after the detections means there is no current target
@@ -89,8 +133,9 @@ def test_label_absent_or_no_recent_detections_gives_none():
     assert callback.get_output(label="chair") is None
 
 
+@needs_ea_msgs
 def test_unlabelled_query_still_returns_all_boxes():
-    callback = _callback()
+    callback = _detections_callback()
     callback.callback(
         _message(
             ("person", _box(131, 70, 269, 505)),
