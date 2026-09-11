@@ -130,7 +130,7 @@ def test_robot_ctrl_limits_carries_the_minimum_linear_velocity():
             max_vel=0.3, max_acc=1.0, max_decel=2.0, min_vel=0.02
         ),
         ctrl_omega_limits=AngularCtrlLimits(
-            max_vel=1.5, max_steer=3.14, max_acc=3.0, max_decel=3.0
+            max_omega=1.5, max_ang=3.14, max_acc=3.0, max_decel=3.0, min_omega=0.04
         ),
     )
     limits = driver.robot_ctrl_limits
@@ -138,3 +138,6 @@ def test_robot_ctrl_limits_carries_the_minimum_linear_velocity():
     assert limits.vx_limits.min_vel == 0.07
     assert limits.vy_limits.max_vel == 0.3
     assert limits.vy_limits.min_vel == 0.02
+    assert limits.omega_limits.max_omega == 1.5
+    assert limits.omega_limits.max_ang == 3.14
+    assert limits.omega_limits.min_omega == 0.04

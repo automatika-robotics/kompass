@@ -113,7 +113,7 @@ class Planner(Component):
                     geometry_params=np.array([0.1, 0.3]),
                     ctrl_vx_limits=LinearCtrlLimits(max_vel=1.0, max_acc=1.5, max_decel=2.5),
                     ctrl_omega_limits=AngularCtrlLimits(
-                        max_vel=1.0, max_acc=2.0, max_decel=2.0, max_steer=np.pi / 3
+                        max_omega=1.0, max_acc=2.0, max_decel=2.0, max_ang=np.pi / 3
                     ),
                 )
 

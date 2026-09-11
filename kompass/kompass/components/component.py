@@ -285,10 +285,11 @@ class Component(BaseComponent):
                 min_vel=self.robot.ctrl_vy_limits.min_vel,
             ),
             omega_limits=CoreAngularCtrlLimits(
-                max_omega=self.robot.ctrl_omega_limits.max_vel,
-                max_ang=self.robot.ctrl_omega_limits.max_steer,
+                max_omega=self.robot.ctrl_omega_limits.max_omega,
+                max_ang=self.robot.ctrl_omega_limits.max_ang,
                 max_acc=self.robot.ctrl_omega_limits.max_acc,
                 max_decel=self.robot.ctrl_omega_limits.max_decel,
+                min_omega=self.robot.ctrl_omega_limits.min_omega,
             ),
         )
 

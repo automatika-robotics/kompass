@@ -814,9 +814,9 @@ class DriveManager(Component):
                 self.get_publisher(TopicsKeys.FINAL_COMMAND).publish([
                     0.0,
                     0.0,
-                    self.robot.ctrl_omega_limits.max_vel / 2,
+                    self.robot.ctrl_omega_limits.max_omega / 2,
                 ])
-                traveled_radius += self.robot.ctrl_omega_limits.max_vel / (
+                traveled_radius += self.robot.ctrl_omega_limits.max_omega / (
                     2 * self.config.loop_rate
                 )
                 time.sleep(1 / self.config.loop_rate)
@@ -969,7 +969,7 @@ class DriveManager(Component):
         self._filtered_angular_commands = self.__filter_multi_cmds(
             output.angular_velocities.z,
             self.robot.ctrl_omega_limits.max_acc,
-            self.robot.ctrl_omega_limits.max_vel,
+            self.robot.ctrl_omega_limits.max_omega,
         )
 
     def _check_bounds(self, target, previous, max_acc, max_decel, freq):
@@ -1222,12 +1222,12 @@ class DriveManager(Component):
         elif abs(output[1]) < self.robot.ctrl_vy_limits.min_vel:
             output[1] = 0.0
 
-        if abs(output[2]) > self.robot.ctrl_omega_limits.max_vel:
+        if abs(output[2]) > self.robot.ctrl_omega_limits.max_omega:
             self.get_logger().debug(
-                f"Limiting angular velocity by allowed maximum {self.robot.ctrl_omega_limits.max_vel}"
+                f"Limiting angular velocity by allowed maximum {self.robot.ctrl_omega_limits.max_omega}"
             )
-            output[2] = np.sign(output[2]) * self.robot.ctrl_omega_limits.max_vel
-        elif abs(output[2]) < self.robot.ctrl_omega_limits.min_absolute_val:
+            output[2] = np.sign(output[2]) * self.robot.ctrl_omega_limits.max_omega
+        elif abs(output[2]) < self.robot.ctrl_omega_limits.min_omega:
             output[2] = 0.0
         return output
 

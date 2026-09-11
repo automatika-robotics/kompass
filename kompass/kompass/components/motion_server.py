@@ -436,14 +436,14 @@ class MotionServer(Component):
                     "name": "ang_step_mid",
                     "test": np.full(
                         (number_of_steps, 2),
-                        [0.0, self.robot.ctrl_omega_limits.max_vel / 2],
+                        [0.0, self.robot.ctrl_omega_limits.max_omega / 2],
                     ),
                 },
                 {
                     "name": "ang_step_inv",
                     "test": np.full(
                         (number_of_steps, 2),
-                        [0.0, -self.robot.ctrl_omega_limits.max_vel / 2],
+                        [0.0, -self.robot.ctrl_omega_limits.max_omega / 2],
                     ),
                 },
             ]
@@ -455,7 +455,7 @@ class MotionServer(Component):
                         (number_of_steps, 2),
                         [
                             self.robot.ctrl_vx_limits.max_vel / 2,
-                            self.robot.ctrl_omega_limits.max_vel / 2,
+                            self.robot.ctrl_omega_limits.max_omega / 2,
                         ],
                     ),
                 },
@@ -465,7 +465,7 @@ class MotionServer(Component):
                         (number_of_steps, 2),
                         [
                             -self.robot.ctrl_vx_limits.max_vel / 2,
-                            self.robot.ctrl_omega_limits.max_vel / 2,
+                            self.robot.ctrl_omega_limits.max_omega / 2,
                         ],
                     ),
                 },
@@ -475,7 +475,7 @@ class MotionServer(Component):
                         (number_of_steps, 2),
                         [
                             self.robot.ctrl_vx_limits.max_vel / 2,
-                            -self.robot.ctrl_omega_limits.max_vel / 2,
+                            -self.robot.ctrl_omega_limits.max_omega / 2,
                         ],
                     ),
                 },
@@ -485,7 +485,7 @@ class MotionServer(Component):
                         (number_of_steps, 2),
                         [
                             -self.robot.ctrl_vx_limits.max_vel / 2,
-                            -self.robot.ctrl_omega_limits.max_vel / 2,
+                            -self.robot.ctrl_omega_limits.max_omega / 2,
                         ],
                     ),
                 },
