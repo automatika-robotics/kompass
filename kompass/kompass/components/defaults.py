@@ -180,7 +180,7 @@ driver_allowed_inputs: Dict[TopicsKeys, AllowedTopics] = {
     TopicsKeys.INTERMEDIATE_CMD: AllowedTopics(types=["Twist"]),
     TopicsKeys.INTERMEDIATE_CMD_LIST: AllowedTopics(types=["TwistArray"]),
     TopicsKeys.SPATIAL_SENSOR: AllowedTopics(
-        types=["LaserScan", "Float64", "Float32", "PointCloud2"],
+        types=["LaserScan", "PointCloud2", "Range"],
         number_required=1,
         number_optional=10,
     ),

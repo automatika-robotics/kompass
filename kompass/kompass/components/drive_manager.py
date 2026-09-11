@@ -14,7 +14,7 @@ from kompass_cpp.types import SensorInputType
 from ..config import BaseValidators, ComponentConfig, ComponentRunType
 from .ros import Topic, update_topics, component_action
 from .component import Component
-from ..callbacks import LaserScanCallback, PointCloudCallback
+from ..callbacks import LaserScanCallback, PointCloudCallback, RangeCallback
 from .defaults import (
     TopicsKeys,
     driver_allowed_inputs,
@@ -71,7 +71,7 @@ class DriveManagerConfig(ComponentConfig):
 
     * - **use_without_scan_sensor**
       - `bool`, `False`
-      - Set to `True` to use the drive manager without 360deg scan sensor, e.g. for robots with only front and back ultrasound sensors
+      - Set to `True` to allow running the drive manager with no spatial sensor at all. `Range` sensors (e.g. front and back ultrasounds) count as safety sensors and do not need this flag
 
     * - **use_gpu**
       - `bool`, `True`
@@ -147,7 +147,7 @@ class DriveManager(Component):
       - `Topic(name="/control_list", msg_type="TwistArray")`
 
     * - **spatial_sensor**
-      - [`sensor_msgs.msg.LaserScan`](https://docs.ros.org/en/noetic/api/sensor_msgs/html/msg/LaserScan.html), [`sensor_msgs.msg.PointCloud2`](http://docs.ros.org/en/noetic/api/sensor_msgs/html/msg/PointCloud2.html), [`std_msgs.msg.Float32`](http://docs.ros.org/en/noetic/api/std_msgs/html/msg/Float32.html), [`std_msgs.msg.Float64`](http://docs.ros.org/en/noetic/api/std_msgs/html/msg/Float64.html)
+      - [`sensor_msgs.msg.LaserScan`](https://docs.ros.org/en/noetic/api/sensor_msgs/html/msg/LaserScan.html), [`sensor_msgs.msg.PointCloud2`](http://docs.ros.org/en/noetic/api/sensor_msgs/html/msg/PointCloud2.html), [`sensor_msgs.msg.Range`](https://docs.ros.org/en/noetic/api/sensor_msgs/html/msg/Range.html)
       - 1 to 10
       - `Topic(name="/scan", msg_type="LaserScan")`
 
@@ -279,6 +279,12 @@ class DriveManager(Component):
         # Arrival stamps (time.monotonic) for staleness gating
         self._pc_last_msg: List[float] = []  # One per pointcloud sensor
         self._scan_last_msg: float = 0.0  # One for laserscan sensor
+        # Range (single-beam proximity) sensors
+        self._range_callbacks: Tuple[RangeCallback, ...] = ()
+        self._range_readings: List[Optional[float]] = []  # last valid range readings
+        self._range_last_msg: List[float] = []  # last message stamps for range
+        # Which way each Range beam points in the body frame, from its mount
+        self._range_facing: List[int] = []
         # Set once at activation so the per-tick path reads plain values
         self._stale_stop: bool = True
         self._sensor_timeout: float = self.config.sensor_data_timeout
@@ -294,16 +300,6 @@ class DriveManager(Component):
         Attaches emergency_stop_check to sensor_data callback
         anf filtering commands to commands callbacks
         """
-        if not self.config.disable_safety_stop:
-            # Attach emergency check to all sensor data callbacks
-            num_sensors = self._inputs_keys.count(TopicsKeys.SPATIAL_SENSOR)
-            for idx in range(num_sensors):
-                callback = self.get_callback(TopicsKeys.SPATIAL_SENSOR, idx)
-                if not isinstance(callback, (LaserScanCallback, PointCloudCallback)):
-                    callback.on_callback_execute(
-                        self._check_emergency_stop_proximity_sensor
-                    )
-
         # Add command publishing on intermediate command input
         self.attach_custom_callback(
             self.get_in_topic(TopicsKeys.INTERMEDIATE_CMD),
@@ -413,6 +409,7 @@ class DriveManager(Component):
             and not self.config.use_without_scan_sensor
             and self._pc_checker is None
             and self._scan_checker is None
+            and not self._range_callbacks
         ):
             self.get_logger().warning(
                 "Proximity sensor data is not available -> blocking command publishing to robot.",
@@ -436,7 +433,7 @@ class DriveManager(Component):
         """
         # Check emergency stop
         if not slowdown_factor:
-            if self._pc_checker or self._scan_checker:
+            if self._pc_checker or self._scan_checker or self._range_callbacks:
                 self._update_state()
                 # Check emergency stop from all safety sensors in the direction
                 # of the command
@@ -467,11 +464,12 @@ class DriveManager(Component):
 
         All pointcloud sensors go through one batched checker (`clouds[i]`
         pairs with sensor i, `None` = no data this tick); a laserscan sensor
-        has its own single-sensor checker. A sensor whose last message is
-        older than `sensor_data_timeout` is handled per `stale_sensor_policy`:
-        "stop" -> immediate 0.0, "skip" -> excluded from the check. If every
-        sensor is stale/skipped nothing constrains the robot, which must read
-        as unsafe -> 0.0.
+        has its own single-sensor checker; each Range sensor is a single beam
+        that stops the robot when its reading is inside the critical
+        distance. A sensor whose last message is older than `sensor_data_timeout`
+        is handled per `stale_sensor_policy`: "stop" -> immediate 0.0, "skip" -> excluded
+        from the check. If every sensor is stale/skipped nothing constrains the robot,
+        which must read as unsafe -> 0.0.
 
         Any checker error stops the robot and keeps the component alive.
 
@@ -503,6 +501,10 @@ class DriveManager(Component):
                         factor, self._pc_checker.check(clouds=clouds, forward=forward)
                     )
                     any_checked = True
+            range_factor = self._check_ranges(forward, now)
+            if range_factor is not None:
+                factor = min(factor, range_factor)
+                any_checked = True
             if not any_checked:
                 # Every safety sensor skipped.
                 self.get_logger().warning(
@@ -1094,17 +1096,103 @@ class DriveManager(Component):
 
         return current + inc_max * np.sign(increment)
 
-    def _check_emergency_stop_proximity_sensor(
-        self, output: Optional[float], topic: Topic, **_
-    ):
-        if output:
-            self.slow_down_factor[topic.name] = (
-                0.0
-                if (output < self.critical_zone["distance"] - self.robot_radius)
-                else 1.0
+    def _on_range_reading(self, sensor_idx: int, msg=None, **_):
+        """Records a Range sensor message (staleness stamp and the reading).
+        A reading outside the sensor's own [min_range, max_range] or
+        non-finite is None.
+
+        :param sensor_idx: Index of the sensor among the Range sensors
+        :type sensor_idx: int
+        :param msg: The sensor_msgs/Range message
+        """
+        self._range_last_msg[sensor_idx] = time.monotonic()
+        if msg is None:
+            self._range_readings[sensor_idx] = None
+            return
+        reading = float(msg.range)
+        valid = np.isfinite(reading) and reading >= msg.min_range
+        if msg.max_range > 0.0:
+            valid = valid and reading <= msg.max_range
+        self._range_readings[sensor_idx] = reading if valid else None
+
+    def _resolve_range_facing(self, callback: RangeCallback, topic_idx: int) -> int:
+        """Which critical cone a Range beam lies in, from its mount TF to the
+        robot base and ``critical_zone_angle``: +1 inside the forward cone,
+        -1 inside the backward cone, 0 outside both (the beam never
+        constrains motion), 2 when the TF is unresolved within the subscription
+        timeout (the beam constrains motion either way)
+
+        :param callback: The sensor's callback
+        :type callback: RangeCallback
+        :param topic_idx: Index of the sensor among the spatial sensor inputs
+        :type topic_idx: int
+        """
+        listener = self.wait_input_tf(
+            TopicsKeys.SPATIAL_SENSOR,
+            topic_idx,
+            timeout=self.config.topic_subscription_timeout,
+        )
+        name = callback.input_topic.name
+        if listener is None or listener.rotation is None:
+            self.get_logger().warning(
+                f"No TF from Range sensor '{name}' to the robot base: its beam "
+                "is taken to constrain motion in every direction"
             )
-        else:
-            self.slow_down_factor[topic.name] = 1.0
+            return 2
+        # x component of the beam axis in the body frame, i.e. the cosine of
+        # its angle to forward, against the half cone the critical zone uses
+        _, qy, qz, _ = (float(v) for v in listener.rotation)
+        along_x = 1.0 - 2.0 * (qy * qy + qz * qz)
+        cos_half_cone = float(np.cos(np.radians(self.config.critical_zone_angle) / 2.0))
+        if along_x >= cos_half_cone:
+            self.get_logger().info(f"Range sensor '{name}' lies in the forward critical cone")
+            return 1
+        if along_x <= -cos_half_cone:
+            self.get_logger().info(f"Range sensor '{name}' lies in the backward critical cone")
+            return -1
+        self.get_logger().warning(
+            f"Range sensor '{name}' lies outside the forward and backward critical "
+            f"cones (critical_zone_angle={self.config.critical_zone_angle} deg) -> "
+            "it does not constrain motion"
+        )
+        return 0
+
+    def _check_ranges(self, forward: bool, now: float) -> Optional[float]:
+        """Minimum safety factor over the Range sensors inside the critical
+        cone of the direction of motion: 0.0 when one reads inside the
+        critical distance, 1.0 otherwise. A reading outside a sensor's own
+        limits is not a measurement and reads as clear. A stale sensor gives
+        0.0 under the "stop" policy and is skipped under "skip". None when
+        every Range sensor was skipped or none is configured.
+
+        :param forward: True if the robot is moving forward
+        :type forward: bool
+        :param now: Current time.monotonic() reading
+        :type now: float
+        """
+        factor: Optional[float] = None
+        for i, callback in enumerate(self._range_callbacks):
+            facing = self._range_facing[i] if i < len(self._range_facing) else 2
+            if facing == 0 or facing == (-1 if forward else 1):
+                continue  # outside the cones, or in the cone facing away
+            if now - self._range_last_msg[i] > self._sensor_timeout:
+                if not self._stale_stop:
+                    continue
+                self.get_logger().warning(
+                    f"Range safety sensor '{callback.input_topic.name}' is stale "
+                    "-> Triggering emergency stop"
+                )
+                return 0.0
+            reading = self._range_readings[i]
+            sensor_factor = (
+                1.0
+                if reading is None or reading > self.config.critical_zone_distance
+                else 0.0
+            )
+            factor = sensor_factor if factor is None else min(factor, sensor_factor)
+            if factor == 0.0:
+                return 0.0
+        return factor
 
     def _limit_command_vel(
         self, output: Union[np.ndarray, list]
@@ -1208,24 +1296,37 @@ class DriveManager(Component):
 
     def _classify_spatial_sensors(
         self,
-    ) -> Tuple[List[PointCloudCallback], List[int], Optional[LaserScanCallback], int]:
+    ) -> Tuple[
+        List[PointCloudCallback],
+        List[int],
+        Optional[LaserScanCallback],
+        int,
+        List[RangeCallback],
+        List[int],
+    ]:
         """Splits the spatial sensor callbacks ONCE: every PointCloud2 topic
         feeds one batched checker; the first LaserScan topic gets its own checker.
-        Scalar proximity sensors are handled separately by their own callback hook.
+        Range sensors are single beams checked per tick in their own direction.
 
         :return: (pointcloud callbacks, their topic indices, laserscan
-            callback or None, its topic index)
+            callback or None, its topic index, range callbacks, their topic
+            indices)
         """
         num_sensors = self._inputs_keys.count(TopicsKeys.SPATIAL_SENSOR)
         pc_callbacks: List[PointCloudCallback] = []
         pc_indices: List[int] = []
         scan_callback: Optional[LaserScanCallback] = None
         scan_idx: int = 0
+        range_callbacks: List[RangeCallback] = []
+        range_indices: List[int] = []
         for idx in range(num_sensors):
             callback = self.get_callback(TopicsKeys.SPATIAL_SENSOR, idx)
             if isinstance(callback, PointCloudCallback):
                 pc_callbacks.append(callback)
                 pc_indices.append(idx)
+            elif isinstance(callback, RangeCallback):
+                range_callbacks.append(callback)
+                range_indices.append(idx)
             elif isinstance(callback, LaserScanCallback):
                 if scan_callback is None:
                     scan_callback = callback
@@ -1236,7 +1337,14 @@ class DriveManager(Component):
                         f"supports exactly one -> '{callback.input_topic.name}' is ignored "
                         "for safety checks"
                     )
-        return pc_callbacks, pc_indices, scan_callback, scan_idx
+        return (
+            pc_callbacks,
+            pc_indices,
+            scan_callback,
+            scan_idx,
+            range_callbacks,
+            range_indices,
+        )
 
     def _init_safety_checkers(
         self,
@@ -1289,24 +1397,28 @@ class DriveManager(Component):
         """Actions to be executed once at the start of the component execution"""
         super()._execute_once()
 
-        if self.config.use_without_scan_sensor and not self.config.disable_safety_stop:
-            self.get_logger().warning(
-                "Using DriveManager without 360deg scan sensor and Safety stop functionality is still enabled."
-            )
-            return
-
         if self.config.disable_safety_stop:
             self.get_logger().warning("Safety Stop is Disabled!")
             return
 
-        pc_callbacks, pc_indices, scan_callback, scan_idx = (
-            self._classify_spatial_sensors()
-        )
+        (
+            pc_callbacks,
+            pc_indices,
+            scan_callback,
+            scan_idx,
+            range_callbacks,
+            range_indices,
+        ) = self._classify_spatial_sensors()
 
-        if not pc_callbacks and scan_callback is None:
+        if not pc_callbacks and scan_callback is None and not range_callbacks:
+            if self.config.use_without_scan_sensor:
+                self.get_logger().warning(
+                    "Using DriveManager without any spatial sensor and Safety stop functionality is still enabled."
+                )
+                return
             self.get_logger().error(
-                "Cannot initialize CriticalZoneChecker: no LaserScan or PointCloud2 "
-                "sensor is configured -> Safety Stop is disabled!"
+                "Cannot initialize the safety check: no LaserScan, PointCloud2 or "
+                "Range sensor is configured -> Safety Stop is disabled!"
             )
             # Set failure based on the fact that no spatial sensor provides valid
             # data. The key can be bound to several sensors.
@@ -1318,8 +1430,11 @@ class DriveManager(Component):
             )
             return
 
-        self._init_safety_checkers(pc_callbacks, pc_indices, scan_callback, scan_idx)
-        self.get_logger().info("Got Proximity Sensor TF...")
+        if pc_callbacks or scan_callback is not None:
+            self._init_safety_checkers(
+                pc_callbacks, pc_indices, scan_callback, scan_idx
+            )
+            self.get_logger().info("Got Proximity Sensor TF...")
 
         # Freeze the per-tick safety state (for the hot path)
         self._pc_callbacks = tuple(pc_callbacks)
@@ -1336,6 +1451,21 @@ class DriveManager(Component):
         if scan_callback is not None:
             scan_callback.on_callback_execute(
                 self._stamp_scan_arrival, get_processed=False
+            )
+        self._range_callbacks = tuple(range_callbacks)
+        self._range_readings = [None] * len(range_callbacks)
+        self._range_last_msg = [now] * len(range_callbacks)
+        self._range_facing = [
+            self._resolve_range_facing(callback, idx)
+            for callback, idx in zip(range_callbacks, range_indices)
+        ]
+        for i, callback in enumerate(range_callbacks):
+            callback.on_callback_execute(
+                partial(self._on_range_reading, sensor_idx=i), get_processed=False
+            )
+        if range_callbacks:
+            self.get_logger().info(
+                f"Safety check uses {len(range_callbacks)} Range sensor(s)"
             )
 
         # Warm-up to avoid first-call overhead. A malformed first input will read

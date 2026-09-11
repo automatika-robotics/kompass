@@ -8,6 +8,7 @@ from ros_sugar.io import OdomCallback as BaseOdomCallback
 from ros_sugar.io import PointCallback as BasePointCallback
 from ros_sugar.io import PoseCallback as BasePoseCallback
 from ros_sugar.io import LaserScanCallback, PointCloudCallback
+from ros_sugar.io.callbacks import RangeCallback
 from kompass_core.models import RobotState
 
 from nav_msgs.msg import Odometry
@@ -29,6 +30,7 @@ __all__ = [
     "PoseStampedCallback",
     "LaserScanCallback",
     "PointCloudCallback",
+    "RangeCallback",
     "OccupancyGridCallback",
     "TrackingsCallback",
     "DetectionsCallback",
