@@ -1211,7 +1211,7 @@ class DriveManager(Component):
                 f"Limiting linear velocity by allowed maximum {self.robot.ctrl_vx_limits.max_vel}"
             )
             output[0] = np.sign(output[0]) * self.robot.ctrl_vx_limits.max_vel
-        elif abs(output[0]) < self.robot.ctrl_vx_limits.min_absolute_val:
+        elif abs(output[0]) < self.robot.ctrl_vx_limits.min_vel:
             output[0] = 0.0
 
         if abs(output[1]) > self.robot.ctrl_vy_limits.max_vel:
@@ -1219,7 +1219,7 @@ class DriveManager(Component):
                 f"Limiting linear Vy velocity by allowed maximum {self.robot.ctrl_vy_limits.max_vel}"
             )
             output[1] = np.sign(output[1]) * self.robot.ctrl_vy_limits.max_vel
-        elif abs(output[1]) < self.robot.ctrl_vy_limits.min_absolute_val:
+        elif abs(output[1]) < self.robot.ctrl_vy_limits.min_vel:
             output[1] = 0.0
 
         if abs(output[2]) > self.robot.ctrl_omega_limits.max_vel:

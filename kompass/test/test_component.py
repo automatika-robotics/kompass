@@ -21,6 +21,13 @@ pytest.importorskip("rclpy")
 from kompass.components import DriveManager, DriveManagerConfig  # noqa: E402
 from kompass.components.defaults import TopicsKeys  # noqa: E402
 from kompass.ros import Topic  # noqa: E402
+from kompass.robot import (  # noqa: E402
+    AngularCtrlLimits,
+    LinearCtrlLimits,
+    RobotConfig,
+    RobotGeometryType,
+    RobotType,
+)
 
 
 def _make_driver() -> DriveManager:
@@ -104,3 +111,30 @@ def test_get_callback_unknown_key_names_the_key():
     driver = _make_driver()
     with pytest.raises(KeyError, match="Unknown input key 'not_a_key'"):
         driver.get_callback("not_a_key")
+
+
+def test_robot_ctrl_limits_carries_the_minimum_linear_velocity():
+    """The description's ``min_vel`` on each linear axis reaches the core
+    limits as ``min_vel``, next to the maxima the mapping already carried.
+    It is the deadband the drive manager applies and the creep speed the
+    trajectory sampler adds next to its stop sample."""
+    driver = _make_driver()
+    driver.robot = RobotConfig(
+        model_type=RobotType.DIFFERENTIAL_DRIVE,
+        geometry_type=RobotGeometryType.CYLINDER,
+        geometry_params=[0.2, 0.4],
+        ctrl_vx_limits=LinearCtrlLimits(
+            max_vel=0.8, max_acc=5.0, max_decel=10.0, min_vel=0.07
+        ),
+        ctrl_vy_limits=LinearCtrlLimits(
+            max_vel=0.3, max_acc=1.0, max_decel=2.0, min_vel=0.02
+        ),
+        ctrl_omega_limits=AngularCtrlLimits(
+            max_vel=1.5, max_steer=3.14, max_acc=3.0, max_decel=3.0
+        ),
+    )
+    limits = driver.robot_ctrl_limits
+    assert limits.vx_limits.max_vel == 0.8
+    assert limits.vx_limits.min_vel == 0.07
+    assert limits.vy_limits.max_vel == 0.3
+    assert limits.vy_limits.min_vel == 0.02

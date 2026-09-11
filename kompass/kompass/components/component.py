@@ -276,11 +276,13 @@ class Component(BaseComponent):
                 max_vel=self.robot.ctrl_vx_limits.max_vel,
                 max_acc=self.robot.ctrl_vx_limits.max_acc,
                 max_decel=self.robot.ctrl_vx_limits.max_decel,
+                min_vel=self.robot.ctrl_vx_limits.min_vel,
             ),
             vy_limits=CoreLinearCtrlLimits(
                 max_vel=self.robot.ctrl_vy_limits.max_vel,
                 max_acc=self.robot.ctrl_vy_limits.max_acc,
                 max_decel=self.robot.ctrl_vy_limits.max_decel,
+                min_vel=self.robot.ctrl_vy_limits.min_vel,
             ),
             omega_limits=CoreAngularCtrlLimits(
                 max_omega=self.robot.ctrl_omega_limits.max_vel,
