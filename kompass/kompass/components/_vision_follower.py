@@ -156,7 +156,7 @@ class VisionFollower:
         # re-read the file and overwrite any programmatic overrides.
         self._vision_controller = ControlClasses[cmp.algorithm](
             robot=cmp._robot,
-            ctrl_limits=cmp._robot_ctr_limits,
+            ctrl_limits=cmp.robot_ctrl_limits,
             config=_controller_config,
             camera_focal_length=np.array([
                 self.depth_image_info.fx,
