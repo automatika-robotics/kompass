@@ -1309,9 +1309,9 @@ class Controller(Component):
 
         if not obstacles_deliverable or not self.robot_state:
             self.get_logger().warning(
-                            f"State or sensor data unavailable after {self.config.topic_subscription_timeout}s -> skipping control step",
-                            throttle_duration_sec=5.0,
-                        )
+                f"State or sensor data unavailable after {self.config.topic_subscription_timeout}s -> skipping control step",
+                throttle_duration_sec=5.0,
+            )
             # Obstacles exist but could not be put in the frame the core reads
             return PathControlStatus.WAITING_INPUTS
 
@@ -1349,6 +1349,9 @@ class Controller(Component):
         self.get_logger().debug(f"{self._path_controller.logging_info()}")
 
         if not cmd_found:
+            self.get_logger().error(
+                "Controller failed to compute a valid command -> stopping robot"
+            )
             return PathControlStatus.FAILED
 
         self.health_status.set_healthy()
@@ -1568,6 +1571,9 @@ class Controller(Component):
             return
 
         if status == PathControlStatus.GOAL_REACHED:
+            self.get_logger().info(
+                f"Controller reached the end of the path with algorithm '{self.algorithm}'"
+            )
             self._reached_end = True
             plan_callback = self.get_callback(TopicsKeys.GLOBAL_PLAN)
             if plan_callback:
@@ -1576,3 +1582,5 @@ class Controller(Component):
             self.health_status.set_fail_algorithm(
                 algorithm_names=[str(ControlClasses[self.algorithm])]
             )
+        elif status == PathControlStatus.WAITING_INPUTS:
+            self.health_status.set_fail_system()
