@@ -1294,6 +1294,7 @@ class Controller(Component):
         clearing the plan callback, aborting the action, etc.).
         """
         if self._path_controller is None:
+            self.get_logger().debug("Path controller is not initialized -> skipping control step")
             return PathControlStatus.IDLE
 
         if not self._path_controller.path:
@@ -1301,6 +1302,7 @@ class Controller(Component):
             # No plan is set to the controller -> read plan from callback
             if (plan is None) or (not self._install_plan(plan)):
                 # Plan is not available or rejected by the core, which needs at least two poses
+                self.get_logger().debug("Plan is not available or rejected by the core -> skipping control step")
                 return PathControlStatus.IDLE
 
         self._update_state(block=True)
@@ -1346,7 +1348,7 @@ class Controller(Component):
         )
 
         # LOG CONTROLLER INFO
-        self.get_logger().debug(f"{self._path_controller.logging_info()}")
+        self.get_logger().debug(f"Controller cmd_found={cmd_found}, Info: {self._path_controller.logging_info()}")
 
         if not cmd_found:
             self.get_logger().error(
