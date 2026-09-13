@@ -433,6 +433,14 @@ class DriveManager(Component):
         """
         # Check emergency stop
         if not slowdown_factor:
+            if not self.config.disable_safety_stop and not (
+                self._pc_checker or self._scan_checker
+            ):
+                self.get_logger().error(
+                    "Safety checker (PointCloud/LaserScan) is not initialized -> command is NOT published to the robot",
+                    throttle_duration_sec=1.0,
+                )
+                return
             if self._pc_checker or self._scan_checker or self._range_callbacks:
                 self._update_state()
                 # Check emergency stop from all safety sensors in the direction
