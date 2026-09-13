@@ -1,6 +1,7 @@
 """Unit tests for DriveManager's per-tick safety gating helpers: staleness
 handling, batched cloud-list assembly (zero-copy metadata dicts) and the
-min-combination across checkers.
+min-combination across checkers; and the unblocking action's sequencing of its
+movement actions.
 
 The helpers are exercised unbound on a duck-typed stub carrying only the
 attributes they read - no ROS node or executor is needed, but importing the
@@ -334,3 +335,86 @@ def test_unresolved_beam_constrains_both_directions_and_outside_cone_none():
     outside = _Stub(range_readings=[0.1], range_facing=[0], scan_checker=_Checker(1.0))
     assert outside._run_safety_check(forward=True) == 1.0
     assert outside._run_safety_check(forward=False) == 1.0
+
+
+# ---------------------------------------------------------------------------
+# move_to_unblock: sequencing over the (success, message) action contract
+# ---------------------------------------------------------------------------
+
+from kompass.robot import RobotType  # noqa: E402
+
+
+def _unblock_stub(outcomes, model_type=RobotType.DIFFERENTIAL_DRIVE, sensors=True):
+    """Stand-in whose movement actions report the given outcomes and record
+    the order they were tried in"""
+    tried = []
+
+    def _move(name):
+        def _run(*_):
+            tried.append(name)
+            return outcomes[name]
+
+        return _run
+
+    stub = SimpleNamespace(
+        _scan_checker=_Checker() if sensors else None,
+        _pc_checker=None,
+        _unblocking_on=False,
+        robot_radius=0.3,
+        robot=SimpleNamespace(model_type=model_type),
+        get_logger=lambda: _Logger(),
+        **{name: _move(name) for name in outcomes},
+    )
+    return stub, tried
+
+
+_move_to_unblock = DriveManager.move_to_unblock.__wrapped__
+
+_ALL_BLOCKED = {
+    "move_backward": (False, "backward blocked"),
+    "move_forward": (False, "forward blocked"),
+    "rotate_in_place": (False, "rotation blocked"),
+}
+
+
+def test_unblock_tries_every_move_before_failing():
+    """Regression: a failed move returns a truthy tuple, which must not be
+    mistaken for success and end the attempts after the first move."""
+    stub, tried = _unblock_stub(_ALL_BLOCKED)
+
+    success, message = _move_to_unblock(stub)
+
+    assert success is False
+    assert "Failed" in message
+    assert sorted(tried) == sorted(_ALL_BLOCKED)
+    assert stub._unblocking_on is False
+
+
+def test_unblock_stops_at_the_first_move_that_succeeds():
+    outcomes = dict(_ALL_BLOCKED, rotate_in_place=(True, "Rotated in place 1.57rad"))
+    stub, tried = _unblock_stub(outcomes)
+
+    success, message = _move_to_unblock(stub)
+
+    assert success is True
+    assert "Rotated in place" in message
+    assert tried[-1] == "rotate_in_place"
+
+
+def test_unblock_never_rotates_an_ackermann_robot():
+    stub, tried = _unblock_stub(_ALL_BLOCKED, model_type=RobotType.ACKERMANN)
+
+    success, _ = _move_to_unblock(stub)
+
+    assert success is False
+    assert "rotate_in_place" not in tried
+
+
+def test_unblock_fails_without_proximity_sensors():
+    stub, tried = _unblock_stub(_ALL_BLOCKED, sensors=False)
+
+    success, message = _move_to_unblock(stub)
+
+    assert success is False
+    assert "Proximity sensor data unavailable" in message
+    assert tried == []
