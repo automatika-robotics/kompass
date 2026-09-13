@@ -85,6 +85,9 @@ class TopicsKeys(StrEnum):
     * - RUN_TESTS
       - run_tests
       - Flag to initiate system test procedures
+    * - MISSION_STATUS
+      - mission_status
+      - Status of the ongoing multi-waypoint mission
     ```
 
     """
@@ -114,6 +117,7 @@ class TopicsKeys(StrEnum):
     EMERGENCY = "emergency_stop"
     REACHED_END = "reached_end"
     RUN_TESTS = "run_tests"
+    MISSION_STATUS = "mission_status"
 
 
 controller_allowed_inputs: Dict[TopicsKeys, AllowedTopics] = {
