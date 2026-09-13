@@ -256,7 +256,8 @@ class VisionFollower:
             # its internal target_wait_timeout / enable_search.
             self._update_inputs()
 
-            if not self.depth:
+            # The RGB follower tracks without depth
+            if not self.depth and cmp.algorithm != ControllersID.VISION_IMG:
                 found_ctrl = False
             else:
                 cmp._update_state(block=False)
@@ -332,8 +333,10 @@ class VisionFollower:
         self.vision_detections = None
         self.depth = None
         timeout = 0.0
+        # Do not wait for depth with the RGB follower: it never gets any
+        needs_depth = cmp.algorithm != ControllersID.VISION_IMG
         while (
-            not self.depth or self.vision_detections is None
+            (needs_depth and not self.depth) or self.vision_detections is None
         ) and timeout < cmp.config.topic_subscription_timeout:
             self.vision_detections = (
                 vision_callback.get_output(clear_last=False, label=label)
