@@ -641,26 +641,31 @@ class DriveManager(Component):
                 "name": "stop_robot",
                 "description": "Stop the robot: drops any queued commands and sends zero velocity until the robot is confirmed stopped. "
                 "Use when the user asks the robot to stop.",
-                "parameters": {"type": "object", "properties": {}},
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "stop_timeout": {
+                            "type": "number",
+                            "description": "Maximum time in seconds to wait for the robot to come to a stop. Defaults to 5.0.",
+                        },
+                    },
+                },
             },
         }
     )
-    def stop_robot(self, **_) -> ActionReturnType:
+    def stop_robot(self, stop_timeout: float = 5.0, **_) -> ActionReturnType:
         """Stops the robot in closed loop: drops queued commands and publishes
-        zero velocity until the robot velocity is within cmd_tolerance of zero
+        zero velocity until the robot moves slower than its minimum velocity
+
+        :param stop_timeout: Maximum time to wait for the robot to stop (s)
+        :type stop_timeout: float
 
         :return: If the robot stopped, with a reason when it did not
         :rtype: ActionReturnType
         """
         self._cmds_queue.queue.clear()
-        # Time to brake from full speed, plus the closed loop span for the
-        # odometry to catch up
-        max_time = max(
-            self.robot.ctrl_vx_limits.max_vel / self.robot.ctrl_vx_limits.max_decel,
-            self.robot.ctrl_omega_limits.max_omega
-            / self.robot.ctrl_omega_limits.max_decel,
-        ) + self.config.closed_loop_span / self.config.loop_rate
         step = 1 / self.config.loop_rate
+        stop_speed = self.robot.ctrl_vx_limits.min_vel
         elapsed = 0.0
         while True:
             # A zero command is always safe -> no safety check
@@ -676,9 +681,9 @@ class DriveManager(Component):
                 abs(self.robot_state.vy),
                 abs(self.robot_state.omega),
             )
-            if speed <= self.config.cmd_tolerance:
+            if speed < stop_speed:
                 return True, "Robot stopped"
-            if elapsed >= max_time:
+            if elapsed >= stop_timeout:
                 return (
                     False,
                     f"Robot is still moving at {speed:.2f} after {elapsed:.2f}s of zero commands",
@@ -1230,10 +1235,14 @@ class DriveManager(Component):
         along_x = 1.0 - 2.0 * (qy * qy + qz * qz)
         cos_half_cone = float(np.cos(np.radians(self.config.critical_zone_angle) / 2.0))
         if along_x >= cos_half_cone:
-            self.get_logger().info(f"Range sensor '{name}' lies in the forward critical cone")
+            self.get_logger().info(
+                f"Range sensor '{name}' lies in the forward critical cone"
+            )
             return 1
         if along_x <= -cos_half_cone:
-            self.get_logger().info(f"Range sensor '{name}' lies in the backward critical cone")
+            self.get_logger().info(
+                f"Range sensor '{name}' lies in the backward critical cone"
+            )
             return -1
         self.get_logger().warning(
             f"Range sensor '{name}' lies outside the forward and backward critical "
