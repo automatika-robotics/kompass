@@ -638,6 +638,58 @@ class DriveManager(Component):
         description={
             "type": "function",
             "function": {
+                "name": "stop_robot",
+                "description": "Stop the robot: drops any queued commands and sends zero velocity until the robot is confirmed stopped. "
+                "Use when the user asks the robot to stop.",
+                "parameters": {"type": "object", "properties": {}},
+            },
+        }
+    )
+    def stop_robot(self, **_) -> ActionReturnType:
+        """Stops the robot in closed loop: drops queued commands and publishes
+        zero velocity until the robot velocity is within cmd_tolerance of zero
+
+        :return: If the robot stopped, with a reason when it did not
+        :rtype: ActionReturnType
+        """
+        self._cmds_queue.queue.clear()
+        # Time to brake from full speed, plus the closed loop span for the
+        # odometry to catch up
+        max_time = max(
+            self.robot.ctrl_vx_limits.max_vel / self.robot.ctrl_vx_limits.max_decel,
+            self.robot.ctrl_omega_limits.max_omega
+            / self.robot.ctrl_omega_limits.max_decel,
+        ) + self.config.closed_loop_span / self.config.loop_rate
+        step = 1 / self.config.loop_rate
+        elapsed = 0.0
+        while True:
+            # A zero command is always safe -> no safety check
+            self._publish_cmd(0.0, 0.0, 0.0, slowdown_factor=1.0)
+            self.__update_robot_state()
+            if not self.robot_state:
+                return (
+                    False,
+                    "Robot state is not available -> sent a zero command but cannot confirm the robot stopped",
+                )
+            speed = max(
+                abs(self.robot_state.vx),
+                abs(self.robot_state.vy),
+                abs(self.robot_state.omega),
+            )
+            if speed <= self.config.cmd_tolerance:
+                return True, "Robot stopped"
+            if elapsed >= max_time:
+                return (
+                    False,
+                    f"Robot is still moving at {speed:.2f} after {elapsed:.2f}s of zero commands",
+                )
+            time.sleep(step)
+            elapsed += step
+
+    @component_action(
+        description={
+            "type": "function",
+            "function": {
                 "name": "move_forward",
                 "description": "Move the robot forward by a given distance while checking for obstacles. "
                 "The robot will stop early if an obstacle is detected in the forward direction. "
