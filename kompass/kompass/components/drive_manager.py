@@ -1106,7 +1106,8 @@ class DriveManager(Component):
 
     def _on_range_reading(self, sensor_idx: int, msg=None, **_):
         """Records a Range sensor message (staleness stamp and the reading).
-        A reading outside the sensor's own [min_range, max_range] or
+        -Inf (REP-117: object too close to measure) is kept as an obstacle.
+        Any other reading outside the sensor's own [min_range, max_range] or
         non-finite is None.
 
         :param sensor_idx: Index of the sensor among the Range sensors
@@ -1118,6 +1119,10 @@ class DriveManager(Component):
             self._range_readings[sensor_idx] = None
             return
         reading = float(msg.range)
+        if reading == -np.inf:
+            # Object too close to measure -> reads inside any critical distance
+            self._range_readings[sensor_idx] = reading
+            return
         valid = np.isfinite(reading) and reading >= msg.min_range
         if msg.max_range > 0.0:
             valid = valid and reading <= msg.max_range
