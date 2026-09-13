@@ -39,7 +39,7 @@ from .ros import (
     Topic,
     update_topics,
 )
-from ..utils import component_action
+from ..utils import ActionReturnType, component_action
 
 # KOMPASS MSGS/SRVS/ACTIONS
 from .component import Component, TFListener
@@ -759,28 +759,27 @@ class Controller(Component):
             },
         }
     )
-    def set_algorithm(self, algorithm_value: Union[str, ControllersID], **_) -> bool:
+    def set_algorithm(
+        self, algorithm_value: Union[str, ControllersID], **_
+    ) -> ActionReturnType:
         """
         Component action - Set controller algorithm action
 
         :param algorithm_value: algorithm value
         :type algorithm_value: Union[str, ControllersID]
 
-        :raises Exception: Exception while updating algorithm value
-
-        :return: Success
-        :rtype: bool
+        :return: Success, with the reason when the algorithm could not be set
+        :rtype: ActionReturnType
         """
-        if self.algorithm in [ControllersID(algorithm_value), algorithm_value]:
-            return True
         try:
+            if self.algorithm in [ControllersID(algorithm_value), algorithm_value]:
+                return True, f"Controller algorithm is already '{algorithm_value}'"
             self.algorithm = algorithm_value
         except Exception as e:
-            self.get_logger().error(
-                f"Failed to set controller algorithm to '{algorithm_value}': {e}"
-            )
-            return False
-        return True
+            error = f"Failed to set controller algorithm to '{algorithm_value}': {e}"
+            self.get_logger().error(error)
+            return False, error
+        return True, f"Controller algorithm set to '{algorithm_value}'"
 
     def _activate_vision_mode(self):
         """Activate object following mode using vision detections"""
