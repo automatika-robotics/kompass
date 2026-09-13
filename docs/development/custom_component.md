@@ -47,6 +47,7 @@ def __init__(
 | `SPATIAL_SENSOR` | `"sensor_data"` | LiDAR, depth, point cloud |
 | `VISION_DETECTIONS` | `"vision_detections"` | Object detection results |
 | `DEPTH_CAM_INFO` | `"depth_camera_info"` | Depth camera intrinsics |
+| `VISION_DEPTH` | `"vision_depth"` | Separate depth for lifting vision detections: aligned depth image or point cloud |
 | `LOCAL_PLAN` | `"local_plan"` | Local path segment |
 | `PATH_SAMPLES` | `"path_samples"` | Sampled path candidates |
 | `INTERMEDIATE_CMD` | `"command"` | Single velocity command |

@@ -10,7 +10,11 @@ from ros_sugar.utils import (
     launch_action,
     log_srv,
 )
-from ros_sugar.io.utils import image_pre_processing, process_encoding
+from ros_sugar.io.utils import (
+    depth_image_metadata,
+    image_pre_processing,
+    process_encoding,
+)
 from kompass_core.control import StrEnum
 
 __all__ = [
@@ -25,6 +29,7 @@ __all__ = [
     "has_decorator",
     "launch_action",
     "log_srv",
+    "depth_image_metadata",
     "image_pre_processing",
     "process_encoding",
 ]

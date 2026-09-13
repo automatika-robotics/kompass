@@ -1,21 +1,20 @@
-from typing import Optional, Dict, Union
+from typing import Optional, Dict, List, Tuple, Union
 import numpy as np
 import time
 from queue import Queue, Empty
 from attrs import define, field
 from functools import partial
 from geometry_msgs.msg import Twist
-from ros_sugar.io import LaserScanData, PointCloudData
 from kompass_core.models import RobotGeometry, RobotState
 from ..robot import RobotType
 from kompass_interfaces.msg import TwistArray
-from kompass_cpp.types import SensorInputType, PointFieldType
+from kompass_cpp.types import SensorInputType
 
 # KOMPASS ROS
 from ..config import BaseValidators, ComponentConfig, ComponentRunType
 from .ros import Topic, update_topics, component_action
 from .component import Component
-from ..callbacks import LaserScanCallback, PointCloudCallback
+from ..callbacks import LaserScanCallback, PointCloudCallback, RangeCallback
 from .defaults import (
     TopicsKeys,
     driver_allowed_inputs,
@@ -72,15 +71,19 @@ class DriveManagerConfig(ComponentConfig):
 
     * - **use_without_scan_sensor**
       - `bool`, `False`
-      - Set to `True` to use the drive manager without 360deg scan sensor, e.g. for robots with only front and back ultrasound sensors
+      - Set to `True` to allow running the drive manager with no spatial sensor at all. `Range` sensors (e.g. front and back ultrasounds) count as safety sensors and do not need this flag
 
     * - **use_gpu**
       - `bool`, `True`
       - Use GPU implementation for the critical zone checking if available, otherwise use CPU implementation
 
-    * - **pointcloud_angle_resolution**
-      - `float`, `0.1`
-      - Angle resolution when converting point cloud data for critical zone check
+    * - **sensor_data_timeout**
+      - `float`, `0.2`
+      - Maximum age (seconds) of a safety sensor's last message before it is considered stale
+
+    * - **stale_sensor_policy**
+      - `str`, `"stop"`
+      - What to do when a safety sensor goes stale: `"stop"` triggers an emergency stop until data returns, `"skip"` runs the check on the remaining sensors only
 
     ```
     """
@@ -111,10 +114,12 @@ class DriveManagerConfig(ComponentConfig):
         default=False
     )  # Use the component without 360deg scan sensor
     use_gpu: bool = field(default=True)
-    pointcloud_angle_resolution: float = field(
-        default=0.1,
-        validator=BaseValidators.in_range(min_value=1e-9, max_value=2 * np.pi),
-    )
+    sensor_data_timeout: float = field(
+        default=0.2, validator=BaseValidators.in_range(min_value=1e-3, max_value=1e3)
+    )  # Maximum sensor message age before it counts as stale (seconds)
+    stale_sensor_policy: str = field(
+        default="stop", validator=BaseValidators.in_(["stop", "skip"])
+    )  # "stop": stale safety sensor triggers emergency stop; "skip": check runs on the remaining sensors
 
 
 class DriveManager(Component):
@@ -142,7 +147,7 @@ class DriveManager(Component):
       - `Topic(name="/control_list", msg_type="TwistArray")`
 
     * - **spatial_sensor**
-      - [`sensor_msgs.msg.LaserScan`](https://docs.ros.org/en/noetic/api/sensor_msgs/html/msg/LaserScan.html), [`sensor_msgs.msg.PointCloud2`](http://docs.ros.org/en/noetic/api/sensor_msgs/html/msg/PointCloud2.html), [`std_msgs.msg.Float32`](http://docs.ros.org/en/noetic/api/std_msgs/html/msg/Float32.html), [`std_msgs.msg.Float64`](http://docs.ros.org/en/noetic/api/std_msgs/html/msg/Float64.html)
+      - [`sensor_msgs.msg.LaserScan`](https://docs.ros.org/en/noetic/api/sensor_msgs/html/msg/LaserScan.html), [`sensor_msgs.msg.PointCloud2`](http://docs.ros.org/en/noetic/api/sensor_msgs/html/msg/PointCloud2.html), [`sensor_msgs.msg.Range`](https://docs.ros.org/en/noetic/api/sensor_msgs/html/msg/Range.html)
       - 1 to 10
       - `Topic(name="/scan", msg_type="LaserScan")`
 
@@ -263,12 +268,26 @@ class DriveManager(Component):
             "distance": self.config.critical_zone_distance + self.robot_radius,
         }
 
-        self.sensor_data: Optional[Union[LaserScanData, PointCloudData]] = None
-
         self.slow_down_factor: Dict[str, float] = {}
 
-        # Emergency checker gets initialized on activation to get the sensor transformation
-        self._emergency_checker = None
+        # Safety checkers get initialized on activation, once the per-sensor
+        # transformations and first data are available.
+        self._pc_checker = None  # All pointcloud sensors share ONE batched checker.
+        self._scan_checker = None  # Single laserscan checker
+        self._pc_callbacks: Tuple[PointCloudCallback, ...] = ()
+        self._scan_callback: Optional[LaserScanCallback] = None
+        # Arrival stamps (time.monotonic) for staleness gating
+        self._pc_last_msg: List[float] = []  # One per pointcloud sensor
+        self._scan_last_msg: float = 0.0  # One for laserscan sensor
+        # Range (single-beam proximity) sensors
+        self._range_callbacks: Tuple[RangeCallback, ...] = ()
+        self._range_readings: List[Optional[float]] = []  # last valid range readings
+        self._range_last_msg: List[float] = []  # last message stamps for range
+        # Which way each Range beam points in the body frame, from its mount
+        self._range_facing: List[int] = []
+        # Set once at activation so the per-tick path reads plain values
+        self._stale_stop: bool = True
+        self._sensor_timeout: float = self.config.sensor_data_timeout
 
         # NOTE: proximity sensor data transformation is deliberately NOT set to the callback here.
         # CriticalZoneChecker takes its input in the sensor frame and applies
@@ -281,16 +300,6 @@ class DriveManager(Component):
         Attaches emergency_stop_check to sensor_data callback
         anf filtering commands to commands callbacks
         """
-        if not self.config.disable_safety_stop:
-            # Attach emergency check to all sensor data callbacks
-            num_sensors = self._inputs_keys.count(TopicsKeys.SPATIAL_SENSOR)
-            for idx in range(num_sensors):
-                callback = self.get_callback(TopicsKeys.SPATIAL_SENSOR, idx)
-                if not isinstance(callback, (LaserScanCallback, PointCloudCallback)):
-                    callback.on_callback_execute(
-                        self._check_emergency_stop_proximity_sensor
-                    )
-
         # Add command publishing on intermediate command input
         self.attach_custom_callback(
             self.get_in_topic(TopicsKeys.INTERMEDIATE_CMD),
@@ -392,28 +401,15 @@ class DriveManager(Component):
         Update all inputs
         """
         self.__update_robot_state()
-        self.__pc_callback = None
 
-        num_sensors = self._inputs_keys.count(TopicsKeys.SPATIAL_SENSOR)
-        for idx in range(num_sensors):
-            callback = self.get_callback(TopicsKeys.SPATIAL_SENSOR, idx)
-            if isinstance(callback, LaserScanCallback):
-                # Left in the sensor frame: CriticalZoneChecker transforms it
-                self.sensor_data: Optional[LaserScanData] = callback.get_output()
-                break
-            elif isinstance(callback, PointCloudCallback):
-                self.__pc_callback = callback
-                # Raw sensor-frame buffer, undecoded. The height band and the
-                # sensor->body transform are both applied by the checker
-                self.sensor_data: Optional[PointCloudData] = (
-                    self.__pc_callback.get_output()
-                )
-                break
-        # If laserscan is not available and safety_stop is enabled -> raise an emergency stop flog to block publishing
+        # If no safety checker could be set up and safety stop is enabled ->
+        # raise an emergency stop flag to block publishing
         if (
             not self.config.disable_safety_stop
-            and not self.sensor_data
             and not self.config.use_without_scan_sensor
+            and self._pc_checker is None
+            and self._scan_checker is None
+            and not self._range_callbacks
         ):
             self.get_logger().warning(
                 "Proximity sensor data is not available -> blocking command publishing to robot.",
@@ -437,43 +433,22 @@ class DriveManager(Component):
         """
         # Check emergency stop
         if not slowdown_factor:
-            if self._emergency_checker:
+            if not self.config.disable_safety_stop and not (
+                self._pc_checker or self._scan_checker
+            ):
+                self.get_logger().error(
+                    "Safety checker (PointCloud/LaserScan) is not initialized -> command is NOT published to the robot",
+                    throttle_duration_sec=1.0,
+                )
+                return
+            if self._pc_checker or self._scan_checker or self._range_callbacks:
                 self._update_state()
-                # Check emergency stop from Lidar in the direction of the command
-                try:
-                    if isinstance(self.sensor_data, LaserScanData):
-                        self.slow_down_factor["scan_data"] = (
-                            self._emergency_checker.check(
-                                ranges=self.sensor_data.ranges,
-                                forward=(vx_out >= 0.0),
-                            )
-                        )
-                    elif isinstance(self.sensor_data, PointCloudData):
-                        self.slow_down_factor["scan_data"] = (
-                            self._emergency_checker.check(
-                                data=self.sensor_data.data,
-                                point_step=self.sensor_data.point_step,
-                                row_step=self.sensor_data.row_step,
-                                height=self.sensor_data.height,
-                                width=self.sensor_data.width,
-                                x_offset=self.sensor_data.x_offset,
-                                y_offset=self.sensor_data.y_offset,
-                                z_offset=self.sensor_data.z_offset,
-                                forward=(vx_out >= 0.0),
-                            )
-                        )
-                        self.get_logger().debug(
-                            f"PointCloud emergency check forward={(vx_out >= 0.0)} returned {self.slow_down_factor['scan_data']}"
-                        )
-                except Exception as e:
-                    # A checker that cannot evaluate the sensor data (e.g.
-                    # malformed cloud metadata) must stop the robot and keep the
-                    # component alive
-                    self.get_logger().error(
-                        f"CriticalZoneChecker failed on incoming sensor data: {e} -> Triggering emergency stop"
-                    )
-                    self.slow_down_factor["scan_data"] = 0.0
-            slowdown_val: float = min(self.slow_down_factor.values())
+                # Check emergency stop from all safety sensors in the direction
+                # of the command
+                self.slow_down_factor["scan_data"] = self._run_safety_check(
+                    forward=(vx_out >= 0.0)
+                )
+            slowdown_val: float = min(self.slow_down_factor.values(), default=1.0)
         else:
             slowdown_val = slowdown_factor
 
@@ -490,6 +465,128 @@ class DriveManager(Component):
             vy_out * slowdown_val,
             omega_out * slowdown_val,
         ])
+
+    def _run_safety_check(self, forward: bool) -> float:
+        """Runs the critical zone check on every safety sensor and returns the
+        minimum safety factor across them.
+
+        All pointcloud sensors go through one batched checker (`clouds[i]`
+        pairs with sensor i, `None` = no data this tick); a laserscan sensor
+        has its own single-sensor checker; each Range sensor is a single beam
+        that stops the robot when its reading is inside the critical
+        distance. A sensor whose last message is older than `sensor_data_timeout`
+        is handled per `stale_sensor_policy`: "stop" -> immediate 0.0, "skip" -> excluded
+        from the check. If every sensor is stale/skipped nothing constrains the robot,
+        which must read as unsafe -> 0.0.
+
+        Any checker error stops the robot and keeps the component alive.
+
+        :param forward: True if the robot is moving forward
+        :type forward: bool
+
+        :return: Slowdown factor [0.0, 1.0]; 0.0 = emergency stop
+        :rtype: float
+        """
+        factor = 1.0
+        any_checked = False
+        now = time.monotonic()
+        try:
+            if self._scan_checker is not None:
+                scan_factor = self._check_scan(forward, now)
+                if scan_factor is not None:
+                    if scan_factor == 0.0:
+                        return 0.0
+                    factor = scan_factor
+                    any_checked = True
+            if self._pc_checker is not None:
+                gathered = self._gather_clouds(now)
+                if gathered is None:
+                    # Stale pointcloud sensor under the "stop" policy
+                    return 0.0
+                clouds, fresh = gathered
+                if fresh:
+                    factor = min(
+                        factor, self._pc_checker.check(clouds=clouds, forward=forward)
+                    )
+                    any_checked = True
+            range_factor = self._check_ranges(forward, now)
+            if range_factor is not None:
+                factor = min(factor, range_factor)
+                any_checked = True
+            if not any_checked:
+                # Every safety sensor skipped.
+                self.get_logger().warning(
+                    "All safety sensors are stale -> Triggering emergency stop"
+                )
+                return 0.0
+        except Exception as e:
+            # A checker that cannot evaluate the sensor data must stop the robot
+            # and keep the component alive
+            self.get_logger().error(
+                f"CriticalZoneChecker failed on incoming sensor data: {e} -> Triggering emergency stop"
+            )
+            return 0.0
+        return factor
+
+    def _check_scan(self, forward: bool, now: float) -> Optional[float]:
+        """Runs the laserscan checker; returns its factor, 0.0 for a stale
+        sensor under the "stop" policy, or None when the sensor is skipped
+
+        :param forward: True if the robot is moving forward
+        :type forward: bool
+        :param now: Current time.monotonic() reading
+        :type now: float
+        """
+        scan = (
+            self._scan_callback.get_output()
+            if now - self._scan_last_msg <= self._sensor_timeout
+            else None
+        )
+        if scan is None:
+            if self._stale_stop:
+                self.get_logger().warning(
+                    "LaserScan safety sensor is stale -> Triggering emergency stop"
+                )
+                return 0.0
+            return None
+        return self._scan_checker.check(ranges=scan.ranges, forward=forward)
+
+    def _gather_clouds(self, now: float) -> Optional[Tuple[List[Optional[dict]], int]]:
+        """Builds the batched checker's cloud list (one metadata-only dict per
+        pointcloud sensor, None for a skipped stale sensor) and the count of
+        fresh entries. Returns None when a stale sensor demands a stop.
+
+        :param now: Current time.monotonic() reading
+        :type now: float
+        """
+        clouds: List[Optional[dict]] = []
+        fresh = 0
+        for i, callback in enumerate(self._pc_callbacks):
+            pc = (
+                callback.get_output()
+                if now - self._pc_last_msg[i] <= self._sensor_timeout
+                else None
+            )
+            if pc is None:
+                if self._stale_stop:
+                    self.get_logger().warning(
+                        "PointCloud safety sensor is stale -> Triggering emergency stop"
+                    )
+                    return None
+                clouds.append(None)
+                continue
+            # Metadata-only view of the raw buffer (zero-copy contract)
+            clouds.append(pc.buffer_layout())
+            fresh += 1
+        return clouds, fresh
+
+    def _stamp_pc_arrival(self, sensor_idx: int, **_):
+        """Record a pointcloud sensor message arrival (staleness gating)"""
+        self._pc_last_msg[sensor_idx] = time.monotonic()
+
+    def _stamp_scan_arrival(self, **_):
+        """Record a laserscan sensor message arrival (staleness gating)"""
+        self._scan_last_msg = time.monotonic()
 
     def execute_cmd_closed_loop(self, output: Twist, max_time: float):
         """Execute a control command in closed loop
@@ -574,35 +671,15 @@ class DriveManager(Component):
 
         # FRONT MOVEMENT
         while (
-            unblocking and traveled_distance < max_distance and self._emergency_checker
+            unblocking
+            and traveled_distance < max_distance
+            and (self._pc_checker or self._scan_checker)
         ):
             # Check if max_distance forward is clear
             self._update_state()
-            slowdown_factor = 1.0
-            try:
-                if isinstance(self.sensor_data, LaserScanData):
-                    slowdown_factor = self._emergency_checker.check(
-                        ranges=self.sensor_data.ranges,
-                        forward=True,
-                    )
-                elif isinstance(self.sensor_data, PointCloudData):
-                    slowdown_factor = self._emergency_checker.check(
-                        data=self.sensor_data.data,
-                        point_step=self.sensor_data.point_step,
-                        row_step=self.sensor_data.row_step,
-                        height=self.sensor_data.height,
-                        width=self.sensor_data.width,
-                        x_offset=self.sensor_data.x_offset,
-                        y_offset=self.sensor_data.y_offset,
-                        z_offset=self.sensor_data.z_offset,
-                        forward=True,
-                    )
-            except Exception as e:
-                # Cannot evaluate the data -> treat the direction as blocked
-                self.get_logger().error(
-                    f"CriticalZoneChecker failed on incoming sensor data: {e} -> Treating direction as blocked"
-                )
-                slowdown_factor = 0.0
+            # A check that fails or has only stale data treats the direction
+            # as blocked (helper returns 0.0)
+            slowdown_factor = self._run_safety_check(forward=True)
             if slowdown_factor == 0.0:
                 unblocking = False
             else:
@@ -654,35 +731,15 @@ class DriveManager(Component):
 
         # FRONT MOVEMENT
         while (
-            unblocking and traveled_distance < max_distance and self._emergency_checker
+            unblocking
+            and traveled_distance < max_distance
+            and (self._pc_checker or self._scan_checker)
         ):
             # Check if max_distance behind the robot is clear
             self._update_state()
-            slowdown_factor = 1.0
-            try:
-                if isinstance(self.sensor_data, LaserScanData):
-                    slowdown_factor = self._emergency_checker.check(
-                        ranges=self.sensor_data.ranges,
-                        forward=False,
-                    )
-                elif isinstance(self.sensor_data, PointCloudData):
-                    slowdown_factor = self._emergency_checker.check(
-                        data=self.sensor_data.data,
-                        point_step=self.sensor_data.point_step,
-                        row_step=self.sensor_data.row_step,
-                        height=self.sensor_data.height,
-                        width=self.sensor_data.width,
-                        x_offset=self.sensor_data.x_offset,
-                        y_offset=self.sensor_data.y_offset,
-                        z_offset=self.sensor_data.z_offset,
-                        forward=False,
-                    )
-            except Exception as e:
-                # Cannot evaluate the data -> treat the direction as blocked
-                self.get_logger().error(
-                    f"CriticalZoneChecker failed on incoming sensor data: {e} -> Treating direction as blocked"
-                )
-                slowdown_factor = 0.0
+            # A check that fails or has only stale data treats the direction
+            # as blocked (helper returns 0.0)
+            slowdown_factor = self._run_safety_check(forward=False)
             if slowdown_factor == 0.0:
                 unblocking = False
             else:
@@ -752,60 +809,22 @@ class DriveManager(Component):
         # FRONT MOVEMENT
         while unblocking and traveled_radius < max_rotation:
             self._update_state()
-            slowdown_factor = 1.0
-            try:
-                if isinstance(self.sensor_data, LaserScanData):
-                    slowdown_factor = min(
-                        self._emergency_checker.check(
-                            ranges=self.sensor_data.ranges,
-                            forward=True,
-                        ),
-                        self._emergency_checker.check(
-                            ranges=self.sensor_data.ranges,
-                            forward=False,
-                        ),
-                    )
-                elif isinstance(self.sensor_data, PointCloudData):
-                    slowdown_factor = min(
-                        self._emergency_checker.check(
-                            data=self.sensor_data.data,
-                            point_step=self.sensor_data.point_step,
-                            row_step=self.sensor_data.row_step,
-                            height=self.sensor_data.height,
-                            width=self.sensor_data.width,
-                            x_offset=self.sensor_data.x_offset,
-                            y_offset=self.sensor_data.y_offset,
-                            z_offset=self.sensor_data.z_offset,
-                            forward=True,
-                        ),
-                        self._emergency_checker.check(
-                            data=self.sensor_data.data,
-                            point_step=self.sensor_data.point_step,
-                            row_step=self.sensor_data.row_step,
-                            height=self.sensor_data.height,
-                            width=self.sensor_data.width,
-                            x_offset=self.sensor_data.x_offset,
-                            y_offset=self.sensor_data.y_offset,
-                            z_offset=self.sensor_data.z_offset,
-                            forward=False,
-                        ),
-                    )
-            except Exception as e:
-                # Cannot evaluate the data mid-rotation -> treat the robot
-                # surroundings as blocked and end the maneuver
-                self.get_logger().error(
-                    f"CriticalZoneChecker failed on incoming sensor data: {e} -> Treating rotation as blocked"
+            # Rotation needs BOTH directions clear. A check that fails or has
+            # only stale data treats the rotation as blocked (helper returns 0.0)
+            slowdown_factor = self._run_safety_check(forward=True)
+            if slowdown_factor > 0.0:
+                slowdown_factor = min(
+                    slowdown_factor, self._run_safety_check(forward=False)
                 )
-                slowdown_factor = 0.0
             if slowdown_factor == 0.0:
                 unblocking = False
             else:
                 self.get_publisher(TopicsKeys.FINAL_COMMAND).publish([
                     0.0,
                     0.0,
-                    self.robot.ctrl_omega_limits.max_vel / 2,
+                    self.robot.ctrl_omega_limits.max_omega / 2,
                 ])
-                traveled_radius += self.robot.ctrl_omega_limits.max_vel / (
+                traveled_radius += self.robot.ctrl_omega_limits.max_omega / (
                     2 * self.config.loop_rate
                 )
                 time.sleep(1 / self.config.loop_rate)
@@ -869,7 +888,7 @@ class DriveManager(Component):
         :return: If one of the movement actions is performed
         :rtype: bool
         """
-        if not self.sensor_data:
+        if not (self._pc_checker or self._scan_checker):
             self.get_logger().error(
                 "Proximity sensor data unavailable - Unblocking functionality requires LaserScan or PointCloud information"
             )
@@ -958,7 +977,7 @@ class DriveManager(Component):
         self._filtered_angular_commands = self.__filter_multi_cmds(
             output.angular_velocities.z,
             self.robot.ctrl_omega_limits.max_acc,
-            self.robot.ctrl_omega_limits.max_vel,
+            self.robot.ctrl_omega_limits.max_omega,
         )
 
     def _check_bounds(self, target, previous, max_acc, max_decel, freq):
@@ -1085,17 +1104,108 @@ class DriveManager(Component):
 
         return current + inc_max * np.sign(increment)
 
-    def _check_emergency_stop_proximity_sensor(
-        self, output: Optional[float], topic: Topic, **_
-    ):
-        if output:
-            self.slow_down_factor[topic.name] = (
-                0.0
-                if (output < self.critical_zone["distance"] - self.robot_radius)
-                else 1.0
+    def _on_range_reading(self, sensor_idx: int, msg=None, **_):
+        """Records a Range sensor message (staleness stamp and the reading).
+        -Inf (REP-117: object too close to measure) is kept as an obstacle.
+        Any other reading outside the sensor's own [min_range, max_range] or
+        non-finite is None.
+
+        :param sensor_idx: Index of the sensor among the Range sensors
+        :type sensor_idx: int
+        :param msg: The sensor_msgs/Range message
+        """
+        self._range_last_msg[sensor_idx] = time.monotonic()
+        if msg is None:
+            self._range_readings[sensor_idx] = None
+            return
+        reading = float(msg.range)
+        if reading == -np.inf:
+            # Object too close to measure -> reads inside any critical distance
+            self._range_readings[sensor_idx] = reading
+            return
+        valid = np.isfinite(reading) and reading >= msg.min_range
+        if msg.max_range > 0.0:
+            valid = valid and reading <= msg.max_range
+        self._range_readings[sensor_idx] = reading if valid else None
+
+    def _resolve_range_facing(self, callback: RangeCallback, topic_idx: int) -> int:
+        """Which critical cone a Range beam lies in, from its mount TF to the
+        robot base and ``critical_zone_angle``: +1 inside the forward cone,
+        -1 inside the backward cone, 0 outside both (the beam never
+        constrains motion), 2 when the TF is unresolved within the subscription
+        timeout (the beam constrains motion either way)
+
+        :param callback: The sensor's callback
+        :type callback: RangeCallback
+        :param topic_idx: Index of the sensor among the spatial sensor inputs
+        :type topic_idx: int
+        """
+        listener = self.wait_input_tf(
+            TopicsKeys.SPATIAL_SENSOR,
+            topic_idx,
+            timeout=self.config.topic_subscription_timeout,
+        )
+        name = callback.input_topic.name
+        if listener is None or listener.rotation is None:
+            self.get_logger().warning(
+                f"No TF from Range sensor '{name}' to the robot base: its beam "
+                "is taken to constrain motion in every direction"
             )
-        else:
-            self.slow_down_factor[topic.name] = 1.0
+            return 2
+        # x component of the beam axis in the body frame, i.e. the cosine of
+        # its angle to forward, against the half cone the critical zone uses
+        _, qy, qz, _ = (float(v) for v in listener.rotation)
+        along_x = 1.0 - 2.0 * (qy * qy + qz * qz)
+        cos_half_cone = float(np.cos(np.radians(self.config.critical_zone_angle) / 2.0))
+        if along_x >= cos_half_cone:
+            self.get_logger().info(f"Range sensor '{name}' lies in the forward critical cone")
+            return 1
+        if along_x <= -cos_half_cone:
+            self.get_logger().info(f"Range sensor '{name}' lies in the backward critical cone")
+            return -1
+        self.get_logger().warning(
+            f"Range sensor '{name}' lies outside the forward and backward critical "
+            f"cones (critical_zone_angle={self.config.critical_zone_angle} deg) -> "
+            "it does not constrain motion"
+        )
+        return 0
+
+    def _check_ranges(self, forward: bool, now: float) -> Optional[float]:
+        """Minimum safety factor over the Range sensors inside the critical
+        cone of the direction of motion: 0.0 when one reads inside the
+        critical distance, 1.0 otherwise. A reading outside a sensor's own
+        limits is not a measurement and reads as clear. A stale sensor gives
+        0.0 under the "stop" policy and is skipped under "skip". None when
+        every Range sensor was skipped or none is configured.
+
+        :param forward: True if the robot is moving forward
+        :type forward: bool
+        :param now: Current time.monotonic() reading
+        :type now: float
+        """
+        factor: Optional[float] = None
+        for i, callback in enumerate(self._range_callbacks):
+            facing = self._range_facing[i] if i < len(self._range_facing) else 2
+            if facing == 0 or facing == (-1 if forward else 1):
+                continue  # outside the cones, or in the cone facing away
+            if now - self._range_last_msg[i] > self._sensor_timeout:
+                if not self._stale_stop:
+                    continue
+                self.get_logger().warning(
+                    f"Range safety sensor '{callback.input_topic.name}' is stale "
+                    "-> Triggering emergency stop"
+                )
+                return 0.0
+            reading = self._range_readings[i]
+            sensor_factor = (
+                1.0
+                if reading is None or reading > self.config.critical_zone_distance
+                else 0.0
+            )
+            factor = sensor_factor if factor is None else min(factor, sensor_factor)
+            if factor == 0.0:
+                return 0.0
+        return factor
 
     def _limit_command_vel(
         self, output: Union[np.ndarray, list]
@@ -1114,7 +1224,7 @@ class DriveManager(Component):
                 f"Limiting linear velocity by allowed maximum {self.robot.ctrl_vx_limits.max_vel}"
             )
             output[0] = np.sign(output[0]) * self.robot.ctrl_vx_limits.max_vel
-        elif abs(output[0]) < self.robot.ctrl_vx_limits.min_absolute_val:
+        elif abs(output[0]) < self.robot.ctrl_vx_limits.min_vel:
             output[0] = 0.0
 
         if abs(output[1]) > self.robot.ctrl_vy_limits.max_vel:
@@ -1122,15 +1232,15 @@ class DriveManager(Component):
                 f"Limiting linear Vy velocity by allowed maximum {self.robot.ctrl_vy_limits.max_vel}"
             )
             output[1] = np.sign(output[1]) * self.robot.ctrl_vy_limits.max_vel
-        elif abs(output[1]) < self.robot.ctrl_vy_limits.min_absolute_val:
+        elif abs(output[1]) < self.robot.ctrl_vy_limits.min_vel:
             output[1] = 0.0
 
-        if abs(output[2]) > self.robot.ctrl_omega_limits.max_vel:
+        if abs(output[2]) > self.robot.ctrl_omega_limits.max_omega:
             self.get_logger().debug(
-                f"Limiting angular velocity by allowed maximum {self.robot.ctrl_omega_limits.max_vel}"
+                f"Limiting angular velocity by allowed maximum {self.robot.ctrl_omega_limits.max_omega}"
             )
-            output[2] = np.sign(output[2]) * self.robot.ctrl_omega_limits.max_vel
-        elif abs(output[2]) < self.robot.ctrl_omega_limits.min_absolute_val:
+            output[2] = np.sign(output[2]) * self.robot.ctrl_omega_limits.max_omega
+        elif abs(output[2]) < self.robot.ctrl_omega_limits.min_omega:
             output[2] = 0.0
         return output
 
@@ -1142,7 +1252,7 @@ class DriveManager(Component):
             return
         # Check emergency stop
         self._update_state()
-        speed_factor = min(self.slow_down_factor.values())
+        speed_factor = min(self.slow_down_factor.values(), default=1.0)
         if speed_factor < 0.1:
             # STOP ROBOT
             self.get_publisher(TopicsKeys.EMERGENCY).publish(True)
@@ -1174,83 +1284,157 @@ class DriveManager(Component):
             # Execute cmd in open loop -> Publish once
             self._publish_cmd(cmd[0], cmd[1], cmd[2])
 
+    def _make_checker(self, **kwargs):
+        """Constructs a critical zone checker: GPU implementation when enabled
+        and available, with a CPU fallback
+
+        :return: CriticalZoneChecker or CriticalZoneCheckerGPU
+        """
+        if self.config.use_gpu:
+            try:
+                from kompass_cpp.utils import CriticalZoneCheckerGPU
+
+                checker = CriticalZoneCheckerGPU(**kwargs)
+                self.get_logger().info("Initialized CriticalZoneCheckerGPU")
+                return checker
+            except ImportError:
+                self.get_logger().warning(
+                    "GPU use is enabled but CriticalZoneCheckerGPU implementation is not found -> Using CPU implementation instead"
+                )
+        from kompass_cpp.utils import CriticalZoneChecker
+
+        checker = CriticalZoneChecker(**kwargs)
+        self.get_logger().info("Initialized CriticalZoneChecker")
+        return checker
+
+    def _classify_spatial_sensors(
+        self,
+    ) -> Tuple[
+        List[PointCloudCallback],
+        List[int],
+        Optional[LaserScanCallback],
+        int,
+        List[RangeCallback],
+        List[int],
+    ]:
+        """Splits the spatial sensor callbacks ONCE: every PointCloud2 topic
+        feeds one batched checker; the first LaserScan topic gets its own checker.
+        Range sensors are single beams checked per tick in their own direction.
+
+        :return: (pointcloud callbacks, their topic indices, laserscan
+            callback or None, its topic index, range callbacks, their topic
+            indices)
+        """
+        num_sensors = self._inputs_keys.count(TopicsKeys.SPATIAL_SENSOR)
+        pc_callbacks: List[PointCloudCallback] = []
+        pc_indices: List[int] = []
+        scan_callback: Optional[LaserScanCallback] = None
+        scan_idx: int = 0
+        range_callbacks: List[RangeCallback] = []
+        range_indices: List[int] = []
+        for idx in range(num_sensors):
+            callback = self.get_callback(TopicsKeys.SPATIAL_SENSOR, idx)
+            if isinstance(callback, PointCloudCallback):
+                pc_callbacks.append(callback)
+                pc_indices.append(idx)
+            elif isinstance(callback, RangeCallback):
+                range_callbacks.append(callback)
+                range_indices.append(idx)
+            elif isinstance(callback, LaserScanCallback):
+                if scan_callback is None:
+                    scan_callback = callback
+                    scan_idx = idx
+                else:
+                    self.get_logger().warning(
+                        "Multiple LaserScan sensors are set but the critical zone checker "
+                        f"supports exactly one -> '{callback.input_topic.name}' is ignored "
+                        "for safety checks"
+                    )
+        return (
+            pc_callbacks,
+            pc_indices,
+            scan_callback,
+            scan_idx,
+            range_callbacks,
+            range_indices,
+        )
+
+    def _init_safety_checkers(
+        self,
+        pc_callbacks: List[PointCloudCallback],
+        pc_indices: List[int],
+        scan_callback: Optional[LaserScanCallback],
+        scan_idx: int,
+    ):
+        """Constructs the batched pointcloud checker and/or the laserscan
+        checker, waiting per sensor for its static TF and first data"""
+
+        # Common checker parameters. min/max_height form a BODY-frame band
+        # shared by all sensors. Each sensor's mount transform is applied
+        # inside.
+        common_kwargs = {
+            "robot_shape": self.robot_geometry_type,
+            "robot_dimensions": self.robot.geometry_params,
+            "critical_angle": self.config.critical_zone_angle,
+            "critical_distance": self.config.critical_zone_distance,
+            "slowdown_distance": self.config.slowdown_zone_distance,
+            "min_height": 0.0,
+            "max_height": self.robot_height,
+            "range_max": 3 * self.config.slowdown_zone_distance,
+        }
+
+        if pc_callbacks:
+            # One SensorConfig per pointcloud sensor. Get mount pose from TF, point
+            # field encoding from the sensor's first message
+            sensor_configs = [
+                self.wait_sensor_config(TopicsKeys.SPATIAL_SENSOR, idx)
+                for idx in pc_indices
+            ]
+            self._pc_checker = self._make_checker(
+                input_type=SensorInputType.POINTCLOUD,
+                sensor_configs=sensor_configs,
+                **common_kwargs,
+            )
+        if scan_callback is not None:
+            sensor = self.wait_sensor_config(TopicsKeys.SPATIAL_SENSOR, scan_idx)
+            # Get first scan. The wait above guarantees a decoded first scan
+            scan = scan_callback.get_output()
+            self._scan_checker = self._make_checker(
+                input_type=SensorInputType.LASERSCAN,
+                sensor_configs=[sensor],
+                scan_angles=scan.angles,
+                **common_kwargs,
+            )
+
     def _execute_once(self):
         """Actions to be executed once at the start of the component execution"""
         super()._execute_once()
 
-        if self.config.use_without_scan_sensor and not self.config.disable_safety_stop:
-            self.get_logger().warning(
-                "Using DriveManager without 360deg scan sensor and Safety stop functionality is still enabled."
-            )
-            self._emergency_checker = None
-            return
-
         if self.config.disable_safety_stop:
             self.get_logger().warning("Safety Stop is Disabled!")
-            self._emergency_checker = None
             return
 
-        # Get transformation from sensor to robot body. The sensor frame comes
-        # from the data itself, so this also waits for the first sensor message
-        sensor_tf = None
-        while not sensor_tf or not sensor_tf.transform:
-            sensor_tf = self.input_tf_listener(
-                TopicsKeys.SPATIAL_SENSOR,
-                self.config.frames.robot_base,
-                static_tf=True,
-            )
-            self.get_logger().info("Checking for Proximity Sensor TF...", once=True)
-            time.sleep(1 / self.config.loop_rate)
+        (
+            pc_callbacks,
+            pc_indices,
+            scan_callback,
+            scan_idx,
+            range_callbacks,
+            range_indices,
+        ) = self._classify_spatial_sensors()
 
-        self.get_logger().info("Got Proximity Sensor TF...")
-
-        robot_shape = self.robot_geometry_type
-        robot_dimensions = self.robot.geometry_params
-
-        # The checker gates point heights on the raw sensor-frame z, before it
-        # applies the sensor->body transform, so the body-frame band we want
-        # (ground .. robot top) has to be shifted down by the sensor height
-        sensor_height = float(sensor_tf.translation[2])
-        min_height = -sensor_height
-        max_height = self.robot_height - sensor_height
-
-        # Get laserscan data to initialize the GPU based checker
-        while not self.sensor_data:
-            self.get_logger().info(
-                "Waiting to get proximity sensor data to initialize CriticalZoneChecker..",
-                once=True,
-            )
-            self._update_state()
-            time.sleep(1 / self.config.loop_rate)
-
-        if isinstance(self.sensor_data, LaserScanData):
-            kwargs = {
-                "input_type": SensorInputType.LASERSCAN,
-                "scan_angles": self.sensor_data.angles,
-            }
-        elif isinstance(self.sensor_data, PointCloudData):
-            kwargs = {
-                "input_type": SensorInputType.POINTCLOUD,
-                "scan_angles": np.arange(
-                    0.0,
-                    2 * np.pi,
-                    self.config.pointcloud_angle_resolution,
-                ),
-            }
-            if self.config.use_gpu:
-                # this parameter is only used in the GPU kernel
-                kwargs["cloud_field_type"] = PointFieldType.from_int(
-                    self.sensor_data.x_field_datatype
+        if not pc_callbacks and scan_callback is None and not range_callbacks:
+            if self.config.use_without_scan_sensor:
+                self.get_logger().warning(
+                    "Using DriveManager without any spatial sensor and Safety stop functionality is still enabled."
                 )
-        else:
+                return
             self.get_logger().error(
-                f"Cannot initialize CriticalZoneChecker for sensor data of type "
-                f"'{type(self.sensor_data).__name__}' -> Safety Stop is disabled!"
+                "Cannot initialize the safety check: no LaserScan, PointCloud2 or "
+                "Range sensor is configured -> Safety Stop is disabled!"
             )
-            self._emergency_checker = None
-            # Set failure based on the fact that the spatial sensor is not providing valid data
-            # The key can be bound to several sensors, so the name(s) come back
-            # as a list in that case
+            # Set failure based on the fact that no spatial sensor provides valid
+            # data. The key can be bound to several sensors.
             sensor_names = self.in_topic_name(TopicsKeys.SPATIAL_SENSOR) or []
             self.health_status.set_fail_system(
                 topic_names=sensor_names
@@ -1259,67 +1443,45 @@ class DriveManager(Component):
             )
             return
 
-        if self.config.use_gpu:
-            try:
-                from kompass_cpp.utils import CriticalZoneCheckerGPU
+        if pc_callbacks or scan_callback is not None:
+            self._init_safety_checkers(
+                pc_callbacks, pc_indices, scan_callback, scan_idx
+            )
+            self.get_logger().info("Got Proximity Sensor TF...")
 
-                self._emergency_checker = CriticalZoneCheckerGPU(
-                    robot_shape=robot_shape,
-                    robot_dimensions=robot_dimensions,
-                    sensor_position_body=sensor_tf.translation,
-                    sensor_rotation_body=sensor_tf.rotation,
-                    critical_angle=self.config.critical_zone_angle,
-                    critical_distance=self.config.critical_zone_distance,
-                    slowdown_distance=self.config.slowdown_zone_distance,
-                    max_height=max_height,
-                    min_height=min_height,
-                    range_max=3 * self.config.slowdown_zone_distance,
-                    **kwargs,
-                )
-                self.get_logger().info("Initialized CriticalZoneCheckerGPU")
+        # Freeze the per-tick safety state (for the hot path)
+        self._pc_callbacks = tuple(pc_callbacks)
+        self._scan_callback = scan_callback
+        now = time.monotonic()
+        self._pc_last_msg = [now] * len(pc_callbacks)
+        self._scan_last_msg = now
+        self._stale_stop = self.config.stale_sensor_policy == "stop"
+        self._sensor_timeout = self.config.sensor_data_timeout
+        for i, callback in enumerate(pc_callbacks):
+            callback.on_callback_execute(
+                partial(self._stamp_pc_arrival, sensor_idx=i), get_processed=False
+            )
+        if scan_callback is not None:
+            scan_callback.on_callback_execute(
+                self._stamp_scan_arrival, get_processed=False
+            )
+        self._range_callbacks = tuple(range_callbacks)
+        self._range_readings = [None] * len(range_callbacks)
+        self._range_last_msg = [now] * len(range_callbacks)
+        self._range_facing = [
+            self._resolve_range_facing(callback, idx)
+            for callback, idx in zip(range_callbacks, range_indices)
+        ]
+        for i, callback in enumerate(range_callbacks):
+            callback.on_callback_execute(
+                partial(self._on_range_reading, sensor_idx=i), get_processed=False
+            )
+        if range_callbacks:
+            self.get_logger().info(
+                f"Safety check uses {len(range_callbacks)} Range sensor(s)"
+            )
 
-                # Warmup to avoid first call overhead
-                if isinstance(self.sensor_data, LaserScanData):
-                    self._emergency_checker.check(
-                        ranges=self.sensor_data.ranges,
-                        forward=True,
-                    )
-                elif isinstance(self.sensor_data, PointCloudData):
-                    self._emergency_checker.check(
-                        data=self.sensor_data.data,
-                        point_step=self.sensor_data.point_step,
-                        row_step=self.sensor_data.row_step,
-                        height=self.sensor_data.height,
-                        width=self.sensor_data.width,
-                        x_offset=self.sensor_data.x_offset,
-                        y_offset=self.sensor_data.y_offset,
-                        z_offset=self.sensor_data.z_offset,
-                        forward=True,
-                    )
-                self.get_logger().info(
-                    "CriticalZoneCheckerGPU: Warm-up complete - Ready to go!"
-                )
-                return
-            except ImportError:
-                self.get_logger().warning(
-                    "GPU use is enabled but CriticalZoneCheckerGPU implementation is not found -> Using CPU implementation instead"
-                )
-                # GPU-only ctor param; the CPU checker does not accept it
-                kwargs.pop("cloud_field_type", None)
-
-        from kompass_cpp.utils import CriticalZoneChecker
-
-        self._emergency_checker = CriticalZoneChecker(
-            robot_shape=robot_shape,
-            robot_dimensions=robot_dimensions,
-            sensor_position_body=sensor_tf.translation,
-            sensor_rotation_body=sensor_tf.rotation,
-            critical_angle=self.config.critical_zone_angle,
-            critical_distance=self.config.critical_zone_distance,
-            slowdown_distance=self.config.slowdown_zone_distance,
-            max_height=max_height,
-            min_height=min_height,
-            range_max=3 * self.config.slowdown_zone_distance,
-            **kwargs,
-        )
-        self.get_logger().info("CriticalZoneChecker is READY!")
+        # Warm-up to avoid first-call overhead. A malformed first input will read
+        # as an emergency stop until the data is valid
+        self._run_safety_check(forward=True)
+        self.get_logger().info("CriticalZoneChecker: Warm-up complete - Ready to go!")

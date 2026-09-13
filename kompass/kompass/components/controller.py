@@ -87,6 +87,10 @@ class ControllerConfig(ComponentConfig):
     * - **ctrl_publish_type**
       - `CmdPublishType | str`, `TWIST_ARRAY`
       - How to publish the control commands
+
+    * - **vision_depth_max_age**
+      - `float`, `0.2`
+      - Largest stamp difference (s) between the vision detections and the separate depth input (`vision_depth`) for the two to be paired; older depth is not used
     ```
     """
 
@@ -103,6 +107,11 @@ class ControllerConfig(ComponentConfig):
         default=False
     )  # Turn on debug mode -> published additional data visualization
     use_direct_sensor: bool = field(default=False)
+    # Separate depth input paired with the detections. Both publishers must stamp
+    # with the same clock.
+    vision_depth_max_age: float = field(
+        default=0.2, validator=BaseValidators.in_range(min_value=0.0, max_value=1e3)
+    )
     ctrl_publish_type: Union[str, CmdPublishType] = field(
         default=CmdPublishType.TWIST_ARRAY,
         converter=lambda value: (
@@ -155,10 +164,20 @@ class Controller(Component):
       - 1
       - `Topic(name="/local_map/occupancy_layer", msg_type="OccupancyGrid")`
 
-    * - vision_tracking
+    * - vision_detections
       - [`automatika_embodied_agents.msg.Trackings`](https://github.com/automatika-robotics/ros-agents/tree/main/agents_interfaces/msg), [`automatika_embodied_agents.msg.Detections2D`](https://github.com/automatika-robotics/ros-agents/tree/main/agents_interfaces/msg)
       - 1
-      - `Topic(name="/trackings", msg_type="Trackings")`
+      - `None` (required for the vision tracking action)
+
+    * - depth_camera_info
+      - [`sensor_msgs.msg.CameraInfo`](https://docs.ros.org/en/noetic/api/sensor_msgs/html/msg/CameraInfo.html)
+      - 1
+      - `None` (required for the vision tracking action)
+
+    * - vision_depth
+      - [`sensor_msgs.msg.Image`](https://docs.ros.org/en/noetic/api/sensor_msgs/html/msg/Image.html) (depth image aligned with the detection camera), [`sensor_msgs.msg.PointCloud2`](http://docs.ros.org/en/noetic/api/sensor_msgs/html/msg/PointCloud2.html)
+      - 1
+      - `None` (optional: lifts the detections to 3D instead of the depth embedded in the detections message)
     ```
 
     ## Outputs:
@@ -791,6 +810,9 @@ class Controller(Component):
 
         self.custom_create_all_subscribers()
         self.custom_create_all_action_servers()
+        # Set up the vision controller eagerly to avoid first-call overhead
+        # in the action server.
+        self._vision_follower.setup()
 
     def _activate_follower_mode(self):
         """Activate path following mode by creating all missing subscriptions"""
@@ -1090,9 +1112,6 @@ class Controller(Component):
             state=self.robot_state or RobotState(),
         )
 
-        # SET robot control limits
-        self._robot_ctr_limits = self.robot_ctrl_limits
-
         self._reached_end = False
         self._lat_dist_error: float = 0.0
         self._ori_error: float = 0.0
@@ -1157,7 +1176,7 @@ class Controller(Component):
         self._path_controller = ControlClasses[self.algorithm](
             robot=self._robot,
             config=_controller_config,
-            ctrl_limits=self._robot_ctr_limits,
+            ctrl_limits=self.robot_ctrl_limits,
             config_file=self._config_file,
             config_root_name=f"{self.node_name}.{self.config.algorithm}",
             control_time_step=self.config.control_time_step,
@@ -1275,6 +1294,7 @@ class Controller(Component):
         clearing the plan callback, aborting the action, etc.).
         """
         if self._path_controller is None:
+            self.get_logger().debug("Path controller is not initialized -> skipping control step")
             return PathControlStatus.IDLE
 
         if not self._path_controller.path:
@@ -1282,6 +1302,7 @@ class Controller(Component):
             # No plan is set to the controller -> read plan from callback
             if (plan is None) or (not self._install_plan(plan)):
                 # Plan is not available or rejected by the core, which needs at least two poses
+                self.get_logger().debug("Plan is not available or rejected by the core -> skipping control step")
                 return PathControlStatus.IDLE
 
         self._update_state(block=True)
@@ -1290,9 +1311,9 @@ class Controller(Component):
 
         if not obstacles_deliverable or not self.robot_state:
             self.get_logger().warning(
-                            f"State or sensor data unavailable after {self.config.topic_subscription_timeout}s -> skipping control step",
-                            throttle_duration_sec=5.0,
-                        )
+                f"State or sensor data unavailable after {self.config.topic_subscription_timeout}s -> skipping control step",
+                throttle_duration_sec=5.0,
+            )
             # Obstacles exist but could not be put in the frame the core reads
             return PathControlStatus.WAITING_INPUTS
 
@@ -1327,9 +1348,12 @@ class Controller(Component):
         )
 
         # LOG CONTROLLER INFO
-        self.get_logger().debug(f"{self._path_controller.logging_info()}")
+        self.get_logger().debug(f"Controller cmd_found={cmd_found}, Info: {self._path_controller.logging_info()}")
 
         if not cmd_found:
+            self.get_logger().error(
+                "Controller failed to compute a valid command -> stopping robot"
+            )
             return PathControlStatus.FAILED
 
         self.health_status.set_healthy()
@@ -1355,6 +1379,7 @@ class Controller(Component):
         return [
             self.in_topic_name(TopicsKeys.VISION_DETECTIONS),
             self.in_topic_name(TopicsKeys.DEPTH_CAM_INFO),
+            self.in_topic_name(TopicsKeys.VISION_DEPTH),
         ]
 
     def _end_vision_tracking_srv_callback(
@@ -1519,13 +1544,6 @@ class Controller(Component):
         dist: float = self.robot_state.distance(goal_point)
         return dist <= self._path_controller._config.goal_dist_tolerance
 
-    def _execute_once(self):
-        """Initialize controller post activation"""
-        if self.config._mode == ControllerMode.VISION_FOLLOWER:
-            # Set up the vision controller eagerly to avoid first-call overhead
-            # in the action server.
-            self._vision_follower.setup()
-
     def _execution_step(self):
         """
         Controller main execution step
@@ -1555,6 +1573,9 @@ class Controller(Component):
             return
 
         if status == PathControlStatus.GOAL_REACHED:
+            self.get_logger().info(
+                f"Controller reached the end of the path with algorithm '{self.algorithm}'"
+            )
             self._reached_end = True
             plan_callback = self.get_callback(TopicsKeys.GLOBAL_PLAN)
             if plan_callback:
@@ -1563,3 +1584,5 @@ class Controller(Component):
             self.health_status.set_fail_algorithm(
                 algorithm_names=[str(ControlClasses[self.algorithm])]
             )
+        elif status == PathControlStatus.WAITING_INPUTS:
+            self.health_status.set_fail_system()
