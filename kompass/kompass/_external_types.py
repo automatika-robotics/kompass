@@ -536,6 +536,7 @@ if EmbodiedAgentsCallbacks is not None:
             self._initial_time = 0.0
             self._depth_image: Optional[np.ndarray] = None
             self._depth_meta: Optional[Tuple[np.dtype, float]] = None
+            self._img_size: Optional[np.ndarray] = None
             # Frame id of the camera the buffered trackings came from
             self._img_frame_id: Optional[str] = None
 
@@ -552,11 +553,13 @@ if EmbodiedAgentsCallbacks is not None:
         def _get_output(
             self,
             label: Optional[str] = None,
-            idx: Optional[int] = 0,
+            idx: Optional[int] = None,
             **_,
         ) -> Union[Any, Bbox2D, None]:
             """
-            Gets the trackings data
+            Gets the trackings data. The target is looked up by `idx` (track
+            id) when given, otherwise by `label`
+
             :returns:   Topic content
             :rtype:     Union[ROSTrackings, np.ndarray, None]
             """
@@ -600,6 +603,8 @@ if EmbodiedAgentsCallbacks is not None:
                     dtype=np.float32,
                 )
             )
+            if self._img_size is not None:
+                box.set_img_size(self._img_size)
             if self._initial_time == 0:
                 # Get the initial time of the first detection
                 self._initial_time = timestamp
@@ -649,6 +654,33 @@ if EmbodiedAgentsCallbacks is not None:
             depth_conversion_factor), None until a depth image arrives"""
             return self._depth_meta[1] if self._depth_meta else None
 
+        def __get_img_size(self) -> Optional[np.ndarray]:
+            """Get image size from the last trackings message, unless already known
+
+            :return: Image size (width, height)
+            :rtype: Optional[np.ndarray[dtype=np.int32]]
+            """
+            if self._img_size is not None:
+                return self._img_size
+            img_size = None
+            if self.msg.depth.data:
+                img_size = np.array(
+                    [self.msg.depth.width, self.msg.depth.height],
+                    dtype=np.int32,
+                )
+            elif self.msg.image.data:
+                img_size = np.array(
+                    [self.msg.image.width, self.msg.image.height],
+                    dtype=np.int32,
+                )
+            # TODO: get compressed image size
+            if img_size is None:
+                get_logger(self.node_name).debug(
+                    "No image is provided with the trackings message. Unknown image size can lead to errors!",
+                    once=True,
+                )
+            return img_size
+
         def _process_raw_data(self) -> None:
             """Process new raw trackings data and add it to buffer if available"""
             # Remove a buffer item
@@ -664,6 +696,9 @@ if EmbodiedAgentsCallbacks is not None:
                 self._depth_image, self._depth_meta = _depth_view_and_meta(
                     self.msg.depth, self._depth_meta
                 )
+
+            # Get image size (only if not already known)
+            self._img_size = self.__get_img_size()
 
             # Get requested item from trackings using id or label
             label_index = None
