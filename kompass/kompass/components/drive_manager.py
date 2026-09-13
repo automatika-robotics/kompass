@@ -12,7 +12,7 @@ from kompass_cpp.types import SensorInputType
 
 # KOMPASS ROS
 from ..config import BaseValidators, ComponentConfig, ComponentRunType
-from .ros import Topic, update_topics, component_action
+from .ros import ActionReturnType, Topic, update_topics, component_action
 from .component import Component
 from ..callbacks import LaserScanCallback, PointCloudCallback, RangeCallback
 from .defaults import (
@@ -707,14 +707,14 @@ class DriveManager(Component):
             },
         }
     )
-    def move_forward(self, max_distance: float, **_) -> bool:
+    def move_forward(self, max_distance: float, **_) -> ActionReturnType:
         """Moves the robot forward if the forward direction is clear of obstacles
 
         :param max_distance: Maximum distance (m)
         :type max_distance: float
 
-        :return: If the movement action is performed
-        :rtype: bool
+        :return: If the movement action is performed, with the distance traveled
+        :rtype: ActionReturnType
         """
 
         unblocking = True
@@ -744,8 +744,14 @@ class DriveManager(Component):
                 traveled_distance += step_distance
                 time.sleep(1 / self.config.loop_rate)
 
-        # Return true if unblocking forward is done
-        return traveled_distance >= max_distance
+        # Succeed if unblocking forward is done
+        if traveled_distance >= max_distance:
+            return True, f"Moved forward {traveled_distance:.2f}m"
+        return (
+            False,
+            f"Moved forward {traveled_distance:.2f}m of {max_distance:.2f}m, "
+            "the forward direction is blocked",
+        )
 
     @component_action(
         description={
@@ -768,14 +774,14 @@ class DriveManager(Component):
             },
         }
     )
-    def move_backward(self, max_distance: float, **_) -> bool:
+    def move_backward(self, max_distance: float, **_) -> ActionReturnType:
         """Moves the robot backwards if the backward direction is clear of obstacles
 
         :param max_distance: Maximum distance (m)
         :type max_distance: float
 
-        :return: If the movement action is performed
-        :rtype: bool
+        :return: If the movement action is performed, with the distance traveled
+        :rtype: ActionReturnType
         """
         unblocking = True
         step_distance = self.robot.ctrl_vx_limits.max_vel / (2 * self.config.loop_rate)
@@ -804,8 +810,14 @@ class DriveManager(Component):
                 traveled_distance += step_distance
                 time.sleep(1 / self.config.loop_rate)
 
-        # Return true if unblocking forward is done
-        return traveled_distance >= max_distance
+        # Succeed if unblocking backward is done
+        if traveled_distance >= max_distance:
+            return True, f"Moved backward {traveled_distance:.2f}m"
+        return (
+            False,
+            f"Moved backward {traveled_distance:.2f}m of {max_distance:.2f}m, "
+            "the backward direction is blocked",
+        )
 
     @component_action(
         description={
@@ -836,20 +848,19 @@ class DriveManager(Component):
     )
     def rotate_in_place(
         self, max_rotation: float, safety_margin: Optional[float] = None, **_
-    ) -> bool:
+    ) -> ActionReturnType:
         """Rotates the robot in place if a safety margin around the robot is clear
 
         :param safety_margin: Margin clear of obstacles to perform rotation, if None defaults to 5% of the robot_radius
         :type safety_margin: Optional[float], optional
 
-        :return: If the movement action is performed
-        :rtype: bool
+        :return: If the movement action is performed, with the angle rotated
+        :rtype: ActionReturnType
         """
         if self.robot.model_type == RobotType.ACKERMANN:
-            self.get_logger().error(
-                "Rotation in place action is called but ACKERMANN type robot cannot rotate in place. Aborting"
-            )
-            return False
+            error = "Rotation in place action is called but ACKERMANN type robot cannot rotate in place. Aborting"
+            self.get_logger().error(error)
+            return False, error
 
         unblocking = True
         traveled_radius = 0.0
@@ -881,8 +892,14 @@ class DriveManager(Component):
                 )
                 time.sleep(1 / self.config.loop_rate)
 
-        # Return true if unblocking forward is done
-        return traveled_radius >= max_rotation
+        # Succeed if the rotation is done
+        if traveled_radius >= max_rotation:
+            return True, f"Rotated in place {traveled_radius:.2f}rad"
+        return (
+            False,
+            f"Rotated in place {traveled_radius:.2f}rad of {max_rotation:.2f}rad, "
+            "the area around the robot is blocked",
+        )
 
     @component_action(
         description={
@@ -925,7 +942,7 @@ class DriveManager(Component):
         max_rotation: float = np.pi / 2,
         rotation_safety_margin: Optional[float] = None,
         **_,
-    ) -> bool:
+    ) -> ActionReturnType:
         """Moves the robot forward/backward or rotate in place to get out of blocking spots
 
         :param max_distance_forward: Maximum distance to move forward (meters), if None defaults to 2 * robot_radius
@@ -937,14 +954,13 @@ class DriveManager(Component):
         :param rotation_safety_margin: Safety margin to perform rotation in place (meters), if None defaults to 5% of robot_radius
         :type rotation_safety_margin: Optional[float], optional
 
-        :return: If one of the movement actions is performed
-        :rtype: bool
+        :return: If one of the movement actions is performed, with the one that was
+        :rtype: ActionReturnType
         """
         if not (self._pc_checker or self._scan_checker):
-            self.get_logger().error(
-                "Proximity sensor data unavailable - Unblocking functionality requires LaserScan or PointCloud information"
-            )
-            return False
+            error = "Proximity sensor data unavailable - Unblocking functionality requires LaserScan or PointCloud information"
+            self.get_logger().error(error)
+            return False, error
 
         if not max_distance_forward:
             max_distance_forward = 2 * self.robot_radius
@@ -968,20 +984,24 @@ class DriveManager(Component):
 
         random.shuffle(unblocking_actions)
 
-        unblocked = False
+        unblocked, message = False, ""
         for action, args, log_info in unblocking_actions:
             self.get_logger().info(f"Performing unblocking action: {log_info}")
-            unblocked = action(*args)
+            # NOTE: unpacked rather than tested directly, the (success, message)
+            # tuple is always truthy
+            unblocked, message = action(*args)
             if unblocked:
                 break
 
-        if not unblocked:
-            self.get_logger().error("Robot unblocking Failed due to nearby obstacles")
-        else:
-            self.get_logger().info("Robot Unblocking Action Done!")
         self._unblocking_on = False
 
-        return unblocked
+        if not unblocked:
+            error = "Robot unblocking Failed due to nearby obstacles"
+            self.get_logger().error(error)
+            return False, error
+
+        self.get_logger().info("Robot Unblocking Action Done!")
+        return True, f"Robot unblocked: {message}"
 
     def __filter_multi_cmds(self, cmd_list: list, max_acc: float, max_vel: float):
         """Smooth the multi-cmds
