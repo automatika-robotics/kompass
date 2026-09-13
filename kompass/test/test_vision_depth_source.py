@@ -189,7 +189,14 @@ def test_planner_attaches_the_depth_source_only_when_configured(monkeypatch):
     def planner_with(depth_source):
         p = make_planner_stub()
         p._inputs_keys = [TopicsKeys.GOAL_POINT]
+        # Specced on DetectionsCallback so the planner's isinstance check
+        # passes. Without the embodied-agents messages installed that class
+        # is a stub with none of the real methods, so the two the planner
+        # calls are added by hand
         goal_callback = MagicMock(spec=DetectionsCallback)
+        if not hasattr(DetectionsCallback, "set_depth_detector"):
+            goal_callback.set_depth_detector = MagicMock()
+            goal_callback.set_depth_source = MagicMock()
         goal_callback.input_topic = SimpleNamespace(name="/detections")
         callbacks = {
             TopicsKeys.GOAL_POINT: goal_callback,
