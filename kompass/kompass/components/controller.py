@@ -1238,6 +1238,32 @@ class Controller(Component):
         else:
             self.get_publisher(TopicsKeys.INTERMEDIATE_CMD).publish([0.0, 0.0, 0.0])
 
+    @component_action(
+        description={
+            "type": "function",
+            "function": {
+                "name": "stop_path_tracking",
+                "description": "Stop following the current path and stop the robot. "
+                "The controller stays idle until a new path is received. "
+                "Use when the robot should stop and hold its position.",
+                "parameters": {"type": "object", "properties": {}},
+            },
+        }
+    )
+    def stop_path_tracking(self, **_) -> ActionReturnType:
+        """Ends tracking of the current path, as if its end was reached, and
+        stops the robot. A new plan resumes tracking
+
+        :return: Always succeeds
+        :rtype: ActionReturnType
+        """
+        self._reached_end = True
+        plan_callback = self.get_callback(TopicsKeys.GLOBAL_PLAN)
+        if plan_callback:
+            plan_callback.clear_last_msg()
+        self._stop_robot()
+        return True, "Path tracking stopped"
+
     def _publish(
         self,
         commands_vx: List[float],
