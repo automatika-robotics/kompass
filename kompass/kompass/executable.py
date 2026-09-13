@@ -13,6 +13,8 @@ from kompass.components import (
     LocalMapper,
     MapServer,
     MapServerConfig,
+    MissionManager,
+    MissionManagerConfig,
 )
 
 _kompass_components = [
@@ -22,6 +24,7 @@ _kompass_components = [
     MotionServer,
     LocalMapper,
     MapServer,
+    MissionManager,
 ]
 
 _kompass_configs = [
@@ -31,6 +34,7 @@ _kompass_configs = [
     MotionServerConfig,
     LocalMapperConfig,
     MapServerConfig,
+    MissionManagerConfig,
 ]
 
 

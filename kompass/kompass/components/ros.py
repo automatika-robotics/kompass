@@ -3,12 +3,13 @@ from typing import Optional, Dict, Union, List
 from ros_sugar.io import AllowedTopics
 from ros_sugar.io import Topic
 from ros_sugar.base_clients import ActionClientHandler
-from ros_sugar.utils import component_action
+from ros_sugar.utils import ActionReturnType, component_action
 from .defaults import TopicsKeys
 
 
 __all__ = [
     "ActionClientHandler",
+    "ActionReturnType",
     "component_action",
 ]
 

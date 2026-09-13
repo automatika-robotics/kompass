@@ -1,4 +1,5 @@
 from ros_sugar.utils import (
+    ActionReturnType,
     IncompatibleSetup,
     IntEnum,
     action_handler,
@@ -18,6 +19,7 @@ from ros_sugar.io.utils import (
 from kompass_core.control import StrEnum
 
 __all__ = [
+    "ActionReturnType",
     "IncompatibleSetup",
     "IntEnum",
     "StrEnum",
