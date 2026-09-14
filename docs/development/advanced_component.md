@@ -12,13 +12,13 @@ Every component has a `health_status` object (an instance of `Status` from `ros_
 
 ### Status Levels
 
-| Code | Constant | Meaning |
-|---|---|---|
-| 0 | `STATUS_HEALTHY` | Running normally |
-| 1 | `STATUS_FAILURE_ALGORITHM_LEVEL` | An algorithm used by the component failed |
-| 2 | `STATUS_FAILURE_COMPONENT_LEVEL` | The component itself (or another component) failed |
-| 3 | `STATUS_FAILURE_SYSTEM_LEVEL` | An external dependency failed (e.g. missing topic) |
-| 4 | `STATUS_GENERAL_FAILURE` | Unspecified failure |
+| Code | Constant                         | Meaning                                            |
+| ---- | -------------------------------- | -------------------------------------------------- |
+| 0    | `STATUS_HEALTHY`                 | Running normally                                   |
+| 1    | `STATUS_FAILURE_ALGORITHM_LEVEL` | An algorithm used by the component failed          |
+| 2    | `STATUS_FAILURE_COMPONENT_LEVEL` | The component itself (or another component) failed |
+| 3    | `STATUS_FAILURE_SYSTEM_LEVEL`    | An external dependency failed (e.g. missing topic) |
+| 4    | `STATUS_GENERAL_FAILURE`         | Unspecified failure                                |
 
 ### Setting Status
 
@@ -158,13 +158,13 @@ my_component.on_giveup(
 
 ### Fallback Hierarchy
 
-| Method | Triggers on | Priority |
-|---|---|---|
-| `on_algorithm_fail()` | `set_fail_algorithm()` | Checked first |
-| `on_component_fail()` | `set_fail_component()` | Checked second |
-| `on_system_fail()` | `set_fail_system()` | Checked third |
-| `on_fail()` | Any failure without a specific handler | Catch-all |
-| `on_giveup()` | All fallbacks exhausted | Last resort |
+| Method                | Triggers on                            | Priority       |
+| --------------------- | -------------------------------------- | -------------- |
+| `on_algorithm_fail()` | `set_fail_algorithm()`                 | Checked first  |
+| `on_component_fail()` | `set_fail_component()`                 | Checked second |
+| `on_system_fail()`    | `set_fail_system()`                    | Checked third  |
+| `on_fail()`           | Any failure without a specific handler | Catch-all      |
+| `on_giveup()`         | All fallbacks exhausted                | Last resort    |
 
 The fallback check runs on a timer (default 100 Hz) while the component is active. When `health_status` is not healthy, the system:
 
@@ -197,15 +197,15 @@ my_component.on_algorithm_fail(
 
 These methods are available on every component and can be used as fallback actions:
 
-| Action | Description |
-|---|---|
-| `start()` | Activate the component (lifecycle transition) |
-| `stop()` | Deactivate the component |
-| `restart(wait_time=None)` | Stop then start (optional delay between) |
-| `reconfigure(new_config, keep_alive=False)` | Apply a new config (optionally while running) |
-| `set_param(param_name, new_value, keep_alive=True)` | Change a single parameter |
-| `set_params(params_names, new_values, keep_alive=True)` | Change multiple parameters |
-| `broadcast_status()` | Publish current status (default fallback) |
+| Action                                                  | Description                                   |
+| ------------------------------------------------------- | --------------------------------------------- |
+| `start()`                                               | Activate the component (lifecycle transition) |
+| `stop()`                                                | Deactivate the component                      |
+| `restart(wait_time=None)`                               | Stop then start (optional delay between)      |
+| `reconfigure(new_config, keep_alive=False)`             | Apply a new config (optionally while running) |
+| `set_param(param_name, new_value, keep_alive=True)`     | Change a single parameter                     |
+| `set_params(params_names, new_values, keep_alive=True)` | Change multiple parameters                    |
+| `broadcast_status()`                                    | Publish current status (default fallback)     |
 
 ### Default Behavior
 
@@ -218,28 +218,31 @@ Events allow components to react to data-driven conditions. An `Event` pairs a t
 ### Defining Events
 
 ```python
-from ros_sugar.core import Event, Action
+from ros_sugar.core import Event
 from ros_sugar.io import Topic
 
 # Topic-based: triggers whenever a message arrives
 sensor_topic = Topic(name="/emergency", msg_type="Bool")
 event = Event(event_condition=sensor_topic)
 
-# Action-based: polls a method at a given rate
+# Callable-based: polls a predicate at a given rate
+def battery_low() -> bool:
+    return read_battery_level() < 0.2
+
 event = Event(
-    event_condition=Action(my_component.check_battery),
+    event_condition=battery_low,
     check_rate=1.0,  # Poll at 1 Hz
 )
 ```
 
 ### Event Options
 
-| Parameter | Default | Description |
-|---|---|---|
-| `on_change` | `False` | Only trigger when the value changes (not on every message) |
-| `handle_once` | `False` | Only trigger once during the component's lifetime |
-| `keep_event_delay` | `0.0` | Minimum delay (seconds) between consecutive triggers |
-| `check_rate` | `None` | Poll rate (Hz) for action-based events |
+| Parameter          | Default | Description                                                                            |
+| ------------------ | ------- | -------------------------------------------------------------------------------------- |
+| `on_change`        | `False` | Only trigger when the value changes (not on every message)                             |
+| `handle_once`      | `False` | Only trigger once during the component's lifetime                                      |
+| `keep_event_delay` | `0.0`   | Minimum delay (seconds) between consecutive triggers                                   |
+| `check_rate`       | `None`  | Poll rate (Hz) for callable-based events. Without it the component's loop rate is used |
 
 ### Wiring Events to Actions
 
