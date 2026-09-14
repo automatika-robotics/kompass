@@ -656,15 +656,18 @@ class TestSetAlgorithm:
     # functools.wraps exposes the original via __wrapped__.
     _raw = staticmethod(Controller.set_algorithm.__wrapped__)
 
-    def test_returns_true_when_value_matches_current(self):
+    def test_succeeds_when_value_matches_current(self):
         c = make_path_controller_stub()
         from kompass_core.control import ControllersID
         c.config.algorithm = ControllersID.DWA
 
-        assert self._raw(c, "DWA") is True
+        success, message = self._raw(c, "DWA")
 
-    def test_returns_true_on_successful_change(self, monkeypatch):
-        """Happy path: setter succeeds -> method must return True (not None)."""
+        assert success is True
+        assert "already" in message
+
+    def test_succeeds_on_successful_change(self, monkeypatch):
+        """Happy path: setter succeeds -> method must report success with a message."""
         c = make_path_controller_stub()
         from kompass_core.control import ControllersID
         c.config.algorithm = ControllersID.DWA
@@ -679,10 +682,13 @@ class TestSetAlgorithm:
             ),
         )
 
-        assert self._raw(c, "Stanley") is True
+        success, message = self._raw(c, "Stanley")
 
-    def test_logs_and_returns_false_when_setter_raises(self, monkeypatch):
-        """B10 regression: failure path logs via get_logger and returns False."""
+        assert success is True
+        assert "Stanley" in message
+
+    def test_logs_and_fails_when_setter_raises(self, monkeypatch):
+        """B10 regression: failure path logs via get_logger and reports the error."""
         c = make_path_controller_stub()
         from kompass_core.control import ControllersID
         c.config.algorithm = ControllersID.DWA
@@ -696,7 +702,29 @@ class TestSetAlgorithm:
             property(lambda self: self.config.algorithm, _raise),
         )
 
-        result = self._raw(c, "Stanley")
+        success, message = self._raw(c, "Stanley")
 
-        assert result is False
+        assert success is False
+        assert "simulated setter failure" in message
+        c.get_logger.return_value.error.assert_called()
+
+    def test_logs_and_fails_for_unknown_algorithm_name(self, monkeypatch):
+        """An unknown name is reported as a failure rather than raised, and the
+        setter is never reached."""
+        c = make_path_controller_stub()
+        from kompass_core.control import ControllersID
+        c.config.algorithm = ControllersID.DWA
+
+        setter = MagicMock()
+        monkeypatch.setattr(
+            Controller,
+            "algorithm",
+            property(lambda self: self.config.algorithm, setter),
+        )
+
+        success, message = self._raw(c, "NotAnAlgorithm")
+
+        assert success is False
+        assert "NotAnAlgorithm" in message
+        setter.assert_not_called()
         c.get_logger.return_value.error.assert_called()

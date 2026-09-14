@@ -9,16 +9,19 @@ from __future__ import annotations
 
 import threading
 from types import SimpleNamespace
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, PropertyMock, patch
 
 import numpy as np
 from kompass_core.models import RobotState
+from rclpy import qos
 
 from builtin_interfaces.msg import Time
 
+from kompass.components.defaults import TopicsKeys
 from kompass.components.planner import Planner
 from kompass.components.ros import Topic
 from kompass_interfaces.msg import PathTrackingError
+from ros_sugar.config import QoSConfig
 from ros_sugar.io.publisher import Publisher
 
 
@@ -72,6 +75,7 @@ def make_planner_stub(**overrides) -> Planner:
     p._recorded_motion = None
     p._last_path_cost = float("inf")
     p._main_goal_lock = threading.Lock()
+    p._map_lock = threading.Lock()
     p._config_file = None
 
     # ROS infra fakes
@@ -287,6 +291,156 @@ class TestPlanHeader:
         assert (sent_msg.header.stamp.sec, sent_msg.header.stamp.nanosec) != (0, 0)
         # ros_path reference matches the sent msg (identity convert for Path)
         assert p.ros_path is sent_msg
+
+
+# ---------------------------------------------------------------------------
+# Planning map  (set on the OMPL planner once when received, not on every plan)
+# ---------------------------------------------------------------------------
+
+MAP_DATA = {
+    "resolution": 0.05,
+    "width": 10,
+    "height": 10,
+    "origin_x": 0.0,
+    "origin_y": 0.0,
+    "origin_yaw": 0.0,
+}
+
+
+def make_map_callback() -> MagicMock:
+    """A map topic callback, read by the planner for the map metadata only"""
+    callback = MagicMock()
+    callback.get_output.return_value = MAP_DATA
+    return callback
+
+
+class TestPlanningMap:
+    def test_received_map_is_set_on_the_ompl_planner(self):
+        p = make_planner_stub(get_callback=MagicMock(return_value=make_map_callback()))
+        map_3d = np.zeros((4, 3), dtype=np.float32)
+
+        p._set_planning_map(output=map_3d, msg=MagicMock(), topic=MagicMock())
+
+        p.ompl_planner.set_map.assert_called_once_with(map_3d)
+        assert p.map is map_3d
+        assert p.map_data == MAP_DATA
+
+    def test_map_received_before_the_ompl_planner_is_kept(self):
+        p = make_planner_stub(get_callback=MagicMock(return_value=make_map_callback()))
+        del p.ompl_planner
+        map_3d = np.zeros((4, 3), dtype=np.float32)
+
+        p._set_planning_map(output=map_3d)
+
+        assert p.map is map_3d
+        assert p.map_data == MAP_DATA
+
+    def test_kept_map_is_set_when_the_ompl_planner_is_created(self):
+        p = make_planner_stub(get_callback=MagicMock(return_value=make_map_callback()))
+        del p.ompl_planner
+        map_3d = np.zeros((4, 3), dtype=np.float32)
+        p._set_planning_map(output=map_3d)
+
+        p._attach_callbacks = MagicMock()
+        p._attach_map_callback = MagicMock()
+        with patch("kompass.components.planner.OMPLGeometric") as ompl_class:
+            with patch("kompass.components.planner.Robot"):
+                with patch.object(Planner, "robot", new_callable=PropertyMock):
+                    with patch.object(
+                        Planner, "robot_geometry_type", new_callable=PropertyMock
+                    ):
+                        p.init_variables()
+
+        ompl_class.return_value.set_map.assert_called_once_with(map_3d)
+        assert p.map_data == MAP_DATA
+
+    def test_missing_map_output_is_ignored(self):
+        p = make_planner_stub(get_callback=MagicMock(return_value=make_map_callback()))
+
+        p._set_planning_map(output=None)
+
+        p.ompl_planner.set_map.assert_not_called()
+        assert p.map_data is None
+
+    def test_map_callback_sets_the_planning_map(self):
+        callback = make_map_callback()
+        p = make_planner_stub(get_callback=MagicMock(return_value=callback))
+
+        p._attach_map_callback()
+
+        callback.on_callback_execute.assert_called_once_with(p._set_planning_map)
+
+    def test_planning_does_not_set_the_map_again(self):
+        p = make_planner_stub()
+        p.map_data = MAP_DATA
+
+        p._plan(start=RobotState(x=0.0, y=0.0), goal=RobotState(x=1.0, y=1.0))
+
+        p.ompl_planner.setup_problem.assert_called_once()
+        args, kwargs = p.ompl_planner.setup_problem.call_args
+        # Map metadata, start and goal only: no map to rebuild the collision map from
+        assert len(args) == 7 and "map_3d" not in kwargs
+        p.ompl_planner.set_map.assert_not_called()
+        assert not p._map_lock.locked()
+
+    def test_no_planning_before_a_map_is_received(self):
+        p = make_planner_stub()
+
+        result = p._plan(start=RobotState(x=0.0, y=0.0), goal=RobotState(x=1.0, y=1.0))
+
+        assert result is False
+        p.ompl_planner.setup_problem.assert_not_called()
+        p.health_status.set_fail_system.assert_called_once()
+
+    def test_updating_the_state_does_not_read_the_map(self):
+        p = make_planner_stub(get_callback=MagicMock(return_value=MagicMock()))
+        p._inputs_keys = [TopicsKeys.ROBOT_LOCATION]
+
+        with patch.object(
+            Planner, "odom_tf_listener", new_callable=PropertyMock, return_value=None
+        ):
+            p._update_state()
+
+        read_keys = [call.args[0] for call in p.get_callback.call_args_list]
+        assert TopicsKeys.GLOBAL_MAP not in read_keys
+
+
+class TestMapInputQoS:
+    """The map is published once: the planner has to get it even when joining later"""
+
+    @staticmethod
+    def _assert_latched(topic: Topic):
+        assert topic.qos_profile.durability == qos.DurabilityPolicy.TRANSIENT_LOCAL
+        assert topic.qos_profile.reliability == qos.ReliabilityPolicy.RELIABLE
+
+    def test_default_map_input_is_latched(self):
+        planner = Planner(component_name="planner_default_map_qos_test")
+
+        self._assert_latched(planner.get_in_topic(TopicsKeys.GLOBAL_MAP))
+
+    def test_given_map_input_is_latched(self):
+        shared_qos = QoSConfig(reliability=qos.ReliabilityPolicy.BEST_EFFORT)
+        map_topic = Topic(
+            name="/my_map", msg_type="OccupancyGrid", qos_profile=shared_qos
+        )
+
+        planner = Planner(
+            component_name="planner_map_qos_test", inputs={"map": map_topic}
+        )
+
+        self._assert_latched(planner.get_in_topic(TopicsKeys.GLOBAL_MAP))
+        # A QoS profile shared with other topics is left unchanged
+        assert shared_qos.durability == qos.DurabilityPolicy.VOLATILE
+        assert shared_qos.reliability == qos.ReliabilityPolicy.BEST_EFFORT
+
+    def test_map_input_set_after_init_is_latched(self):
+        planner = Planner(component_name="planner_map_qos_after_init_test")
+
+        map_topic = Topic(name="/my_map", msg_type="OccupancyGrid")
+        planner.inputs(map=map_topic)
+
+        assert planner.get_in_topic(TopicsKeys.GLOBAL_MAP).name == map_topic.name
+        self._assert_latched(planner.get_in_topic(TopicsKeys.GLOBAL_MAP))
 
 
 # ---------------------------------------------------------------------------
