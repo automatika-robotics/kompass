@@ -120,6 +120,9 @@ class DriveManagerConfig(ComponentConfig):
     stale_sensor_policy: str = field(
         default="stop", validator=BaseValidators.in_(["stop", "skip"])
     )  # "stop": stale safety sensor triggers emergency stop; "skip": check runs on the remaining sensors
+    pc_min_height: float = field(
+        default=0.0, validator=BaseValidators.in_range(min_value=0.0, max_value=1e9)
+    )  # Minimum height for point cloud filtering
 
 
 class DriveManager(Component):
@@ -1459,7 +1462,7 @@ class DriveManager(Component):
             "critical_angle": self.config.critical_zone_angle,
             "critical_distance": self.config.critical_zone_distance,
             "slowdown_distance": self.config.slowdown_zone_distance,
-            "min_height": 0.0,
+            "min_height": self.config.pc_min_height,
             "max_height": self.robot_height,
             "range_max": 3 * self.config.slowdown_zone_distance,
         }
