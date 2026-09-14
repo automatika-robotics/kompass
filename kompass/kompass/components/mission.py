@@ -20,8 +20,7 @@ from kompass_interfaces.msg import MissionStatus
 from rclpy import qos
 from ros_sugar.base_clients import ServiceClientHandler
 from ros_sugar.config import QoSConfig
-from ros_sugar.core import Monitor
-from ros_sugar.core._action_registry import SystemActionRegistry
+from ros_sugar.core import Monitor, SystemActionRegistry
 from ros_sugar.io import Topic
 
 from ..config import BaseValidators, ComponentConfig, ComponentRunType
