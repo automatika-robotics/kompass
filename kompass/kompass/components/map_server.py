@@ -18,7 +18,7 @@ from kompass_core.utils import get_occupancy_grid_from_pcd, get_points_from_pcd
 from rclpy.callback_groups import ReentrantCallbackGroup
 from ..config import BaseValidators, ComponentConfig, ComponentRunType
 from ..utils import IntEnum
-from .ros import Topic, update_topics
+from .ros import Topic, set_latched_qos, update_topics
 from .component import Component
 from .defaults import TopicsKeys, map_server_allowed_outputs, map_server_default_outputs
 from kompass_interfaces.srv import Save3dMapToFile, Save2dMapToFile
@@ -47,7 +47,7 @@ class MapServerConfig(ComponentConfig):
 
     * - **map_file_read_rate**
       - `float`, `0.0`
-      - Rate to read and convert the map data from file. If zero, converts once.
+      - Rate to read and convert the map data from file. If zero, converts once. The map is published each time it is read.
 
     * - **pc_publish_row**
       - `bool`, `True`
@@ -114,7 +114,7 @@ class MapServer(Component):
     * - **global_map**
       - [`nav_msgs.msg.OccupancyGrid`](http://docs.ros.org/en/noetic/api/nav_msgs/html/msg/OccupancyGrid.html)
       - 1
-      - `Topic(name="/map", msg_type="OccupancyGrid")` - Global map generated from input data.
+      - `Topic(name="/map", msg_type="OccupancyGrid")` - Global map generated from input data. Published once when loaded from file with a reliable and transient local QoS, so subscribers joining later still receive it. Subscribers need the same QoS.
 
     * - **spatial_sensor**
       - [`sensor_msgs.msg.PointCloud2`](http://docs.ros.org/en/noetic/api/sensor_msgs/html/msg/PointCloud2.html)
@@ -187,6 +187,15 @@ class MapServer(Component):
             **kwargs,
         )
         self.config: MapServerConfig = config
+        # The map is published once, and has to reach subscribers joining later
+        set_latched_qos(self.get_out_topic(TopicsKeys.GLOBAL_MAP))
+
+    def outputs(self, **kwargs):
+        """
+        Set component output streams (topics). The map output always gets a latched QoS, as the map is published once
+        """
+        super().outputs(**kwargs)
+        set_latched_qos(self.get_out_topic(TopicsKeys.GLOBAL_MAP))
 
     def init_variables(self):
         """
@@ -290,7 +299,21 @@ class MapServer(Component):
         self.get_logger().info(
             f"Loaded 2D map from {self.config.map_file_path} with size {self._grid_data.shape}."
         )
+        self._publish_map()
         return True
+
+    def _publish_map(self) -> None:
+        """Publish the loaded map.
+
+        Published once per loaded map, the latched QoS of the map output delivers
+        it to the subscribers joining later
+        """
+        self.get_publisher(TopicsKeys.GLOBAL_MAP).publish(
+            self._grid_data,
+            resolution=self._grid_res,
+            origin=self._grid_origin,
+            frame_id=self.config.custom_map_frame or self.config.frames.world,
+        )
 
     def _read_map_from_yaml(self, yaml_path: str):
         """Read a 2D map from a YAML file and convert it to an OccupancyGrid message
@@ -567,17 +590,9 @@ class MapServer(Component):
         """
         Main execution of the component, executed at ech timer tick with rate self.config.loop_rate
         """
+        # NOTE: The map is not published here, but once when it is loaded (see _publish_map)
         if self._pc_msg is not None and self.config.pc_publish_row:
             self.get_publisher(TopicsKeys.SPATIAL_SENSOR).publish(self._pc_msg)
-        if self._grid_data is None:
-            self.get_logger().debug("No map data to publish")
-            return
-        self.get_publisher(TopicsKeys.GLOBAL_MAP).publish(
-            self._grid_data,
-            resolution=self._grid_res,
-            origin=self._grid_origin,
-            frame_id=self.config.custom_map_frame or self.config.frames.world,
-        )
 
     def _execute_once(self):
         if self.config.map_file_read_rate == 0.0 and self.config.map_file_path:

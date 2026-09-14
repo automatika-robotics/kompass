@@ -1,4 +1,5 @@
 from typing import Any, Dict, Optional
+import threading
 import time
 import numpy as np
 from attrs import field, define
@@ -29,7 +30,7 @@ from ..callbacks import (
     DetectionsCallback,
     PointCloudCallback,
 )
-from .ros import Topic, update_topics, ActionClientHandler
+from .ros import Topic, set_latched_qos, update_topics, ActionClientHandler
 from .component import Component
 from .defaults import (
     TopicsKeys,
@@ -73,7 +74,7 @@ class Planner(Component):
     Planner Component used for path planning during navigation.
 
     ## Input Topics:
-    - *map_layer*: Global map used for planning.<br />
+    - *map*: Global map used for planning, set on the planner when received. Always subscribed with a reliable and transient local QoS, to receive a map published once (latched) even when joining later.<br />
                  Default: ``` Topic(name="/map", msg_type="OccupancyGrid" qos_profile=QoSConfig(durability=qos.DurabilityPolicy.TRANSIENT_LOCAL))```
     - *location*: the robot current location.<br /> Default ```Topic(name="/odom", msg_type="Odometry")```
     - *goal_point*: 2D navigation goal point on the map.<br /> Default ``` Topic(name="/goal", msg_type="PointStamped") ```
@@ -175,10 +176,23 @@ class Planner(Component):
 
         self.config: PlannerConfig = config
 
+        # The map is published once, and has to be received when joining later
+        set_latched_qos(self.get_in_topic(TopicsKeys.GLOBAL_MAP))
+        # Held while the planning map is set or planned on: OMPL plans without
+        # the GIL, and a new map is set from the map subscriber thread
+        self._map_lock = threading.Lock()
+
         # Main service and action types of the planner component
         self.service_type = PlanPathSrv
         self.action_type = PlanPathAction
         self.main_action_name = "navigate_to_goal"
+
+    def inputs(self, **kwargs):
+        """
+        Set component input streams (topics). The map input always gets a latched QoS, as the map is published once
+        """
+        super().inputs(**kwargs)
+        set_latched_qos(self.get_in_topic(TopicsKeys.GLOBAL_MAP))
 
     def inspect_component(self) -> str:
         """
@@ -257,7 +271,8 @@ class Planner(Component):
         """
         super().config_from_file(config_file)
         if hasattr(self, "ompl_planner"):
-            self.ompl_planner.configure(config_file, self.node_name)
+            with self._map_lock:
+                self.ompl_planner.configure(config_file, self.node_name)
 
     def init_variables(self):
         """
@@ -265,8 +280,9 @@ class Planner(Component):
         """
         self.goal: Dict[int, RobotState] = {}
         self.robot_state: Optional[RobotState] = None
-        self.map: Optional[np.ndarray] = None
-        self.map_data: Optional[Dict] = None
+        # Kept if already received, the map is published once
+        self.map: Optional[np.ndarray] = getattr(self, "map", None)
+        self.map_data: Optional[Dict] = getattr(self, "map_data", None)
         self.reached_end: bool = False
         self._depth_image_info: Optional[CameraIntrinsics] = None
 
@@ -277,9 +293,13 @@ class Planner(Component):
         )
 
         # Init OMPL with collision checking
-        self.ompl_planner = OMPLGeometric(
-            robot=self.__robot, log_level=self.config.core_log_level
-        )
+        with self._map_lock:
+            self.ompl_planner = OMPLGeometric(
+                robot=self.__robot, log_level=self.config.core_log_level
+            )
+            # Set a map received before the OMPL planner was created
+            if self.map is not None:
+                self.ompl_planner.set_map(self.map)
 
         if self._config_file:
             self.config_from_file(self._config_file)
@@ -291,6 +311,7 @@ class Planner(Component):
         self.ros_path = None
 
         self._attach_callbacks()
+        self._attach_map_callback()
 
     def create_all_services(self):
         """
@@ -453,6 +474,37 @@ class Planner(Component):
             raise ValueError(
                 f"At least one of the goal point callbacks is a {callback.__class__.__name__} which requires depth camera info input. Please provide a topic for {TopicsKeys.DEPTH_CAM_INFO} to ensure proper functionality."
             )
+
+    def _attach_map_callback(self):
+        """
+        Attaches setting the planning map to the map topic callback
+        """
+        map_callback = self.get_callback(TopicsKeys.GLOBAL_MAP)
+        if map_callback:
+            map_callback.on_callback_execute(self._set_planning_map)
+
+    def _set_planning_map(self, output: Optional[np.ndarray], **_) -> None:
+        """
+        Sets a new map received on the map topic on the OMPL planner
+
+        The map is published once, so the planner collision map is built once per map
+        and not on every plan. A map received before the OMPL planner is created is
+        kept and set on the planner when it is created (see init_variables)
+        """
+        map_data: Optional[Dict] = self.get_callback(TopicsKeys.GLOBAL_MAP).get_output(
+            get_metadata=True
+        )
+        if output is None or not map_data:
+            return
+        with self._map_lock:
+            self.map = output
+            self.map_data = map_data
+            if getattr(self, "ompl_planner", None) is None:
+                return
+            self.ompl_planner.set_map(output)
+        self.get_logger().info(
+            f"Got new map of {map_data['width']}x{map_data['height']} cells for planning"
+        )
 
     def main_service_callback(
         self, request: PlanPathSrv.Request, response: PlanPathSrv.Response
@@ -634,37 +686,36 @@ class Planner(Component):
         """
         Plans and publishes a path from current robot location to current goal
         """
-        # Check if all inputs are available
+        # Check if the map is available, it is set on the OMPL planner when received
         # goal_point is excluded since goal can be provided by either a topic, service call or action goal
-        if self.got_all_inputs(
-            inputs_to_check=[self.in_topic_name(TopicsKeys.GLOBAL_MAP)]
-        ):
+        if self.map_data is not None:
             self.get_logger().debug(
                 f"Setting planning problem with {self.ompl_planner.planner_id} from [{start.x},{start.y}] to [{goal.x}, {goal.y}] and map data {self.map_data}"
             )
 
-            self.ompl_planner.setup_problem(
-                self.map_data,
-                start.x,
-                start.y,
-                start.yaw,
-                goal.x,
-                goal.y,
-                goal.yaw,
-                self.map,
-            )
+            # A new map cannot be set while planning
+            with self._map_lock:
+                self.ompl_planner.setup_problem(
+                    self.map_data,
+                    start.x,
+                    start.y,
+                    start.yaw,
+                    goal.x,
+                    goal.y,
+                    goal.yaw,
+                )
 
-            try:
-                # Solve the planning problem
-                path = self.ompl_planner.solve()
-            except Exception as e:
-                self.get_logger().error(
-                    f"OMPL failed to find a solution. Got exception: {e}"
-                )
-                self.health_status.set_fail_algorithm(
-                    algorithm_names=[self.ompl_planner.planner_id]
-                )
-                return False
+                try:
+                    # Solve the planning problem
+                    path = self.ompl_planner.solve()
+                except Exception as e:
+                    self.get_logger().error(
+                        f"OMPL failed to find a solution. Got exception: {e}"
+                    )
+                    self.health_status.set_fail_algorithm(
+                        algorithm_names=[self.ompl_planner.planner_id]
+                    )
+                    return False
 
             if path:
                 # Add cost as last cost if it does not exist
@@ -727,10 +778,7 @@ class Planner(Component):
         """
         Updates all inputs
         """
-        self.map: Optional[np.ndarray] = self.get_callback(
-            TopicsKeys.GLOBAL_MAP
-        ).get_output()
-
+        # NOTE: The map is not updated here, but when received (see _set_planning_map)
         self.robot_state: Optional[RobotState] = self.get_callback(
             TopicsKeys.ROBOT_LOCATION
         ).get_output(
@@ -738,10 +786,6 @@ class Planner(Component):
             if self.odom_tf_listener
             else None
         )
-
-        self.map_data: Optional[Dict] = self.get_callback(
-            TopicsKeys.GLOBAL_MAP
-        ).get_output(get_metadata=True)
 
         num_goal_inputs = self._inputs_keys.count(TopicsKeys.GOAL_POINT)
         for idx in range(num_goal_inputs):

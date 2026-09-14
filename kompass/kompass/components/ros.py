@@ -1,5 +1,7 @@
 from typing import Optional, Dict, Union, List
 
+from attrs import evolve
+from rclpy import qos
 from ros_sugar.io import AllowedTopics
 from ros_sugar.io import Topic
 from ros_sugar.base_clients import ActionClientHandler
@@ -95,6 +97,26 @@ def _get_allowed_number(
     if _check_value_type_allowed_config(key, value, allowed_config):
         return num_non_optional + num_optional
     return None
+
+
+def set_latched_qos(topic: Optional[Topic]) -> None:
+    """Set a topic QoS to deliver its last message to subscribers that join after it was published
+
+    Required for data published only once, such as a static map. Both the publisher and
+    the subscribers of the topic need this QoS: reliable, so the single message is not
+    dropped, and transient local, so it is kept for late subscribers.
+    The QoS profile is replaced rather than modified, as one profile can be shared by several topics
+
+    :param topic: Topic to update, nothing is done if None
+    :type topic: Optional[Topic]
+    """
+    if topic is None:
+        return
+    topic.qos_profile = evolve(
+        topic.qos_profile,
+        reliability=qos.ReliabilityPolicy.RELIABLE,
+        durability=qos.DurabilityPolicy.TRANSIENT_LOCAL,
+    )
 
 
 def update_topics(
