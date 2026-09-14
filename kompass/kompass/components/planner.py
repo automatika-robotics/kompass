@@ -30,7 +30,14 @@ from ..callbacks import (
     DetectionsCallback,
     PointCloudCallback,
 )
-from .ros import Topic, set_latched_qos, update_topics, ActionClientHandler
+from .ros import (
+    ActionClientHandler,
+    ActionReturnType,
+    Topic,
+    component_action,
+    set_latched_qos,
+    update_topics,
+)
 from .component import Component
 from .defaults import (
     TopicsKeys,
@@ -390,6 +397,46 @@ class Planner(Component):
             f"depth from '{depth_source.input_topic.name}'"
         )
 
+    @component_action(
+        description={
+            "type": "function",
+            "function": {
+                "name": "trigger_main_action_server",
+                "description": "Send a navigation goal to the planner action server, which plans a path to the goal point and keeps planning until the robot reaches it. "
+                "Use when the user asks the robot to go to a point on the map. Requires the planner to run as an action server.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "goal_x": {
+                            "type": "number",
+                            "description": "Goal x coordinate on the map in meters.",
+                        },
+                        "goal_y": {
+                            "type": "number",
+                            "description": "Goal y coordinate on the map in meters.",
+                        },
+                        "goal_orientation": {
+                            "type": "number",
+                            "description": "Goal orientation (yaw) on the map in radians. Defaults to 0.0.",
+                        },
+                        "tolerance_dist": {
+                            "type": "number",
+                            "description": "Distance to the goal in meters within which it is reached. Defaults to 0.1.",
+                        },
+                        "tolerance_ori": {
+                            "type": "number",
+                            "description": "Orientation error in radians within which the goal is reached. Defaults to 0.1.",
+                        },
+                        "algorithm_name": {
+                            "type": "string",
+                            "description": "Planning algorithm to use. Leave empty to use the configured one.",
+                        },
+                    },
+                    "required": ["goal_x", "goal_y"],
+                },
+            },
+        }
+    )
     def trigger_main_action_server(
         self,
         goal_x: float = 0.0,
@@ -399,25 +446,29 @@ class Planner(Component):
         tolerance_ori: float = 0.1,
         algorithm_name: Optional[str] = None,
         **_,
-    ) -> None:
+    ) -> ActionReturnType:
         """A component action to trigger the main planner action (Plan path to point until reached)
 
-        :param goal_x: _description_, defaults to 0.0
+        :param goal_x: Goal x coordinate on the map (m), defaults to 0.0
         :type goal_x: float, optional
-        :param goal_y: _description_, defaults to 0.0
+        :param goal_y: Goal y coordinate on the map (m), defaults to 0.0
         :type goal_y: float, optional
-        :param tolerance_dist: _description_, defaults to 0.1
+        :param goal_orientation: Goal orientation on the map (rad), defaults to 0.0
+        :type goal_orientation: float, optional
+        :param tolerance_dist: Distance to the goal within which it is reached (m), defaults to 0.1
         :type tolerance_dist: float, optional
-        :param tolerance_ori: _description_, defaults to 0.1
+        :param tolerance_ori: Orientation error within which the goal is reached (rad), defaults to 0.1
         :type tolerance_ori: float, optional
-        :param algorithm_name: _description_, defaults to None
+        :param algorithm_name: Planning algorithm, defaults to None (configured algorithm)
         :type algorithm_name: Optional[str], optional
+
+        :return: If the goal was accepted by the action server, with a reason when it was not
+        :rtype: ActionReturnType
         """
         if self.run_type != ComponentRunType.ACTION_SERVER:
-            self.get_logger().error(
-                f"Cannot trigger main action server for component '{self.node_name}' that is running in '{self.run_type}' execution"
-            )
-            return
+            error = f"Cannot trigger main action server for component '{self.node_name}' that is running in '{self.run_type}' execution"
+            self.get_logger().error(error)
+            return False, error
         try:
             action_client = ActionClientHandler(
                 client_node=self,
@@ -433,12 +484,19 @@ class Planner(Component):
             goal.end_tolerance.orientation_error = tolerance_ori
             if algorithm_name:
                 goal.algorithm_name = algorithm_name
-            action_client.send_request(goal)
+            if not action_client.send_request(goal):
+                error = f"Goal ({goal_x}, {goal_y}) was not accepted: '{self.main_action_name}' action server on '{self.node_name}' is not available or rejected it"
+                self.get_logger().error(error)
+                return False, error
         except Exception as e:
-            self.get_logger().error(
-                f"Failed to trigger '{self.main_action_name}' action on '{self.node_name}': {e}"
-            )
+            error = f"Failed to trigger '{self.main_action_name}' action on '{self.node_name}': {e}"
+            self.get_logger().error(error)
             self.health_status.set_fail_component()
+            return False, error
+        return (
+            True,
+            f"Goal ({goal_x}, {goal_y}) sent to '{self.main_action_name}' action server on '{self.node_name}'",
+        )
 
     def _clear_path(self, *_, **__):
         """
