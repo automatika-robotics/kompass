@@ -306,7 +306,7 @@ class MapServer(Component):
 
         image_path = map_metadata["image"]
         resolution = float(map_metadata["resolution"])
-        origin = map_metadata["origin"]
+        origin = [float(v) for v in map_metadata["origin"]]
         negate = bool(map_metadata["negate"])
         occupied_thresh = float(map_metadata["occupied_thresh"])
         free_thresh = float(map_metadata["free_thresh"])
