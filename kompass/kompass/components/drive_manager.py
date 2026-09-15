@@ -1336,10 +1336,27 @@ class DriveManager(Component):
             return
         # Check emergency stop
         self._update_state()
+
+        # Re-run the safety check against the command about to go out, so the
+        # gate below sees current sensor data.
+        try:
+            next_cmd = self._cmds_queue.queue[0]
+        except IndexError:
+            next_cmd = None
+        checked_this_tick = False
+        if next_cmd is not None and (
+            self._pc_checker or self._scan_checker or self._range_callbacks
+        ):
+            self.slow_down_factor["scan_data"] = self._run_safety_check(
+                forward=(next_cmd[0] >= 0.0)
+            )
+            checked_this_tick = True
+
         speed_factor = min(self.slow_down_factor.values(), default=1.0)
         if speed_factor < 0.1:
-            # STOP ROBOT
+            # STOP ROBOT -> Send zero command and set emergency stop flag
             self.get_publisher(TopicsKeys.EMERGENCY).publish(True)
+            self.get_publisher(TopicsKeys.FINAL_COMMAND).publish([0.0, 0.0, 0.0])
             return
         else:
             self.get_publisher(TopicsKeys.EMERGENCY).publish(False)
@@ -1365,8 +1382,16 @@ class DriveManager(Component):
             _cmd_vel.angular.z = cmd[2]
             self.execute_cmd_closed_loop(_cmd_vel, max_time=self._multi_command_step)
         else:
-            # Execute cmd in open loop -> Publish once
-            self._publish_cmd(cmd[0], cmd[1], cmd[2])
+            # Execute cmd in open loop -> Publish once. When the safety check
+            # already ran this tick its factor is passed on rather than
+            # recomputed. Otherwise nothing is passed, so `_publish_cmd` keeps
+            # its guard against publishing before the checkers are initialized
+            self._publish_cmd(
+                cmd[0],
+                cmd[1],
+                cmd[2],
+                slowdown_factor=speed_factor if checked_this_tick else None,
+            )
 
     def _make_checker(self, **kwargs):
         """Constructs a critical zone checker: GPU implementation when enabled
