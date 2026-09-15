@@ -15,6 +15,7 @@ from typing import Any, Dict, List, Optional
 from attrs import define, field
 
 from automatika_ros_sugar.srv import ExecuteMethod
+from geometry_msgs.msg import PoseStamped
 from kompass_interfaces.action import MultiGoalPlanPath as MultiGoalPlanPathAction
 from kompass_interfaces.msg import MissionStatus
 from rclpy import qos
@@ -408,9 +409,7 @@ class MissionManager(Component):
         if not config_file:
             # A config file is only applied at configure, checked again there
             self.__check_components(config)
-        # The only input, and only the return-to-start policy needs it: that
-        # policy means the pose the robot was at when the mission began, which
-        # is not any of the waypoints
+
         super().__init__(
             config=config,
             config_file=config_file,
@@ -467,13 +466,8 @@ class MissionManager(Component):
         """Nothing runs outside a mission; the routine does the work"""
         pass
 
-    def start_pose(self):
-        """Where the robot is now, as a geometry_msgs/Pose, or None.
-
-        Read when a mission starts, so the return-to-start policy has somewhere
-        to return to. None when nothing has published a location yet, which
-        mission_routine_spec turns into a refusal rather than a wrong pose.
-        """
+    def __location_message(self):
+        """The latest robot location message, or None if none was received"""
         try:
             callback: Optional[GenericCallback] = self.get_callback(
                 TopicsKeys.ROBOT_LOCATION
@@ -482,12 +476,41 @@ class MissionManager(Component):
             return None
         if callback is None:
             return None
-        message = getattr(callback, "msg", None)
-        if message is None:
-            return None
+        return getattr(callback, "msg", None)
+
+    @staticmethod
+    def __pose_of(message):
+        """The geometry_msgs/Pose in a location message"""
         # Odometry nests it, PoseStamped wraps it, Pose is already one
         pose = getattr(message, "pose", message)
         return getattr(pose, "pose", pose)
+
+    def start_pose(self):
+        """Where the robot is now, as a geometry_msgs/Pose, or None.
+
+        Read when a mission starts, so the return-to-start policy has somewhere
+        to return to. None when nothing has published a location yet, which
+        mission_routine_spec turns into a refusal rather than a wrong pose.
+        """
+        message = self.__location_message()
+        if message is None:
+            return None
+        return self.__pose_of(message)
+
+    def current_pose(self) -> Optional[PoseStamped]:
+        """Where the robot is now, as a geometry_msgs/PoseStamped, or None.
+
+        A Pose location has no header, so its stamp and frame are left empty
+        """
+        message = self.__location_message()
+        if message is None:
+            return None
+        pose_stamped = PoseStamped()
+        header = getattr(message, "header", None)
+        if header is not None:
+            pose_stamped.header = header
+        pose_stamped.pose = self.__pose_of(message)
+        return pose_stamped
 
     # ---- Talking to the Monitor -------------------------------------------
 
@@ -632,6 +655,9 @@ class MissionManager(Component):
         self.__publish_status(self.__feedback_from_cursor({}, goal, total))
         period = 1.0 / self.config.cursor_poll_rate
         cursor: Dict[str, Any] = {}
+        # The pause step being held and when it was first seen, for time_paused
+        pause_step: Optional[str] = None
+        paused_since = 0.0
 
         while True:
             if goal_handle.is_cancel_requested:
@@ -649,11 +675,26 @@ class MissionManager(Component):
             latest = self.cursor(routine_name)
             if latest is not None:
                 cursor = latest
-                feedback = self.__feedback_from_cursor(cursor, goal, total)
-                goal_handle.publish_feedback(feedback)
-                self.__publish_status(feedback)
+                # An ended routine has no active step to report, only a result
                 if cursor.get("status") in ("completed", "failed", "aborted"):
                     break
+                feedback = self.__feedback_from_cursor(cursor, goal, total)
+                if feedback.state in (
+                    MultiGoalPlanPathAction.Feedback.STATE_PAUSED_DWELL,
+                    MultiGoalPlanPathAction.Feedback.STATE_PAUSED_CONDITION,
+                ):
+                    # Timed from the first poll that sees the pause, so it can
+                    # be short by up to one poll period
+                    step = cursor.get("active_step")
+                    if step != pause_step:
+                        pause_step, paused_since = step, time.monotonic()
+                    feedback.time_paused = time.monotonic() - paused_since
+                else:
+                    pause_step = None
+                if (pose := self.current_pose()) is not None:
+                    feedback.current_pose = pose
+                goal_handle.publish_feedback(feedback)
+                self.__publish_status(feedback)
             time.sleep(period)
 
         self.__fill_progress(result, cursor, total)
