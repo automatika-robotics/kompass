@@ -49,6 +49,10 @@ from kompass_interfaces.action import PlanPath as PlanPathAction
 from kompass_interfaces.msg import MissionStatus, PathTrackingError
 
 PAUSE_TOPIC = "/mission_go_on"
+#: Where the robot stands, away from the origin so a location that was never
+#: filled in does not look like one that was
+ROBOT_AT = (0.5, -0.25)
+ROBOT_FRAME = "map"
 
 #: Goals the stand-in planner was asked to drive to, in the order it got them
 planner_goals = []
@@ -167,9 +171,13 @@ class TestMission(unittest.TestCase):
         )
         cls.pause_publisher = cls.node.create_publisher(Bool, PAUSE_TOPIC, 10)
         # A robot standing still, so the drive manager can confirm it stopped
+        odom = Odometry()
+        odom.header.frame_id = ROBOT_FRAME
+        odom.pose.pose.position.x, odom.pose.pose.position.y = ROBOT_AT
+        odom.pose.pose.orientation.w = 1.0
         odom_publisher = cls.node.create_publisher(Odometry, "/odom", 10)
         cls.odom_timer = cls.node.create_timer(
-            0.1, lambda: odom_publisher.publish(Odometry())
+            0.1, lambda: odom_publisher.publish(odom)
         )
         cls.robot_commands = []
         cls.node.create_subscription(Twist, "/cmd_vel", cls.robot_commands.append, 10)
@@ -256,6 +264,45 @@ class TestMission(unittest.TestCase):
         assert navigating, "never reported navigating"
         assert {msg.current_goal_idx for msg in navigating} == {0, 1}
         assert all(msg.total_goals == 2 for msg in self.feedback)
+
+    def test_progress_never_goes_back_to_an_earlier_waypoint(self):
+        """Regression: the poll that saw the routine end reported navigating to
+        waypoint 0, as an ended routine has no active step"""
+        self.result_of(self.send(self.mission(count=2, pause_duration=[0.5])))
+        self.spin(0.5)
+
+        indices = [msg.current_goal_idx for msg in self.feedback]
+        assert indices == sorted(indices), f"the feedback went back: {indices}"
+        assert indices[-1] == 1
+        ongoing = [status.current_goal_idx for status in self.statuses if status.mission_id]
+        assert ongoing == sorted(ongoing), f"the status went back: {ongoing}"
+        assert ongoing[-1] == 1
+
+    def test_feedback_times_the_pause_and_not_the_driving(self):
+        self.result_of(self.send(self.mission(count=1, pause_duration=[2.0])))
+
+        dwelling = [
+            msg.time_paused
+            for msg in self.feedback
+            if msg.state == MultiGoalPlanPath.Feedback.STATE_PAUSED_DWELL
+        ]
+        assert dwelling, "never reported dwelling"
+        assert dwelling == sorted(dwelling), f"the pause time went back: {dwelling}"
+        # A 2s dwell, polled at 10Hz
+        assert 1.0 < dwelling[-1] < 2.5, f"timed the dwell as {dwelling[-1]:.2f}s"
+        assert all(
+            msg.time_paused == 0.0
+            for msg in self.feedback
+            if msg.state == MultiGoalPlanPath.Feedback.STATE_NAVIGATING
+        ), "reported a pause time while driving"
+
+    def test_feedback_carries_where_the_robot_is(self):
+        self.result_of(self.send(self.mission(count=1)))
+
+        assert self.feedback, "no feedback was published"
+        pose = self.feedback[-1].current_pose
+        assert (pose.pose.position.x, pose.pose.position.y) == pytest.approx(ROBOT_AT)
+        assert pose.header.frame_id == ROBOT_FRAME
 
     def test_a_dwell_holds_the_mission_between_waypoints(self):
         started = time.time()

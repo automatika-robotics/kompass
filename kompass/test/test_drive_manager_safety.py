@@ -30,6 +30,9 @@ class _Logger:
     def info(self, *args, **kwargs):
         pass
 
+    def debug(self, *args, **kwargs):
+        pass
+
 
 class _Callback:
     def __init__(self, output):
@@ -418,3 +421,165 @@ def test_unblock_fails_without_proximity_sensors():
     assert success is False
     assert "Proximity sensor data unavailable" in message
     assert tried == []
+
+
+# ---------------------------------------------------------------------------
+# _execution_step: the emergency stop must follow the sensor, not a cached verdict
+# ---------------------------------------------------------------------------
+
+from queue import Queue  # noqa: E402
+
+from kompass.components.defaults import TopicsKeys  # noqa: E402
+from kompass_interfaces.msg import TwistArray  # noqa: E402
+
+
+class _RecordingChecker(_Checker):
+    """Checker that records every call and the direction it was asked about"""
+
+    def __init__(self, factor=1.0):
+        super().__init__(factor=factor)
+        self.directions = []
+
+    def check(self, **kwargs):
+        self.directions.append(kwargs.get("forward"))
+        return super().check(**kwargs)
+
+
+class _StepStub(_Stub):
+    """Drives the real per-tick loop: queue -> safety gate -> publish"""
+
+    _execution_step = DriveManager._execution_step
+    _publish_cmd = DriveManager._publish_cmd
+    _multi_cmds_callback = DriveManager._multi_cmds_callback
+
+    def __init__(self, **kwargs):
+        kwargs.setdefault("pc_outputs", [_CloudData()])
+        kwargs.setdefault("pc_ages", [0.0])
+        kwargs.setdefault("pc_checker", _RecordingChecker())
+        super().__init__(**kwargs)
+        self.config = SimpleNamespace(
+            closed_loop=False,
+            disable_safety_stop=False,
+            critical_zone_distance=0.3,
+        )
+        self._unblocking_on = False
+        self._cmds_queue = Queue()
+        self._multi_command_step = 0.1
+        self.slow_down_factor = {}
+        self.published = []
+
+    def _update_state(self):
+        pass
+
+    def get_publisher(self, key):
+        return SimpleNamespace(publish=lambda value: self.published.append((key, value)))
+
+    def queue_batch(self, vx=0.2, n=15):
+        msg = TwistArray()
+        msg.linear_velocities.x = [vx] * n
+        msg.linear_velocities.y = [0.0] * n
+        msg.angular_velocities.z = [0.0] * n
+        msg.time_step = 0.1
+        self._multi_cmds_callback(msg, smooth_cmds=False)
+
+    def set_cloud_age(self, age):
+        self._pc_last_msg = [time.monotonic() - age]
+
+    def step(self):
+        """Run one tick; return (commands published, last emergency state)"""
+        self.published.clear()
+        self._execution_step()
+        commands = [v for k, v in self.published if k == TopicsKeys.FINAL_COMMAND]
+        estops = [v for k, v in self.published if k == TopicsKeys.EMERGENCY]
+        return commands, (estops[-1] if estops else None)
+
+
+def test_emergency_stop_clears_once_the_stale_sensor_recovers():
+    """Regression: the safety factor was refreshed only inside _publish_cmd,
+    which the step's gate skips while unsafe. One stale reading latched the
+    stop with commands still queued, however fresh the cloud became."""
+    stub = _StepStub()
+    stub.queue_batch()
+
+    stub.set_cloud_age(1.0)  # stops arriving past the timeout
+    _, estop = stub.step()
+    assert estop is True
+
+    stub.set_cloud_age(0.0)  # arrives again
+    commands, estop = stub.step()
+
+    assert estop is False, "emergency stop stayed latched after the sensor recovered"
+    assert len(commands) == 1
+    assert stub.slow_down_factor["scan_data"] == 1.0
+
+
+def test_stop_holds_while_the_sensor_is_still_stale():
+    stub = _StepStub()
+    stub.queue_batch()
+    stub.set_cloud_age(1.0)
+
+    for _ in range(3):
+        commands, estop = stub.step()
+        assert estop is True
+        assert all(command == [0.0, 0.0, 0.0] for command in commands)
+    assert stub._cmds_queue.qsize() == 15, "commands consumed while stopped"
+
+
+def test_robot_is_commanded_to_zero_while_stopped():
+    """Stopping by withholding commands is not enough: a driver that holds its
+    last command until a timeout would keep the robot moving. Every stopped
+    tick must command zero explicitly."""
+    stub = _StepStub()
+    stub.queue_batch(vx=0.4)
+    stub.step()  # driving
+
+    stub.set_cloud_age(1.0)
+    for _ in range(3):
+        commands, estop = stub.step()
+        assert estop is True
+        assert commands == [[0.0, 0.0, 0.0]], "stopped tick did not command zero"
+
+
+def test_empty_queue_keeps_the_last_verdict():
+    """With nothing queued there is no direction to check against, so the step
+    must not guess one: checking forward while reversing between controller
+    batches could raise a spurious stop and trigger the unblock maneuver."""
+    stub = _StepStub()
+    stub.slow_down_factor["scan_data"] = 0.0  # last verdict: unsafe
+    checker = stub._pc_checker
+
+    _, estop = stub.step()
+
+    assert estop is True
+    assert checker.directions == [], "checked without a command to take a direction from"
+
+
+def test_safety_check_runs_once_per_tick():
+    """The step's check is handed to _publish_cmd rather than repeated there"""
+    stub = _StepStub()
+    stub.queue_batch()
+
+    stub.step()
+
+    assert len(stub._pc_checker.directions) == 1
+
+
+def test_check_follows_the_queued_command_direction():
+    stub = _StepStub()
+    stub.queue_batch(vx=-0.2)  # reversing
+
+    stub.step()
+
+    assert stub._pc_checker.directions == [False]
+
+
+def test_nothing_is_published_before_the_checkers_are_initialized():
+    """No check ran this tick, so no factor may be handed to _publish_cmd:
+    that would skip its guard against driving before the safety checkers
+    exist."""
+    stub = _StepStub(pc_outputs=(), pc_ages=(), pc_checker=None)
+    stub.queue_batch()
+
+    commands, _ = stub.step()
+
+    assert commands == []

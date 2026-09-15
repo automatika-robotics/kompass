@@ -20,6 +20,8 @@ from builtin_interfaces.msg import Time
 from kompass.components.defaults import TopicsKeys
 from kompass.components.planner import Planner
 from kompass.components.ros import Topic
+from kompass.config import ComponentRunType
+from kompass_interfaces.action import PlanPath as PlanPathAction
 from kompass_interfaces.msg import PathTrackingError
 from ros_sugar.config import QoSConfig
 from ros_sugar.io.publisher import Publisher
@@ -441,6 +443,76 @@ class TestMapInputQoS:
 
         assert planner.get_in_topic(TopicsKeys.GLOBAL_MAP).name == map_topic.name
         self._assert_latched(planner.get_in_topic(TopicsKeys.GLOBAL_MAP))
+
+
+# ---------------------------------------------------------------------------
+# trigger_main_action_server  (component action (bool, str) contract)
+# ---------------------------------------------------------------------------
+
+class TestTriggerMainActionServer:
+    @staticmethod
+    def _call(p, **kwargs):
+        # The undecorated method: the decorator only runs it with rclpy initialized
+        return Planner.trigger_main_action_server.__wrapped__(
+            p, goal_x=1.0, goal_y=2.0, **kwargs
+        )
+
+    @staticmethod
+    def _make_planner(run_type=ComponentRunType.ACTION_SERVER) -> Planner:
+        p = make_planner_stub()
+        p.config._run_type = run_type
+        p.node_name = "planner"
+        p.main_action_name = "navigate_to_goal"
+        p.action_type = PlanPathAction
+        return p
+
+    @staticmethod
+    def _assert_contract(result):
+        assert isinstance(result, tuple) and len(result) == 2
+        assert isinstance(result[0], bool) and isinstance(result[1], str)
+
+    def test_accepted_goal_succeeds(self):
+        p = self._make_planner()
+        with patch("kompass.components.planner.ActionClientHandler") as client_class:
+            client_class.return_value.send_request.return_value = True
+            result = self._call(p, goal_orientation=np.pi / 2, tolerance_dist=0.3)
+
+        self._assert_contract(result)
+        assert result[0] is True
+        goal = client_class.return_value.send_request.call_args.args[0]
+        assert (goal.goal.position.x, goal.goal.position.y) == (1.0, 2.0)
+        assert goal.end_tolerance.lateral_distance_error == 0.3
+
+    def test_goal_not_accepted_fails(self):
+        p = self._make_planner()
+        with patch("kompass.components.planner.ActionClientHandler") as client_class:
+            client_class.return_value.send_request.return_value = False
+            result = self._call(p)
+
+        self._assert_contract(result)
+        assert result[0] is False
+
+    def test_planner_not_running_as_action_server_fails(self):
+        p = self._make_planner(run_type=ComponentRunType.EVENT)
+        with patch("kompass.components.planner.ActionClientHandler") as client_class:
+            result = self._call(p)
+
+        self._assert_contract(result)
+        assert result[0] is False
+        client_class.assert_not_called()
+
+    def test_client_error_fails(self):
+        p = self._make_planner()
+        with patch(
+            "kompass.components.planner.ActionClientHandler",
+            side_effect=RuntimeError("no client"),
+        ):
+            result = self._call(p)
+
+        self._assert_contract(result)
+        assert result[0] is False
+        assert "no client" in result[1]
+        p.health_status.set_fail_component.assert_called_once()
 
 
 # ---------------------------------------------------------------------------
