@@ -693,7 +693,7 @@ class Planner(Component):
             inputs_to_check=[self.in_topic_name(TopicsKeys.ROBOT_LOCATION)]
         ):
             if not goal_handle.is_active or goal_handle.is_cancel_requested:
-                self.get_logger().info("Goal Canceled")
+                self._end_canceled_goal(goal_handle)
                 return action_result
             self.get_logger().warning(
                 f"Location input topic '{self.in_topic_name(TopicsKeys.ROBOT_LOCATION)}' is not available, waiting...",
@@ -704,7 +704,7 @@ class Planner(Component):
         try:
             while not self.reached_point(goal_state, end_goal_tolerance):
                 if not goal_handle.is_active or goal_handle.is_cancel_requested:
-                    self.get_logger().info("Goal Canceled")
+                    self._end_canceled_goal(goal_handle)
                     return action_result
 
                 # update state from input
@@ -723,6 +723,8 @@ class Planner(Component):
 
         except Exception as e:
             self.get_logger().error(f"Action execution error - {e}")
+            # The goal is over, so the plan it was driving has to go with it
+            self._publish_empty_plan()
             with self._main_goal_lock:
                 goal_handle.abort()
             return action_result
@@ -737,16 +739,34 @@ class Planner(Component):
             f"End Goal Reached with result {action_result} -> Ending Action"
         )
         self.get_publisher(TopicsKeys.REACHED_END).publish(bool(True))
-        # Publish empty path
-        self.ros_path = Path()
-        self.ros_path.header.frame_id = self.config.frames.world
-        self.ros_path.header.stamp = self.get_ros_time()
-        self.get_publisher(TopicsKeys.GLOBAL_PLAN).publish(self.ros_path)
+        self._publish_empty_plan()
 
         with self._main_goal_lock:
             goal_handle.succeed()
 
         return action_result
+
+    def _publish_empty_plan(self) -> None:
+        """Publish an empty global plan.
+
+        How the end of a goal reaches the controller: an empty plan is the only
+        thing that tells it to drop the path it is tracking, so a goal that
+        ends without one leaves the robot driving to it
+        """
+        self.ros_path = Path()
+        self.ros_path.header.frame_id = self.config.frames.world
+        self.ros_path.header.stamp = self.get_ros_time()
+        self.get_publisher(TopicsKeys.GLOBAL_PLAN).publish(self.ros_path)
+
+    def _end_canceled_goal(self, goal_handle) -> None:
+        """Drop the plan and report the goal canceled, when a cancel is what
+        ended it. Without the report rclpy marks the goal aborted instead
+        """
+        self.get_logger().info("Goal Canceled")
+        self._publish_empty_plan()
+        with self._main_goal_lock:
+            if goal_handle.is_cancel_requested:
+                goal_handle.canceled()
 
     def _plan(
         self, start: RobotState, goal: RobotState, publish_path: bool = True
