@@ -1382,6 +1382,11 @@ class Controller(Component):
         self.get_logger().debug(f"Controller cmd_found={cmd_found}, Info: {self._path_controller.logging_info()}")
 
         if not cmd_found:
+            # NOTE: The core reports the end of the path the same way as a failure to
+            # find a command: no command.
+            if self._path_controller.reached_end():
+                self._stop_robot()
+                return PathControlStatus.GOAL_REACHED
             self.get_logger().error(
                 "Controller failed to compute a valid command -> stopping robot"
             )
