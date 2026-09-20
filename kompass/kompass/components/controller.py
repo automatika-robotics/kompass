@@ -1053,6 +1053,12 @@ class Controller(Component):
             )
             return
         self._install_plan(output)
+        if len(output.poses) < 2:
+            # Length is less than 2 when a planner has reached the end, or it is an invalid plan. The core clears its own path when given fewer than two poses, so the robot stops.
+            self.get_logger().info(
+                "Received a global plan with no path to track -> stopping the robot"
+            )
+            self._end_path_tracking()
 
     def _install_plan(self, plan: Path) -> bool:
         """Hand a world-frame plan to the core and take the goal point from it.
@@ -1080,9 +1086,7 @@ class Controller(Component):
         if self._path_controller is None:
             return False
 
-        # NOTE: Handed over whatever its length. The core clears its own current
-        # path when given fewer than two poses, and that is the only way a stale
-        # path gets dropped. Skipping the call leaves the robot tracking it
+        # Handed over whatever its length, the core handles the length
         self._path_controller.set_path(global_path=plan)
         return bool(self._path_controller.path)
 
@@ -1098,9 +1102,6 @@ class Controller(Component):
         )
         self.plan: Optional[Path] = None  # robot plan (global path)
 
-        # NOTE: The plan is tracked against the robot state, which is brought into
-        # the world frame, so the two have to agree. The plan carries its own
-        # frame in its messages, so nothing has to be configured
         self.transform_inputs_to(TopicsKeys.GLOBAL_PLAN, self.config.frames.world)
 
         # INIT PATH CONTROLLER
@@ -1257,12 +1258,17 @@ class Controller(Component):
         :return: Always succeeds
         :rtype: ActionReturnType
         """
+        self._end_path_tracking()
+        return True, "Path tracking stopped"
+
+    def _end_path_tracking(self) -> None:
+        """Stop following the current path, as if its end was reached, and
+        stop the robot. A new plan resumes tracking"""
         self._reached_end = True
         plan_callback = self.get_callback(TopicsKeys.GLOBAL_PLAN)
         if plan_callback:
             plan_callback.clear_last_msg()
         self._stop_robot()
-        return True, "Path tracking stopped"
 
     def _publish(
         self,
