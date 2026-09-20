@@ -544,3 +544,73 @@ class TestSavePlanCallback:
         assert p._recording_on is False
         assert p._recorded_motion is None
         assert resp.path_num_points == 1
+
+
+# ---------------------------------------------------------------------------
+# main_action_callback: a goal that ends before its end is reached
+# ---------------------------------------------------------------------------
+
+
+class TestGoalEndingEarly:
+    """A goal that ends early has to drop the plan it was driving: the empty
+    plan is the only thing that tells the controller to stop"""
+
+    @staticmethod
+    def _planner_for_goal():
+        p = make_planner_stub()
+        publishers = {}
+        p.get_publisher = MagicMock(
+            side_effect=lambda key: publishers.setdefault(key, MagicMock())
+        )
+        p._clear_path = MagicMock()
+        p._update_state = MagicMock()
+        p.reached_point = MagicMock(return_value=False)
+        return p, publishers
+
+    @staticmethod
+    def _goal_handle(cancel_requested: bool = False, active: bool = True):
+        handle = MagicMock()
+        handle.is_active = active
+        handle.is_cancel_requested = cancel_requested
+        handle.request = PlanPathAction.Goal()
+        handle.request.goal.position.x = 5.0
+        handle.request.goal.orientation.w = 1.0
+        handle.request.end_tolerance = PathTrackingError(
+            orientation_error=0.2, lateral_distance_error=0.2
+        )
+        return handle
+
+    @staticmethod
+    def _last_plan(publishers):
+        plan_publisher = publishers[TopicsKeys.GLOBAL_PLAN]
+        return plan_publisher.publish.call_args.args[0]
+
+    def test_a_canceled_goal_drops_its_plan_and_is_reported_canceled(self):
+        p, publishers = self._planner_for_goal()
+        handle = self._goal_handle(cancel_requested=True)
+
+        Planner.main_action_callback(p, handle)
+
+        assert len(self._last_plan(publishers).poses) == 0
+        # Otherwise rclpy reports the goal aborted
+        handle.canceled.assert_called_once()
+        handle.abort.assert_not_called()
+
+    def test_a_goal_that_is_no_longer_active_drops_its_plan(self):
+        p, publishers = self._planner_for_goal()
+        handle = self._goal_handle(active=False)
+
+        Planner.main_action_callback(p, handle)
+
+        assert len(self._last_plan(publishers).poses) == 0
+        handle.canceled.assert_not_called()
+
+    def test_a_goal_that_fails_drops_its_plan_and_is_aborted(self):
+        p, publishers = self._planner_for_goal()
+        p._plan = MagicMock(side_effect=RuntimeError("no map"))
+        handle = self._goal_handle()
+
+        Planner.main_action_callback(p, handle)
+
+        assert len(self._last_plan(publishers).poses) == 0
+        handle.abort.assert_called_once()

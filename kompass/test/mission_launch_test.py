@@ -14,6 +14,7 @@ mission, not path planning. The controller and drive manager are the real ones,
 since stopping the robot before holding position is their actions.
 """
 
+import math
 import time
 import unittest
 
@@ -23,11 +24,15 @@ import launch_testing.markers
 import numpy as np
 import pytest
 import rclpy
-from geometry_msgs.msg import Pose, Twist
+from action_msgs.msg import GoalStatus
+from geometry_msgs.msg import Pose, TransformStamped, Twist
+from lifecycle_msgs.msg import Transition
+from lifecycle_msgs.srv import ChangeState
 from nav_msgs.msg import Odometry
 from rclpy.action import ActionClient
 from rclpy.qos import DurabilityPolicy, QoSProfile
 from std_msgs.msg import Bool
+from tf2_ros import StaticTransformBroadcaster
 
 from kompass.components import (
     Controller,
@@ -53,6 +58,9 @@ PAUSE_TOPIC = "/mission_go_on"
 #: filled in does not look like one that was
 ROBOT_AT = (0.5, -0.25)
 ROBOT_FRAME = "map"
+#: Where the origin of the odom frame sits in the world frame, so waypoints
+#: given in odom land somewhere else once driven
+ODOM_OFFSET_X = 10.0
 
 #: Goals the stand-in planner was asked to drive to, in the order it got them
 planner_goals = []
@@ -188,6 +196,16 @@ class TestMission(unittest.TestCase):
             cls.statuses.append,
             QoSProfile(depth=100, durability=DurabilityPolicy.TRANSIENT_LOCAL),
         )
+        odom_in_world = TransformStamped()
+        odom_in_world.header.frame_id = ROBOT_FRAME
+        odom_in_world.child_frame_id = "odom"
+        odom_in_world.transform.translation.x = ODOM_OFFSET_X
+        odom_in_world.transform.rotation.w = 1.0
+        cls.tf_broadcaster = StaticTransformBroadcaster(cls.node)
+        cls.tf_broadcaster.sendTransform(odom_in_world)
+        cls.lifecycle_client = cls.node.create_client(
+            ChangeState, "/mission/change_state"
+        )
 
     @classmethod
     def tearDownClass(cls):
@@ -208,6 +226,23 @@ class TestMission(unittest.TestCase):
         deadline = time.time() + seconds
         while time.time() < deadline:
             self.executor.spin_once(timeout_sec=0.05)
+
+    def wait_for(self, predicate, seconds: float) -> bool:
+        """Spin until the predicate holds, or the time runs out"""
+        deadline = time.time() + seconds
+        while not predicate() and time.time() < deadline:
+            self.spin(0.1)
+        return predicate()
+
+    def change_state(self, transition_id: int) -> bool:
+        """Take the mission manager through one lifecycle transition"""
+        request = ChangeState.Request()
+        request.transition.id = transition_id
+        future = self.lifecycle_client.call_async(request)
+        rclpy.spin_until_future_complete(
+            self.node, future, timeout_sec=30.0, executor=self.executor
+        )
+        return future.done() and future.result().success
 
     def send(self, goal: MultiGoalPlanPath.Goal):
         """Send a mission and return its accepted goal handle"""
@@ -443,6 +478,60 @@ class TestMission(unittest.TestCase):
         assert result.outcome == MultiGoalPlanPath.Result.OUTCOME_COMPLETED
         assert len({status.mission_id for status in self.statuses if status.mission_id}) == 1
         assert planner_goals == [1.0, 2.0]
+
+    def test_the_result_says_how_far_from_the_last_waypoint_the_robot_ended(self):
+        result = self.result_of(self.send(self.mission(count=1)))
+
+        assert result.outcome == MultiGoalPlanPath.Result.OUTCOME_COMPLETED
+        # The robot stands at ROBOT_AT facing along x, the waypoint is at (1, 0)
+        expected = math.hypot(ROBOT_AT[0] - 1.0, ROBOT_AT[1])
+        assert result.end_displacement.lateral_distance_error == pytest.approx(expected)
+        assert result.end_displacement.orientation_error == pytest.approx(0.0)
+
+    # ---- Frames -------------------------------------------------------
+
+    def test_waypoints_given_in_another_frame_are_driven_in_the_world_frame(self):
+        result = self.result_of(self.send(self.mission(count=1, frame_id="odom")))
+
+        assert result.outcome == MultiGoalPlanPath.Result.OUTCOME_COMPLETED
+        # Waypoint 1.0 in odom, whose origin is at ODOM_OFFSET_X in the world
+        assert planner_goals == [1.0 + ODOM_OFFSET_X]
+
+    def test_waypoints_in_a_frame_with_no_transform_are_refused(self):
+        """Driving to the raw coordinates would take the robot somewhere else"""
+        result = self.result_of(self.send(self.mission(count=1, frame_id="nowhere")))
+        self.spin(0.5)
+
+        assert result.outcome == MultiGoalPlanPath.Result.OUTCOME_FAILED
+        assert not planner_goals, "it drove to a waypoint in an unknown frame"
+        assert "nowhere" in self.statuses[-1].message
+
+    # ---- Lifecycle ----------------------------------------------------
+
+    def test_deactivating_ends_the_mission_and_its_client_gets_the_result(self):
+        """Deactivating takes the action server down. Unless the mission ends
+        first, its client never gets a result and the routine keeps driving"""
+        slow_at.update({1.0})
+        handle = self.send(self.mission(count=2))
+        # Asked for straight away, like any client that waits on the mission
+        result_future = handle.get_result_async()
+        assert self.wait_for(lambda: 1.0 in planner_goals, 10.0)
+
+        try:
+            assert self.change_state(Transition.TRANSITION_DEACTIVATE)
+            rclpy.spin_until_future_complete(
+                self.node, result_future, timeout_sec=15.0, executor=self.executor
+            )
+            assert result_future.done(), "the client never got a result"
+            assert result_future.result().status == GoalStatus.STATUS_ABORTED
+            assert planner_cancels == [1.0], "the planner goal was left running"
+        finally:
+            assert self.change_state(Transition.TRANSITION_ACTIVATE)
+            assert self.client.wait_for_server(timeout_sec=15.0)
+
+        # And missions run again once it is back
+        result = self.result_of(self.send(self.mission(count=1)))
+        assert result.outcome == MultiGoalPlanPath.Result.OUTCOME_COMPLETED
 
     # ---- Construction -------------------------------------------------
 

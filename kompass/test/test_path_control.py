@@ -92,8 +92,9 @@ def make_path_controller_stub(**overrides) -> Controller:
     path_controller.distance_error = 0.05
     path_controller.orientation_error = 0.01
     path_controller.logging_info = MagicMock(return_value="ok")
-    # loop_step default: cmd found
+    # loop_step default: cmd found, and not at the end of the path
     path_controller.loop_step = MagicMock(return_value=True)
+    path_controller.reached_end = MagicMock(return_value=False)
     _set_mangled(c, "path_controller", path_controller)
 
     # Health + IO fakes
@@ -170,6 +171,27 @@ class TestPathControlStatus:
         c._publish.assert_not_called()
         # FAILED status is reported; _path_control itself doesn't flip health
         c.health_status.set_fail_algorithm.assert_not_called()
+
+    def test_reaching_the_end_of_the_path_is_not_a_failure(self):
+        """The core reports the end of the path as no command found, the same
+        way it reports a failure. Calling it a failure sets off the fallbacks
+        at the end of every goal"""
+        c = make_path_controller_stub()
+        path_controller = _get_mangled(c, "path_controller")
+        path_controller.loop_step = MagicMock(return_value=False)
+        path_controller.reached_end = MagicMock(return_value=True)
+
+        assert c._path_control() == PathControlStatus.GOAL_REACHED
+        assert c._stop_robot_calls == [True]
+        c.health_status.set_fail_algorithm.assert_not_called()
+
+    def test_no_command_short_of_the_end_is_still_a_failure(self):
+        c = make_path_controller_stub()
+        path_controller = _get_mangled(c, "path_controller")
+        path_controller.loop_step = MagicMock(return_value=False)
+        path_controller.reached_end = MagicMock(return_value=False)
+
+        assert c._path_control() == PathControlStatus.FAILED
 
     def test_returns_running_on_happy_path(self):
         c = make_path_controller_stub()
@@ -459,6 +481,26 @@ class TestSetPathToController:
         path_ctrl.set_path.assert_called_once_with(global_path=msg)
         goal = _get_mangled(c, "goal_point")
         assert goal.x == 2.0 and goal.y == 1.0
+
+    def test_an_empty_path_stops_the_robot(self):
+        """How the end of a planner goal reaches the controller. Dropping the
+        path alone publishes nothing, and the robot keeps driving the commands
+        already sent"""
+        c = make_path_controller_stub()
+
+        c._set_path_to_controller(self._make_path_msg([]))
+
+        assert c._stop_robot_calls == [True]
+        assert _get_mangled(c, "reached_end") is True
+        # Still handed to the core, the only way its own path is dropped
+        _get_mangled(c, "path_controller").set_path.assert_called_once()
+
+    def test_a_path_to_track_does_not_stop_the_robot(self):
+        c = make_path_controller_stub()
+
+        c._set_path_to_controller(self._make_path_msg([(0.0, 0.0), (1.0, 0.0)]))
+
+        assert c._stop_robot_calls == []
 
     def test_single_pose_path_clears_goal_point(self):
         """A10-adjacent: a one-pose path is treated as 'no goal'."""

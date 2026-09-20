@@ -167,6 +167,39 @@ def test_the_robot_is_stopped_once_before_a_dwell_and_a_condition():
     ]
 
 
+def test_a_stop_is_retried_before_it_ends_the_mission():
+    """A stop fails while the robot is still rolling, or before its location
+    has arrived, which retrying gives time for"""
+    spec = mission_routine_spec(
+        mission_goal(count=1, pause_duration=[1.0]),
+        name="mission_test",
+        planner_ref=PLANNER_REF,
+        stop_refs=STOP_REFS,
+        waypoint_timeout=WAYPOINT_TIMEOUT,
+        stop_retries=2,
+    )
+    assert step_named(spec, "stop_controller_0")["max_retries"] == 2
+    assert step_named(spec, "stop_drive_manager_0")["max_retries"] == 2
+
+
+def test_the_waypoints_driven_are_the_ones_in_the_planning_frame():
+    """A goal given in another frame is driven where it lands in the frame the
+    planner plans in, not at its raw coordinates"""
+    in_world = [pose_at(10.0, 1.0), pose_at(11.0, 1.0)]
+    spec = mission_routine_spec(
+        mission_goal(count=2, frame_id="odom"),
+        name="mission_test",
+        planner_ref=PLANNER_REF,
+        stop_refs=STOP_REFS,
+        waypoint_timeout=WAYPOINT_TIMEOUT,
+        waypoints=in_world,
+    )
+    driven = [
+        step_named(spec, f"goto_{i}")["goal"]["goal"]["position"]["x"] for i in (0, 1)
+    ]
+    assert driven == [10.0, 11.0]
+
+
 def test_a_waypoint_with_no_hold_is_not_stopped_at():
     """The next goal replaces the path, stopping in between would only jerk"""
     spec = spec_for(mission_goal(count=2, pause_duration=[0.0]))
@@ -263,6 +296,17 @@ def test_return_to_start_without_a_known_start_is_refused():
                 on_timeout=MultiGoalPlanPath.Goal.ON_TIMEOUT_RETURN_TO_START,
             ),
             start_pose=None,
+        )
+
+
+@pytest.mark.parametrize("on_timeout", [3, 255])
+def test_an_unknown_on_timeout_policy_is_refused(on_timeout):
+    """Otherwise it would silently act as ABORT"""
+    with pytest.raises(ValueError, match="on_timeout"):
+        spec_for(
+            mission_goal(
+                count=1, pause_condition_topic="/go_on", on_timeout=on_timeout
+            )
         )
 
 
