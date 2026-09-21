@@ -112,3 +112,20 @@ def test_error_message_is_highlighted():
         ),
     )
     assert "tomorrow-night-red" in to_xml(_mission_entries(card)[-1])
+
+
+@pytest.mark.parametrize(
+    "state, badge",
+    [
+        (MissionStatus.STATE_COMPLETED, "completed"),
+        (MissionStatus.STATE_CANCELED, "canceled"),
+        (MissionStatus.STATE_ABORTED, "aborted"),
+    ],
+)
+def test_a_final_state_is_shown_with_its_own_badge(state, badge):
+    card = elements.initial_logging_card()
+    _log(card, _status(mission_id="1", state=state, total_goals=2, current_goal_idx=1))
+    entry = to_xml(_mission_entries(card)[-1])
+    assert f"status-badge {badge}" in entry
+    # The mission is over, there is no waypoint being worked on
+    assert "Waypoint" not in entry

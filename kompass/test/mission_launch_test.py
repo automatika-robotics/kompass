@@ -371,7 +371,7 @@ class TestMission(unittest.TestCase):
     def test_a_pause_condition_holds_the_mission_until_the_topic_says_go(self):
         """The reason the topic is named per mission rather than configured"""
         handle = self.send(
-            self.mission(count=1, pause_condition_topic=PAUSE_TOPIC)
+            self.mission(count=2, pause_condition_topic=PAUSE_TOPIC)
         )
         result_future = handle.get_result_async()
 
@@ -397,6 +397,20 @@ class TestMission(unittest.TestCase):
         result = self.result_of(handle)
         assert result.outcome == MultiGoalPlanPath.Result.OUTCOME_COMPLETED
 
+    def test_the_last_waypoint_does_not_wait_for_the_condition(self):
+        """There is nothing to go on to from the last waypoint, so reaching it
+        is the end of the mission, with no go-ahead to wait for"""
+        result = self.result_of(
+            self.send(self.mission(count=1, pause_condition_topic=PAUSE_TOPIC)),
+            timeout=15.0,
+        )
+
+        assert result.outcome == MultiGoalPlanPath.Result.OUTCOME_COMPLETED
+        assert not any(
+            msg.state == MultiGoalPlanPath.Feedback.STATE_PAUSED_CONDITION
+            for msg in self.feedback
+        ), "the mission waited at its last waypoint"
+
     # ---- Ending early -------------------------------------------------
 
     def test_cancelling_the_mission_cancels_the_goal_on_the_planner(self):
@@ -419,6 +433,8 @@ class TestMission(unittest.TestCase):
         # Settled before the next test sends a mission
         result = self.result_of(handle)
         assert result.outcome == MultiGoalPlanPath.Result.OUTCOME_CANCELED
+        self.spin(0.5)
+        assert self.statuses[-1].state == MissionStatus.STATE_CANCELED
 
     def test_a_waypoint_the_planner_refuses_ends_the_mission(self):
         """Driving on to the next waypoint after a failure is not safe"""
@@ -447,9 +463,13 @@ class TestMission(unittest.TestCase):
         assert all(status.total_goals == 2 for status in ongoing)
         assert {status.current_goal_idx for status in ongoing} == {0, 1}
 
+        # The final status, once, and it stays the last one: a late
+        # subscriber still learns how the mission ended
+        final = [s for s in self.statuses if s.state == MissionStatus.STATE_COMPLETED]
+        assert len(final) == 1, f"published {len(final)} final statuses"
         last = self.statuses[-1]
-        assert last.mission_id == ""
-        assert last.state == MissionStatus.STATE_IDLE
+        assert last is final[0]
+        assert last.mission_id == ongoing[0].mission_id
         assert last.message_level == MissionStatus.LEVEL_INFO
         assert "completed" in last.message
 
@@ -458,7 +478,7 @@ class TestMission(unittest.TestCase):
         self.spin(0.5)
 
         last = self.statuses[-1]
-        assert last.state == MissionStatus.STATE_IDLE
+        assert last.state == MissionStatus.STATE_ABORTED
         assert last.message_level == MissionStatus.LEVEL_ERROR
         assert "at least one" in last.message
 
@@ -524,7 +544,17 @@ class TestMission(unittest.TestCase):
             )
             assert result_future.done(), "the client never got a result"
             assert result_future.result().status == GoalStatus.STATUS_ABORTED
-            assert planner_cancels == [1.0], "the planner goal was left running"
+            # Reaches the planner as the mission ends, not necessarily before
+            # its client hears the result
+            assert self.wait_for(lambda: planner_cancels == [1.0], 5.0), (
+                "the planner goal was left running"
+            )
+            # Published while the publisher still existed
+            assert any(
+                status.state == MissionStatus.STATE_ABORTED
+                and "deactivated" in status.message
+                for status in self.statuses
+            ), "the mission's final status was never published"
         finally:
             assert self.change_state(Transition.TRANSITION_ACTIVATE)
             assert self.client.wait_for_server(timeout_sec=15.0)

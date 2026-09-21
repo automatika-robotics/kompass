@@ -156,9 +156,9 @@ def test_the_robot_is_stopped_before_holding_position():
 
 def test_the_robot_is_stopped_once_before_a_dwell_and_a_condition():
     spec = spec_for(
-        mission_goal(count=1, pause_duration=[2.0], pause_condition_topic="/go_on")
+        mission_goal(count=2, pause_duration=[2.0], pause_condition_topic="/go_on")
     )
-    assert step_names(spec) == [
+    assert step_names(spec)[:5] == [
         "goto_0",
         "stop_controller_0",
         "stop_drive_manager_0",
@@ -217,23 +217,47 @@ def test_a_dwell_list_that_does_not_match_the_waypoints_is_refused():
 
 
 def test_a_pause_condition_becomes_a_step_that_waits_on_the_topic():
-    spec = spec_for(mission_goal(count=1, pause_condition_topic="/go_on"))
+    spec = spec_for(mission_goal(count=2, pause_condition_topic="/go_on"))
     pause = step_named(spec, "pause_0")
     assert pause["success"]["topic_name"] == "go_on"
+
+
+def test_the_last_waypoint_does_not_wait_for_the_condition():
+    """A condition is a wait to go on to the next waypoint. At the last one
+    there is nothing to go on to, and waiting would only hold up success"""
+    spec = spec_for(mission_goal(count=3, pause_condition_topic="/go_on"))
+    pauses = [name for name in step_names(spec) if name.startswith("pause_")]
+    assert pauses == ["pause_0", "pause_1"]
+    # Nor is the robot stopped there, as it does not hold position
+    assert step_names(spec)[-1] == "goto_2"
+
+
+def test_the_last_waypoint_still_dwells():
+    """A dwell is not a wait to go on, so the last waypoint keeps it"""
+    spec = spec_for(
+        mission_goal(count=2, pause_duration=[2.0], pause_condition_topic="/go_on")
+    )
+    assert step_names(spec)[-4:] == [
+        "goto_1",
+        "stop_controller_1",
+        "stop_drive_manager_1",
+        "dwell_1",
+    ]
 
 
 def test_a_dwell_is_served_before_the_condition():
     """The action says so: a dwell then a wait, not the other way round"""
     spec = spec_for(
-        mission_goal(count=1, pause_duration=[2.0], pause_condition_topic="/go_on")
+        mission_goal(count=2, pause_duration=[2.0], pause_condition_topic="/go_on")
     )
-    assert step_names(spec)[-2:] == ["dwell_0", "pause_0"]
+    names = step_names(spec)
+    assert names[names.index("dwell_0") + 1] == "pause_0"
 
 
 def test_a_condition_with_no_timeout_waits_indefinitely():
     """Zero or negative means wait, which is a step with no deadline"""
     spec = spec_for(
-        mission_goal(count=1, pause_condition_topic="/go_on", condition_timeout=0.0)
+        mission_goal(count=2, pause_condition_topic="/go_on", condition_timeout=0.0)
     )
     assert "timeout" not in step_named(spec, "pause_0")
 
@@ -290,7 +314,7 @@ def test_return_to_start_without_a_known_start_is_refused():
     with pytest.raises(ValueError, match="started from"):
         spec_for(
             mission_goal(
-                count=1,
+                count=2,
                 pause_condition_topic="/go_on",
                 condition_timeout=5.0,
                 on_timeout=MultiGoalPlanPath.Goal.ON_TIMEOUT_RETURN_TO_START,

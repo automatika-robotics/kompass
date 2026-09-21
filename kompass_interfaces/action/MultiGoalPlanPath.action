@@ -20,6 +20,7 @@ float64[] pause_duration
 
 # Topic to wait on at a reached waypoint before continuing, published as
 # std_msgs/Bool. Empty means no condition. Any dwell above is served first.
+# Not at the last waypoint, where there is nothing to continue to.
 #
 # Named per mission rather than configured on the component: a step's success
 # condition carries its topic as plain data and is subscribed when the step
