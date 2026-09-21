@@ -235,8 +235,9 @@ def mission_routine_spec(
             "CONTINUE (0), RETURN_TO_START (1) or ABORT (2)"
         )
     points = list(goal.goals) if waypoints is None else list(waypoints)
+    last = len(points) - 1
     returning = goal.on_timeout == MultiGoalPlanPathAction.Goal.ON_TIMEOUT_RETURN_TO_START
-    if returning and goal.pause_condition_topic and start_pose is None:
+    if returning and goal.pause_condition_topic and last > 0 and start_pose is None:
         raise ValueError(
             "The return-to-start policy needs the pose the mission started "
             "from, and none was given"
@@ -255,7 +256,10 @@ def mission_routine_spec(
             )
         )
         dwell = dwell_seconds(list(goal.pause_duration), index)
-        if dwell > 0 or goal.pause_condition_topic:
+        # A condition is a wait to go on to the next waypoint. At the last one
+        # there is nothing to go on to, and waiting would only hold up success
+        waits = bool(goal.pause_condition_topic) and index < last
+        if dwell > 0 or waits:
             # The planner is done once within tolerance, while the controller
             # may still be driving
             steps.extend(
@@ -263,7 +267,7 @@ def mission_routine_spec(
             )
         if dwell > 0:
             steps.append(dwell_step(index, dwell))
-        if goal.pause_condition_topic:
+        if waits:
             steps.append(
                 condition_step(
                     index,
