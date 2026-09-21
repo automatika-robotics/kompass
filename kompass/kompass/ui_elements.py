@@ -13,6 +13,9 @@ _MISSION_STATES = {
     ROSMissionStatus.STATE_PAUSED_CONDITION: ("waiting", "canceled"),
     ROSMissionStatus.STATE_RETURNING_TO_START: ("returning to start", "active"),
     ROSMissionStatus.STATE_IDLE: ("idle", "inactive"),
+    ROSMissionStatus.STATE_COMPLETED: ("completed", "completed"),
+    ROSMissionStatus.STATE_CANCELED: ("canceled", "canceled"),
+    ROSMissionStatus.STATE_ABORTED: ("aborted", "aborted"),
 }
 
 # States in which current_goal_idx points at a waypoint

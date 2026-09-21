@@ -481,6 +481,8 @@ class MissionManager(Component):
         self._mission_id: str = ""
         self._message: str = ""
         self._message_level: int = MissionStatus.LEVEL_INFO
+        # Latest progress of the ongoing mission, which its final status carries
+        self._last_feedback = None
         # Set when the node asks the ongoing mission to end, and why
         self._end_requested = threading.Event()
         self._end_reason: str = ""
@@ -680,8 +682,13 @@ class MissionManager(Component):
             MissionStatus.LEVEL_ERROR if error else MissionStatus.LEVEL_INFO
         )
 
-    def __publish_status(self, feedback=None) -> None:
-        """Publish the mission status. No feedback means no ongoing mission"""
+    def __publish_status(self, feedback=None, state: Optional[int] = None) -> None:
+        """Publish the mission status.
+
+        :param feedback: Progress of the ongoing mission, none before the first
+        :param state: State to report instead of the feedback's, for the final
+            status of a mission
+        """
         status = MissionStatus()
         status.mission_id = self._mission_id
         status.state = MissionStatus.STATE_IDLE
@@ -689,6 +696,8 @@ class MissionManager(Component):
             status.state = feedback.state
             status.total_goals = feedback.total_goals
             status.current_goal_idx = feedback.current_goal_idx
+        if state is not None:
+            status.state = state
         status.message_level = self._message_level
         status.message = self._message
         self.get_publisher(TopicsKeys.MISSION_STATUS).publish(status)
@@ -707,8 +716,8 @@ class MissionManager(Component):
             return self.__run_mission(goal_handle)
         finally:
             self._mission_id = ""
+            self._last_feedback = None
             self._end_requested.clear()
-            self.__publish_status()
 
     def __run_mission(self, goal_handle):
         """Register the mission as a routine and run it"""
@@ -717,6 +726,7 @@ class MissionManager(Component):
         total = len(goal.goals)
         result.reached_waypoints = [False] * total
         result.last_reached_index = -1
+        self._last_feedback = MultiGoalPlanPathAction.Feedback(total_goals=total)
 
         # Unique per mission: the name is how the routine is controlled
         routine_name = f"mission_{self.node_name}_{self._mission_id}"
@@ -735,9 +745,9 @@ class MissionManager(Component):
             )
         except ValueError as e:
             self.__report(f"Mission {self._mission_id} refused: {e}", error=True)
-            result.outcome = MultiGoalPlanPathAction.Result.OUTCOME_FAILED
-            goal_handle.abort()
-            return result
+            return self.__finish(
+                goal_handle, result, MultiGoalPlanPathAction.Result.OUTCOME_FAILED
+            )
 
         registered = self.call_monitor("add_routine", routine=spec)
         if registered is None or not registered.success:
@@ -746,9 +756,9 @@ class MissionManager(Component):
                 f"Mission {self._mission_id} could not be registered: {reason}",
                 error=True,
             )
-            result.outcome = MultiGoalPlanPathAction.Result.OUTCOME_FAILED
-            goal_handle.abort()
-            return result
+            return self.__finish(
+                goal_handle, result, MultiGoalPlanPathAction.Result.OUTCOME_FAILED
+            )
 
         try:
             return self.__run_routine(
@@ -767,12 +777,13 @@ class MissionManager(Component):
             self.__report(
                 f"Mission {self._mission_id} could not start: {reason}", error=True
             )
-            result.outcome = MultiGoalPlanPathAction.Result.OUTCOME_FAILED
-            goal_handle.abort()
-            return result
+            return self.__finish(
+                goal_handle, result, MultiGoalPlanPathAction.Result.OUTCOME_FAILED
+            )
 
         self.__report(f"Mission {self._mission_id} started with {total} waypoint(s)")
-        self.__publish_status(self.__feedback_from_cursor({}, waypoints, total))
+        self._last_feedback = self.__feedback_from_cursor({}, waypoints, total)
+        self.__publish_status(self._last_feedback)
         period = 1.0 / self.config.cursor_poll_rate
         cursor: Dict[str, Any] = {}
         # The pause step being held and when it was first seen, for time_paused
@@ -794,6 +805,7 @@ class MissionManager(Component):
                 if (pose := self.current_pose()) is not None:
                     feedback.current_pose = pose
                 goal_handle.publish_feedback(feedback)
+                self._last_feedback = feedback
                 self.__publish_status(feedback)
             # Woken early by a request to end the mission
             self._end_requested.wait(period)
@@ -801,22 +813,40 @@ class MissionManager(Component):
         self.__fill_progress(result, cursor, total, waypoints)
         if cursor.get("status") == "completed":
             self.__report(f"Mission {self._mission_id} completed")
-            result.outcome = MultiGoalPlanPathAction.Result.OUTCOME_COMPLETED
-            goal_handle.succeed()
-            return result
+            return self.__finish(
+                goal_handle, result, MultiGoalPlanPathAction.Result.OUTCOME_COMPLETED
+            )
 
-        # A pause that ran out under an ending policy is its own outcome: the
-        # mission did not fail, it was told to stop waiting
-        result.outcome = (
-            MultiGoalPlanPathAction.Result.OUTCOME_TIMED_OUT
-            if ended_on_pause_timeout(cursor)
-            else MultiGoalPlanPathAction.Result.OUTCOME_FAILED
-        )
         self.__report(
             f"Mission {self._mission_id} ended: {cursor.get('message', '')}",
             error=True,
         )
-        goal_handle.abort()
+        # A pause that ran out under an ending policy is its own outcome: the
+        # mission did not fail, it was told to stop waiting
+        return self.__finish(
+            goal_handle,
+            result,
+            MultiGoalPlanPathAction.Result.OUTCOME_TIMED_OUT
+            if ended_on_pause_timeout(cursor)
+            else MultiGoalPlanPathAction.Result.OUTCOME_FAILED,
+        )
+
+    def __finish(self, goal_handle, result, outcome: int):
+        """End the mission with an outcome: its final status, then the goal.
+
+        Published once, before whatever cleans up after the mission, which can
+        take a while or fail. It is the last status until the next mission, so
+        a late subscriber still learns how this one ended
+        """
+        result.outcome = outcome
+        if outcome == MultiGoalPlanPathAction.Result.OUTCOME_COMPLETED:
+            state, settle = MissionStatus.STATE_COMPLETED, goal_handle.succeed
+        elif outcome == MultiGoalPlanPathAction.Result.OUTCOME_CANCELED:
+            state, settle = MissionStatus.STATE_CANCELED, goal_handle.canceled
+        else:
+            state, settle = MissionStatus.STATE_ABORTED, goal_handle.abort
+        self.__publish_status(self._last_feedback, state=state)
+        settle()
         return result
 
     @staticmethod
@@ -855,13 +885,13 @@ class MissionManager(Component):
         self.call_monitor("abort_routine", routine_name=routine_name, reason=reason)
         if requested:
             self.__report(f"Mission {self._mission_id} ended: {reason}", error=True)
-            result.outcome = MultiGoalPlanPathAction.Result.OUTCOME_FAILED
-            goal_handle.abort()
-        else:
-            self.__report(f"Mission {self._mission_id} canceled")
-            result.outcome = MultiGoalPlanPathAction.Result.OUTCOME_CANCELED
-            goal_handle.canceled()
-        return result
+            return self.__finish(
+                goal_handle, result, MultiGoalPlanPathAction.Result.OUTCOME_FAILED
+            )
+        self.__report(f"Mission {self._mission_id} canceled")
+        return self.__finish(
+            goal_handle, result, MultiGoalPlanPathAction.Result.OUTCOME_CANCELED
+        )
 
     def __fill_progress(
         self, result, cursor: Dict[str, Any], total: int, waypoints: List[Pose]
