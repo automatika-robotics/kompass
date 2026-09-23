@@ -25,6 +25,7 @@ import numpy as np
 import pytest
 import rclpy
 from action_msgs.msg import GoalStatus
+from automatika_ros_sugar.srv import ExecuteMethod
 from geometry_msgs.msg import Pose, TransformStamped, Twist
 from lifecycle_msgs.msg import Transition
 from lifecycle_msgs.srv import ChangeState
@@ -206,6 +207,9 @@ class TestMission(unittest.TestCase):
         cls.lifecycle_client = cls.node.create_client(
             ChangeState, "/mission/change_state"
         )
+        cls.mission_methods = cls.node.create_client(
+            ExecuteMethod, "/mission/execute_method"
+        )
 
     @classmethod
     def tearDownClass(cls):
@@ -233,6 +237,17 @@ class TestMission(unittest.TestCase):
         while not predicate() and time.time() < deadline:
             self.spin(0.1)
         return predicate()
+
+    def call_mission(self, method: str) -> ExecuteMethod.Response:
+        """Run one of the mission manager's actions, as a caller would"""
+        request = ExecuteMethod.Request()
+        request.name = method
+        future = self.mission_methods.call_async(request)
+        rclpy.spin_until_future_complete(
+            self.node, future, timeout_sec=30.0, executor=self.executor
+        )
+        assert future.done(), f"'{method}' got no answer"
+        return future.result()
 
     def change_state(self, transition_id: int) -> bool:
         """Take the mission manager through one lifecycle transition"""
@@ -526,6 +541,60 @@ class TestMission(unittest.TestCase):
         assert not planner_goals, "it drove to a waypoint in an unknown frame"
         assert "nowhere" in self.statuses[-1].message
 
+    # ---- Pausing ------------------------------------------------------
+
+    def test_pausing_stops_the_robot_until_the_mission_is_resumed(self):
+        slow_at.update({1.0})
+        handle = self.send(self.mission(count=1))
+        result_future = handle.get_result_async()
+        assert self.wait_for(lambda: 1.0 in planner_goals, 10.0)
+        self.robot_commands.clear()
+
+        paused = self.call_mission("pause_mission")
+        assert paused.success, paused.error_msg
+
+        # The waypoint's goal is canceled, and the robot told to stop
+        assert self.wait_for(lambda: planner_cancels == [1.0], 5.0), (
+            "the planner kept driving to the waypoint"
+        )
+        assert self.wait_for(
+            lambda: any(
+                cmd.linear.x == 0.0 and cmd.angular.z == 0.0
+                for cmd in self.robot_commands
+            ),
+            10.0,
+        ), "the robot was not stopped"
+        assert self.wait_for(
+            lambda: self.statuses and self.statuses[-1].state == MissionStatus.STATE_PAUSED,
+            5.0,
+        ), "the status does not say paused"
+        assert any(
+            msg.state == MultiGoalPlanPath.Feedback.STATE_PAUSED for msg in self.feedback
+        )
+        # Held: nothing is driven while paused
+        self.spin(1.0)
+        assert planner_goals == [1.0]
+        assert not result_future.done()
+        # Under the name a UI is told to follow before any mission starts
+        topics = [name for name, _ in self.node.get_topic_names_and_types()]
+        assert "/routine/navigation_mission/state" in topics, (
+            f"routine topics: {[t for t in topics if t.startswith('/routine')]}"
+        )
+
+        slow_at.clear()
+        resumed = self.call_mission("resume_mission")
+        assert resumed.success, resumed.error_msg
+        result = self.result_of(handle)
+
+        assert result.outcome == MultiGoalPlanPath.Result.OUTCOME_COMPLETED
+        # Resuming drives to the waypoint it was paused on the way to
+        assert planner_goals == [1.0, 1.0]
+
+    def test_pausing_with_no_mission_is_refused(self):
+        response = self.call_mission("pause_mission")
+        assert not response.success
+        assert "No ongoing mission" in response.error_msg
+
     # ---- Lifecycle ----------------------------------------------------
 
     def test_deactivating_ends_the_mission_and_its_client_gets_the_result(self):
@@ -584,10 +653,24 @@ class TestMission(unittest.TestCase):
             drive_manager=DriveManager(component_name="some_driver"),
         )
         assert mission.config.planner_action == "some_planner/navigate_to_goal"
+        # The same for every mission, so a UI can be told to follow it up front
+        assert mission.routine_name == "navigation_mission"
         assert mission.stop_refs == [
             "some_controller/stop_path_tracking",
             "some_driver/stop_robot",
         ]
+
+    def test_the_routine_name_can_be_configured(self):
+        planner = StandInPlanner(component_name="named_planner")
+        planner.run_type = "ActionServer"
+        mission = MissionManager(
+            component_name="named_mission",
+            planner=planner,
+            controller=Controller(component_name="named_controller"),
+            drive_manager=DriveManager(component_name="named_driver"),
+            config=MissionManagerConfig(routine_name="patrol"),
+        )
+        assert mission.routine_name == "patrol"
 
     def test_a_mission_with_no_components_needs_them_in_its_config(self):
         with pytest.raises(ValueError, match="controller_name"):
@@ -631,7 +714,9 @@ class TestMission(unittest.TestCase):
             ).get_topic_names_and_types()
         ]
         mission_cursors = [
-            name for name, _ in names if name.startswith("/routine/mission_")
+            name
+            for name, _ in names
+            if name.startswith("/routine/navigation_mission")
         ]
         assert not mission_cursors, (
             f"missions left their routines behind: {mission_cursors}"

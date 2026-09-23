@@ -182,6 +182,22 @@ def test_a_stop_is_retried_before_it_ends_the_mission():
     assert step_named(spec, "stop_drive_manager_0")["max_retries"] == 2
 
 
+def test_pausing_the_mission_stops_the_robot():
+    """A pause preempts the step in flight, which cancels the goal of a
+    waypoint being driven but leaves the robot moving"""
+    spec = mission_routine_spec(
+        mission_goal(count=2),
+        name="mission_test",
+        planner_ref=PLANNER_REF,
+        stop_refs=STOP_REFS,
+        waypoint_timeout=WAYPOINT_TIMEOUT,
+        stop_retries=2,
+    )
+    # Controller first, so no new commands reach the drive manager
+    assert [action["ref"] for action in spec["on_pause"]] == STOP_REFS
+    assert all(action["max_retries"] == 2 for action in spec["on_pause"])
+
+
 def test_the_waypoints_driven_are_the_ones_in_the_planning_frame():
     """A goal given in another frame is driven where it lands in the frame the
     planner plans in, not at its raw coordinates"""
