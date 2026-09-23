@@ -207,6 +207,28 @@ These methods are available on every component and can be used as fallback actio
 | `set_params(params_names, new_values, keep_alive=True)` | Change multiple parameters                    |
 | `broadcast_status()`                                    | Publish current status (default fallback)     |
 
+### Navigation Component Actions
+
+Kompass components add actions of their own, declared with `@component_action`. They are usable in the same places as the built-in ones: as fallbacks, as the response to an event, from another component through the `execute_method` service, or from a routine step.
+
+| Component | Action | Purpose |
+| ------------------ | --------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| `Planner` | `trigger_main_action_server(goal_x, goal_y, goal_orientation, tolerance_dist, tolerance_ori, algorithm_name=None)` | Send a goal to the planner's own action server |
+| `Controller` | `set_algorithm(algorithm_value)` | Switch the control algorithm at runtime |
+| `Controller` | `stop_path_tracking()` | Stop following the current path and hold, until a new plan arrives |
+| `DriveManager` | `stop_robot(stop_timeout=5.0)` | Stop in closed loop: drop queued commands, publish zero until the robot is slower than its minimum velocity |
+| `DriveManager` | `move_forward(max_distance)` / `move_backward(max_distance)` | Step the robot if that direction is clear |
+| `DriveManager` | `rotate_in_place(max_rotation, safety_margin=None)` | Rotate if the margin around the robot is clear |
+| `DriveManager` | `move_to_unblock(...)` | Get out of a blocking spot |
+| `MissionManager` | `pause_mission()` / `resume_mission()` | Hold position until resumed, and carry on -- see [Missions](./missions.md#pausing-and-resuming) |
+
+A component action returns an `ActionReturnType`, the `(success, message)` pair the caller reports back. Calling one over a service looks like:
+
+```bash
+ros2 service call /controller/execute_method \
+  automatika_ros_sugar/srv/ExecuteMethod "{name: 'stop_path_tracking'}"
+```
+
 ### Default Behavior
 
 If you don't configure any fallbacks, the component uses `broadcast_status()` as the default `on_fail` action with unlimited retries. This publishes the failure status so external systems (like a Monitor node) can observe and react.
