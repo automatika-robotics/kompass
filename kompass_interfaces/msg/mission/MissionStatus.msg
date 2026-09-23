@@ -10,6 +10,7 @@ uint8 STATE_IDLE=4                  # No mission has run yet
 uint8 STATE_COMPLETED=5             # Final: the mission reached every waypoint
 uint8 STATE_CANCELED=6              # Final: the mission was canceled by its client
 uint8 STATE_ABORTED=7               # Final: the mission ended early, on a failure or a timed out pause, or was refused
+uint8 STATE_PAUSED=8                # Paused on request: the robot holds position until the mission is resumed
 uint8 state
 
 uint32 total_goals              # Number of waypoints in the mission
