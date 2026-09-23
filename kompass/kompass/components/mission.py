@@ -59,35 +59,10 @@ ON_TIMEOUT_POLICIES = (
 # ---------------------------------------------------------------------------
 # Action Translation ----------------------------------------------------------
 
-def _pose_to_dict(pose) -> Dict[str, Any]:
-    """A geometry_msgs/Pose as the nested dict a goal spec carries"""
-    return {
-        "position": {
-            "x": float(pose.position.x),
-            "y": float(pose.position.y),
-            "z": float(pose.position.z),
-        },
-        "orientation": {
-            "x": float(pose.orientation.x),
-            "y": float(pose.orientation.y),
-            "z": float(pose.orientation.z),
-            "w": float(pose.orientation.w),
-        },
-    }
-
-
 def _yaw_of(pose) -> float:
     """Heading of a geometry_msgs/Pose, from its quaternion"""
     q = pose.orientation
     return math.atan2(2.0 * (q.w * q.z + q.x * q.y), 1.0 - 2.0 * (q.y**2 + q.z**2))
-
-
-def _tolerance_to_dict(tolerance) -> Dict[str, float]:
-    """A PathTrackingError as a dict"""
-    return {
-        "orientation_error": float(tolerance.orientation_error),
-        "lateral_distance_error": float(tolerance.lateral_distance_error),
-    }
 
 
 def dwell_seconds(pause_duration: List[float], index: int) -> float:
@@ -128,9 +103,24 @@ def goto_step(
         "ref": planner_ref,
         "name": f"goto_{index}",
         "goal": {
-            "goal": _pose_to_dict(pose),
+            "goal": {
+                "position": {
+                    "x": float(pose.position.x),
+                    "y": float(pose.position.y),
+                    "z": float(pose.position.z),
+                },
+                "orientation": {
+                    "x": float(pose.orientation.x),
+                    "y": float(pose.orientation.y),
+                    "z": float(pose.orientation.z),
+                    "w": float(pose.orientation.w),
+                },
+            },
             "algorithm_name": algorithm_name,
-            "end_tolerance": _tolerance_to_dict(tolerance),
+            "end_tolerance": {
+                "orientation_error": float(tolerance.orientation_error),
+                "lateral_distance_error": float(tolerance.lateral_distance_error),
+            },
         },
         "timeout": timeout,
         # A navigation goal that ran out of time has not arrived, and driving
@@ -140,56 +130,18 @@ def goto_step(
     }
 
 
-def stop_step(index: int, ref: str, retries: int = 0) -> Dict[str, Any]:
+def stop_step(index: Union[int, str], ref: str, retries: int = 0) -> Dict[str, Any]:
     """Call one component action that stops the robot before holding position.
 
-    Named after the component, so the stops at one waypoint stay distinct
+    Named after the component and where it runs, so the stops stay distinct
 
+    :param index: The waypoint the stop is at, or what else it runs for
     :param retries: Extra attempts at stopping. A stop reports failure while
         the robot is still rolling, or before its location has arrived, and
         a step that runs out of attempts ends the mission
     """
     owner, _ = SystemActionRegistry.parse_ref(ref)
     return {"ref": ref, "name": f"stop_{owner}_{index}", "max_retries": retries}
-
-
-def dwell_step(index: int, seconds: float) -> Dict[str, Any]:
-    """Hold position for a fixed time before starting the next waypoint"""
-    return {
-        "ref": WAIT_ACTION,
-        "name": f"dwell_{index}",
-        "kwargs": {"duration": seconds},
-    }
-
-
-def condition_step(
-    index: int, topic_name: str, timeout: float, on_timeout: int
-) -> Dict[str, Any]:
-    """Hold position until an external topic says to continue.
-
-    The step's work is nothing: its success condition is what holds it open, and
-    the timeout policy is what decides the meaning of the condition never
-    arriving. A non positive timeout waits indefinitely.
-    """
-    condition = Topic(name=topic_name, msg_type="Bool").msg.data.is_true()
-    step: Dict[str, Any] = {
-        "ref": WAIT_ACTION,
-        "name": f"pause_{index}",
-        "kwargs": {"duration": 0.0},
-        "success": condition.to_dict(),
-        "on_fail": "abort",
-    }
-    if timeout and timeout > 0:
-        step["timeout"] = float(timeout)
-        # CONTINUE means the wait expiring is an acceptable outcome. Both other
-        # policies end the mission; which of them applies is decided by the
-        # routine's on_abort, not here
-        step["on_timeout"] = (
-            "succeed"
-            if on_timeout == MultiGoalPlanPathAction.Goal.ON_TIMEOUT_CONTINUE
-            else "fail"
-        )
-    return step
 
 
 def mission_routine_spec(
@@ -267,16 +219,20 @@ def mission_routine_spec(
                 stop_step(index, ref, retries=stop_retries) for ref in stop_refs
             )
         if dwell > 0:
-            steps.append(dwell_step(index, dwell))
-        if waits:
             steps.append(
-                condition_step(
-                    index,
-                    goal.pause_condition_topic,
-                    goal.condition_timeout,
-                    goal.on_timeout,
-                )
+                {"ref": WAIT_ACTION, "name": f"dwell_{index}", "kwargs": {"duration": dwell}}
             )
+        if waits:
+            # Its work is nothing: the success condition is what holds it open
+            go_ahead = Topic(name=goal.pause_condition_topic, msg_type="Bool")
+            steps.append({
+                "ref": WAIT_ACTION,
+                "name": f"pause_{index}",
+                "kwargs": {"duration": 0.0},
+                "success": go_ahead.msg.data.is_true().to_dict(),
+                "on_fail": "abort",
+                **timeout_policy,
+            })
 
     spec: Dict[str, Any] = {"name": name, "steps": steps}
     if returning and start_pose is not None:
@@ -592,30 +548,6 @@ class MissionManager(Component):
         pose_stamped.pose = self.__pose_of(message)
         return pose_stamped
 
-    def __waypoints_in_world(self, goal) -> List[Pose]:
-        """The goal's waypoints in the world frame, which the planner drives in.
-
-        A goal that names no frame is taken to be in the world frame already.
-        Otherwise its transform is waited for as long as a topic would be
-
-        :raises ValueError: If the goal names a frame whose transform to the
-            world frame does not arrive in time
-        """
-        world = self.config.frames.world
-        frame = goal.frame_id
-        if not frame or frame == world:
-            return list(goal.goals)
-        listener = self.get_transform_listener(frame, world)
-        deadline = time.monotonic() + self.config.topic_subscription_timeout
-        while not listener.got_transform and time.monotonic() < deadline:
-            time.sleep(0.1)
-        if not listener.got_transform:
-            raise ValueError(
-                f"The waypoints are given in the '{frame}' frame, and its "
-                f"transform to the '{world}' frame is not available"
-            )
-        return [do_transform_pose(pose, listener.transform) for pose in goal.goals]
-
     # ---- Talking to the Monitor -------------------------------------------
 
     @property
@@ -722,7 +654,23 @@ class MissionManager(Component):
         routine_name = f"mission_{self.node_name}_{self._mission_id}"
 
         try:
-            waypoints = self.__waypoints_in_world(goal)
+            waypoints = list(goal.goals)
+            world = self.config.frames.world
+            if goal.frame_id and goal.frame_id != world:
+                # Brought into the world frame the planner drives in, the
+                # transform waited for as long as a topic would be
+                listener = self.get_transform_listener(goal.frame_id, world)
+                deadline = time.monotonic() + self.config.topic_subscription_timeout
+                while not listener.got_transform and time.monotonic() < deadline:
+                    time.sleep(0.1)
+                if not listener.got_transform:
+                    raise ValueError(
+                        f"The waypoints are given in the '{goal.frame_id}' frame, "
+                        f"and its transform to the '{world}' frame is not available"
+                    )
+                waypoints = [
+                    do_transform_pose(pose, listener.transform) for pose in goal.goals
+                ]
             spec = mission_routine_spec(
                 goal,
                 name=routine_name,
@@ -781,8 +729,27 @@ class MissionManager(Component):
 
         while True:
             if self._end_requested.is_set() or goal_handle.is_cancel_requested:
+                # Canceled by the client, or asked to end by the node. Aborting
+                # the routine cancels the planner goal in flight, and the planner
+                # drops the plan it was driving, which stops the robot
+                requested = self._end_requested.is_set()
+                reason = self._end_reason if requested else "mission canceled"
                 self.__fill_progress(result, cursor, total, waypoints)
-                return self.__end_early(goal_handle, routine_name, result)
+                self.call_monitor(
+                    "abort_routine", routine_name=routine_name, reason=reason
+                )
+                self.__report(
+                    f"Mission {self._mission_id} "
+                    f"{f'ended: {reason}' if requested else 'canceled'}",
+                    error=requested,
+                )
+                return self.__finish(
+                    goal_handle,
+                    result,
+                    MultiGoalPlanPathAction.Result.OUTCOME_FAILED
+                    if requested
+                    else MultiGoalPlanPathAction.Result.OUTCOME_CANCELED,
+                )
 
             latest = self.cursor(routine_name)
             if latest is not None:
@@ -791,7 +758,20 @@ class MissionManager(Component):
                 if cursor.get("status") in ("completed", "failed", "aborted"):
                     break
                 feedback = self.__feedback_from_cursor(cursor, waypoints, total)
-                pause = self.__time_pause(feedback, cursor.get("active_step"), pause)
+                # Timed from the first poll that sees a pause, so it can be short
+                # by up to one poll period. Told apart by state and step, so
+                # pausing the mission during a dwell starts a new one
+                if feedback.state in (
+                    MultiGoalPlanPathAction.Feedback.STATE_PAUSED_DWELL,
+                    MultiGoalPlanPathAction.Feedback.STATE_PAUSED_CONDITION,
+                    MultiGoalPlanPathAction.Feedback.STATE_PAUSED,
+                ):
+                    current = (feedback.state, cursor.get("active_step"))
+                    if current != pause[0]:
+                        pause = (current, time.monotonic())
+                    feedback.time_paused = time.monotonic() - pause[1]
+                else:
+                    pause = (None, 0.0)
                 if (pose := self.current_pose()) is not None:
                     feedback.current_pose = pose
                 goal_handle.publish_feedback(feedback)
@@ -838,50 +818,6 @@ class MissionManager(Component):
         self.__publish_status(self._last_feedback, state=state)
         settle()
         return result
-
-    @staticmethod
-    def __time_pause(
-        feedback, step: Optional[str], pause: Tuple[Optional[str], float]
-    ) -> Tuple[Optional[str], float]:
-        """Fill in how long the current pause has been held.
-
-        Timed from the first poll that sees the pause, so it can be short by up
-        to one poll period
-
-        :param step: The routine's active step
-        :param pause: The pause step being held and when it was first seen
-        :return: The same, after this poll
-        """
-        if feedback.state not in (
-            MultiGoalPlanPathAction.Feedback.STATE_PAUSED_DWELL,
-            MultiGoalPlanPathAction.Feedback.STATE_PAUSED_CONDITION,
-        ):
-            return None, 0.0
-        held, since = pause
-        if step != held:
-            held, since = step, time.monotonic()
-        feedback.time_paused = time.monotonic() - since
-        return held, since
-
-    def __end_early(self, goal_handle, routine_name: str, result):
-        """End the mission before its routine has: canceled by the client, or
-        asked to end by the node.
-
-        Aborting the routine cancels the planner goal in flight, and the planner
-        drops the plan it was driving, which stops the robot
-        """
-        requested = self._end_requested.is_set()
-        reason = self._end_reason if requested else "mission canceled"
-        self.call_monitor("abort_routine", routine_name=routine_name, reason=reason)
-        if requested:
-            self.__report(f"Mission {self._mission_id} ended: {reason}", error=True)
-            return self.__finish(
-                goal_handle, result, MultiGoalPlanPathAction.Result.OUTCOME_FAILED
-            )
-        self.__report(f"Mission {self._mission_id} canceled")
-        return self.__finish(
-            goal_handle, result, MultiGoalPlanPathAction.Result.OUTCOME_CANCELED
-        )
 
     def __fill_progress(
         self, result, cursor: Dict[str, Any], total: int, waypoints: List[Pose]
