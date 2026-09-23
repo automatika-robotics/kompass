@@ -40,9 +40,9 @@ def augment_ui():
     Imported lazily: the elements need the browser UI dependencies, which are
     only required when the UI is served with a browser front-end
     """
-    from .ui_elements import INPUT_ELEMENTS, OUTPUT_ELEMENTS
+    from .ui_elements import INPUT_ELEMENTS, OUTPUT_ELEMENTS, TASK_ELEMENTS
 
-    return INPUT_ELEMENTS, OUTPUT_ELEMENTS
+    return INPUT_ELEMENTS, OUTPUT_ELEMENTS, TASK_ELEMENTS
 
 
 UI_EXTENSIONS["kompass"] = augment_ui
