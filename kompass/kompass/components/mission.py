@@ -33,6 +33,13 @@ from ..callbacks import GenericCallback
 from .component import Component
 from .controller import Controller
 from .defaults import TopicsKeys
+from .defaults import (
+    TopicsKeys,
+    mission_allowed_inputs,
+    mission_allowed_outputs,
+    mission_default_inputs,
+    mission_default_outputs,
+)
 from .drive_manager import DriveManager
 from .ros import AllowedTopics, Topic as KompassTopic
 
@@ -331,30 +338,6 @@ def ended_on_pause_timeout(cursor: Dict[str, Any]) -> bool:
 # ---------------------------------------------------------------------------
 # The component
 # ---------------------------------------------------------------------------
-
-mission_allowed_inputs: Dict[TopicsKeys, AllowedTopics] = {
-    TopicsKeys.ROBOT_LOCATION: AllowedTopics(
-        types=["Odometry", "PoseStamped", "Pose"]
-    ),
-}
-
-mission_default_inputs: Dict[TopicsKeys, KompassTopic] = {
-    TopicsKeys.ROBOT_LOCATION: KompassTopic(name="/odom", msg_type="Odometry"),
-}
-
-mission_allowed_outputs: Dict[TopicsKeys, AllowedTopics] = {
-    TopicsKeys.MISSION_STATUS: AllowedTopics(types=["MissionStatus"]),
-}
-
-mission_default_outputs: Dict[TopicsKeys, KompassTopic] = {
-    # Transient local, so a late subscriber still gets the latest status
-    TopicsKeys.MISSION_STATUS: KompassTopic(
-        name="/mission_status",
-        msg_type="MissionStatus",
-        qos_profile=QoSConfig(durability=qos.DurabilityPolicy.TRANSIENT_LOCAL),
-    ),
-}
-
 
 @define(kw_only=True)
 class MissionManagerConfig(ComponentConfig):
