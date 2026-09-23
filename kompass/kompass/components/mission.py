@@ -12,7 +12,7 @@ import json
 import math
 import threading
 import time
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from attrs import define, field
 
@@ -22,8 +22,7 @@ from tf2_geometry_msgs import do_transform_pose
 from kompass_interfaces.action import MultiGoalPlanPath as MultiGoalPlanPathAction
 from kompass_interfaces.msg import MissionStatus
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
-from ros_sugar.base_clients import ServiceClientHandler
-from ros_sugar.config import QoSConfig
+from ros_sugar.base_clients import ServiceClientConfig, ServiceClientHandler
 from ros_sugar.core import Monitor, SystemActionRegistry
 from ros_sugar.io import Topic
 
@@ -196,6 +195,20 @@ def mission_routine_spec(
             "from, and none was given"
         )
 
+    # What a go-ahead that never arrives means, the same at every waypoint.
+    # CONTINUE makes the wait running out an acceptable outcome, both other
+    # policies end the mission. A non positive timeout waits indefinitely
+    timeout_policy: Dict[str, Any] = (
+        {
+            "timeout": float(goal.condition_timeout),
+            "on_timeout": "succeed"
+            if goal.on_timeout == MultiGoalPlanPathAction.Goal.ON_TIMEOUT_CONTINUE
+            else "fail",
+        }
+        if goal.condition_timeout > 0
+        else {}
+    )
+
     steps: List[Dict[str, Any]] = []
     for index, pose in enumerate(points):
         steps.append(
@@ -235,6 +248,11 @@ def mission_routine_spec(
             })
 
     spec: Dict[str, Any] = {"name": name, "steps": steps}
+    # Pausing preempts the step in flight, which cancels the goal of a waypoint
+    # being driven but leaves the robot moving. It holds position until resumed
+    spec["on_pause"] = [
+        stop_step("on_pause", ref, retries=stop_retries) for ref in stop_refs
+    ]
     if returning and start_pose is not None:
         # Runs when the routine aborts, which is what every ending policy
         # except CONTINUE produces
@@ -360,8 +378,10 @@ class MissionManager(Component):
     Sends `MultiGoalPlanPath` goals to `mission/run_mission`. Each mission is
     identified by the time it was received, and the ongoing one is published on
     `mission_status`. The mission is carried out by a Sugarcoat routine on the
-    Monitor, so its progress is also visible on `routine/mission_<node>_<id>/state`
-    and it can be controlled by name through the Monitor's runtime API.
+    Monitor, named `routine_name` for every mission as they run one at a time.
+    Its progress is also visible on `routine/<routine_name>/state`, it can be
+    controlled by name through the Monitor's runtime API, and it can be followed
+    in the UI with `launcher.enable_ui(routines=[mission.routine_name])`.
     """
 
     def __init__(
@@ -459,35 +479,127 @@ class MissionManager(Component):
 
         Deactivating destroys the action server, and with it the goal handle:
         a client left waiting on a mission would never get a result, and the
-        routine would carry on with nothing following it. So the mission is
-        ended first, and given a while to unwind
-        """
-        self.__end_ongoing_mission("the mission manager was deactivated")
-        return super().on_deactivate(state)
-
-    def __end_ongoing_mission(self, reason: str) -> None:
-        """Ask the ongoing mission to end, and wait a while until it has.
-
-        The mission ends itself: its loop aborts the routine, which cancels the
-        planner goal in flight, and reports the goal as aborted. Waiting here is
-        what lets that result reach the client, as the action server sends it
-        only once the mission callback has returned
+        routine would carry on with nothing following it. So the mission ends
+        itself first: its loop aborts the routine, which cancels the planner
+        goal in flight, and reports the goal as aborted. The action server only
+        sends that result once the mission callback has returned, which is
+        what the wait is for
         """
         with self._main_goal_lock:
-            if self._main_goal_handle is None:
-                return
-        self._end_reason = reason
-        self._end_requested.set()
-        deadline = time.monotonic() + END_MISSION_TIMEOUT
-        while time.monotonic() < deadline:
-            with self._main_goal_lock:
-                if self._main_goal_handle is None:
-                    return
-            time.sleep(0.05)
-        self.get_logger().error(
-            f"Mission {self._mission_id} did not end within {END_MISSION_TIMEOUT}s, "
-            "its client may never get a result"
-        )
+            ongoing = self._main_goal_handle is not None
+        if ongoing:
+            self._end_reason = "the mission manager was deactivated"
+            self._end_requested.set()
+            deadline = time.monotonic() + self.config.end_mission_timeout
+            while ongoing and time.monotonic() < deadline:
+                time.sleep(0.05)
+                with self._main_goal_lock:
+                    ongoing = self._main_goal_handle is not None
+        if ongoing:
+            self.get_logger().error(
+                f"Mission {self._mission_id} did not end within "
+                f"{self.config.end_mission_timeout}s, "
+                "its client may never get a result"
+            )
+        return super().on_deactivate(state)
+
+    @component_action(
+        description={
+            "type": "function",
+            "function": {
+                "name": "pause_mission",
+                "description": "Pause the ongoing mission: the robot stops where "
+                "it is and holds position until the mission is resumed.",
+                "parameters": {"type": "object", "properties": {}},
+            },
+        }
+    )
+    def pause_mission(self, **_) -> ActionReturnType:
+        """Pause the ongoing mission, stopping the robot until `resume_mission`.
+
+        On resuming, a waypoint that was being driven to is driven to again, a
+        dwell starts over and a conditional pause waits for a new go-ahead
+
+        :rtype: ActionReturnType
+        """
+        return self.__control_routine("pause_routine", "pause")
+
+    @component_action(
+        description={
+            "type": "function",
+            "function": {
+                "name": "resume_mission",
+                "description": "Resume a paused mission from the waypoint it was "
+                "paused at.",
+                "parameters": {"type": "object", "properties": {}},
+            },
+        }
+    )
+    def resume_mission(self, **_) -> ActionReturnType:
+        """Resume a paused mission where it was paused
+
+        :rtype: ActionReturnType
+        """
+        return self.__control_routine("resume_routine", "resume")
+
+    def __control_routine(self, method: str, what: str) -> ActionReturnType:
+        """Pause or resume the routine of the ongoing mission"""
+        if not self._mission_id:
+            return False, f"No ongoing mission to {what}"
+        response = self.call_monitor(method, routine_name=self.routine_name)
+        if response is None:
+            return False, f"Could not {what} the mission: the monitor did not answer"
+        if not response.success:
+            return False, f"Could not {what} the mission: {response.error_msg}"
+        self.__report(f"Mission {self._mission_id}: {what} requested")
+        return True, f"Mission {self._mission_id}: {what} requested"
+
+    @property
+    def ui_waypoints(self) -> Topic:
+        """The topic a waypoint picked on the UI's map is published on.
+
+        Declared to the UI both ways: the map publishes a click on it, and the
+        mission's card reads it back to collect the journey
+
+        :rtype: Topic
+        """
+        return Topic(name=self.config.ui_waypoints_topic, msg_type="PointStamped")
+
+    @property
+    def ui_inputs(self) -> List[Any]:
+        """What the mission's card needs, for `launcher.enable_ui(inputs=...)`.
+
+        The action a mission is sent to, the service the card pauses and resumes
+        through, and the topic it collects waypoints from
+
+        :rtype: List[Any]
+        """
+        return [
+            self.ui_main_action_input,
+            ServiceClientConfig(
+                name=f"{self.node_name}/execute_method", srv_type=ExecuteMethod
+            ),
+            self.ui_waypoints,
+        ]
+
+    @property
+    def ui_outputs(self) -> List[Topic]:
+        """What the mission's card follows, for `launcher.enable_ui(outputs=...)`.
+
+        Its status, and the waypoints picked on the map
+
+        :rtype: List[Topic]
+        """
+        return [self.get_out_topic(TopicsKeys.MISSION_STATUS), self.ui_waypoints]
+
+    @property
+    def routine_name(self) -> str:
+        """Name of the routine carrying out a mission, the same for every one.
+
+        Missions run one at a time, so one name serves them all, and it is known
+        before any mission starts, which is what lets a UI follow it
+        """
+        return self.config.routine_name
 
     @property
     def stop_refs(self) -> List[str]:
@@ -650,8 +762,7 @@ class MissionManager(Component):
         result.last_reached_index = -1
         self._last_feedback = MultiGoalPlanPathAction.Feedback(total_goals=total)
 
-        # Unique per mission: the name is how the routine is controlled
-        routine_name = f"mission_{self.node_name}_{self._mission_id}"
+        routine_name = self.routine_name
 
         try:
             waypoints = list(goal.goals)
@@ -687,7 +798,9 @@ class MissionManager(Component):
                 goal_handle, result, MultiGoalPlanPathAction.Result.OUTCOME_FAILED
             )
 
-        registered = self.call_monitor("add_routine", routine=spec)
+        # Replacing one left over by a mission whose routine could not be
+        # removed, which would otherwise keep every later mission from starting
+        registered = self.call_monitor("add_routine", routine=spec, replace=True)
         if registered is None or not registered.success:
             reason = registered.error_msg if registered else "the monitor did not answer"
             self.__report(
@@ -725,7 +838,7 @@ class MissionManager(Component):
         period = 1.0 / self.config.cursor_poll_rate
         cursor: Dict[str, Any] = {}
         # The pause step being held and when it was first seen, for time_paused
-        pause: Tuple[Optional[str], float] = (None, 0.0)
+        pause: Tuple[Optional[Tuple], float] = (None, 0.0)
 
         while True:
             if self._end_requested.is_set() or goal_handle.is_cancel_requested:
@@ -826,20 +939,12 @@ class MissionManager(Component):
         result.reached_waypoints = reached_waypoints(cursor, total)
         reached = [i for i, done in enumerate(result.reached_waypoints) if done]
         result.last_reached_index = reached[-1] if reached else -1
-        if result.last_reached_index >= 0:
-            self.__fill_end_displacement(
-                result, waypoints[result.last_reached_index]
-            )
-
-    def __fill_end_displacement(self, result, waypoint: Pose) -> None:
-        """Record how far the robot ended up from the last waypoint reached.
-
-        Measured here rather than taken from the planner, whose per-waypoint
-        results the routine does not carry back
-        """
         pose = self.start_pose()
-        if pose is None:
+        if result.last_reached_index < 0 or pose is None:
             return
+        # How far the robot ended up from the last waypoint reached. Measured
+        # here, as the routine does not carry back the planner's results
+        waypoint = waypoints[result.last_reached_index]
         result.end_displacement.lateral_distance_error = float(
             math.hypot(
                 pose.position.x - waypoint.position.x,
@@ -870,6 +975,9 @@ class MissionManager(Component):
             feedback.state = MultiGoalPlanPathAction.Feedback.STATE_PAUSED_CONDITION
         elif step == "return_to_start":
             feedback.state = MultiGoalPlanPathAction.Feedback.STATE_RETURNING_TO_START
+        # Still names the step it was paused at, which gives the waypoint
+        if cursor.get("status") == "paused":
+            feedback.state = MultiGoalPlanPathAction.Feedback.STATE_PAUSED
 
         if suffix.isdigit():
             index = int(suffix)
