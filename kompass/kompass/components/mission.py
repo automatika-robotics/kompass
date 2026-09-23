@@ -21,7 +21,6 @@ from geometry_msgs.msg import Pose, PoseStamped
 from tf2_geometry_msgs import do_transform_pose
 from kompass_interfaces.action import MultiGoalPlanPath as MultiGoalPlanPathAction
 from kompass_interfaces.msg import MissionStatus
-from rclpy import qos
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
 from ros_sugar.base_clients import ServiceClientHandler
 from ros_sugar.config import QoSConfig
@@ -32,7 +31,6 @@ from ..config import BaseValidators, ComponentConfig, ComponentRunType
 from ..callbacks import GenericCallback
 from .component import Component
 from .controller import Controller
-from .defaults import TopicsKeys
 from .defaults import (
     TopicsKeys,
     mission_allowed_inputs,
@@ -41,7 +39,7 @@ from .defaults import (
     mission_default_outputs,
 )
 from .drive_manager import DriveManager
-from .ros import AllowedTopics, Topic as KompassTopic
+from .ros import ActionReturnType, component_action
 
 __all__ = ["MissionManager", "MissionManagerConfig"]
 
@@ -49,10 +47,6 @@ __all__ = ["MissionManager", "MissionManagerConfig"]
 #: conditional pause calls it with no duration and lets its success condition
 #: decide when to move on
 WAIT_ACTION = "monitor/wait"
-
-#: Seconds a deactivation waits for the ongoing mission to end. Ending it
-#: cancels the planner goal in flight, which the planner notices once a loop
-END_MISSION_TIMEOUT = 10.0
 
 #: What a mission goal can ask for when a conditional pause runs out of time
 ON_TIMEOUT_POLICIES = (
@@ -351,6 +345,14 @@ class MissionManagerConfig(ComponentConfig):
         position at a waypoint. A stop reports failure while the robot is still
         rolling, or before its location has arrived, and one that runs out of
         attempts ends the mission
+    :param end_mission_timeout: Seconds a deactivation waits for the ongoing
+        mission to end before taking its action server down. Ending it cancels
+        the planner goal in flight, which the planner notices once a loop
+    :param ui_waypoints_topic: Where the UI publishes a waypoint picked on the
+        map, for the mission's card to collect into a journey
+    :param routine_name: Name of the routine carrying out a mission on the
+        Monitor, the same for every mission as they run one at a time. What a
+        UI is told to follow, with `launcher.enable_ui(routines=[...])`
     :param planner_action: The planner's main action server, as
         `<planner component name>/<action name>` (e.g. `planner/navigate_to_goal`).
         Filled in from the planner when one is given to the MissionManager
@@ -371,6 +373,11 @@ class MissionManagerConfig(ComponentConfig):
     stop_retries: int = field(
         default=2, validator=BaseValidators.in_range(min_value=0, max_value=10)
     )
+    end_mission_timeout: float = field(
+        default=10.0, validator=BaseValidators.in_range(min_value=0.0, max_value=1e3)
+    )
+    ui_waypoints_topic: str = field(default="/mission_waypoints")
+    routine_name: str = field(default="navigation_mission")
     planner_action: Optional[str] = field(default=None)
     controller_name: Optional[str] = field(default=None)
     drive_manager_name: Optional[str] = field(default=None)
