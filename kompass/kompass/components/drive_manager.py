@@ -288,6 +288,8 @@ class DriveManager(Component):
         self._range_last_msg: List[float] = []  # last message stamps for range
         # Which way each Range beam points in the body frame, from its mount
         self._range_facing: List[int] = []
+        # The direction the safety check last ran in
+        self._check_forward: bool = True
         # Set once at activation so the per-tick path reads plain values
         self._stale_stop: bool = True
         self._sensor_timeout: float = self.config.sensor_data_timeout
@@ -1344,11 +1346,14 @@ class DriveManager(Component):
         except IndexError:
             next_cmd = None
         checked_this_tick = False
-        if next_cmd is not None and (
-            self._pc_checker or self._scan_checker or self._range_callbacks
-        ):
+        if self._pc_checker or self._scan_checker or self._range_callbacks:
+            # NOTE: Checked every tick, to update the emergency flag
+            if next_cmd is not None:
+                self._check_forward = next_cmd[0] >= 0.0
+            elif self.robot_state and self.robot_state.vx:
+                self._check_forward = self.robot_state.vx > 0.0
             self.slow_down_factor["scan_data"] = self._run_safety_check(
-                forward=(next_cmd[0] >= 0.0)
+                forward=self._check_forward
             )
             checked_this_tick = True
 
