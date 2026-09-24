@@ -316,13 +316,18 @@ class MissionManagerConfig(ComponentConfig):
         mission gives up on it
     :param cursor_poll_rate: How often the routine's cursor is read while a
         mission runs, in Hz. Only affects how promptly feedback is published
-    :param stop_retries: Extra attempts at stopping the robot before holding
-        position at a waypoint. A stop reports failure while the robot is still
-        rolling, or before its location has arrived, and one that runs out of
-        attempts ends the mission
+    :param retries: Extra attempts at whatever a mission does that is worth
+        trying again before giving up on it, and giving up on any of them ends
+        the mission: stopping the robot before it holds position at a waypoint,
+        which reports failure while the robot is still rolling or before its
+        location has arrived, and reading the routine's cursor, which fails
+        while nothing answers for the routine
     :param end_mission_timeout: Seconds a deactivation waits for the ongoing
         mission to end before taking its action server down. Ending it cancels
-        the planner goal in flight, which the planner notices once a loop
+        the planner goal in flight, which the planner notices once a loop.
+        Also what one call to the Monitor's runtime API is given a share of,
+        so that a Monitor that stopped answering is noticed rather than waited
+        for and the mission still ends within this
     :param ui_waypoints_topic: Where the UI publishes a waypoint picked on the
         map, for the mission's card to collect into a journey
     :param routine_name: Name of the routine carrying out a mission on the
@@ -345,11 +350,11 @@ class MissionManagerConfig(ComponentConfig):
     cursor_poll_rate: float = field(
         default=5.0, validator=BaseValidators.in_range(min_value=0.1, max_value=100.0)
     )
-    stop_retries: int = field(
-        default=2, validator=BaseValidators.in_range(min_value=0, max_value=10)
+    retries: int = field(
+        default=2, validator=BaseValidators.in_range(min_value=0, max_value=100)
     )
     end_mission_timeout: float = field(
-        default=10.0, validator=BaseValidators.in_range(min_value=0.0, max_value=1e3)
+        default=10.0, validator=BaseValidators.in_range(min_value=1.0, max_value=1e3)
     )
     ui_waypoints_topic: str = field(default="/mission_waypoints")
     routine_name: str = field(default="navigation_mission")
@@ -686,8 +691,18 @@ class MissionManager(Component):
         if self._monitor_client is None:
             self._monitor_client = ServiceClientHandler(
                 client_node=self,
-                srv_type=ExecuteMethod,
-                srv_name=Monitor.RUNTIME_API_SERVICE,
+                config=ServiceClientConfig(
+                    srv_type=ExecuteMethod,
+                    name=Monitor.RUNTIME_API_SERVICE,
+                    # NOTE: Ending a mission is two calls and can interrupt a third,
+                    # and a call that finds no service costs about one and a
+                    # half times its timeout, so a fifth each keeps the whole
+                    # ending inside the time a deactivation waits for it
+                    timeout_secs=self.config.end_mission_timeout / 5,
+                    # Looked for twice within that, so a Monitor that is not
+                    # there costs a call about as much as one that is slow
+                    attempt_period_secs=self.config.end_mission_timeout / 10,
+                ),
                 callback_group=MutuallyExclusiveCallbackGroup(),
             )
         return self._monitor_client
@@ -801,7 +816,7 @@ class MissionManager(Component):
                 waypoint_timeout=self.config.waypoint_timeout,
                 start_pose=self.start_pose(),
                 waypoints=waypoints,
-                stop_retries=self.config.stop_retries,
+                stop_retries=self.config.retries,
             )
         except ValueError as e:
             self.__report(f"Mission {self._mission_id} refused: {e}", error=True)
@@ -848,6 +863,9 @@ class MissionManager(Component):
         self.__publish_status(self._last_feedback)
         period = 1.0 / self.config.cursor_poll_rate
         cursor: Dict[str, Any] = {}
+        # Cursor reads that failed in a row, which is how a Monitor that no
+        # longer answers ends the mission instead of holding it open forever
+        missed = 0
         # The pause step being held and when it was first seen, for time_paused
         pause: Tuple[Optional[Tuple], float] = (None, 0.0)
 
@@ -876,7 +894,20 @@ class MissionManager(Component):
                 )
 
             latest = self.cursor(routine_name)
-            if latest is not None:
+            if latest is None:
+                missed += 1
+                if missed > self.config.retries:
+                    # Nothing can be said about a routine that cannot be read,
+                    # and it may not even be running. Ending the mission here
+                    # aborts it and hands the action server back, rather than
+                    # holding one goal open and rejecting every mission after it
+                    self._end_reason = (
+                        f"the mission routine could not be read {missed} times "
+                        "in a row"
+                    )
+                    self._end_requested.set()
+            else:
+                missed = 0
                 cursor = latest
                 # An ended routine has no active step to report, only a result
                 if cursor.get("status") in ("completed", "failed", "aborted"):

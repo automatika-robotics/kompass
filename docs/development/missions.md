@@ -82,7 +82,7 @@ ros2 action send_goal /run_mission kompass_interfaces/action/MultiGoalPlanPath \
 |---|---|---|
 | `goto_<i>` | `<planner>/<action>` | Send waypoint `i` to the planner's action server. `timeout` is `waypoint_timeout`, `on_timeout: fail`, `on_fail: abort` |
 | `stop_<component>_<i>` | `<controller>/stop_path_tracking` | Stop following the path, named after the component it calls. Runs before a wait, since the planner is done once within tolerance while the controller may still be driving |
-| `stop_<component>_<i>` | `<drive_manager>/stop_robot` | Stop the robot in closed loop. Both stops carry `max_retries: stop_retries` |
+| `stop_<component>_<i>` | `<drive_manager>/stop_robot` | Stop the robot in closed loop. Both stops carry `max_retries: retries` |
 | `dwell_<i>` | `monitor/wait` | Hold for `duration` seconds |
 | `pause_<i>` | `monitor/wait` | Hold with `duration: 0.0` and a success condition on the goal's condition topic, which is what keeps the step open |
 
@@ -177,6 +177,8 @@ ros2 service call /mission/cancel_main_action std_srvs/srv/Trigger   # without t
 
 Either way the routine is aborted, which cancels the planner goal in flight. That is what stops the robot: a canceled or aborted planner goal publishes an **empty global plan**, and the controller stops tracking when it receives a plan with fewer than two poses. The `stop_` steps cover the other direction, where a waypoint was reached normally and the robot is still rolling towards it.
 
+A mission also ends itself when the Monitor stops answering: a routine whose cursor cannot be read `retries` times over in a row is not being followed by anything and may not even be running, so the mission aborts it and reports the failure. Without that it would poll forever, holding the one goal the action server takes and leaving every mission after it to be rejected. Each call is bounded by a share of `end_mission_timeout`, both waiting for the service and waiting for its answer, which is what keeps a Monitor that has gone away from costing a minute a poll -- and what lets a mission end within the time a deactivation waits for it.
+
 Deactivating the component ends the ongoing mission first, waiting up to `end_mission_timeout` for it: destroying the action server takes the goal handle with it, so a client would never get a result and the routine would carry on with nothing following it. Whatever happens, the routine belongs to the goal and is removed with it (forced, since an abort mid-step leaves it running), and a leftover routine from a mission that could not clean up is replaced rather than blocking the next mission.
 
 ## Configuration
@@ -187,8 +189,8 @@ Deactivating the component ends the ongoing mission first, waiting up to `end_mi
 |---|---|---|
 | `waypoint_timeout` | `300.0` | Seconds allowed for one waypoint before the mission gives up on it |
 | `cursor_poll_rate` | `5.0` | How often the cursor is read, in Hz. Only affects how promptly feedback is published |
-| `stop_retries` | `2` | Extra attempts at each stop. A stop reports failure while the robot is still rolling, and one that runs out of attempts ends the mission |
-| `end_mission_timeout` | `10.0` | Seconds a deactivation waits for the ongoing mission to end |
+| `retries` | `2` | Extra attempts at what a mission can retry -- stopping the robot, reading the routine's cursor -- and running out of them on any of it ends the mission |
+| `end_mission_timeout` | `10.0` | Seconds a deactivation waits for the ongoing mission to end, and the budget one runtime API call gets a share of |
 | `ui_waypoints_topic` | `"/mission_waypoints"` | Where the UI publishes a waypoint picked on the map |
 | `routine_name` | `"navigation_mission"` | Name of the routine carrying out a mission, the same for every one |
 | `planner_action` | `None` | The planner's action server as `<component>/<action>`, filled in from the planner |
