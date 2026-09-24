@@ -74,8 +74,8 @@ class QoSConfig(QoSConfigBase):
       - Level of reliability in delivering samples
 
     * - **durability**
-      - `int`, `qos.DurabilityPolicy.VOLATILE`
-      - Determines if the publisher will be persisting samples for “late-joining” subscriptions (Transit Local) or not (Volatile)
+      - `int`, `qos.DurabilityPolicy.SYSTEM_DEFAULT`
+      - Determines if the publisher will be persisting samples for “late-joining” subscriptions (Transit Local) or not (Volatile). The default leaves it to the middleware, which is volatile
     ```
     """
 

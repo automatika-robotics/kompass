@@ -35,7 +35,7 @@ from .ros import (
     ActionReturnType,
     Topic,
     component_action,
-    set_latched_qos,
+    default_to_latched_qos,
     update_topics,
 )
 from .component import Component
@@ -81,7 +81,7 @@ class Planner(Component):
     Planner Component used for path planning during navigation.
 
     ## Input Topics:
-    - *map*: Global map used for planning, set on the planner when received. Always subscribed with a reliable and transient local QoS, to receive a map published once (latched) even when joining later.<br />
+    - *map*: Global map used for planning, set on the planner when received. Subscribed with a reliable and transient local QoS by default, to receive a map published once (latched) even when joining later, and with whatever the map topic asks for instead.<br />
                  Default: ``` Topic(name="/map", msg_type="OccupancyGrid" qos_profile=QoSConfig(durability=qos.DurabilityPolicy.TRANSIENT_LOCAL))```
     - *location*: the robot current location.<br /> Default ```Topic(name="/odom", msg_type="Odometry")```
     - *goal_point*: 2D navigation goal point on the map.<br /> Default ``` Topic(name="/goal", msg_type="PointStamped") ```
@@ -184,7 +184,7 @@ class Planner(Component):
         self.config: PlannerConfig = config
 
         # The map is published once, and has to be received when joining later
-        set_latched_qos(self.get_in_topic(TopicsKeys.GLOBAL_MAP))
+        default_to_latched_qos(self.get_in_topic(TopicsKeys.GLOBAL_MAP))
         # Held while the planning map is set or planned on: OMPL plans without
         # the GIL, and a new map is set from the map subscriber thread
         self._map_lock = threading.Lock()
@@ -196,10 +196,10 @@ class Planner(Component):
 
     def inputs(self, **kwargs):
         """
-        Set component input streams (topics). The map input always gets a latched QoS, as the map is published once
+        Set component input streams (topics). The map input defaults to a latched QoS, as the map is published once, and keeps whatever the given topic asks for instead
         """
         super().inputs(**kwargs)
-        set_latched_qos(self.get_in_topic(TopicsKeys.GLOBAL_MAP))
+        default_to_latched_qos(self.get_in_topic(TopicsKeys.GLOBAL_MAP))
 
     def inspect_component(self) -> str:
         """

@@ -18,7 +18,7 @@ from kompass_core.utils import get_occupancy_grid_from_pcd, get_points_from_pcd
 from rclpy.callback_groups import ReentrantCallbackGroup
 from ..config import BaseValidators, ComponentConfig, ComponentRunType
 from ..utils import IntEnum
-from .ros import Topic, set_latched_qos, update_topics
+from .ros import Topic, default_to_latched_qos, update_topics
 from .component import Component
 from .defaults import TopicsKeys, map_server_allowed_outputs, map_server_default_outputs
 from kompass_interfaces.srv import Save3dMapToFile, Save2dMapToFile
@@ -188,14 +188,14 @@ class MapServer(Component):
         )
         self.config: MapServerConfig = config
         # The map is published once, and has to reach subscribers joining later
-        set_latched_qos(self.get_out_topic(TopicsKeys.GLOBAL_MAP))
+        default_to_latched_qos(self.get_out_topic(TopicsKeys.GLOBAL_MAP))
 
     def outputs(self, **kwargs):
         """
-        Set component output streams (topics). The map output always gets a latched QoS, as the map is published once
+        Set component output streams (topics). The map output defaults to a latched QoS, as the map is published once, and keeps whatever the given topic asks for instead
         """
         super().outputs(**kwargs)
-        set_latched_qos(self.get_out_topic(TopicsKeys.GLOBAL_MAP))
+        default_to_latched_qos(self.get_out_topic(TopicsKeys.GLOBAL_MAP))
 
     def init_variables(self):
         """
