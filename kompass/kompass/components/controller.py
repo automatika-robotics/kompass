@@ -1278,6 +1278,15 @@ class Controller(Component):
         plan_callback = self.get_callback(TopicsKeys.GLOBAL_PLAN)
         if plan_callback:
             plan_callback.clear_last_msg()
+        # Under the lock, so a step already computing finishes first: its
+        # command would otherwise go out after the robot was told to stop.
+        # The core keeps tracking whatever path it holds, so that goes too --
+        # a path of fewer than two poses is how it is told to let go
+        with self._core_lock:
+            if self._path_controller is not None:
+                self._path_controller.set_path(global_path=Path())
+            self.plan = None
+            self._goal_point = None
         self._stop_robot()
 
     def _publish(
@@ -1519,12 +1528,21 @@ class Controller(Component):
             self._path_controller.set_path(self.plan)  # type: ignore
 
         self._reached_end: bool = False
+        # Told apart from a stop coming from outside, which sets the same latch
+        reached = False
 
         while True:
+            if self._reached_end:
+                self.get_logger().info(
+                    "Path tracking was stopped -> ending the goal"
+                )
+                break
+
             status: PathControlStatus = self._path_control()
 
             if status == PathControlStatus.GOAL_REACHED:
                 self._reached_end = True
+                reached = True
                 break
             if status in (PathControlStatus.FAILED, PathControlStatus.IDLE):
                 break
@@ -1552,7 +1570,7 @@ class Controller(Component):
 
             time.sleep(1 / self.config.loop_rate)
 
-        if self._reached_end:
+        if reached:
             # WHEN PATH TRACKER SERVICE RETURNS RESULT
             self.get_logger().info("Reached end of path!")
             # Update the result msg
