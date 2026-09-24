@@ -290,6 +290,8 @@ class DriveManager(Component):
         self._range_facing: List[int] = []
         # The direction the safety check last ran in
         self._check_forward: bool = True
+        # Set while stop_robot is bringing the robot to a halt
+        self._stopping: bool = False
         # Set once at activation so the per-tick path reads plain values
         self._stale_stop: bool = True
         self._sensor_timeout: float = self.config.sensor_data_timeout
@@ -436,6 +438,11 @@ class DriveManager(Component):
         :param cmd: Velocity Twist message
         :type cmd: Twist
         """
+        if self._stopping and (vx_out or vy_out or omega_out):
+            # A stop owns the robot until it reports back: a command from the
+            # controller or an event landing in the middle would undo it
+            self.get_logger().debug("Stopping the robot -> dropping a command")
+            return
         # Check emergency stop
         if not slowdown_factor:
             if not self.config.disable_safety_stop and not (
@@ -672,29 +679,61 @@ class DriveManager(Component):
         step = 1 / self.config.loop_rate
         stop_speed = self.robot.ctrl_vx_limits.min_vel
         elapsed = 0.0
-        while True:
-            # A zero command is always safe -> no safety check
-            self._publish_cmd(0.0, 0.0, 0.0, slowdown_factor=1.0)
-            self.__update_robot_state()
-            if not self.robot_state:
-                return (
-                    False,
-                    "Robot state is not available -> sent a zero command but cannot confirm the robot stopped",
+        # Where the robot was at the previous reading (used to compare when to speed info is available)
+        previous_state: Optional[Tuple[float, float, float, float]] = None
+        # While this runs, the robot is being stopped and nothing else drives it
+        self._stopping = True
+        try:
+            while True:
+                # A zero command is always safe -> no safety check
+                self._publish_cmd(0.0, 0.0, 0.0, slowdown_factor=1.0)
+                self.__update_robot_state()
+                if not self.robot_state:
+                    return (
+                        False,
+                        "Robot state is not available -> sent a zero command but cannot confirm the robot stopped",
+                    )
+                linear = float(np.hypot(self.robot_state.vx, self.robot_state.vy))
+                angular = abs(self.robot_state.omega)
+                now = time.monotonic()
+                compared = previous_state is not None and now > previous_state[3]
+                if compared:
+                    # Pose location reports no velocity -> Check location change
+                    span = now - previous_state[3]
+                    turn = self.robot_state.yaw - previous_state[2]
+                    linear = max(
+                        linear,
+                        float(
+                            np.hypot(
+                                self.robot_state.x - previous_state[0], self.robot_state.y - previous_state[1]
+                            )
+                        )
+                        / span,
+                    )
+                    angular = max(
+                        angular, abs(float(np.arctan2(np.sin(turn), np.cos(turn)))) / span
+                    )
+                # Update previous
+                previous_state = (
+                    self.robot_state.x,
+                    self.robot_state.y,
+                    self.robot_state.yaw,
+                    now,
                 )
-            speed = max(
-                abs(self.robot_state.vx),
-                abs(self.robot_state.vy),
-                abs(self.robot_state.omega),
-            )
-            if speed < stop_speed:
-                return True, "Robot stopped"
-            if elapsed >= stop_timeout:
-                return (
-                    False,
-                    f"Robot is still moving at {speed:.2f} after {elapsed:.2f}s of zero commands",
-                )
-            time.sleep(step)
-            elapsed += step
+                speed = max(linear, angular * self.robot_radius)
+                if compared and speed < stop_speed:
+                    return True, "Robot stopped"
+                if elapsed >= stop_timeout:
+                    return (
+                        False,
+                        f"Robot is still moving at {speed:.2f} m/s "
+                        f"({linear:.2f} m/s, {angular:.2f} rad/s) after "
+                        f"{elapsed:.2f}s of zero commands",
+                    )
+                time.sleep(step)
+                elapsed += step
+        finally:
+            self._stopping = False
 
     @component_action(
         description={
