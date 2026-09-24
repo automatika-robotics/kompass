@@ -1,4 +1,5 @@
 from typing import Optional, Union, List, Dict, Any
+import threading
 import time
 from attrs import define, field, fields
 from queue import Queue, Empty
@@ -251,6 +252,9 @@ class Controller(Component):
         **kwargs,
     ) -> None:
         self.config: ControllerConfig = config or ControllerConfig()
+        # NOTE: If a new plan arrives on the subscription thread while the control step runs on another with the
+        # GIL released, and setting a path destroys the one the step is reading.
+        self._core_lock = threading.RLock()  # Held for every touch of the core's path
 
         # Update defaults from custom topics if provided
         in_topics = (
@@ -537,7 +541,8 @@ class Controller(Component):
         if not self._path_controller:
             return None
 
-        tracked_state: Optional[RobotState] = self._path_controller.tracked_state
+        with self._core_lock:
+            tracked_state: Optional[RobotState] = self._path_controller.tracked_state
 
         if not tracked_state:
             return None
@@ -559,7 +564,8 @@ class Controller(Component):
         """
         # NOTE: For now only DWA provides a local plan
         if self.algorithm == ControllersID.DWA and self._path_controller:
-            kompass_cpp_path = self._path_controller.optimal_path()
+            with self._core_lock:
+                kompass_cpp_path = self._path_controller.optimal_path()
             if not kompass_cpp_path:
                 return None
 
@@ -596,11 +602,12 @@ class Controller(Component):
         if self.algorithm != ControllersID.DWA or not self._path_controller:
             return None
 
-        # If result is not processed -> no debug is available yet
-        if not self._path_controller.has_result():
-            return
+        with self._core_lock:
+            # If result is not processed -> no debug is available yet
+            if not self._path_controller.has_result():
+                return
 
-        (paths_x, paths_y) = self._path_controller.planner.get_debugging_samples()
+            (paths_x, paths_y) = self._path_controller.planner.get_debugging_samples()
 
         if paths_x is None:
             return None
@@ -633,7 +640,8 @@ class Controller(Component):
         """
         if not self._path_controller:
             return None
-        kompass_cpp_path = self._path_controller.interpolated_path()
+        with self._core_lock:
+            kompass_cpp_path = self._path_controller.interpolated_path()
         if not kompass_cpp_path:
             return None
         ros_path = Path()
@@ -1087,8 +1095,9 @@ class Controller(Component):
             return False
 
         # Handed over whatever its length, the core handles the length
-        self._path_controller.set_path(global_path=plan)
-        return bool(self._path_controller.path)
+        with self._core_lock:
+            self._path_controller.set_path(global_path=plan)
+            return bool(self._path_controller.path)
 
     def init_variables(self):
         """
@@ -1219,7 +1228,8 @@ class Controller(Component):
         # `self.plan` is the guarded world-frame read refreshed by
         # `_update_state` just above, so this cannot install a wrong-frame path
         if self.plan is not None:
-            self._path_controller.set_path(global_path=self.plan)
+            with self._core_lock:
+                self._path_controller.set_path(global_path=self.plan)
         else:
             self.get_logger().warning(
                 "No global plan available while applying the scan mount pose "
@@ -1325,15 +1335,21 @@ class Controller(Component):
         clearing the plan callback, aborting the action, etc.).
         """
         if self._path_controller is None:
-            self.get_logger().debug("Path controller is not initialized -> skipping control step")
+            self.get_logger().debug(
+                "Path controller is not initialized -> skipping control step"
+            )
             return PathControlStatus.IDLE
 
-        if not self._path_controller.path:
+        with self._core_lock:
+            has_path = bool(self._path_controller.path)
+        if not has_path:
             plan = self._read_plan()
             # No plan is set to the controller -> read plan from callback
             if (plan is None) or (not self._install_plan(plan)):
                 # Plan is not available or rejected by the core, which needs at least two poses
-                self.get_logger().debug("Plan is not available or rejected by the core -> skipping control step")
+                self.get_logger().debug(
+                    "Plan is not available or rejected by the core -> skipping control step"
+                )
                 return PathControlStatus.IDLE
 
         self._update_state(block=True)
@@ -1368,41 +1384,48 @@ class Controller(Component):
             self._stop_robot()
             return PathControlStatus.GOAL_REACHED
 
-        cmd_found: bool = self._path_controller.loop_step(
-            current_state=self.robot_state,  # type: ignore
-            ranges=ranges,
-            angles=angles,
-            points=points,
-            local_map=local_map,
-            local_map_resolution=getattr(self, "local_map_resolution", None),
-            debug=self.config.debug,
-        )
-
-        # LOG CONTROLLER INFO
-        self.get_logger().debug(f"Controller cmd_found={cmd_found}, Info: {self._path_controller.logging_info()}")
-
-        if not cmd_found:
-            # NOTE: The core reports the end of the path the same way as a failure to
-            # find a command: no command.
-            if self._path_controller.reached_end():
-                self._stop_robot()
-                return PathControlStatus.GOAL_REACHED
-            self.get_logger().error(
-                "Controller failed to compute a valid command -> stopping robot"
+        # The core computes with the GIL released, so its path stays this
+        # thread's until the commands that came out of it have been read
+        with self._core_lock:
+            cmd_found: bool = self._path_controller.loop_step(
+                current_state=self.robot_state,  # type: ignore
+                ranges=ranges,
+                angles=angles,
+                points=points,
+                local_map=local_map,
+                local_map_resolution=getattr(self, "local_map_resolution", None),
+                debug=self.config.debug,
             )
-            return PathControlStatus.FAILED
+
+            # LOG CONTROLLER INFO
+            self.get_logger().debug(
+                f"Controller cmd_found={cmd_found}, Info: {self._path_controller.logging_info()}"
+            )
+
+            if not cmd_found:
+                # NOTE: The core reports the end of the path the same way as a failure to
+                # find a command: no command.
+                if self._path_controller.reached_end():
+                    self._stop_robot()
+                    return PathControlStatus.GOAL_REACHED
+                self.get_logger().error(
+                    "Controller failed to compute a valid command -> stopping robot"
+                )
+                return PathControlStatus.FAILED
+
+            # Update controller path tracking info (errors)
+            self._lat_dist_error = self._path_controller.distance_error
+            self._ori_error = self._path_controller.orientation_error
+            commands = (
+                self._path_controller.linear_x_control,
+                self._path_controller.linear_y_control,
+                self._path_controller.angular_control,
+            )
 
         self.health_status.set_healthy()
-
-        # Update controller path tracking info (errors)
-        self._lat_dist_error = self._path_controller.distance_error
-        self._ori_error = self._path_controller.orientation_error
-
-        self._publish(
-            self._path_controller.linear_x_control,
-            self._path_controller.linear_y_control,
-            self._path_controller.angular_control,
-        )
+        # Published outside the lock: a TWIST_SEQUENCE publish sleeps between
+        # commands, and a plan on its way in should not wait for that
+        self._publish(*commands)
 
         return PathControlStatus.RUNNING
 
@@ -1492,7 +1515,8 @@ class Controller(Component):
         # _update_state yet, so `self.plan` may be stale at this point
         if (_plan := self._read_plan()) is not None:
             self.plan = _plan
-        self._path_controller.set_path(self.plan)  # type: ignore
+        with self._core_lock:
+            self._path_controller.set_path(self.plan)  # type: ignore
 
         self._reached_end: bool = False
 
