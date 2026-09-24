@@ -114,7 +114,7 @@ class MapServer(Component):
     * - **global_map**
       - [`nav_msgs.msg.OccupancyGrid`](http://docs.ros.org/en/noetic/api/nav_msgs/html/msg/OccupancyGrid.html)
       - 1
-      - `Topic(name="/map", msg_type="OccupancyGrid")` - Global map generated from input data. Published once when loaded from file with a reliable and transient local QoS, so subscribers joining later still receive it. Subscribers need the same QoS.
+      - `Topic(name="/map", msg_type="OccupancyGrid")` - Global map generated from input data. Published once when loaded from file with a reliable and transient local QoS, so subscribers joining later still receive it. Subscribers need the same QoS: a volatile subscriber that joins after the map was published gets nothing until the next load, since a transient local publisher keeps the message for those who ask for it rather than repeating it. That is the trade for not republishing a large message on every tick -- a stack that needs the repetition sets `map_file_read_rate` above zero, which reloads and publishes the map at that rate.
 
     * - **spatial_sensor**
       - [`sensor_msgs.msg.PointCloud2`](http://docs.ros.org/en/noetic/api/sensor_msgs/html/msg/PointCloud2.html)
