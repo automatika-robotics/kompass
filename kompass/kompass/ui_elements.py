@@ -152,9 +152,11 @@ _CARD_SCRIPT = """
     state.socket = new WebSocket(scheme + "://" + location.host +
                                  "/api/outputs/" + topic);
     state.socket.onmessage = function (event) {
-      const point = (JSON.parse(event.data) || {}).data;
+      // Every output frame is {topic, payload}, the point itself one level in
+      const payload = (JSON.parse(event.data) || {}).payload || {};
+      const point = payload.data;
       if (!point || point.length < 2) return;
-      state.frame = (JSON.parse(event.data) || {}).frame_id || state.frame;
+      state.frame = payload.frame_id || state.frame;
       state.waypoints.push({ x: point[0], y: point[1] });
       render();
     };
