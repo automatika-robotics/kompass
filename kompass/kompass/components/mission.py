@@ -18,6 +18,7 @@ from attrs import define, field
 
 from automatika_ros_sugar.srv import ExecuteMethod
 from geometry_msgs.msg import Pose, PoseStamped
+from kompass_core.models import RobotState
 from tf2_geometry_msgs import do_transform_pose
 from kompass_interfaces.action import MultiGoalPlanPath as MultiGoalPlanPathAction
 from kompass_interfaces.msg import MissionStatus
@@ -614,8 +615,14 @@ class MissionManager(Component):
         """Nothing runs outside a mission; the routine does the work"""
         pass
 
-    def __location_message(self):
-        """The latest robot location message, or None if none was received"""
+    def __robot_state(self) -> Optional[RobotState]:
+        """Where the robot is, in the world frame, or None if nothing knows yet.
+
+        Read the way every other component reads it: through the location
+        callback, with the transform from the frame the location messages are
+        stamped in to the world frame. Without it the mission would take a pose
+        in the odometry frame for a pose in the frame the planner drives in
+        """
         try:
             callback: Optional[GenericCallback] = self.get_callback(
                 TopicsKeys.ROBOT_LOCATION
@@ -624,40 +631,44 @@ class MissionManager(Component):
             return None
         if callback is None:
             return None
-        return getattr(callback, "msg", None)
+        listener = self.odom_tf_listener
+        return callback.get_output(
+            transformation=listener.transform if listener else None
+        )
 
     @staticmethod
-    def __pose_of(message):
-        """The geometry_msgs/Pose in a location message"""
-        # Odometry nests it, PoseStamped wraps it, Pose is already one
-        pose = getattr(message, "pose", message)
-        return getattr(pose, "pose", pose)
+    def __pose_of(state: RobotState) -> Pose:
+        """A robot state as a geometry_msgs/Pose"""
+        pose = Pose()
+        pose.position.x = float(state.x)
+        pose.position.y = float(state.y)
+        pose.orientation.z = float(math.sin(state.yaw / 2))
+        pose.orientation.w = float(math.cos(state.yaw / 2))
+        return pose
 
-    def start_pose(self):
-        """Where the robot is now, as a geometry_msgs/Pose, or None.
+    def start_pose(self) -> Optional[Pose]:
+        """Where the robot is now, as a geometry_msgs/Pose in the world frame.
 
         Read when a mission starts, so the return-to-start policy has somewhere
         to return to. None when nothing has published a location yet, which
         mission_routine_spec turns into a refusal rather than a wrong pose.
         """
-        message = self.__location_message()
-        if message is None:
-            return None
-        return self.__pose_of(message)
+        state = self.__robot_state()
+        return self.__pose_of(state) if state is not None else None
 
     def current_pose(self) -> Optional[PoseStamped]:
         """Where the robot is now, as a geometry_msgs/PoseStamped, or None.
 
-        A Pose location has no header, so its stamp and frame are left empty
+        Stamped in the world frame, which is the frame the pose was brought
+        into, whatever frame the location messages themselves are in
         """
-        message = self.__location_message()
-        if message is None:
+        state = self.__robot_state()
+        if state is None:
             return None
         pose_stamped = PoseStamped()
-        header = getattr(message, "header", None)
-        if header is not None:
-            pose_stamped.header = header
-        pose_stamped.pose = self.__pose_of(message)
+        pose_stamped.header.frame_id = self.config.frames.world
+        pose_stamped.header.stamp = self.get_ros_time()
+        pose_stamped.pose = self.__pose_of(state)
         return pose_stamped
 
     # ---- Talking to the Monitor -------------------------------------------
