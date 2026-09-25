@@ -1,4 +1,5 @@
 from typing import Any, Dict, Optional
+import threading
 import time
 import numpy as np
 from attrs import field, define
@@ -29,7 +30,14 @@ from ..callbacks import (
     DetectionsCallback,
     PointCloudCallback,
 )
-from .ros import Topic, update_topics, ActionClientHandler
+from .ros import (
+    ActionClientHandler,
+    ActionReturnType,
+    Topic,
+    component_action,
+    default_to_latched_qos,
+    update_topics,
+)
 from .component import Component
 from .defaults import (
     TopicsKeys,
@@ -73,7 +81,7 @@ class Planner(Component):
     Planner Component used for path planning during navigation.
 
     ## Input Topics:
-    - *map_layer*: Global map used for planning.<br />
+    - *map*: Global map used for planning, set on the planner when received. Subscribed with a reliable and transient local QoS by default, to receive a map published once (latched) even when joining later, and with whatever the map topic asks for instead.<br />
                  Default: ``` Topic(name="/map", msg_type="OccupancyGrid" qos_profile=QoSConfig(durability=qos.DurabilityPolicy.TRANSIENT_LOCAL))```
     - *location*: the robot current location.<br /> Default ```Topic(name="/odom", msg_type="Odometry")```
     - *goal_point*: 2D navigation goal point on the map.<br /> Default ``` Topic(name="/goal", msg_type="PointStamped") ```
@@ -175,10 +183,23 @@ class Planner(Component):
 
         self.config: PlannerConfig = config
 
+        # The map is published once, and has to be received when joining later
+        default_to_latched_qos(self.get_in_topic(TopicsKeys.GLOBAL_MAP))
+        # Held while the planning map is set or planned on: OMPL plans without
+        # the GIL, and a new map is set from the map subscriber thread
+        self._map_lock = threading.Lock()
+
         # Main service and action types of the planner component
         self.service_type = PlanPathSrv
         self.action_type = PlanPathAction
         self.main_action_name = "navigate_to_goal"
+
+    def inputs(self, **kwargs):
+        """
+        Set component input streams (topics). The map input defaults to a latched QoS, as the map is published once, and keeps whatever the given topic asks for instead
+        """
+        super().inputs(**kwargs)
+        default_to_latched_qos(self.get_in_topic(TopicsKeys.GLOBAL_MAP))
 
     def inspect_component(self) -> str:
         """
@@ -257,7 +278,8 @@ class Planner(Component):
         """
         super().config_from_file(config_file)
         if hasattr(self, "ompl_planner"):
-            self.ompl_planner.configure(config_file, self.node_name)
+            with self._map_lock:
+                self.ompl_planner.configure(config_file, self.node_name)
 
     def init_variables(self):
         """
@@ -265,8 +287,9 @@ class Planner(Component):
         """
         self.goal: Dict[int, RobotState] = {}
         self.robot_state: Optional[RobotState] = None
-        self.map: Optional[np.ndarray] = None
-        self.map_data: Optional[Dict] = None
+        # Kept if already received, the map is published once
+        self.map: Optional[np.ndarray] = getattr(self, "map", None)
+        self.map_data: Optional[Dict] = getattr(self, "map_data", None)
         self.reached_end: bool = False
         self._depth_image_info: Optional[CameraIntrinsics] = None
 
@@ -277,9 +300,13 @@ class Planner(Component):
         )
 
         # Init OMPL with collision checking
-        self.ompl_planner = OMPLGeometric(
-            robot=self.__robot, log_level=self.config.core_log_level
-        )
+        with self._map_lock:
+            self.ompl_planner = OMPLGeometric(
+                robot=self.__robot, log_level=self.config.core_log_level
+            )
+            # Set a map received before the OMPL planner was created
+            if self.map is not None:
+                self.ompl_planner.set_map(self.map)
 
         if self._config_file:
             self.config_from_file(self._config_file)
@@ -291,6 +318,7 @@ class Planner(Component):
         self.ros_path = None
 
         self._attach_callbacks()
+        self._attach_map_callback()
 
     def create_all_services(self):
         """
@@ -369,6 +397,46 @@ class Planner(Component):
             f"depth from '{depth_source.input_topic.name}'"
         )
 
+    @component_action(
+        description={
+            "type": "function",
+            "function": {
+                "name": "trigger_main_action_server",
+                "description": "Send a navigation goal to the planner action server, which plans a path to the goal point and keeps planning until the robot reaches it. "
+                "Use when the user asks the robot to go to a point on the map. Requires the planner to run as an action server.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "goal_x": {
+                            "type": "number",
+                            "description": "Goal x coordinate on the map in meters.",
+                        },
+                        "goal_y": {
+                            "type": "number",
+                            "description": "Goal y coordinate on the map in meters.",
+                        },
+                        "goal_orientation": {
+                            "type": "number",
+                            "description": "Goal orientation (yaw) on the map in radians. Defaults to 0.0.",
+                        },
+                        "tolerance_dist": {
+                            "type": "number",
+                            "description": "Distance to the goal in meters within which it is reached. Defaults to 0.1.",
+                        },
+                        "tolerance_ori": {
+                            "type": "number",
+                            "description": "Orientation error in radians within which the goal is reached. Defaults to 0.1.",
+                        },
+                        "algorithm_name": {
+                            "type": "string",
+                            "description": "Planning algorithm to use. Leave empty to use the configured one.",
+                        },
+                    },
+                    "required": ["goal_x", "goal_y"],
+                },
+            },
+        }
+    )
     def trigger_main_action_server(
         self,
         goal_x: float = 0.0,
@@ -378,25 +446,29 @@ class Planner(Component):
         tolerance_ori: float = 0.1,
         algorithm_name: Optional[str] = None,
         **_,
-    ) -> None:
+    ) -> ActionReturnType:
         """A component action to trigger the main planner action (Plan path to point until reached)
 
-        :param goal_x: _description_, defaults to 0.0
+        :param goal_x: Goal x coordinate on the map (m), defaults to 0.0
         :type goal_x: float, optional
-        :param goal_y: _description_, defaults to 0.0
+        :param goal_y: Goal y coordinate on the map (m), defaults to 0.0
         :type goal_y: float, optional
-        :param tolerance_dist: _description_, defaults to 0.1
+        :param goal_orientation: Goal orientation on the map (rad), defaults to 0.0
+        :type goal_orientation: float, optional
+        :param tolerance_dist: Distance to the goal within which it is reached (m), defaults to 0.1
         :type tolerance_dist: float, optional
-        :param tolerance_ori: _description_, defaults to 0.1
+        :param tolerance_ori: Orientation error within which the goal is reached (rad), defaults to 0.1
         :type tolerance_ori: float, optional
-        :param algorithm_name: _description_, defaults to None
+        :param algorithm_name: Planning algorithm, defaults to None (configured algorithm)
         :type algorithm_name: Optional[str], optional
+
+        :return: If the goal was accepted by the action server, with a reason when it was not
+        :rtype: ActionReturnType
         """
         if self.run_type != ComponentRunType.ACTION_SERVER:
-            self.get_logger().error(
-                f"Cannot trigger main action server for component '{self.node_name}' that is running in '{self.run_type}' execution"
-            )
-            return
+            error = f"Cannot trigger main action server for component '{self.node_name}' that is running in '{self.run_type}' execution"
+            self.get_logger().error(error)
+            return False, error
         try:
             action_client = ActionClientHandler(
                 client_node=self,
@@ -412,12 +484,19 @@ class Planner(Component):
             goal.end_tolerance.orientation_error = tolerance_ori
             if algorithm_name:
                 goal.algorithm_name = algorithm_name
-            action_client.send_request(goal)
+            if not action_client.send_request(goal):
+                error = f"Goal ({goal_x}, {goal_y}) was not accepted: '{self.main_action_name}' action server on '{self.node_name}' is not available or rejected it"
+                self.get_logger().error(error)
+                return False, error
         except Exception as e:
-            self.get_logger().error(
-                f"Failed to trigger '{self.main_action_name}' action on '{self.node_name}': {e}"
-            )
+            error = f"Failed to trigger '{self.main_action_name}' action on '{self.node_name}': {e}"
+            self.get_logger().error(error)
             self.health_status.set_fail_component()
+            return False, error
+        return (
+            True,
+            f"Goal ({goal_x}, {goal_y}) sent to '{self.main_action_name}' action server on '{self.node_name}'",
+        )
 
     def _clear_path(self, *_, **__):
         """
@@ -453,6 +532,37 @@ class Planner(Component):
             raise ValueError(
                 f"At least one of the goal point callbacks is a {callback.__class__.__name__} which requires depth camera info input. Please provide a topic for {TopicsKeys.DEPTH_CAM_INFO} to ensure proper functionality."
             )
+
+    def _attach_map_callback(self):
+        """
+        Attaches setting the planning map to the map topic callback
+        """
+        map_callback = self.get_callback(TopicsKeys.GLOBAL_MAP)
+        if map_callback:
+            map_callback.on_callback_execute(self._set_planning_map)
+
+    def _set_planning_map(self, output: Optional[np.ndarray], **_) -> None:
+        """
+        Sets a new map received on the map topic on the OMPL planner
+
+        The map is published once, so the planner collision map is built once per map
+        and not on every plan. A map received before the OMPL planner is created is
+        kept and set on the planner when it is created (see init_variables)
+        """
+        map_data: Optional[Dict] = self.get_callback(TopicsKeys.GLOBAL_MAP).get_output(
+            get_metadata=True
+        )
+        if output is None or not map_data:
+            return
+        with self._map_lock:
+            self.map = output
+            self.map_data = map_data
+            if getattr(self, "ompl_planner", None) is None:
+                return
+            self.ompl_planner.set_map(output)
+        self.get_logger().info(
+            f"Got new map of {map_data['width']}x{map_data['height']} cells for planning"
+        )
 
     def main_service_callback(
         self, request: PlanPathSrv.Request, response: PlanPathSrv.Response
@@ -545,6 +655,16 @@ class Planner(Component):
         # Get request
         end_goal_tolerance: PathTrackingError = goal_handle.request.end_tolerance
 
+        if end_goal_tolerance.lateral_distance_error <= 0.05:
+            self.get_logger().warning(f"Planner received a very small distance tolerance of {end_goal_tolerance.lateral_distance_error} m, which may cause the robot to oscillate and never reach the goal. Setting it to the default {self.config.distance_tolerance}")
+            end_goal_tolerance.lateral_distance_error = self.config.distance_tolerance
+
+        if end_goal_tolerance.orientation_error <= 0.1:
+            self.get_logger().warning(
+                f"Planner received a very small orientation tolerance of {end_goal_tolerance.orientation_error} rad, which may cause the robot to oscillate and never reach the goal. Setting it to the minimum {0.1}"
+            )
+            end_goal_tolerance.orientation_error = 0.1
+
         # TODO: get planner id from the request
         # planner_id = goal_handle.request.algorithm_name
 
@@ -573,7 +693,7 @@ class Planner(Component):
             inputs_to_check=[self.in_topic_name(TopicsKeys.ROBOT_LOCATION)]
         ):
             if not goal_handle.is_active or goal_handle.is_cancel_requested:
-                self.get_logger().info("Goal Canceled")
+                self._end_canceled_goal(goal_handle)
                 return action_result
             self.get_logger().warning(
                 f"Location input topic '{self.in_topic_name(TopicsKeys.ROBOT_LOCATION)}' is not available, waiting...",
@@ -584,7 +704,7 @@ class Planner(Component):
         try:
             while not self.reached_point(goal_state, end_goal_tolerance):
                 if not goal_handle.is_active or goal_handle.is_cancel_requested:
-                    self.get_logger().info("Goal Canceled")
+                    self._end_canceled_goal(goal_handle)
                     return action_result
 
                 # update state from input
@@ -603,6 +723,8 @@ class Planner(Component):
 
         except Exception as e:
             self.get_logger().error(f"Action execution error - {e}")
+            # The goal is over, so the plan it was driving has to go with it
+            self._publish_empty_plan()
             with self._main_goal_lock:
                 goal_handle.abort()
             return action_result
@@ -617,16 +739,34 @@ class Planner(Component):
             f"End Goal Reached with result {action_result} -> Ending Action"
         )
         self.get_publisher(TopicsKeys.REACHED_END).publish(bool(True))
-        # Publish empty path
-        self.ros_path = Path()
-        self.ros_path.header.frame_id = self.config.frames.world
-        self.ros_path.header.stamp = self.get_ros_time()
-        self.get_publisher(TopicsKeys.GLOBAL_PLAN).publish(self.ros_path)
+        self._publish_empty_plan()
 
         with self._main_goal_lock:
             goal_handle.succeed()
 
         return action_result
+
+    def _publish_empty_plan(self) -> None:
+        """Publish an empty global plan.
+
+        How the end of a goal reaches the controller: an empty plan is the only
+        thing that tells it to drop the path it is tracking, so a goal that
+        ends without one leaves the robot driving to it
+        """
+        self.ros_path = Path()
+        self.ros_path.header.frame_id = self.config.frames.world
+        self.ros_path.header.stamp = self.get_ros_time()
+        self.get_publisher(TopicsKeys.GLOBAL_PLAN).publish(self.ros_path)
+
+    def _end_canceled_goal(self, goal_handle) -> None:
+        """Drop the plan and report the goal canceled, when a cancel is what
+        ended it. Without the report rclpy marks the goal aborted instead
+        """
+        self.get_logger().info("Goal Canceled")
+        self._publish_empty_plan()
+        with self._main_goal_lock:
+            if goal_handle.is_cancel_requested:
+                goal_handle.canceled()
 
     def _plan(
         self, start: RobotState, goal: RobotState, publish_path: bool = True
@@ -634,37 +774,36 @@ class Planner(Component):
         """
         Plans and publishes a path from current robot location to current goal
         """
-        # Check if all inputs are available
+        # Check if the map is available, it is set on the OMPL planner when received
         # goal_point is excluded since goal can be provided by either a topic, service call or action goal
-        if self.got_all_inputs(
-            inputs_to_check=[self.in_topic_name(TopicsKeys.GLOBAL_MAP)]
-        ):
+        if self.map_data is not None:
             self.get_logger().debug(
                 f"Setting planning problem with {self.ompl_planner.planner_id} from [{start.x},{start.y}] to [{goal.x}, {goal.y}] and map data {self.map_data}"
             )
 
-            self.ompl_planner.setup_problem(
-                self.map_data,
-                start.x,
-                start.y,
-                start.yaw,
-                goal.x,
-                goal.y,
-                goal.yaw,
-                self.map,
-            )
+            # A new map cannot be set while planning
+            with self._map_lock:
+                self.ompl_planner.setup_problem(
+                    self.map_data,
+                    start.x,
+                    start.y,
+                    start.yaw,
+                    goal.x,
+                    goal.y,
+                    goal.yaw,
+                )
 
-            try:
-                # Solve the planning problem
-                path = self.ompl_planner.solve()
-            except Exception as e:
-                self.get_logger().error(
-                    f"OMPL failed to find a solution. Got exception: {e}"
-                )
-                self.health_status.set_fail_algorithm(
-                    algorithm_names=[self.ompl_planner.planner_id]
-                )
-                return False
+                try:
+                    # Solve the planning problem
+                    path = self.ompl_planner.solve()
+                except Exception as e:
+                    self.get_logger().error(
+                        f"OMPL failed to find a solution. Got exception: {e}"
+                    )
+                    self.health_status.set_fail_algorithm(
+                        algorithm_names=[self.ompl_planner.planner_id]
+                    )
+                    return False
 
             if path:
                 # Add cost as last cost if it does not exist
@@ -727,10 +866,7 @@ class Planner(Component):
         """
         Updates all inputs
         """
-        self.map: Optional[np.ndarray] = self.get_callback(
-            TopicsKeys.GLOBAL_MAP
-        ).get_output()
-
+        # NOTE: The map is not updated here, but when received (see _set_planning_map)
         self.robot_state: Optional[RobotState] = self.get_callback(
             TopicsKeys.ROBOT_LOCATION
         ).get_output(
@@ -738,10 +874,6 @@ class Planner(Component):
             if self.odom_tf_listener
             else None
         )
-
-        self.map_data: Optional[Dict] = self.get_callback(
-            TopicsKeys.GLOBAL_MAP
-        ).get_output(get_metadata=True)
 
         num_goal_inputs = self._inputs_keys.count(TopicsKeys.GOAL_POINT)
         for idx in range(num_goal_inputs):

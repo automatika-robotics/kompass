@@ -12,7 +12,7 @@ from kompass_cpp.types import SensorInputType
 
 # KOMPASS ROS
 from ..config import BaseValidators, ComponentConfig, ComponentRunType
-from .ros import Topic, update_topics, component_action
+from .ros import ActionReturnType, Topic, update_topics, component_action
 from .component import Component
 from ..callbacks import LaserScanCallback, PointCloudCallback, RangeCallback
 from .defaults import (
@@ -120,6 +120,9 @@ class DriveManagerConfig(ComponentConfig):
     stale_sensor_policy: str = field(
         default="stop", validator=BaseValidators.in_(["stop", "skip"])
     )  # "stop": stale safety sensor triggers emergency stop; "skip": check runs on the remaining sensors
+    pc_min_height: float = field(
+        default=0.0, validator=BaseValidators.in_range(min_value=0.0, max_value=1e9)
+    )  # Minimum height for point cloud filtering
 
 
 class DriveManager(Component):
@@ -285,6 +288,10 @@ class DriveManager(Component):
         self._range_last_msg: List[float] = []  # last message stamps for range
         # Which way each Range beam points in the body frame, from its mount
         self._range_facing: List[int] = []
+        # The direction the safety check last ran in
+        self._check_forward: bool = True
+        # Set while stop_robot is bringing the robot to a halt
+        self._stopping: bool = False
         # Set once at activation so the per-tick path reads plain values
         self._stale_stop: bool = True
         self._sensor_timeout: float = self.config.sensor_data_timeout
@@ -431,6 +438,11 @@ class DriveManager(Component):
         :param cmd: Velocity Twist message
         :type cmd: Twist
         """
+        if self._stopping and (vx_out or vy_out or omega_out):
+            # A stop owns the robot until it reports back: a command from the
+            # controller or an event landing in the middle would undo it
+            self.get_logger().debug("Stopping the robot -> dropping a command")
+            return
         # Check emergency stop
         if not slowdown_factor:
             if not self.config.disable_safety_stop and not (
@@ -638,6 +650,95 @@ class DriveManager(Component):
         description={
             "type": "function",
             "function": {
+                "name": "stop_robot",
+                "description": "Stop the robot: drops any queued commands and sends zero velocity until the robot is confirmed stopped. "
+                "Use when the user asks the robot to stop.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "stop_timeout": {
+                            "type": "number",
+                            "description": "Maximum time in seconds to wait for the robot to come to a stop. Defaults to 5.0.",
+                        },
+                    },
+                },
+            },
+        }
+    )
+    def stop_robot(self, stop_timeout: float = 5.0, **_) -> ActionReturnType:
+        """Stops the robot in closed loop: drops queued commands and publishes
+        zero velocity until the robot moves slower than its minimum velocity
+
+        :param stop_timeout: Maximum time to wait for the robot to stop (s)
+        :type stop_timeout: float
+
+        :return: If the robot stopped, with a reason when it did not
+        :rtype: ActionReturnType
+        """
+        self._cmds_queue.queue.clear()
+        step = 1 / self.config.loop_rate
+        stop_speed = self.robot.ctrl_vx_limits.min_vel
+        elapsed = 0.0
+        # Where the robot was at the previous reading (used to compare when to speed info is available)
+        previous_state: Optional[Tuple[float, float, float, float]] = None
+        # While this runs, the robot is being stopped and nothing else drives it
+        self._stopping = True
+        try:
+            while True:
+                # A zero command is always safe -> no safety check
+                self._publish_cmd(0.0, 0.0, 0.0, slowdown_factor=1.0)
+                self.__update_robot_state()
+                if not self.robot_state:
+                    return (
+                        False,
+                        "Robot state is not available -> sent a zero command but cannot confirm the robot stopped",
+                    )
+                linear = float(np.hypot(self.robot_state.vx, self.robot_state.vy))
+                angular = abs(self.robot_state.omega)
+                now = time.monotonic()
+                compared = previous_state is not None and now > previous_state[3]
+                if compared:
+                    # Pose location reports no velocity -> Check location change
+                    span = now - previous_state[3]
+                    turn = self.robot_state.yaw - previous_state[2]
+                    linear = max(
+                        linear,
+                        float(
+                            np.hypot(
+                                self.robot_state.x - previous_state[0], self.robot_state.y - previous_state[1]
+                            )
+                        )
+                        / span,
+                    )
+                    angular = max(
+                        angular, abs(float(np.arctan2(np.sin(turn), np.cos(turn)))) / span
+                    )
+                # Update previous
+                previous_state = (
+                    self.robot_state.x,
+                    self.robot_state.y,
+                    self.robot_state.yaw,
+                    now,
+                )
+                speed = max(linear, angular * self.robot_radius)
+                if compared and speed < stop_speed:
+                    return True, "Robot stopped"
+                if elapsed >= stop_timeout:
+                    return (
+                        False,
+                        f"Robot is still moving at {speed:.2f} m/s "
+                        f"({linear:.2f} m/s, {angular:.2f} rad/s) after "
+                        f"{elapsed:.2f}s of zero commands",
+                    )
+                time.sleep(step)
+                elapsed += step
+        finally:
+            self._stopping = False
+
+    @component_action(
+        description={
+            "type": "function",
+            "function": {
                 "name": "move_forward",
                 "description": "Move the robot forward by a given distance while checking for obstacles. "
                 "The robot will stop early if an obstacle is detected in the forward direction. "
@@ -655,14 +756,14 @@ class DriveManager(Component):
             },
         }
     )
-    def move_forward(self, max_distance: float, **_) -> bool:
+    def move_forward(self, max_distance: float, **_) -> ActionReturnType:
         """Moves the robot forward if the forward direction is clear of obstacles
 
         :param max_distance: Maximum distance (m)
         :type max_distance: float
 
-        :return: If the movement action is performed
-        :rtype: bool
+        :return: If the movement action is performed, with the distance traveled
+        :rtype: ActionReturnType
         """
 
         unblocking = True
@@ -692,8 +793,14 @@ class DriveManager(Component):
                 traveled_distance += step_distance
                 time.sleep(1 / self.config.loop_rate)
 
-        # Return true if unblocking forward is done
-        return traveled_distance >= max_distance
+        # Succeed if unblocking forward is done
+        if traveled_distance >= max_distance:
+            return True, f"Moved forward {traveled_distance:.2f}m"
+        return (
+            False,
+            f"Moved forward {traveled_distance:.2f}m of {max_distance:.2f}m, "
+            "the forward direction is blocked",
+        )
 
     @component_action(
         description={
@@ -716,14 +823,14 @@ class DriveManager(Component):
             },
         }
     )
-    def move_backward(self, max_distance: float, **_) -> bool:
+    def move_backward(self, max_distance: float, **_) -> ActionReturnType:
         """Moves the robot backwards if the backward direction is clear of obstacles
 
         :param max_distance: Maximum distance (m)
         :type max_distance: float
 
-        :return: If the movement action is performed
-        :rtype: bool
+        :return: If the movement action is performed, with the distance traveled
+        :rtype: ActionReturnType
         """
         unblocking = True
         step_distance = self.robot.ctrl_vx_limits.max_vel / (2 * self.config.loop_rate)
@@ -752,8 +859,14 @@ class DriveManager(Component):
                 traveled_distance += step_distance
                 time.sleep(1 / self.config.loop_rate)
 
-        # Return true if unblocking forward is done
-        return traveled_distance >= max_distance
+        # Succeed if unblocking backward is done
+        if traveled_distance >= max_distance:
+            return True, f"Moved backward {traveled_distance:.2f}m"
+        return (
+            False,
+            f"Moved backward {traveled_distance:.2f}m of {max_distance:.2f}m, "
+            "the backward direction is blocked",
+        )
 
     @component_action(
         description={
@@ -784,20 +897,19 @@ class DriveManager(Component):
     )
     def rotate_in_place(
         self, max_rotation: float, safety_margin: Optional[float] = None, **_
-    ) -> bool:
+    ) -> ActionReturnType:
         """Rotates the robot in place if a safety margin around the robot is clear
 
         :param safety_margin: Margin clear of obstacles to perform rotation, if None defaults to 5% of the robot_radius
         :type safety_margin: Optional[float], optional
 
-        :return: If the movement action is performed
-        :rtype: bool
+        :return: If the movement action is performed, with the angle rotated
+        :rtype: ActionReturnType
         """
         if self.robot.model_type == RobotType.ACKERMANN:
-            self.get_logger().error(
-                "Rotation in place action is called but ACKERMANN type robot cannot rotate in place. Aborting"
-            )
-            return False
+            error = "Rotation in place action is called but ACKERMANN type robot cannot rotate in place. Aborting"
+            self.get_logger().error(error)
+            return False, error
 
         unblocking = True
         traveled_radius = 0.0
@@ -829,8 +941,14 @@ class DriveManager(Component):
                 )
                 time.sleep(1 / self.config.loop_rate)
 
-        # Return true if unblocking forward is done
-        return traveled_radius >= max_rotation
+        # Succeed if the rotation is done
+        if traveled_radius >= max_rotation:
+            return True, f"Rotated in place {traveled_radius:.2f}rad"
+        return (
+            False,
+            f"Rotated in place {traveled_radius:.2f}rad of {max_rotation:.2f}rad, "
+            "the area around the robot is blocked",
+        )
 
     @component_action(
         description={
@@ -873,7 +991,7 @@ class DriveManager(Component):
         max_rotation: float = np.pi / 2,
         rotation_safety_margin: Optional[float] = None,
         **_,
-    ) -> bool:
+    ) -> ActionReturnType:
         """Moves the robot forward/backward or rotate in place to get out of blocking spots
 
         :param max_distance_forward: Maximum distance to move forward (meters), if None defaults to 2 * robot_radius
@@ -885,14 +1003,13 @@ class DriveManager(Component):
         :param rotation_safety_margin: Safety margin to perform rotation in place (meters), if None defaults to 5% of robot_radius
         :type rotation_safety_margin: Optional[float], optional
 
-        :return: If one of the movement actions is performed
-        :rtype: bool
+        :return: If one of the movement actions is performed, with the one that was
+        :rtype: ActionReturnType
         """
         if not (self._pc_checker or self._scan_checker):
-            self.get_logger().error(
-                "Proximity sensor data unavailable - Unblocking functionality requires LaserScan or PointCloud information"
-            )
-            return False
+            error = "Proximity sensor data unavailable - Unblocking functionality requires LaserScan or PointCloud information"
+            self.get_logger().error(error)
+            return False, error
 
         if not max_distance_forward:
             max_distance_forward = 2 * self.robot_radius
@@ -916,20 +1033,24 @@ class DriveManager(Component):
 
         random.shuffle(unblocking_actions)
 
-        unblocked = False
+        unblocked, message = False, ""
         for action, args, log_info in unblocking_actions:
             self.get_logger().info(f"Performing unblocking action: {log_info}")
-            unblocked = action(*args)
+            # NOTE: unpacked rather than tested directly, the (success, message)
+            # tuple is always truthy
+            unblocked, message = action(*args)
             if unblocked:
                 break
 
-        if not unblocked:
-            self.get_logger().error("Robot unblocking Failed due to nearby obstacles")
-        else:
-            self.get_logger().info("Robot Unblocking Action Done!")
         self._unblocking_on = False
 
-        return unblocked
+        if not unblocked:
+            error = "Robot unblocking Failed due to nearby obstacles"
+            self.get_logger().error(error)
+            return False, error
+
+        self.get_logger().info("Robot Unblocking Action Done!")
+        return True, f"Robot unblocked: {message}"
 
     def __filter_multi_cmds(self, cmd_list: list, max_acc: float, max_vel: float):
         """Smooth the multi-cmds
@@ -1158,10 +1279,14 @@ class DriveManager(Component):
         along_x = 1.0 - 2.0 * (qy * qy + qz * qz)
         cos_half_cone = float(np.cos(np.radians(self.config.critical_zone_angle) / 2.0))
         if along_x >= cos_half_cone:
-            self.get_logger().info(f"Range sensor '{name}' lies in the forward critical cone")
+            self.get_logger().info(
+                f"Range sensor '{name}' lies in the forward critical cone"
+            )
             return 1
         if along_x <= -cos_half_cone:
-            self.get_logger().info(f"Range sensor '{name}' lies in the backward critical cone")
+            self.get_logger().info(
+                f"Range sensor '{name}' lies in the backward critical cone"
+            )
             return -1
         self.get_logger().warning(
             f"Range sensor '{name}' lies outside the forward and backward critical "
@@ -1252,10 +1377,30 @@ class DriveManager(Component):
             return
         # Check emergency stop
         self._update_state()
+
+        # Re-run the safety check against the command about to go out, so the
+        # gate below sees current sensor data.
+        try:
+            next_cmd = self._cmds_queue.queue[0]
+        except IndexError:
+            next_cmd = None
+        checked_this_tick = False
+        if self._pc_checker or self._scan_checker or self._range_callbacks:
+            # NOTE: Checked every tick, to update the emergency flag
+            if next_cmd is not None:
+                self._check_forward = next_cmd[0] >= 0.0
+            elif self.robot_state and self.robot_state.vx:
+                self._check_forward = self.robot_state.vx > 0.0
+            self.slow_down_factor["scan_data"] = self._run_safety_check(
+                forward=self._check_forward
+            )
+            checked_this_tick = True
+
         speed_factor = min(self.slow_down_factor.values(), default=1.0)
         if speed_factor < 0.1:
-            # STOP ROBOT
+            # STOP ROBOT -> Send zero command and set emergency stop flag
             self.get_publisher(TopicsKeys.EMERGENCY).publish(True)
+            self.get_publisher(TopicsKeys.FINAL_COMMAND).publish([0.0, 0.0, 0.0])
             return
         else:
             self.get_publisher(TopicsKeys.EMERGENCY).publish(False)
@@ -1281,8 +1426,16 @@ class DriveManager(Component):
             _cmd_vel.angular.z = cmd[2]
             self.execute_cmd_closed_loop(_cmd_vel, max_time=self._multi_command_step)
         else:
-            # Execute cmd in open loop -> Publish once
-            self._publish_cmd(cmd[0], cmd[1], cmd[2])
+            # Execute cmd in open loop -> Publish once. When the safety check
+            # already ran this tick its factor is passed on rather than
+            # recomputed. Otherwise nothing is passed, so `_publish_cmd` keeps
+            # its guard against publishing before the checkers are initialized
+            self._publish_cmd(
+                cmd[0],
+                cmd[1],
+                cmd[2],
+                slowdown_factor=speed_factor if checked_this_tick else None,
+            )
 
     def _make_checker(self, **kwargs):
         """Constructs a critical zone checker: GPU implementation when enabled
@@ -1378,7 +1531,7 @@ class DriveManager(Component):
             "critical_angle": self.config.critical_zone_angle,
             "critical_distance": self.config.critical_zone_distance,
             "slowdown_distance": self.config.slowdown_zone_distance,
-            "min_height": 0.0,
+            "min_height": self.config.pc_min_height,
             "max_height": self.robot_height,
             "range_max": 3 * self.config.slowdown_zone_distance,
         }

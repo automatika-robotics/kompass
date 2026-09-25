@@ -1,4 +1,5 @@
 from typing import Optional, Union, List, Dict, Any
+import threading
 import time
 from attrs import define, field, fields
 from queue import Queue, Empty
@@ -39,7 +40,7 @@ from .ros import (
     Topic,
     update_topics,
 )
-from ..utils import component_action
+from ..utils import ActionReturnType, component_action
 
 # KOMPASS MSGS/SRVS/ACTIONS
 from .component import Component, TFListener
@@ -251,6 +252,9 @@ class Controller(Component):
         **kwargs,
     ) -> None:
         self.config: ControllerConfig = config or ControllerConfig()
+        # NOTE: If a new plan arrives on the subscription thread while the control step runs on another with the
+        # GIL released, and setting a path destroys the one the step is reading.
+        self._core_lock = threading.RLock()  # Held for every touch of the core's path
 
         # Update defaults from custom topics if provided
         in_topics = (
@@ -537,7 +541,8 @@ class Controller(Component):
         if not self._path_controller:
             return None
 
-        tracked_state: Optional[RobotState] = self._path_controller.tracked_state
+        with self._core_lock:
+            tracked_state: Optional[RobotState] = self._path_controller.tracked_state
 
         if not tracked_state:
             return None
@@ -559,7 +564,8 @@ class Controller(Component):
         """
         # NOTE: For now only DWA provides a local plan
         if self.algorithm == ControllersID.DWA and self._path_controller:
-            kompass_cpp_path = self._path_controller.optimal_path()
+            with self._core_lock:
+                kompass_cpp_path = self._path_controller.optimal_path()
             if not kompass_cpp_path:
                 return None
 
@@ -596,11 +602,12 @@ class Controller(Component):
         if self.algorithm != ControllersID.DWA or not self._path_controller:
             return None
 
-        # If result is not processed -> no debug is available yet
-        if not self._path_controller.has_result():
-            return
+        with self._core_lock:
+            # If result is not processed -> no debug is available yet
+            if not self._path_controller.has_result():
+                return
 
-        (paths_x, paths_y) = self._path_controller.planner.get_debugging_samples()
+            (paths_x, paths_y) = self._path_controller.planner.get_debugging_samples()
 
         if paths_x is None:
             return None
@@ -633,7 +640,8 @@ class Controller(Component):
         """
         if not self._path_controller:
             return None
-        kompass_cpp_path = self._path_controller.interpolated_path()
+        with self._core_lock:
+            kompass_cpp_path = self._path_controller.interpolated_path()
         if not kompass_cpp_path:
             return None
         ros_path = Path()
@@ -759,28 +767,27 @@ class Controller(Component):
             },
         }
     )
-    def set_algorithm(self, algorithm_value: Union[str, ControllersID], **_) -> bool:
+    def set_algorithm(
+        self, algorithm_value: Union[str, ControllersID], **_
+    ) -> ActionReturnType:
         """
         Component action - Set controller algorithm action
 
         :param algorithm_value: algorithm value
         :type algorithm_value: Union[str, ControllersID]
 
-        :raises Exception: Exception while updating algorithm value
-
-        :return: Success
-        :rtype: bool
+        :return: Success, with the reason when the algorithm could not be set
+        :rtype: ActionReturnType
         """
-        if self.algorithm in [ControllersID(algorithm_value), algorithm_value]:
-            return True
         try:
+            if self.algorithm in [ControllersID(algorithm_value), algorithm_value]:
+                return True, f"Controller algorithm is already '{algorithm_value}'"
             self.algorithm = algorithm_value
         except Exception as e:
-            self.get_logger().error(
-                f"Failed to set controller algorithm to '{algorithm_value}': {e}"
-            )
-            return False
-        return True
+            error = f"Failed to set controller algorithm to '{algorithm_value}': {e}"
+            self.get_logger().error(error)
+            return False, error
+        return True, f"Controller algorithm set to '{algorithm_value}'"
 
     def _activate_vision_mode(self):
         """Activate object following mode using vision detections"""
@@ -1054,6 +1061,12 @@ class Controller(Component):
             )
             return
         self._install_plan(output)
+        if len(output.poses) < 2:
+            # Length is less than 2 when a planner has reached the end, or it is an invalid plan. The core clears its own path when given fewer than two poses, so the robot stops.
+            self.get_logger().info(
+                "Received a global plan with no path to track -> stopping the robot"
+            )
+            self._end_path_tracking()
 
     def _install_plan(self, plan: Path) -> bool:
         """Hand a world-frame plan to the core and take the goal point from it.
@@ -1081,11 +1094,10 @@ class Controller(Component):
         if self._path_controller is None:
             return False
 
-        # NOTE: Handed over whatever its length. The core clears its own current
-        # path when given fewer than two poses, and that is the only way a stale
-        # path gets dropped. Skipping the call leaves the robot tracking it
-        self._path_controller.set_path(global_path=plan)
-        return bool(self._path_controller.path)
+        # Handed over whatever its length, the core handles the length
+        with self._core_lock:
+            self._path_controller.set_path(global_path=plan)
+            return bool(self._path_controller.path)
 
     def init_variables(self):
         """
@@ -1099,9 +1111,6 @@ class Controller(Component):
         )
         self.plan: Optional[Path] = None  # robot plan (global path)
 
-        # NOTE: The plan is tracked against the robot state, which is brought into
-        # the world frame, so the two have to agree. The plan carries its own
-        # frame in its messages, so nothing has to be configured
         self.transform_inputs_to(TopicsKeys.GLOBAL_PLAN, self.config.frames.world)
 
         # INIT PATH CONTROLLER
@@ -1219,7 +1228,8 @@ class Controller(Component):
         # `self.plan` is the guarded world-frame read refreshed by
         # `_update_state` just above, so this cannot install a wrong-frame path
         if self.plan is not None:
-            self._path_controller.set_path(global_path=self.plan)
+            with self._core_lock:
+                self._path_controller.set_path(global_path=self.plan)
         else:
             self.get_logger().warning(
                 "No global plan available while applying the scan mount pose "
@@ -1238,6 +1248,46 @@ class Controller(Component):
             self.get_publisher(TopicsKeys.INTERMEDIATE_CMD_LIST).publish(_cmd_vel_array)
         else:
             self.get_publisher(TopicsKeys.INTERMEDIATE_CMD).publish([0.0, 0.0, 0.0])
+
+    @component_action(
+        description={
+            "type": "function",
+            "function": {
+                "name": "stop_path_tracking",
+                "description": "Stop following the current path and stop the robot. "
+                "The controller stays idle until a new path is received. "
+                "Use when the robot should stop and hold its position.",
+                "parameters": {"type": "object", "properties": {}},
+            },
+        }
+    )
+    def stop_path_tracking(self, **_) -> ActionReturnType:
+        """Ends tracking of the current path, as if its end was reached, and
+        stops the robot. A new plan resumes tracking
+
+        :return: Always succeeds
+        :rtype: ActionReturnType
+        """
+        self._end_path_tracking()
+        return True, "Path tracking stopped"
+
+    def _end_path_tracking(self) -> None:
+        """Stop following the current path, as if its end was reached, and
+        stop the robot. A new plan resumes tracking"""
+        self._reached_end = True
+        plan_callback = self.get_callback(TopicsKeys.GLOBAL_PLAN)
+        if plan_callback:
+            plan_callback.clear_last_msg()
+        # Under the lock, so a step already computing finishes first: its
+        # command would otherwise go out after the robot was told to stop.
+        # The core keeps tracking whatever path it holds, so that goes too --
+        # a path of fewer than two poses is how it is told to let go
+        with self._core_lock:
+            if self._path_controller is not None:
+                self._path_controller.set_path(global_path=Path())
+            self.plan = None
+            self._goal_point = None
+        self._stop_robot()
 
     def _publish(
         self,
@@ -1294,15 +1344,21 @@ class Controller(Component):
         clearing the plan callback, aborting the action, etc.).
         """
         if self._path_controller is None:
-            self.get_logger().debug("Path controller is not initialized -> skipping control step")
+            self.get_logger().debug(
+                "Path controller is not initialized -> skipping control step"
+            )
             return PathControlStatus.IDLE
 
-        if not self._path_controller.path:
+        with self._core_lock:
+            has_path = bool(self._path_controller.path)
+        if not has_path:
             plan = self._read_plan()
             # No plan is set to the controller -> read plan from callback
             if (plan is None) or (not self._install_plan(plan)):
                 # Plan is not available or rejected by the core, which needs at least two poses
-                self.get_logger().debug("Plan is not available or rejected by the core -> skipping control step")
+                self.get_logger().debug(
+                    "Plan is not available or rejected by the core -> skipping control step"
+                )
                 return PathControlStatus.IDLE
 
         self._update_state(block=True)
@@ -1337,36 +1393,48 @@ class Controller(Component):
             self._stop_robot()
             return PathControlStatus.GOAL_REACHED
 
-        cmd_found: bool = self._path_controller.loop_step(
-            current_state=self.robot_state,  # type: ignore
-            ranges=ranges,
-            angles=angles,
-            points=points,
-            local_map=local_map,
-            local_map_resolution=getattr(self, "local_map_resolution", None),
-            debug=self.config.debug,
-        )
-
-        # LOG CONTROLLER INFO
-        self.get_logger().debug(f"Controller cmd_found={cmd_found}, Info: {self._path_controller.logging_info()}")
-
-        if not cmd_found:
-            self.get_logger().error(
-                "Controller failed to compute a valid command -> stopping robot"
+        # The core computes with the GIL released, so its path stays this
+        # thread's until the commands that came out of it have been read
+        with self._core_lock:
+            cmd_found: bool = self._path_controller.loop_step(
+                current_state=self.robot_state,  # type: ignore
+                ranges=ranges,
+                angles=angles,
+                points=points,
+                local_map=local_map,
+                local_map_resolution=getattr(self, "local_map_resolution", None),
+                debug=self.config.debug,
             )
-            return PathControlStatus.FAILED
+
+            # LOG CONTROLLER INFO
+            self.get_logger().debug(
+                f"Controller cmd_found={cmd_found}, Info: {self._path_controller.logging_info()}"
+            )
+
+            if not cmd_found:
+                # NOTE: The core reports the end of the path the same way as a failure to
+                # find a command: no command.
+                if self._path_controller.reached_end():
+                    self._stop_robot()
+                    return PathControlStatus.GOAL_REACHED
+                self.get_logger().error(
+                    "Controller failed to compute a valid command -> stopping robot"
+                )
+                return PathControlStatus.FAILED
+
+            # Update controller path tracking info (errors)
+            self._lat_dist_error = self._path_controller.distance_error
+            self._ori_error = self._path_controller.orientation_error
+            commands = (
+                self._path_controller.linear_x_control,
+                self._path_controller.linear_y_control,
+                self._path_controller.angular_control,
+            )
 
         self.health_status.set_healthy()
-
-        # Update controller path tracking info (errors)
-        self._lat_dist_error = self._path_controller.distance_error
-        self._ori_error = self._path_controller.orientation_error
-
-        self._publish(
-            self._path_controller.linear_x_control,
-            self._path_controller.linear_y_control,
-            self._path_controller.angular_control,
-        )
+        # Published outside the lock: a TWIST_SEQUENCE publish sleeps between
+        # commands, and a plan on its way in should not wait for that
+        self._publish(*commands)
 
         return PathControlStatus.RUNNING
 
@@ -1456,15 +1524,25 @@ class Controller(Component):
         # _update_state yet, so `self.plan` may be stale at this point
         if (_plan := self._read_plan()) is not None:
             self.plan = _plan
-        self._path_controller.set_path(self.plan)  # type: ignore
+        with self._core_lock:
+            self._path_controller.set_path(self.plan)  # type: ignore
 
         self._reached_end: bool = False
+        # Told apart from a stop coming from outside, which sets the same latch
+        reached = False
 
         while True:
+            if self._reached_end:
+                self.get_logger().info(
+                    "Path tracking was stopped -> ending the goal"
+                )
+                break
+
             status: PathControlStatus = self._path_control()
 
             if status == PathControlStatus.GOAL_REACHED:
                 self._reached_end = True
+                reached = True
                 break
             if status in (PathControlStatus.FAILED, PathControlStatus.IDLE):
                 break
@@ -1492,7 +1570,7 @@ class Controller(Component):
 
             time.sleep(1 / self.config.loop_rate)
 
-        if self._reached_end:
+        if reached:
             # WHEN PATH TRACKER SERVICE RETURNS RESULT
             self.get_logger().info("Reached end of path!")
             # Update the result msg
