@@ -94,6 +94,8 @@ class _Stub:
         range_facing=(),
     ):
         now = time.monotonic()
+        # Set by stop_robot while it owns the robot
+        self._stopping = False
         self._pc_callbacks = tuple(_Callback(output) for output in pc_outputs)
         self._pc_last_msg = [now - age for age in pc_ages]
         self._scan_callback = _Callback(
@@ -463,6 +465,8 @@ class _StepStub(_Stub):
             critical_zone_distance=0.3,
         )
         self._unblocking_on = False
+        self._check_forward = True
+        self.robot_state = SimpleNamespace(vx=0.0)
         self._cmds_queue = Queue()
         self._multi_command_step = 0.1
         self.slow_down_factor = {}
@@ -540,18 +544,29 @@ def test_robot_is_commanded_to_zero_while_stopped():
         assert commands == [[0.0, 0.0, 0.0]], "stopped tick did not command zero"
 
 
-def test_empty_queue_keeps_the_last_verdict():
-    """With nothing queued there is no direction to check against, so the step
-    must not guess one: checking forward while reversing between controller
-    batches could raise a spurious stop and trigger the unblock maneuver."""
+def test_an_empty_queue_still_refreshes_the_verdict():
+    """The emergency flag is what the stack reacts to, so it has to follow the
+    sensor even with nothing queued: a stop left over from an earlier tick
+    starts an unblock maneuver on a robot whose path is clear."""
     stub = _StepStub()
     stub.slow_down_factor["scan_data"] = 0.0  # last verdict: unsafe
     checker = stub._pc_checker
 
     _, estop = stub.step()
 
-    assert estop is True
-    assert checker.directions == [], "checked without a command to take a direction from"
+    assert estop is False, "kept a verdict from an earlier tick"
+    assert checker.directions == [True], "did not check with nothing queued"
+
+
+def test_the_direction_checked_follows_the_robot_when_nothing_is_queued():
+    """Still never a guess: checking forward while the robot reverses would
+    stop it for an obstacle it is driving away from."""
+    stub = _StepStub()
+    stub.robot_state = SimpleNamespace(vx=-0.2)
+
+    stub.step()
+
+    assert stub._pc_checker.directions == [False]
 
 
 def test_safety_check_runs_once_per_tick():
@@ -583,3 +598,84 @@ def test_nothing_is_published_before_the_checkers_are_initialized():
     commands, _ = stub.step()
 
     assert commands == []
+
+
+# ---------------------------------------------------------------------------
+# stop_robot: what counts as stopped
+# ---------------------------------------------------------------------------
+
+
+class _StopStub(_StepStub):
+    """Runs the real stop_robot against a robot whose motion the test writes"""
+
+    # The action refuses to run outside a node, the function under it does not
+    stop_robot = DriveManager.stop_robot.__wrapped__
+
+    def __init__(self, states, radius=0.3, **kwargs):
+        super().__init__(**kwargs)
+        self.config.loop_rate = 1000.0
+        self.robot_radius = radius
+        self.robot = SimpleNamespace(
+            ctrl_vx_limits=SimpleNamespace(min_vel=0.05),
+            ctrl_omega_limits=SimpleNamespace(min_omega=0.01),
+        )
+        self._states = list(states)
+        self.robot_state = None
+
+    def _DriveManager__update_robot_state(self):
+        if self._states:
+            self.robot_state = self._states.pop(0)
+
+
+def _at(x=0.0, y=0.0, yaw=0.0, vx=0.0, vy=0.0, omega=0.0):
+    return SimpleNamespace(x=x, y=y, yaw=yaw, vx=vx, vy=vy, omega=omega)
+
+
+def test_a_standing_robot_whose_heading_wanders_counts_as_stopped():
+    """A legged robot reports a rotation rate it is not driving at. What
+    matters is the speed that gives its outermost point: 0.06 rad/s on a 0.3 m
+    robot is 0.018 m/s, well under the minimum velocity it can be commanded to"""
+    stub = _StopStub([_at(omega=0.06)] * 3)
+
+    stopped, message = stub.stop_robot(stop_timeout=0.05)
+
+    assert stopped is True, message
+
+
+def test_a_spinning_robot_does_not_count_as_stopped():
+    stub = _StopStub([_at(omega=2.0)] * 200)
+
+    stopped, message = stub.stop_robot(stop_timeout=0.02)
+
+    assert stopped is False
+    assert "rad/s" in message
+
+
+def test_a_location_without_velocities_is_judged_by_what_moved():
+    """A Pose location reports zero velocity however fast the robot is going,
+    so it would report a stop at once"""
+    moving = [_at(x=0.1 * step) for step in range(200)]
+    stub = _StopStub(moving)
+
+    stopped, _ = stub.stop_robot(stop_timeout=0.02)
+
+    assert stopped is False, "a moving robot with a Pose location read as stopped"
+
+
+def test_nothing_else_drives_the_robot_while_it_is_stopping():
+    """A controller still publishing would undo the stop it is being asked for"""
+    stub = _StopStub([_at()])
+    seen = []
+    stub._publish_cmd = lambda *args, **kwargs: seen.append(args)
+
+    def interrupt(**_):
+        # What an incoming command does in the middle of the stop
+        DriveManager._publish_cmd(stub, 0.3, 0.0, 0.0)
+
+    stub._DriveManager__update_robot_state = interrupt
+    stub.robot_state = _at()
+    stub.stop_robot(stop_timeout=0.01)
+
+    assert all(command == (0.0, 0.0, 0.0) for command in seen), (
+        f"a non-zero command went out while stopping: {seen}"
+    )

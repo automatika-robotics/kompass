@@ -408,7 +408,9 @@ class TestPlanningMap:
 
 
 class TestMapInputQoS:
-    """The map is published once: the planner has to get it even when joining later"""
+    """The map is published once, so the planner has to get it even when it
+    subscribes later. That is a default: a recipe or a config file that asks
+    for another QoS means it"""
 
     @staticmethod
     def _assert_latched(topic: Topic):
@@ -420,8 +422,8 @@ class TestMapInputQoS:
 
         self._assert_latched(planner.get_in_topic(TopicsKeys.GLOBAL_MAP))
 
-    def test_given_map_input_is_latched(self):
-        shared_qos = QoSConfig(reliability=qos.ReliabilityPolicy.BEST_EFFORT)
+    def test_a_map_input_given_without_a_qos_is_latched(self):
+        shared_qos = QoSConfig()
         map_topic = Topic(
             name="/my_map", msg_type="OccupancyGrid", qos_profile=shared_qos
         )
@@ -432,8 +434,63 @@ class TestMapInputQoS:
 
         self._assert_latched(planner.get_in_topic(TopicsKeys.GLOBAL_MAP))
         # A QoS profile shared with other topics is left unchanged
-        assert shared_qos.durability == qos.DurabilityPolicy.VOLATILE
-        assert shared_qos.reliability == qos.ReliabilityPolicy.BEST_EFFORT
+        assert shared_qos.durability == qos.DurabilityPolicy.SYSTEM_DEFAULT
+
+    def test_a_qos_set_in_the_recipe_is_kept(self):
+        """Only what the recipe left alone is filled in"""
+        map_topic = Topic(
+            name="/slam_map",
+            msg_type="OccupancyGrid",
+            qos_profile=QoSConfig(reliability=qos.ReliabilityPolicy.BEST_EFFORT),
+        )
+
+        planner = Planner(
+            component_name="planner_map_qos_kept_test", inputs={"map": map_topic}
+        )
+
+        profile = planner.get_in_topic(TopicsKeys.GLOBAL_MAP).qos_profile
+        assert profile.reliability == qos.ReliabilityPolicy.BEST_EFFORT
+        # The recipe said nothing about durability, so it is still latched
+        assert profile.durability == qos.DurabilityPolicy.TRANSIENT_LOCAL
+
+    def test_a_volatile_map_input_can_be_asked_for(self):
+        """Which is what a map publisher that is not transient local needs: a
+        transient local subscription is incompatible with it and gets nothing.
+        Durability defaults to the middleware's, so asking for volatile says
+        something the default does not"""
+        map_topic = Topic(
+            name="/volatile_map",
+            msg_type="OccupancyGrid",
+            qos_profile=QoSConfig(durability=qos.DurabilityPolicy.VOLATILE),
+        )
+
+        planner = Planner(
+            component_name="planner_volatile_map_test", inputs={"map": map_topic}
+        )
+
+        profile = planner.get_in_topic(TopicsKeys.GLOBAL_MAP).qos_profile
+        assert profile.durability == qos.DurabilityPolicy.VOLATILE
+        # Reliability was not asked for, so it is still the latched default
+        assert profile.reliability == qos.ReliabilityPolicy.RELIABLE
+
+    def test_a_qos_from_a_config_file_is_kept(self, tmp_path):
+        """A config file is read after the component was built, so it has the
+        last word as well"""
+        config_file = tmp_path / "planner.toml"
+        config_file.write_text(
+            "[planner_map_qos_file_test.inputs.map]\n"
+            'name = "/map_from_file"\n'
+            'msg_type = "OccupancyGrid"\n'
+            "[planner_map_qos_file_test.inputs.map.qos_profile]\n"
+            f"durability = {int(qos.DurabilityPolicy.VOLATILE)}\n"
+        )
+        planner = Planner(component_name="planner_map_qos_file_test")
+
+        planner.config_from_file(str(config_file))
+
+        map_topic = planner.get_in_topic(TopicsKeys.GLOBAL_MAP)
+        assert map_topic.name == "map_from_file"
+        assert map_topic.qos_profile.durability == qos.DurabilityPolicy.VOLATILE
 
     def test_map_input_set_after_init_is_latched(self):
         planner = Planner(component_name="planner_map_qos_after_init_test")
@@ -614,3 +671,23 @@ class TestGoalEndingEarly:
 
         assert len(self._last_plan(publishers).poses) == 0
         handle.abort.assert_called_once()
+
+
+class TestOneGoalAtATime:
+    """The action server drives one goal at a time. A second one is rejected
+    rather than preempting the first: what the robot is doing changes when a
+    caller says so, not as a side effect of a new request"""
+
+    def test_a_rejected_goal_is_reported_rather_than_replacing_the_one_running(self):
+        p = TestTriggerMainActionServer._make_planner()
+        p.cancel_main_goal = MagicMock()
+
+        with patch("kompass.components.planner.ActionClientHandler") as client_class:
+            # What the server answers while it is driving another goal
+            client_class.return_value.send_request.return_value = False
+            accepted, reason = TestTriggerMainActionServer._call(p)
+
+        assert accepted is False
+        assert "not accepted" in reason
+        # Nothing was cancelled on the way: that is the caller's to ask for
+        p.cancel_main_goal.assert_not_called()

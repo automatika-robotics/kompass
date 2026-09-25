@@ -16,6 +16,13 @@ import numpy as np  # noqa: E402
 from rclpy import qos  # noqa: E402
 
 from kompass.components import MapServer, MapServerConfig  # noqa: E402
+from kompass.robot import (  # noqa: E402
+    AngularCtrlLimits,
+    LinearCtrlLimits,
+    RobotConfig,
+    RobotGeometryType,
+    RobotType,
+)
 from kompass.components.defaults import TopicsKeys  # noqa: E402
 from kompass.ros import Topic  # noqa: E402
 from ros_sugar.config import QoSConfig  # noqa: E402
@@ -74,6 +81,36 @@ class TestMapPublishing:
 
         assert map_publish_calls(m) == 1
 
+    def test_the_map_is_loaded_again_after_a_restart(self):
+        """`init_variables` drops the loaded map on every activation, so the
+        load `_execute_once` does has to be repeatable: a restarted MapServer
+        that never loads again publishes no map at all"""
+        m = make_map_server_stub(
+            map_file_path="/maps/office.yaml",
+            # init_variables() sizes the robot, so the stub needs one
+            robot=RobotConfig(
+                model_type=RobotType.DIFFERENTIAL_DRIVE,
+                geometry_type=RobotGeometryType.CYLINDER,
+                geometry_params=[0.2, 0.4],
+                ctrl_vx_limits=LinearCtrlLimits(max_vel=0.4, max_acc=1.5, max_decel=2.5),
+                ctrl_omega_limits=AngularCtrlLimits(
+                    max_omega=0.4, max_acc=2.0, max_decel=2.0, max_ang=1.0
+                ),
+            ),
+        )
+        m._read_map_from_yaml = MagicMock(side_effect=load_grid(m))
+
+        with patch("os.path.isfile", return_value=True):
+            # An activation: state reset, then the load on the first tick
+            m.init_variables()
+            m._execute_once()
+            # A deactivation and a new activation
+            m.init_variables()
+            assert m._grid_data is None
+            m._execute_once()
+
+        assert map_publish_calls(m) == 2
+
     def test_map_that_fails_to_load_is_not_published(self):
         m = make_map_server_stub(map_file_path="/maps/missing.yaml")
 
@@ -96,8 +133,8 @@ class TestMapOutputQoS:
 
         self._assert_latched(map_server.get_out_topic(TopicsKeys.GLOBAL_MAP))
 
-    def test_given_map_output_is_latched(self):
-        shared_qos = QoSConfig(reliability=qos.ReliabilityPolicy.BEST_EFFORT)
+    def test_a_map_output_given_without_a_qos_is_latched(self):
+        shared_qos = QoSConfig()
         map_topic = Topic(
             name="/my_map", msg_type="OccupancyGrid", qos_profile=shared_qos
         )
@@ -108,8 +145,24 @@ class TestMapOutputQoS:
 
         self._assert_latched(map_server.get_out_topic(TopicsKeys.GLOBAL_MAP))
         # A QoS profile shared with other topics is left unchanged
-        assert shared_qos.durability == qos.DurabilityPolicy.VOLATILE
-        assert shared_qos.reliability == qos.ReliabilityPolicy.BEST_EFFORT
+        assert shared_qos.durability == qos.DurabilityPolicy.SYSTEM_DEFAULT
+
+    def test_a_qos_set_in_the_recipe_is_kept(self):
+        """Latching is a default: only what the recipe left alone is filled in"""
+        map_topic = Topic(
+            name="/my_map",
+            msg_type="OccupancyGrid",
+            qos_profile=QoSConfig(reliability=qos.ReliabilityPolicy.BEST_EFFORT),
+        )
+
+        map_server = MapServer(
+            component_name="map_server_qos_kept_test", outputs={"map": map_topic}
+        )
+
+        profile = map_server.get_out_topic(TopicsKeys.GLOBAL_MAP).qos_profile
+        assert profile.reliability == qos.ReliabilityPolicy.BEST_EFFORT
+        # The recipe said nothing about durability, so it is still latched
+        assert profile.durability == qos.DurabilityPolicy.TRANSIENT_LOCAL
 
     def test_map_output_set_after_init_is_latched(self):
         map_server = MapServer(component_name="map_server_qos_after_init_test")

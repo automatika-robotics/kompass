@@ -421,3 +421,30 @@ def test_a_mission_cancelled_while_paused_is_cancelled_not_paused(mission_card):
     assert "status-badge canceled" in badge
     assert "paused" not in badge
     assert mission_card._controls is None
+
+
+def test_the_card_reads_a_picked_point_out_of_the_frame_it_arrives_in(mission_card):
+    """The UI node wraps every output in {topic, payload}, so a card reading
+    the point at the top level collects nothing from the map, silently"""
+    from geometry_msgs.msg import PointStamped
+    from ros_sugar.io import Topic
+    from ros_sugar.io.callbacks import PointStampedCallback
+    from ros_sugar.ui_node.api_utils import content_to_jsonable
+
+    message = PointStamped()
+    message.header.frame_id = "map"
+    message.point.x, message.point.y = 1.0, 2.0
+    callback = PointStampedCallback(
+        Topic(name="/mission_waypoints", msg_type="PointStamped"), node_name="ui"
+    )
+    callback.callback(message)
+    frame = {"topic": "/mission_waypoints", "payload": content_to_jsonable(callback._get_ui_content())}
+
+    # What the card has to reach through, and what it finds there
+    assert set(frame) == {"topic", "payload"}
+    assert frame["payload"]["data"][:2] == [1.0, 2.0]
+    assert frame["payload"]["frame_id"] == "map"
+
+    card = to_xml(mission_card.card)
+    assert "(JSON.parse(event.data) || {}).payload" in card
+    assert "payload.data" in card and "payload.frame_id" in card

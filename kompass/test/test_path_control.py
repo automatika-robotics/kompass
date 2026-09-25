@@ -53,6 +53,8 @@ def make_path_controller_stub(**overrides) -> Controller:
 
     # Threading / queues
     c._main_goal_lock = threading.Lock()
+    # Guards the core's path against the plan subscription thread
+    c._core_lock = threading.RLock()
     c._cmds_queue = Queue()
 
     # Tracking state
@@ -492,8 +494,12 @@ class TestSetPathToController:
 
         assert c._stop_robot_calls == [True]
         assert _get_mangled(c, "reached_end") is True
-        # Still handed to the core, the only way its own path is dropped
-        _get_mangled(c, "path_controller").set_path.assert_called_once()
+        # Handed to the core, which drops its own path for fewer than two
+        # poses, and the stop clears it again so nothing is left to track
+        core = _get_mangled(c, "path_controller")
+        assert core.set_path.call_count == 2
+        assert core.set_path.call_args.kwargs["global_path"].poses == []
+        assert c.plan is None
 
     def test_a_path_to_track_does_not_stop_the_robot(self):
         c = make_path_controller_stub()
@@ -512,9 +518,8 @@ class TestSetPathToController:
         assert _get_mangled(c, "goal_point") is None
         # And kompass-core set_path is still called — it's responsible for
         # clearing its own internal path for < 2 poses.
-        _get_mangled(c, "path_controller").set_path.assert_called_once_with(
-            global_path=msg
-        )
+        core = _get_mangled(c, "path_controller")
+        assert core.set_path.call_args_list[0].kwargs["global_path"] is msg
 
 
 # ---------------------------------------------------------------------------
@@ -770,3 +775,133 @@ class TestSetAlgorithm:
         assert "NotAnAlgorithm" in message
         setter.assert_not_called()
         c.get_logger.return_value.error.assert_called()
+
+
+# ---------------------------------------------------------------------------
+# Core path locking
+# ---------------------------------------------------------------------------
+
+
+class TestCorePathLocking:
+    """A plan arrives on the subscription thread while the control step runs
+    on another, and the core's control step releases the GIL, so nothing in
+    Python serialises them. Setting a path destroys the one the step is
+    reading, so the two have to take turns."""
+
+    @staticmethod
+    def _path_msg(count: int):
+        from nav_msgs.msg import Path
+        from geometry_msgs.msg import PoseStamped
+
+        path = Path()
+        for index in range(count):
+            pose = PoseStamped()
+            pose.pose.position.x = float(index)
+            path.poses.append(pose)
+        return path
+
+    def test_a_plan_is_not_installed_while_the_core_is_computing(self):
+        import time
+
+        c = make_path_controller_stub()
+        core = _get_mangled(c, "path_controller")
+        seen = {"computing": False, "overlap": False}
+
+        def loop_step(**_):
+            seen["computing"] = True
+            time.sleep(0.05)
+            seen["computing"] = False
+            return True
+
+        core.loop_step = MagicMock(side_effect=loop_step)
+        core.set_path = MagicMock(
+            side_effect=lambda **_: seen.__setitem__("overlap", seen["computing"])
+        )
+
+        stepping = threading.Thread(target=c._path_control)
+        stepping.start()
+        time.sleep(0.02)  # let the step reach the core
+        # What the plan subscription does on its own thread
+        c._install_plan(self._path_msg(3))
+        stepping.join(timeout=5.0)
+
+        assert not stepping.is_alive(), "the control step never finished"
+        core.set_path.assert_called_once()
+        assert not seen["overlap"], (
+            "a plan was handed to the core while it was computing a command"
+        )
+
+
+class TestStoppingPathTracking:
+    """`stop_path_tracking` has to end the tracking, not just ask for it: what
+    the core still holds, and a step already computing, both keep the robot
+    driving after the caller was told it stopped"""
+
+    def test_the_core_is_left_without_a_path(self):
+        c = make_path_controller_stub()
+        core = _get_mangled(c, "path_controller")
+
+        c._end_path_tracking()
+
+        assert core.set_path.called
+        assert core.set_path.call_args.kwargs["global_path"].poses == []
+        assert c.plan is None
+        assert _get_mangled(c, "goal_point") is None
+
+    def test_a_step_in_flight_finishes_before_the_robot_is_stopped(self):
+        """Its command would otherwise go out after the stop"""
+        import time
+
+        c = make_path_controller_stub()
+        core = _get_mangled(c, "path_controller")
+        seen = {"computing": False, "overlap": False}
+
+        def loop_step(**_):
+            seen["computing"] = True
+            time.sleep(0.05)
+            seen["computing"] = False
+            return True
+
+        core.loop_step = MagicMock(side_effect=loop_step)
+        core.set_path = MagicMock(
+            side_effect=lambda **_: seen.__setitem__("overlap", seen["computing"])
+        )
+
+        stepping = threading.Thread(target=c._path_control)
+        stepping.start()
+        time.sleep(0.02)
+        c._end_path_tracking()
+        stepping.join(timeout=5.0)
+
+        assert not seen["overlap"], "the core was cleared while it was computing"
+
+    def test_the_action_loop_ends_when_tracking_is_stopped(self):
+        """In ActionServer mode nothing else notices the stop, so the goal
+        would keep tracking a path the caller asked it to drop"""
+        c = make_path_controller_stub()
+        c.resolve_input_tf = MagicMock(return_value=(True, None))
+        c._vision_mode_inputs = MagicMock(return_value=[])
+        c.callbacks_inputs_check = MagicMock(return_value=True)
+        c._read_plan = MagicMock(return_value=None)
+        steps = []
+
+        def control_step():
+            steps.append(True)
+            if len(steps) == 1:
+                # What stop_path_tracking leaves behind, landing while the
+                # goal is being tracked
+                _set_mangled(c, "reached_end", True)
+                return PathControlStatus.RUNNING
+            raise AssertionError("kept controlling after the stop")
+
+        c._path_control = control_step
+        goal_handle = MagicMock(
+            request=SimpleNamespace(algorithm_name="", global_path=None)
+        )
+
+        Controller._path_tracking_callback(c, goal_handle)
+
+        assert len(steps) == 1
+
+        goal_handle.abort.assert_called_once()
+        goal_handle.succeed.assert_not_called()
