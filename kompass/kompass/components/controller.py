@@ -166,7 +166,7 @@ class Controller(Component):
       - `Topic(name="/local_map/occupancy_layer", msg_type="OccupancyGrid")`
 
     * - vision_detections
-      - [`automatika_embodied_agents.msg.Trackings`](https://github.com/automatika-robotics/ros-agents/tree/main/agents_interfaces/msg), [`automatika_embodied_agents.msg.Detections2D`](https://github.com/automatika-robotics/ros-agents/tree/main/agents_interfaces/msg)
+      - [`automatika_embodied_agents.msg.Trackings`](https://github.com/automatika-robotics/embodied-agents/tree/main/msg), [`automatika_embodied_agents.msg.Detections2D`](https://github.com/automatika-robotics/embodied-agents/tree/main/msg)
       - 1
       - `None` (required for the vision tracking action)
 
@@ -208,7 +208,7 @@ class Controller(Component):
       - 1
       - ```Topic(name="/local_path", msg_type="Path")```
     * - tracked_point
-      - [`nav_msgs.msg.Odometry`](https://docs.ros.org/en/noetic/api/nav_msgs/html/msg/Odometry.html), [`geometry_msgs.msg.PoseStamped`](http://docs.ros.org/en/jade/api/geometry_msgs/html/msg/PoseStamped.html), [`geometry_msgs.msg.Pose`](http://docs.ros.org/en/jade/api/geometry_msgs/html/msg/Pose.html)[`automatika_embodied_agents.msg.Detection2D`](https://github.com/automatika-robotics/ros-agents/tree/main/agents_interfaces/msg)
+      - [`nav_msgs.msg.Odometry`](https://docs.ros.org/en/noetic/api/nav_msgs/html/msg/Odometry.html), [`geometry_msgs.msg.PoseStamped`](http://docs.ros.org/en/jade/api/geometry_msgs/html/msg/PoseStamped.html), [`geometry_msgs.msg.Pose`](http://docs.ros.org/en/jade/api/geometry_msgs/html/msg/Pose.html)[`automatika_embodied_agents.msg.Detection2D`](https://github.com/automatika-robotics/embodied-agents/tree/main/msg)
       - 1
       - ```Topic(name="/tracked_point", msg_type="PoseStamped")```
     ```
