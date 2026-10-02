@@ -98,7 +98,7 @@ class Planner(Component):
     - *TIMED*: Compute a new plan periodically from current location (last message received on location input Topic) to the goal location (last message received on goal_point input Topic)
     - *EVENT*: Compute a new plan from current location on every new message received on goal_point input Topic
     - *SERVER*: Offers a PlanPath ROS service and computes a new plan on every service request
-    - *ACTIONSERVER*: Offers a PlanPath ROS action and continuously computes a plan once an action request is received until goal point is reached
+    - *ACTIONSERVER*: Offers a PlanPath ROS action and continuously computes a plan once an action request is received until goal point is reached. One goal at a time: while one is being driven, a new goal is rejected, and a caller that wants to go somewhere else cancels the first (the `cancel_main_action` service, or the `cancel_main_goal` action) and then sends it
 
 
     ## Usage Example:
@@ -462,7 +462,15 @@ class Planner(Component):
         :param algorithm_name: Planning algorithm, defaults to None (configured algorithm)
         :type algorithm_name: Optional[str], optional
 
-        :return: If the goal was accepted by the action server, with a reason when it was not
+        A goal already being driven is not replaced. The action server takes
+        one goal at a time, and a second one is rejected rather than preempting
+        the first: what the robot is doing is changed by saying so, not as a
+        side effect of a new request. Cancel it first, with the
+        `cancel_main_goal` action or the `<component>/cancel_main_action`
+        service, and send the new point after.
+
+        :return: If the goal was accepted by the action server, with a reason
+            when it was not, including a goal already being driven
         :rtype: ActionReturnType
         """
         if self.run_type != ComponentRunType.ACTION_SERVER:

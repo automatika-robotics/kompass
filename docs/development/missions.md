@@ -115,13 +115,7 @@ The rules the translation applies:
 - **No condition at the last waypoint.** There is nothing to continue to, so waiting there would only hold up success. A dwell at the last waypoint still runs.
 - **The timeout policy is the same at every waypoint.** `CONTINUE` makes a wait running out an acceptable outcome (`on_timeout: succeed`), the other two end the mission (`on_timeout: fail`). A non-positive `condition_timeout` adds no timeout at all.
 - **`on_pause` holds position.** Pausing preempts the step in flight, which cancels a waypoint's planner goal but leaves the robot rolling, so the spec's `on_pause` is the same stop steps, named `stop_<component>_on_pause`.
-- **`on_abort` returns to start**, when the policy asks for it and a start pose is known: a `goto_` step named `return_to_start`, which the routine runs when it aborts -- a failed waypoint, a cancellation, or a condition that ran out under an ending policy.
-
-:::{admonition} Return-to-start is not followed to the end yet
-:class: caution
-
-A routine publishes its terminal status *before* dispatching `on_abort`, and the mission ends its goal on that status and then removes the routine, which halts whatever the routine still had in flight. So the drive back is started and then preempted rather than driven to completion. Making `ON_TIMEOUT_RETURN_TO_START` work end to end means following the routine through its terminal action before reporting the outcome.
-:::
+- **The journey never drives back on its own.** The spec carries no `on_abort`: a routine runs that hook on every ending that is not a completed one, so a drive home installed there would also happen on a failed waypoint, a cancellation and a deactivation. Returning is the mission's own step, after the journey (see [Returning to the start](#returning-to-the-start)).
 
 A goal that describes no mission, or one that cannot be carried out as asked, raises `ValueError` and the mission is refused before any routine is registered: no waypoints, a `pause_duration` list that is neither empty, one entry, nor one per waypoint, an `on_timeout` that is no policy, or a return-to-start policy with no known start pose.
 
@@ -155,6 +149,14 @@ The result says how far the mission got:
 | `reached_waypoints` | One flag per goal, read from the `goto_` steps the cursor got past, not counted |
 | `last_reached_index` | `-1` if none were reached |
 | `end_displacement` | Distance and heading error between the robot and the last waypoint reached, measured by the component -- the routine does not carry the planner's own results back |
+
+## Returning to the start
+
+`ON_TIMEOUT_RETURN_TO_START` means one thing: the go-ahead at a waypoint never came, so the robot goes back to where the mission began. It is not a response to anything else that can end a mission.
+
+Once the journey's cursor is terminal and it ended on a pause that ran out, the mission registers a routine of its own under the same name -- one `goto` step named `return_to_start`, carrying the goal's algorithm and arrival tolerance -- and follows it exactly like the journey. So the drive back publishes `STATE_RETURNING_TO_START`, stops when the mission is canceled, and ends with a deactivation.
+
+The outcome is the mission's own: `OUTCOME_TIMED_OUT`, whatever becomes of the drive back. The mission timed out; returning is what the policy does about it, and how that went is reported in the status message rather than by changing what happened to the mission. A mission that asks to return with no known start pose is refused outright rather than driving to a pose nobody published.
 
 ## Pausing and resuming
 
