@@ -34,6 +34,7 @@ from .motion_server import MotionServer, MotionServerConfig
 from .planner import Planner, PlannerConfig
 from .mapper import LocalMapper, LocalMapperConfig
 from .map_server import MapServer, MapServerConfig
+from .mission import MissionManager, MissionManagerConfig
 from .defaults import TopicsKeys
 
 __all__ = [
@@ -50,4 +51,6 @@ __all__ = [
     "TopicsKeys",
     "MapServer",
     "MapServerConfig",
+    "MissionManager",
+    "MissionManagerConfig",
 ]

@@ -10,6 +10,7 @@
   <depend>python3-pykdl</depend>
   <depend>kompass_interfaces</depend>
   <depend>automatika_ros_sugar</depend>
+  <depend>tf2_geometry_msgs</depend>
 
   <export>
     <build_type>ament_python</build_type>

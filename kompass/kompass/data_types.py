@@ -26,6 +26,7 @@ from nav_msgs.msg import Path as ROSPath
 from kompass_core.models import RobotState
 from sensor_msgs.msg import LaserScan as ROSLaserScan
 
+from kompass_interfaces.msg import MissionStatus as ROSMissionStatus
 from kompass_interfaces.msg import TwistArray as ROSTwistArray
 from importlib.util import find_spec
 
@@ -60,6 +61,7 @@ __all__ = [
     "Float64",
     "Trackings",
     "Detections",
+    "MissionStatus",
 ]
 
 
@@ -228,6 +230,23 @@ class TwistArray(SupportedType):
 
         :param output:
         :type output: ROSTwistArray
+        :param kwargs:
+        """
+        return output
+
+
+class MissionStatus(SupportedType):
+    """Class to support ROS2 kompass_interfaces/msg/MissionStatus message"""
+
+    _ros_type = ROSMissionStatus
+    callback = GenericCallback
+
+    @classmethod
+    def convert(cls, output: ROSMissionStatus, **_):
+        """convert.
+
+        :param output:
+        :type output: ROSMissionStatus
         :param kwargs:
         """
         return output

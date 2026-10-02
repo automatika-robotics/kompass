@@ -9,16 +9,21 @@ from __future__ import annotations
 
 import threading
 from types import SimpleNamespace
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, PropertyMock, patch
 
 import numpy as np
 from kompass_core.models import RobotState
+from rclpy import qos
 
 from builtin_interfaces.msg import Time
 
+from kompass.components.defaults import TopicsKeys
 from kompass.components.planner import Planner
 from kompass.components.ros import Topic
+from kompass.config import ComponentRunType
+from kompass_interfaces.action import PlanPath as PlanPathAction
 from kompass_interfaces.msg import PathTrackingError
+from ros_sugar.config import QoSConfig
 from ros_sugar.io.publisher import Publisher
 
 
@@ -72,6 +77,7 @@ def make_planner_stub(**overrides) -> Planner:
     p._recorded_motion = None
     p._last_path_cost = float("inf")
     p._main_goal_lock = threading.Lock()
+    p._map_lock = threading.Lock()
     p._config_file = None
 
     # ROS infra fakes
@@ -290,6 +296,283 @@ class TestPlanHeader:
 
 
 # ---------------------------------------------------------------------------
+# Planning map  (set on the OMPL planner once when received, not on every plan)
+# ---------------------------------------------------------------------------
+
+MAP_DATA = {
+    "resolution": 0.05,
+    "width": 10,
+    "height": 10,
+    "origin_x": 0.0,
+    "origin_y": 0.0,
+    "origin_yaw": 0.0,
+}
+
+
+def make_map_callback() -> MagicMock:
+    """A map topic callback, read by the planner for the map metadata only"""
+    callback = MagicMock()
+    callback.get_output.return_value = MAP_DATA
+    return callback
+
+
+class TestPlanningMap:
+    def test_received_map_is_set_on_the_ompl_planner(self):
+        p = make_planner_stub(get_callback=MagicMock(return_value=make_map_callback()))
+        map_3d = np.zeros((4, 3), dtype=np.float32)
+
+        p._set_planning_map(output=map_3d, msg=MagicMock(), topic=MagicMock())
+
+        p.ompl_planner.set_map.assert_called_once_with(map_3d)
+        assert p.map is map_3d
+        assert p.map_data == MAP_DATA
+
+    def test_map_received_before_the_ompl_planner_is_kept(self):
+        p = make_planner_stub(get_callback=MagicMock(return_value=make_map_callback()))
+        del p.ompl_planner
+        map_3d = np.zeros((4, 3), dtype=np.float32)
+
+        p._set_planning_map(output=map_3d)
+
+        assert p.map is map_3d
+        assert p.map_data == MAP_DATA
+
+    def test_kept_map_is_set_when_the_ompl_planner_is_created(self):
+        p = make_planner_stub(get_callback=MagicMock(return_value=make_map_callback()))
+        del p.ompl_planner
+        map_3d = np.zeros((4, 3), dtype=np.float32)
+        p._set_planning_map(output=map_3d)
+
+        p._attach_callbacks = MagicMock()
+        p._attach_map_callback = MagicMock()
+        with patch("kompass.components.planner.OMPLGeometric") as ompl_class:
+            with patch("kompass.components.planner.Robot"):
+                with patch.object(Planner, "robot", new_callable=PropertyMock):
+                    with patch.object(
+                        Planner, "robot_geometry_type", new_callable=PropertyMock
+                    ):
+                        p.init_variables()
+
+        ompl_class.return_value.set_map.assert_called_once_with(map_3d)
+        assert p.map_data == MAP_DATA
+
+    def test_missing_map_output_is_ignored(self):
+        p = make_planner_stub(get_callback=MagicMock(return_value=make_map_callback()))
+
+        p._set_planning_map(output=None)
+
+        p.ompl_planner.set_map.assert_not_called()
+        assert p.map_data is None
+
+    def test_map_callback_sets_the_planning_map(self):
+        callback = make_map_callback()
+        p = make_planner_stub(get_callback=MagicMock(return_value=callback))
+
+        p._attach_map_callback()
+
+        callback.on_callback_execute.assert_called_once_with(p._set_planning_map)
+
+    def test_planning_does_not_set_the_map_again(self):
+        p = make_planner_stub()
+        p.map_data = MAP_DATA
+
+        p._plan(start=RobotState(x=0.0, y=0.0), goal=RobotState(x=1.0, y=1.0))
+
+        p.ompl_planner.setup_problem.assert_called_once()
+        args, kwargs = p.ompl_planner.setup_problem.call_args
+        # Map metadata, start and goal only: no map to rebuild the collision map from
+        assert len(args) == 7 and "map_3d" not in kwargs
+        p.ompl_planner.set_map.assert_not_called()
+        assert not p._map_lock.locked()
+
+    def test_no_planning_before_a_map_is_received(self):
+        p = make_planner_stub()
+
+        result = p._plan(start=RobotState(x=0.0, y=0.0), goal=RobotState(x=1.0, y=1.0))
+
+        assert result is False
+        p.ompl_planner.setup_problem.assert_not_called()
+        p.health_status.set_fail_system.assert_called_once()
+
+    def test_updating_the_state_does_not_read_the_map(self):
+        p = make_planner_stub(get_callback=MagicMock(return_value=MagicMock()))
+        p._inputs_keys = [TopicsKeys.ROBOT_LOCATION]
+
+        with patch.object(
+            Planner, "odom_tf_listener", new_callable=PropertyMock, return_value=None
+        ):
+            p._update_state()
+
+        read_keys = [call.args[0] for call in p.get_callback.call_args_list]
+        assert TopicsKeys.GLOBAL_MAP not in read_keys
+
+
+class TestMapInputQoS:
+    """The map is published once, so the planner has to get it even when it
+    subscribes later. That is a default: a recipe or a config file that asks
+    for another QoS means it"""
+
+    @staticmethod
+    def _assert_latched(topic: Topic):
+        assert topic.qos_profile.durability == qos.DurabilityPolicy.TRANSIENT_LOCAL
+        assert topic.qos_profile.reliability == qos.ReliabilityPolicy.RELIABLE
+
+    def test_default_map_input_is_latched(self):
+        planner = Planner(component_name="planner_default_map_qos_test")
+
+        self._assert_latched(planner.get_in_topic(TopicsKeys.GLOBAL_MAP))
+
+    def test_a_map_input_given_without_a_qos_is_latched(self):
+        shared_qos = QoSConfig()
+        map_topic = Topic(
+            name="/my_map", msg_type="OccupancyGrid", qos_profile=shared_qos
+        )
+
+        planner = Planner(
+            component_name="planner_map_qos_test", inputs={"map": map_topic}
+        )
+
+        self._assert_latched(planner.get_in_topic(TopicsKeys.GLOBAL_MAP))
+        # A QoS profile shared with other topics is left unchanged
+        assert shared_qos.durability == qos.DurabilityPolicy.SYSTEM_DEFAULT
+
+    def test_a_qos_set_in_the_recipe_is_kept(self):
+        """Only what the recipe left alone is filled in"""
+        map_topic = Topic(
+            name="/slam_map",
+            msg_type="OccupancyGrid",
+            qos_profile=QoSConfig(reliability=qos.ReliabilityPolicy.BEST_EFFORT),
+        )
+
+        planner = Planner(
+            component_name="planner_map_qos_kept_test", inputs={"map": map_topic}
+        )
+
+        profile = planner.get_in_topic(TopicsKeys.GLOBAL_MAP).qos_profile
+        assert profile.reliability == qos.ReliabilityPolicy.BEST_EFFORT
+        # The recipe said nothing about durability, so it is still latched
+        assert profile.durability == qos.DurabilityPolicy.TRANSIENT_LOCAL
+
+    def test_a_volatile_map_input_can_be_asked_for(self):
+        """Which is what a map publisher that is not transient local needs: a
+        transient local subscription is incompatible with it and gets nothing.
+        Durability defaults to the middleware's, so asking for volatile says
+        something the default does not"""
+        map_topic = Topic(
+            name="/volatile_map",
+            msg_type="OccupancyGrid",
+            qos_profile=QoSConfig(durability=qos.DurabilityPolicy.VOLATILE),
+        )
+
+        planner = Planner(
+            component_name="planner_volatile_map_test", inputs={"map": map_topic}
+        )
+
+        profile = planner.get_in_topic(TopicsKeys.GLOBAL_MAP).qos_profile
+        assert profile.durability == qos.DurabilityPolicy.VOLATILE
+        # Reliability was not asked for, so it is still the latched default
+        assert profile.reliability == qos.ReliabilityPolicy.RELIABLE
+
+    def test_a_qos_from_a_config_file_is_kept(self, tmp_path):
+        """A config file is read after the component was built, so it has the
+        last word as well"""
+        config_file = tmp_path / "planner.toml"
+        config_file.write_text(
+            "[planner_map_qos_file_test.inputs.map]\n"
+            'name = "/map_from_file"\n'
+            'msg_type = "OccupancyGrid"\n'
+            "[planner_map_qos_file_test.inputs.map.qos_profile]\n"
+            f"durability = {int(qos.DurabilityPolicy.VOLATILE)}\n"
+        )
+        planner = Planner(component_name="planner_map_qos_file_test")
+
+        planner.config_from_file(str(config_file))
+
+        map_topic = planner.get_in_topic(TopicsKeys.GLOBAL_MAP)
+        assert map_topic.name == "map_from_file"
+        assert map_topic.qos_profile.durability == qos.DurabilityPolicy.VOLATILE
+
+    def test_map_input_set_after_init_is_latched(self):
+        planner = Planner(component_name="planner_map_qos_after_init_test")
+
+        map_topic = Topic(name="/my_map", msg_type="OccupancyGrid")
+        planner.inputs(map=map_topic)
+
+        assert planner.get_in_topic(TopicsKeys.GLOBAL_MAP).name == map_topic.name
+        self._assert_latched(planner.get_in_topic(TopicsKeys.GLOBAL_MAP))
+
+
+# ---------------------------------------------------------------------------
+# trigger_main_action_server  (component action (bool, str) contract)
+# ---------------------------------------------------------------------------
+
+class TestTriggerMainActionServer:
+    @staticmethod
+    def _call(p, **kwargs):
+        # The undecorated method: the decorator only runs it with rclpy initialized
+        return Planner.trigger_main_action_server.__wrapped__(
+            p, goal_x=1.0, goal_y=2.0, **kwargs
+        )
+
+    @staticmethod
+    def _make_planner(run_type=ComponentRunType.ACTION_SERVER) -> Planner:
+        p = make_planner_stub()
+        p.config._run_type = run_type
+        p.node_name = "planner"
+        p.main_action_name = "navigate_to_goal"
+        p.action_type = PlanPathAction
+        return p
+
+    @staticmethod
+    def _assert_contract(result):
+        assert isinstance(result, tuple) and len(result) == 2
+        assert isinstance(result[0], bool) and isinstance(result[1], str)
+
+    def test_accepted_goal_succeeds(self):
+        p = self._make_planner()
+        with patch("kompass.components.planner.ActionClientHandler") as client_class:
+            client_class.return_value.send_request.return_value = True
+            result = self._call(p, goal_orientation=np.pi / 2, tolerance_dist=0.3)
+
+        self._assert_contract(result)
+        assert result[0] is True
+        goal = client_class.return_value.send_request.call_args.args[0]
+        assert (goal.goal.position.x, goal.goal.position.y) == (1.0, 2.0)
+        assert goal.end_tolerance.lateral_distance_error == 0.3
+
+    def test_goal_not_accepted_fails(self):
+        p = self._make_planner()
+        with patch("kompass.components.planner.ActionClientHandler") as client_class:
+            client_class.return_value.send_request.return_value = False
+            result = self._call(p)
+
+        self._assert_contract(result)
+        assert result[0] is False
+
+    def test_planner_not_running_as_action_server_fails(self):
+        p = self._make_planner(run_type=ComponentRunType.EVENT)
+        with patch("kompass.components.planner.ActionClientHandler") as client_class:
+            result = self._call(p)
+
+        self._assert_contract(result)
+        assert result[0] is False
+        client_class.assert_not_called()
+
+    def test_client_error_fails(self):
+        p = self._make_planner()
+        with patch(
+            "kompass.components.planner.ActionClientHandler",
+            side_effect=RuntimeError("no client"),
+        ):
+            result = self._call(p)
+
+        self._assert_contract(result)
+        assert result[0] is False
+        assert "no client" in result[1]
+        p.health_status.set_fail_component.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
 # _save_plan_to_file_srv_callback  (recording flag cleanup)
 # ---------------------------------------------------------------------------
 
@@ -318,3 +601,93 @@ class TestSavePlanCallback:
         assert p._recording_on is False
         assert p._recorded_motion is None
         assert resp.path_num_points == 1
+
+
+# ---------------------------------------------------------------------------
+# main_action_callback: a goal that ends before its end is reached
+# ---------------------------------------------------------------------------
+
+
+class TestGoalEndingEarly:
+    """A goal that ends early has to drop the plan it was driving: the empty
+    plan is the only thing that tells the controller to stop"""
+
+    @staticmethod
+    def _planner_for_goal():
+        p = make_planner_stub()
+        publishers = {}
+        p.get_publisher = MagicMock(
+            side_effect=lambda key: publishers.setdefault(key, MagicMock())
+        )
+        p._clear_path = MagicMock()
+        p._update_state = MagicMock()
+        p.reached_point = MagicMock(return_value=False)
+        return p, publishers
+
+    @staticmethod
+    def _goal_handle(cancel_requested: bool = False, active: bool = True):
+        handle = MagicMock()
+        handle.is_active = active
+        handle.is_cancel_requested = cancel_requested
+        handle.request = PlanPathAction.Goal()
+        handle.request.goal.position.x = 5.0
+        handle.request.goal.orientation.w = 1.0
+        handle.request.end_tolerance = PathTrackingError(
+            orientation_error=0.2, lateral_distance_error=0.2
+        )
+        return handle
+
+    @staticmethod
+    def _last_plan(publishers):
+        plan_publisher = publishers[TopicsKeys.GLOBAL_PLAN]
+        return plan_publisher.publish.call_args.args[0]
+
+    def test_a_canceled_goal_drops_its_plan_and_is_reported_canceled(self):
+        p, publishers = self._planner_for_goal()
+        handle = self._goal_handle(cancel_requested=True)
+
+        Planner.main_action_callback(p, handle)
+
+        assert len(self._last_plan(publishers).poses) == 0
+        # Otherwise rclpy reports the goal aborted
+        handle.canceled.assert_called_once()
+        handle.abort.assert_not_called()
+
+    def test_a_goal_that_is_no_longer_active_drops_its_plan(self):
+        p, publishers = self._planner_for_goal()
+        handle = self._goal_handle(active=False)
+
+        Planner.main_action_callback(p, handle)
+
+        assert len(self._last_plan(publishers).poses) == 0
+        handle.canceled.assert_not_called()
+
+    def test_a_goal_that_fails_drops_its_plan_and_is_aborted(self):
+        p, publishers = self._planner_for_goal()
+        p._plan = MagicMock(side_effect=RuntimeError("no map"))
+        handle = self._goal_handle()
+
+        Planner.main_action_callback(p, handle)
+
+        assert len(self._last_plan(publishers).poses) == 0
+        handle.abort.assert_called_once()
+
+
+class TestOneGoalAtATime:
+    """The action server drives one goal at a time. A second one is rejected
+    rather than preempting the first: what the robot is doing changes when a
+    caller says so, not as a side effect of a new request"""
+
+    def test_a_rejected_goal_is_reported_rather_than_replacing_the_one_running(self):
+        p = TestTriggerMainActionServer._make_planner()
+        p.cancel_main_goal = MagicMock()
+
+        with patch("kompass.components.planner.ActionClientHandler") as client_class:
+            # What the server answers while it is driving another goal
+            client_class.return_value.send_request.return_value = False
+            accepted, reason = TestTriggerMainActionServer._call(p)
+
+        assert accepted is False
+        assert "not accepted" in reason
+        # Nothing was cancelled on the way: that is the caller's to ask for
+        p.cancel_main_goal.assert_not_called()
