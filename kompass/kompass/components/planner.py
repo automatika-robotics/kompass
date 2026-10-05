@@ -663,8 +663,10 @@ class Planner(Component):
         # Get request
         end_goal_tolerance: PathTrackingError = goal_handle.request.end_tolerance
 
-        if end_goal_tolerance.lateral_distance_error <= 0.05:
-            self.get_logger().warning(f"Planner received a very small distance tolerance of {end_goal_tolerance.lateral_distance_error} m, which may cause the robot to oscillate and never reach the goal. Setting it to the default {self.config.distance_tolerance}")
+        if end_goal_tolerance.lateral_distance_error < 0.1:
+            self.get_logger().warning(
+                f"Planner received a very small distance tolerance of {end_goal_tolerance.lateral_distance_error} m, which may cause the robot to oscillate and never reach the goal. Setting it to the default {self.config.distance_tolerance}"
+            )
             end_goal_tolerance.lateral_distance_error = self.config.distance_tolerance
 
         if end_goal_tolerance.orientation_error <= 0.1:
