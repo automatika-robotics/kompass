@@ -176,7 +176,13 @@ _CARD_SCRIPT = """
     const services = (interfaces.services || []).filter(function (service) {
       return service.type === "ExecuteMethod";
     });
-    state.service = services.length === 1 ? services[0].name : null;
+    // The mission's execute_method service
+    const own = services.filter(function (service) {
+      return "__COMPONENT__" && service.name.indexOf("__COMPONENT__/") >= 0;
+    });
+    state.service = own.length
+      ? own[0].name
+      : (services.length === 1 ? services[0].name : null);
     const streamed = (interfaces.outputs || []).filter(function (topic) {
       return topic.msg_type === "PointStamped";
     }).map(function (topic) { return topic.name; });
@@ -330,9 +336,11 @@ class MissionTask(Task):
         inside(self._picker)
         inside(
             Script(
-                _CARD_SCRIPT.replace("__DOM__", self._dom_id).replace(
-                    "__ACTION__", self._name
-                )
+                _CARD_SCRIPT.replace("__DOM__", self._dom_id)
+                .replace("__ACTION__", self._name)
+                # The component serving the mission, so its own pause and
+                # resume are found among whatever else the recipe exposes
+                .replace("__COMPONENT__", self._serving_component or "")
             )
         )
         return mission_card(inside)
