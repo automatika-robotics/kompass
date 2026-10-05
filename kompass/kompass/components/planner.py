@@ -189,6 +189,9 @@ class Planner(Component):
         # the GIL, and a new map is set from the map subscriber thread
         self._map_lock = threading.Lock()
 
+        # Client for the component's own action server, created on first use.
+        self._main_action_client: Optional[ActionClientHandler] = None
+
         # Main service and action types of the planner component
         self.service_type = PlanPathSrv
         self.action_type = PlanPathAction
@@ -478,11 +481,13 @@ class Planner(Component):
             self.get_logger().error(error)
             return False, error
         try:
-            action_client = ActionClientHandler(
-                client_node=self,
-                action_name=self.main_action_name,
-                action_type=self.action_type,
-            )
+            if self._main_action_client is None:
+                self._main_action_client = ActionClientHandler(
+                    client_node=self,
+                    action_name=self.main_action_name,
+                    action_type=self.action_type,
+                )
+            action_client = self._main_action_client
             goal = self.action_type.Goal()
             goal.goal.position.x = goal_x
             goal.goal.position.y = goal_y
