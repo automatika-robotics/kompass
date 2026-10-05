@@ -759,13 +759,15 @@ class MissionManager(Component):
         """
         # The time it was received identifies the mission
         self._mission_id = str(self.get_clock().now().nanoseconds)
+        # Clear any previous request to end a mission, and the reason for it, before starting a new mission
+        self._end_requested.clear()
+        self._end_reason = ""
         try:
             return self.__run_mission(goal_handle)
         finally:
             self._mission_id = ""
             self._last_feedback = None
             self._start_pose = None
-            self._end_requested.clear()
 
     def __run_mission(self, goal_handle):
         """Register the mission as a routine and run it"""
