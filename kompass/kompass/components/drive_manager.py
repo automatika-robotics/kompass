@@ -13,6 +13,7 @@ from kompass_cpp.types import SensorInputType
 # KOMPASS ROS
 from ..config import BaseValidators, ComponentConfig, ComponentRunType
 from .ros import ActionReturnType, Topic, update_topics, component_action
+from .utils import init_twist_array_msg
 from .component import Component
 from ..callbacks import LaserScanCallback, PointCloudCallback, RangeCallback
 from .defaults import (
@@ -245,6 +246,9 @@ class DriveManager(Component):
         # robot output command
         self._previous_command: Optional[Twist] = None
         self._multi_command_step = 0.0
+        # When the next queued command is due, for an array that says how far
+        # apart its commands are
+        self._next_command_at = 0.0
         self._last_direction_forward: Optional[bool] = None
 
         # Command queue to send controller command list to the robot
@@ -389,6 +393,8 @@ class DriveManager(Component):
         )
 
         self._multi_command_step = output.time_step
+        # A new batch starts going out at once
+        self._next_command_at = 0.0
 
         # Set filtered commands to queue
         self._cmds_queue.queue.clear()
@@ -898,9 +904,18 @@ class DriveManager(Component):
     def rotate_in_place(
         self, max_rotation: float, safety_margin: Optional[float] = None, **_
     ) -> ActionReturnType:
-        """Rotates the robot in place if a safety margin around the robot is clear
+        """Rotates the robot in place if the space around it is clear.
 
-        :param safety_margin: Margin clear of obstacles to perform rotation, if None defaults to 5% of the robot_radius
+        Turns the way the angle asks for: a negative `max_rotation` is a
+        clockwise rotation of that size
+
+        :param max_rotation: Angle to turn (rad), signed
+        :type max_rotation: float
+        :param safety_margin: Clearance to keep beyond the critical zone
+            while turning (m), None for 5% of the robot's radius. The checker
+            sees out to the slowdown zone, so a margin wider than the band
+            between the two zones asks for the most it can tell: nothing
+            inside the slowdown zone at all
         :type safety_margin: Optional[float], optional
 
         :return: If the movement action is performed, with the angle rotated
@@ -913,13 +928,21 @@ class DriveManager(Component):
 
         unblocking = True
         traveled_radius = 0.0
+        # The sign says which way, the size says how far
+        direction = 1.0 if max_rotation >= 0.0 else -1.0
+        asked = abs(max_rotation)
 
-        if not safety_margin:
-            # Set by default to 10% of the robot radius
+        if safety_margin is None:
             safety_margin = 0.05 * self.robot_radius
+        # The checker reports how clear it is as a factor that falls from 1 at
+        # the edge of the slowdown zone to 0 at the critical one, so a
+        # clearance of `safety_margin` past the critical zone is that fraction
+        # of the band between them.
+        band = self.config.slowdown_zone_distance - self.config.critical_zone_distance
+        clear_enough = 1.0 if band <= 0.0 else min(1.0, safety_margin / band)
 
         # FRONT MOVEMENT
-        while unblocking and traveled_radius < max_rotation:
+        while unblocking and traveled_radius < asked:
             self._update_state()
             # Rotation needs BOTH directions clear. A check that fails or has
             # only stale data treats the rotation as blocked (helper returns 0.0)
@@ -928,13 +951,13 @@ class DriveManager(Component):
                 slowdown_factor = min(
                     slowdown_factor, self._run_safety_check(forward=False)
                 )
-            if slowdown_factor == 0.0:
+            if slowdown_factor == 0.0 or slowdown_factor < clear_enough:
                 unblocking = False
             else:
                 self.get_publisher(TopicsKeys.FINAL_COMMAND).publish([
                     0.0,
                     0.0,
-                    self.robot.ctrl_omega_limits.max_omega / 2,
+                    direction * self.robot.ctrl_omega_limits.max_omega / 2,
                 ])
                 traveled_radius += self.robot.ctrl_omega_limits.max_omega / (
                     2 * self.config.loop_rate
@@ -942,12 +965,12 @@ class DriveManager(Component):
                 time.sleep(1 / self.config.loop_rate)
 
         # Succeed if the rotation is done
-        if traveled_radius >= max_rotation:
+        if traveled_radius >= asked:
             return True, f"Rotated in place {traveled_radius:.2f}rad"
         return (
             False,
             f"Rotated in place {traveled_radius:.2f}rad of {max_rotation:.2f}rad, "
-            "the area around the robot is blocked",
+            f"the area around the robot is not clear by {safety_margin:.2f}m",
         )
 
     @component_action(
@@ -1083,23 +1106,33 @@ class DriveManager(Component):
         """
 
         # Use a low pass filter based on maximum allowed acceleration if multi commands are available
-        self._filtered_linear_commands_x = self.__filter_multi_cmds(
+        linear_x = self.__filter_multi_cmds(
             output.linear_velocities.x,
             self.robot.ctrl_vx_limits.max_acc,
             self.robot.ctrl_vx_limits.max_vel,
         )
 
-        self._filtered_linear_commands_y = self.__filter_multi_cmds(
+        linear_y = self.__filter_multi_cmds(
             output.linear_velocities.y,
             self.robot.ctrl_vy_limits.max_acc,
             self.robot.ctrl_vy_limits.max_vel,
         )
 
-        self._filtered_angular_commands = self.__filter_multi_cmds(
+        angular = self.__filter_multi_cmds(
             output.angular_velocities.z,
             self.robot.ctrl_omega_limits.max_acc,
             self.robot.ctrl_omega_limits.max_omega,
         )
+
+        # Handed back, not only kept: the caller queues what comes out of here
+        filtered = init_twist_array_msg(
+            number_of_cmds=len(linear_x),
+            linear_x=linear_x,
+            linear_y=linear_y,
+            angular=angular,
+        )
+        filtered.time_step = output.time_step
+        return filtered
 
     def _check_bounds(self, target, previous, max_acc, max_decel, freq):
         """
@@ -1168,7 +1201,7 @@ class DriveManager(Component):
                 self.config.loop_rate,
             )
         else:
-            _cmd.linear.x = output.linear.x
+            _cmd.linear.y = output.linear.y
 
         # Check and restrict angular velocity
         if self._check_bounds(
@@ -1411,12 +1444,22 @@ class DriveManager(Component):
             )
             return
 
-        # Publish commands in the queue
+        # Publish commands in the queue, spaced the way the array that
+        # brought them says they are: one per tick would run a second of
+        # commands out in a tenth of it, and then send nothing at all
+        now = time.monotonic()
+        if now < self._next_command_at:
+            return
         try:
             cmd = self._cmds_queue.get_nowait()
         except Empty:
             self.get_logger().debug("No commands to execute")
             return
+        # How long this command stands for: what the array said, else one
+        # tick. Zero would be no time at all, and a closed loop given no time
+        # publishes nothing
+        span = self._multi_command_step or 1 / self.config.loop_rate
+        self._next_command_at = now + span
 
         # create a publish one twist message
         if self.config.closed_loop:
@@ -1424,7 +1467,7 @@ class DriveManager(Component):
             _cmd_vel.linear.x = cmd[0]
             _cmd_vel.linear.y = cmd[1]
             _cmd_vel.angular.z = cmd[2]
-            self.execute_cmd_closed_loop(_cmd_vel, max_time=self._multi_command_step)
+            self.execute_cmd_closed_loop(_cmd_vel, max_time=span)
         else:
             # Execute cmd in open loop -> Publish once. When the safety check
             # already ran this tick its factor is passed on rather than
