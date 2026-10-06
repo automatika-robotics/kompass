@@ -290,6 +290,8 @@ class Planner(Component):
         """
         self.goal: Dict[int, RobotState] = {}
         self.robot_state: Optional[RobotState] = None
+        # Add TF for goal point input
+        self.transform_inputs_to(TopicsKeys.GOAL_POINT, self.config.frames.world)
         # Kept if already received, the map is published once
         self.map: Optional[np.ndarray] = getattr(self, "map", None)
         self.map_data: Optional[Dict] = getattr(self, "map_data", None)
