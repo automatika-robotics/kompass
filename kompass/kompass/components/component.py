@@ -680,8 +680,6 @@ class Component(BaseComponent):
         :type topic_key: TopicsKeys
         :param idx: Index of the input, for keys bound to several topics
         :type idx: int
-        :param timeout: Seconds to wait before giving up, None waits
-            indefinitely
         :type timeout: Optional[float]
         :param static_tf: Whether the input's frame is rigidly mounted
         :type static_tf: bool
@@ -695,7 +693,7 @@ class Component(BaseComponent):
         robot_base = self.config.frames.robot_base
         waited = 0.0
         tf_listener = None
-        while timeout is None or waited < timeout:
+        while self.context.ok() and (timeout is None or waited < timeout):
             tf_listener = self.input_tf_listener(
                 topic_key, robot_base, static_tf=static_tf, idx=idx
             )
@@ -713,6 +711,12 @@ class Component(BaseComponent):
             if tf_listener is None
             else f"its TF to the robot base frame '{robot_base}'"
         )
+        if not self.context.ok():
+            self.get_logger().warning(
+                f"Input '{name}': stopped waiting for {missing}, the node is "
+                "shutting down"
+            )
+            return None
         self.get_logger().warning(
             f"Input '{name}': {missing} is still not available after {timeout} seconds"
         )
