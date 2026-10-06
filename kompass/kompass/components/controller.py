@@ -1660,7 +1660,7 @@ class Controller(Component):
                 plan_callback.clear_last_msg()
         elif status == PathControlStatus.FAILED:
             self.health_status.set_fail_algorithm(
-                algorithm_names=[str(ControlClasses[self.algorithm])]
+                algorithm_names=[self.algorithm.value]
             )
         elif status == PathControlStatus.WAITING_INPUTS:
             self.health_status.set_fail_system()
