@@ -350,8 +350,9 @@ class Path(BasePath):
     @classmethod
     def length(cls, path: ROSPath):
         total_length = 0.0
-        for pose_stamped in path.poses:
+        for start, end in zip(path.poses, path.poses[1:]):
             total_length += np.sqrt(
-                pose_stamped.pose.position.x**2 + pose_stamped.pose.position.y**2
+                (end.pose.position.x - start.pose.position.x) ** 2
+                + (end.pose.position.y - start.pose.position.y) ** 2
             )
         return float(total_length)
