@@ -308,9 +308,11 @@ def test_abort_ends_the_mission_where_it_stands():
     assert "on_abort" not in spec
 
 
-def test_return_to_start_drives_back_to_where_the_mission_began():
-    """Not to the first waypoint: the robot may have started somewhere else"""
-    start = pose_at(-5.0, -5.0)
+def test_the_journey_never_drives_back_on_its_own():
+    """A routine runs its abort hook on every ending that is not a completed
+    one, so a drive home installed there would also happen on a failed
+    waypoint, a cancellation and a deactivation. The mission drives back
+    itself, after the journey, and only for the timeout that asked for it"""
     spec = spec_for(
         mission_goal(
             count=2,
@@ -318,11 +320,13 @@ def test_return_to_start_drives_back_to_where_the_mission_began():
             condition_timeout=5.0,
             on_timeout=MultiGoalPlanPath.Goal.ON_TIMEOUT_RETURN_TO_START,
         ),
-        start_pose=start,
+        start_pose=pose_at(-5.0, -5.0),
     )
+
+    # The pause still ends the journey, which is what the policy acts on
     assert step_named(spec, "pause_0")["on_timeout"] == "fail"
-    assert spec["on_abort"]["name"] == "return_to_start"
-    assert spec["on_abort"]["goal"]["goal"]["position"]["x"] == -5.0
+    assert "on_abort" not in spec
+    assert not any(step["name"] == "return_to_start" for step in spec["steps"])
 
 
 def test_return_to_start_without_a_known_start_is_refused():

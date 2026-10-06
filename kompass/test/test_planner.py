@@ -62,6 +62,9 @@ def make_planner_stub(**overrides) -> Planner:
     p.config.frames = MagicMock()
     p.config.frames.world = "map"
     p.config.distance_tolerance = 0.1
+    # What the component's own __init__ sets up for the frames its inputs are
+    # asked to be delivered in
+    p._input_frame_targets = {}
     p.config.loop_rate = 1000.0
     p.config.topic_subscription_timeout = 0.01
 
@@ -521,6 +524,8 @@ class TestTriggerMainActionServer:
         p.node_name = "planner"
         p.main_action_name = "navigate_to_goal"
         p.action_type = PlanPathAction
+        # Built on first use and kept, so a component starts without one
+        p._main_action_client = None
         return p
 
     @staticmethod
@@ -691,3 +696,46 @@ class TestOneGoalAtATime:
         assert "not accepted" in reason
         # Nothing was cancelled on the way: that is the caller's to ask for
         p.cancel_main_goal.assert_not_called()
+
+
+class TestActionClientReuse:
+    """Triggering the action builds one client and keeps it: events, routines
+    and tools all call this, and a client per call leaves one behind each time
+    """
+
+    def test_the_client_is_built_once_and_reused(self):
+        p = TestTriggerMainActionServer._make_planner()
+
+        with patch("kompass.components.planner.ActionClientHandler") as client_class:
+            client_class.return_value.send_request.return_value = True
+            for _ in range(3):
+                TestTriggerMainActionServer._call(p)
+
+        assert client_class.call_count == 1
+        assert client_class.return_value.send_request.call_count == 3
+
+
+class TestToleranceClamp:
+    """A tolerance below the smallest sane one is raised, so the robot does
+    not circle its goal forever. The smallest sane one is itself allowed"""
+
+    @staticmethod
+    def _tolerance_after(asked: float) -> float:
+        """What the action makes of the tolerance it was handed. A canceled
+        goal returns right after the clamp, which is all this is about"""
+        p, _ = TestGoalEndingEarly._planner_for_goal()
+        p.config.distance_tolerance = 0.1
+        handle = TestGoalEndingEarly._goal_handle(cancel_requested=True)
+        handle.request.end_tolerance.lateral_distance_error = asked
+
+        Planner.main_action_callback(p, handle)
+
+        return handle.request.end_tolerance.lateral_distance_error
+
+    def test_a_tolerance_at_the_minimum_is_honoured(self):
+        """It used to be raised anyway, by a boundary that rejected the very
+        value it was raising to"""
+        assert self._tolerance_after(0.1) == 0.1
+
+    def test_a_tolerance_below_the_minimum_is_raised(self):
+        assert self._tolerance_after(0.01) == 0.1

@@ -432,6 +432,7 @@ def test_unblock_fails_without_proximity_sensors():
 from queue import Queue  # noqa: E402
 
 from kompass.components.defaults import TopicsKeys  # noqa: E402
+from geometry_msgs.msg import Twist  # noqa: E402
 from kompass_interfaces.msg import TwistArray  # noqa: E402
 
 
@@ -466,6 +467,8 @@ class _StepStub(_Stub):
         )
         self._unblocking_on = False
         self._check_forward = True
+        # Commands go out spaced by the array's own time step
+        self._next_command_at = 0.0
         self.robot_state = SimpleNamespace(vx=0.0)
         self._cmds_queue = Queue()
         self._multi_command_step = 0.1
@@ -679,3 +682,164 @@ def test_nothing_else_drives_the_robot_while_it_is_stopping():
     assert all(command == (0.0, 0.0, 0.0) for command in seen), (
         f"a non-zero command went out while stopping: {seen}"
     )
+
+
+# ---------------------------------------------------------------------------
+# Commands: smoothing, pacing and rotating
+# ---------------------------------------------------------------------------
+
+
+def _twist_array(vx, vy, omega, time_step=0.1):
+    msg = TwistArray()
+    msg.linear_velocities.x = list(vx)
+    msg.linear_velocities.y = list(vy)
+    msg.angular_velocities.z = list(omega)
+    msg.time_step = time_step
+    return msg
+
+
+class _CommandStub(_StepStub):
+    """Runs the real command paths: smoothing, queueing and the per-tick drain"""
+
+    _filter_multi_commands = DriveManager._filter_multi_commands
+    execute_cmd_closed_loop = DriveManager.execute_cmd_closed_loop
+    _DriveManager__filter_multi_cmds = DriveManager._DriveManager__filter_multi_cmds
+    _limit_command_acc = DriveManager._limit_command_acc
+    _check_bounds = DriveManager._check_bounds
+    _filter_commands = DriveManager._filter_commands
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.config.loop_rate = 10.0
+        self.robot = SimpleNamespace(
+            ctrl_vx_limits=SimpleNamespace(max_acc=10.0, max_decel=10.0, max_vel=1.0),
+            ctrl_vy_limits=SimpleNamespace(max_acc=10.0, max_decel=10.0, max_vel=1.0),
+            ctrl_omega_limits=SimpleNamespace(max_acc=10.0, max_decel=10.0, max_omega=1.0),
+        )
+
+
+def test_smoothed_commands_come_back_from_the_filter():
+    """The filter kept its results and returned nothing, so the callback it
+    serves crashed on None the moment smoothing was turned on"""
+    stub = _CommandStub()
+
+    filtered = stub._filter_multi_commands(output=_twist_array([0.2, 0.2], [0.0, 0.0], [0.0, 0.0]))
+
+    assert filtered is not None
+    assert len(filtered.linear_velocities.x) == 2
+    assert filtered.time_step == pytest.approx(0.1)
+
+
+def test_a_sideways_command_within_bounds_is_not_dropped():
+    """The branch that passes vy through wrote vx, so a holonomic robot never
+    got the sideways part of a command it could execute as it stood"""
+    stub = _CommandStub()
+    stub._previous_command = Twist()
+    command = Twist()
+    command.linear.x, command.linear.y = 0.1, 0.2
+
+    smoothed = stub._filter_commands(command)
+
+    assert smoothed.linear.y == pytest.approx(0.2)
+
+
+def test_queued_commands_are_spaced_by_their_own_time_step():
+    """Ten commands of 0.1 s are a second of driving, not a tenth of one"""
+    stub = _CommandStub()
+    stub._multi_cmds_callback(_twist_array([0.2] * 10, [0.0] * 10, [0.0] * 10), smooth_cmds=False)
+
+    sent = 0
+    for _ in range(5):  # five ticks, 0.1 s of commands due in the first
+        commands, _ = stub.step()
+        sent += len(commands)
+
+    assert sent == 1, f"the queue drained {sent} commands in a row"
+    assert stub._cmds_queue.qsize() == 9
+
+
+class _RotateStub(_CommandStub):
+    """Runs the real rotate_in_place against a clear space"""
+
+    rotate_in_place = DriveManager.rotate_in_place.__wrapped__
+
+    def __init__(self, **kwargs):
+        # The sensor stays fresh for as long as the rotation takes
+        kwargs.setdefault("timeout", 1000.0)
+        super().__init__(**kwargs)
+        self.robot.model_type = RobotType.DIFFERENTIAL_DRIVE
+        self.robot_radius = 0.3
+        # A 0.5 m band between the zones, so a margin is a readable fraction
+        self.config.critical_zone_distance = 0.3
+        self.config.slowdown_zone_distance = 0.8
+
+    def commands(self):
+        return [value for key, value in self.published if key == TopicsKeys.FINAL_COMMAND]
+
+
+def test_a_negative_rotation_turns_the_other_way():
+    """The sign says which way to turn. Ignored, a clockwise rotation exited
+    at once and reported success without the robot moving"""
+    stub = _RotateStub()
+
+    turned, message = stub.rotate_in_place(max_rotation=-0.1)
+
+    assert turned is True, message
+    assert stub.commands(), "no command was published"
+    assert all(command[2] < 0.0 for command in stub.commands()), stub.commands()
+
+
+def test_a_positive_rotation_still_turns_counter_clockwise():
+    stub = _RotateStub()
+
+    turned, _ = stub.rotate_in_place(max_rotation=0.1)
+
+    assert turned is True
+    assert all(command[2] > 0.0 for command in stub.commands())
+
+
+def test_a_rotation_waits_for_the_margin_it_was_asked_for():
+    """The checker's factor is how far past the critical zone the nearest
+    obstacle is, as a fraction of the band to the slowdown zone. A factor of
+    0.2 over a 0.5 m band is 0.1 m of clearance, which is not the 0.3 m asked
+    for"""
+    stub = _RotateStub(pc_checker=_RecordingChecker(factor=0.2))
+
+    turned, message = stub.rotate_in_place(max_rotation=0.1, safety_margin=0.3)
+
+    assert turned is False
+    assert "not clear by 0.30m" in message
+    assert stub.commands() == [], "turned into a space that was not clear enough"
+
+
+def test_the_same_rotation_goes_ahead_with_a_margin_that_fits():
+    stub = _RotateStub(pc_checker=_RecordingChecker(factor=0.2))
+
+    turned, _ = stub.rotate_in_place(max_rotation=0.1, safety_margin=0.05)
+
+    assert turned is True
+    assert stub.commands()
+
+
+def test_a_rotation_asked_for_no_margin_in_particular_keeps_turning():
+    """The default is 5% of the robot's radius, which a clear-ish space meets"""
+    stub = _RotateStub(pc_checker=_RecordingChecker(factor=0.2))
+
+    turned, _ = stub.rotate_in_place(max_rotation=0.1)
+
+    assert turned is True
+
+
+def test_a_command_array_without_a_time_step_still_drives_in_closed_loop():
+    """`time_step` is zero until an array says otherwise, and a closed loop
+    given no time to reach the command publishes nothing at all"""
+    stub = _CommandStub()
+    stub.config.closed_loop = True
+    stub.config.cmd_tolerance = 0.01
+    stub.robot_state = SimpleNamespace(vx=0.0, vy=0.0, omega=0.0)
+    stub._multi_cmds_callback(
+        _twist_array([0.2], [0.0], [0.0], time_step=0.0), smooth_cmds=False
+    )
+
+    commands, _ = stub.step()
+
+    assert commands, "a closed-loop command with no time step went nowhere"

@@ -448,3 +448,16 @@ def test_the_card_reads_a_picked_point_out_of_the_frame_it_arrives_in(mission_ca
     card = to_xml(mission_card.card)
     assert "(JSON.parse(event.data) || {}).payload" in card
     assert "payload.data" in card and "payload.frame_id" in card
+
+
+def test_the_card_finds_the_pause_and_resume_of_its_own_component(mission_card):
+    """Any other component exposing `execute_method` used to leave the card
+    with no controls at all, since it took the service only when there was
+    exactly one"""
+    mission_card._serving_component = "mission"
+
+    card = to_xml(mission_card.card)
+
+    assert 'service.name.indexOf("mission/")' in card
+    # Still works for a recipe that exposes only the mission's
+    assert "services.length === 1" in card
