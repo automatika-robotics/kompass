@@ -90,10 +90,10 @@ def init_twist_array_msg(
 
     cmd_list = TwistArray()
     init_list = number_of_cmds * [0.0]
-    cmd_list.linear_velocities.x = linear_x if linear_x is not None else init_list
-    cmd_list.linear_velocities.y = linear_y if linear_y is not None else init_list
+    cmd_list.linear_velocities.x = [float(x) for x in linear_x] if linear_x is not None else init_list
+    cmd_list.linear_velocities.y = [float(y) for y in linear_y] if linear_y is not None else init_list
     cmd_list.linear_velocities.z = init_list
     cmd_list.angular_velocities.x = init_list
     cmd_list.angular_velocities.y = init_list
-    cmd_list.angular_velocities.z = angular if angular is not None else init_list
+    cmd_list.angular_velocities.z = [float(omega) for omega in angular] if angular is not None else init_list
     return cmd_list

@@ -26,6 +26,7 @@ from nav_msgs.msg import Path as ROSPath
 from kompass_core.models import RobotState
 from sensor_msgs.msg import LaserScan as ROSLaserScan
 
+from kompass_interfaces.msg import MissionStatus as ROSMissionStatus
 from kompass_interfaces.msg import TwistArray as ROSTwistArray
 from importlib.util import find_spec
 
@@ -60,6 +61,7 @@ __all__ = [
     "Float64",
     "Trackings",
     "Detections",
+    "MissionStatus",
 ]
 
 
@@ -233,6 +235,23 @@ class TwistArray(SupportedType):
         return output
 
 
+class MissionStatus(SupportedType):
+    """Class to support ROS2 kompass_interfaces/msg/MissionStatus message"""
+
+    _ros_type = ROSMissionStatus
+    callback = GenericCallback
+
+    @classmethod
+    def convert(cls, output: ROSMissionStatus, **_):
+        """convert.
+
+        :param output:
+        :type output: ROSMissionStatus
+        :param kwargs:
+        """
+        return output
+
+
 class Path(BasePath):
     """Class to support ROS2 nav_msgs/msg/Path message"""
 
@@ -331,8 +350,9 @@ class Path(BasePath):
     @classmethod
     def length(cls, path: ROSPath):
         total_length = 0.0
-        for pose_stamped in path.poses:
+        for start, end in zip(path.poses, path.poses[1:]):
             total_length += np.sqrt(
-                pose_stamped.pose.position.x**2 + pose_stamped.pose.position.y**2
+                (end.pose.position.x - start.pose.position.x) ** 2
+                + (end.pose.position.y - start.pose.position.y) ** 2
             )
         return float(total_length)
