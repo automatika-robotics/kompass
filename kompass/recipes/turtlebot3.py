@@ -125,12 +125,12 @@ def kompass_bringup():
     # Define an Action to send a goal to the planner ActionServer based on the coming clicked point topic data
     send_goal: Action = Action(
         method=planner.trigger_main_action_server,
-        args=(
-            clicked_point_topic.msg.point.x,
-            clicked_point_topic.msg.point.y,
-            0.05,  # Goal distance tolerance
-            0.2,  # Goal angle tolerance (in radians)
-        ),
+        kwargs={
+            "goal_x": clicked_point_topic.msg.point.x,
+            "goal_y": clicked_point_topic.msg.point.y,
+            "tolerance_dist": 0.1,  # Goal distance tolerance (in meters)
+            "tolerance_ori": 0.2,  # Goal angle tolerance (in radians)
+        },
     )
 
     # Define Events/Actions dictionary
