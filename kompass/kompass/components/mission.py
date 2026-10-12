@@ -571,6 +571,11 @@ class MissionManager(Component):
         """
         return [
             self.ui_main_action_input,
+            # Pausing and resuming are component actions, which the card runs
+            # through this component's own method service
+            ServiceClientConfig(
+                srv_type=ExecuteMethod, name=f"{self.node_name}/execute_method"
+            ),
             self.ui_waypoints,
         ]
 
