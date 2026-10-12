@@ -573,9 +573,6 @@ class MissionManager(Component):
         """
         return [
             self.ui_main_action_input,
-            ServiceClientConfig(
-                name=f"{self.node_name}/execute_method", srv_type=ExecuteMethod
-            ),
             self.ui_waypoints,
         ]
 
