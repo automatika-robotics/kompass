@@ -223,16 +223,14 @@ def mission_routine_spec(
                 timeout=waypoint_timeout,
             )
         )
+        # The planner is done once within tolerance, while the controller may
+        # still be driving the path it was given. Every waypoint ends in a
+        # stop, held or not, so the robot never drives on past one
+        steps.extend(stop_step(index, ref, retries=stop_retries) for ref in stop_refs)
         dwell = dwell_seconds(list(goal.pause_duration), index)
         # A condition is a wait to go on to the next waypoint. At the last one
         # there is nothing to go on to, and waiting would only hold up success
         waits = bool(goal.pause_condition_topic) and index < last
-        if dwell > 0 or waits:
-            # The planner is done once within tolerance, while the controller
-            # may still be driving
-            steps.extend(
-                stop_step(index, ref, retries=stop_retries) for ref in stop_refs
-            )
         if dwell > 0:
             steps.append(
                 {"ref": WAIT_ACTION, "name": f"dwell_{index}", "kwargs": {"duration": dwell}}
@@ -859,6 +857,13 @@ class MissionManager(Component):
             requested = self._end_requested.is_set()
             reason = self._end_reason if requested else "mission canceled"
             self.__fill_progress(result, cursor, total, waypoints)
+            # Pausing runs the routine's own on_pause actions, which stop the robot
+            self.call_monitor("pause_routine", routine_name=routine_name)
+            deadline = time.monotonic() + self.config.end_mission_timeout
+            while time.monotonic() < deadline:
+                if (self.cursor(routine_name) or {}).get("status") != "running":
+                    break
+                time.sleep(1.0 / self.config.cursor_poll_rate)
             self.call_monitor("abort_routine", routine_name=routine_name, reason=reason)
             self.__report(
                 f"Mission {self._mission_id} "
