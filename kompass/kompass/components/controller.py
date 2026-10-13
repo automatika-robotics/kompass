@@ -1638,6 +1638,7 @@ class Controller(Component):
             return
 
         if self._reached_end:
+            self._stop_robot()
             return
         try:
             status = self._path_control()
