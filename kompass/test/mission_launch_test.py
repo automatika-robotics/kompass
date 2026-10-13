@@ -26,14 +26,13 @@ import pytest
 import rclpy
 from action_msgs.msg import GoalStatus
 from automatika_ros_sugar.srv import ExecuteMethod
-from geometry_msgs.msg import Pose, TransformStamped, Twist
+from geometry_msgs.msg import Pose, Twist
 from lifecycle_msgs.msg import Transition
 from lifecycle_msgs.srv import ChangeState
 from nav_msgs.msg import Odometry
 from rclpy.action import ActionClient
 from rclpy.qos import DurabilityPolicy, QoSProfile
 from std_msgs.msg import Bool
-from tf2_ros import StaticTransformBroadcaster
 
 from kompass.components import (
     Controller,
@@ -59,10 +58,6 @@ PAUSE_TOPIC = "/mission_go_on"
 #: filled in does not look like one that was
 ROBOT_AT = (0.5, -0.25)
 ROBOT_FRAME = "map"
-#: Where the origin of the odom frame sits in the world frame, so waypoints
-#: given in odom land somewhere else once driven
-ODOM_OFFSET_X = 10.0
-
 #: Goals the stand-in planner was asked to drive to, in the order it got them
 planner_goals = []
 #: Goals it saw cancelled
@@ -197,13 +192,6 @@ class TestMission(unittest.TestCase):
             cls.statuses.append,
             QoSProfile(depth=100, durability=DurabilityPolicy.TRANSIENT_LOCAL),
         )
-        odom_in_world = TransformStamped()
-        odom_in_world.header.frame_id = ROBOT_FRAME
-        odom_in_world.child_frame_id = "odom"
-        odom_in_world.transform.translation.x = ODOM_OFFSET_X
-        odom_in_world.transform.rotation.w = 1.0
-        cls.tf_broadcaster = StaticTransformBroadcaster(cls.node)
-        cls.tf_broadcaster.sendTransform(odom_in_world)
         cls.lifecycle_client = cls.node.create_client(
             ChangeState, "/mission/change_state"
         )
@@ -377,11 +365,15 @@ class TestMission(unittest.TestCase):
             msg.linear.x == 0.0 and msg.angular.z == 0.0 for msg in self.robot_commands
         ), "the drive manager never sent the robot a zero command"
 
-    def test_a_mission_with_no_hold_does_not_stop_the_robot(self):
+    def test_a_mission_with_no_hold_still_stops_at_every_waypoint(self):
+        """The planner is done within tolerance while the controller still
+        drives, so the robot must not carry on past a waypoint"""
         result = self.result_of(self.send(self.mission(count=2)))
 
         assert result.outcome == MultiGoalPlanPath.Result.OUTCOME_COMPLETED
-        assert not self.robot_commands, "the robot was stopped between waypoints"
+        assert any(
+            msg.linear.x == 0.0 and msg.angular.z == 0.0 for msg in self.robot_commands
+        ), "the robot was never stopped"
 
     def test_a_pause_condition_holds_the_mission_until_the_topic_says_go(self):
         """The reason the topic is named per mission rather than configured"""
@@ -525,21 +517,13 @@ class TestMission(unittest.TestCase):
 
     # ---- Frames -------------------------------------------------------
 
-    def test_waypoints_given_in_another_frame_are_driven_in_the_world_frame(self):
+    def test_waypoints_are_forwarded_whatever_frame_they_name(self):
+        """A waypoint is a goal for the planner, which brings a goal into the
+        frame it plans in itself, so the mission hands them over as they are"""
         result = self.result_of(self.send(self.mission(count=1, frame_id="odom")))
 
         assert result.outcome == MultiGoalPlanPath.Result.OUTCOME_COMPLETED
-        # Waypoint 1.0 in odom, whose origin is at ODOM_OFFSET_X in the world
-        assert planner_goals == [1.0 + ODOM_OFFSET_X]
-
-    def test_waypoints_in_a_frame_with_no_transform_are_refused(self):
-        """Driving to the raw coordinates would take the robot somewhere else"""
-        result = self.result_of(self.send(self.mission(count=1, frame_id="nowhere")))
-        self.spin(0.5)
-
-        assert result.outcome == MultiGoalPlanPath.Result.OUTCOME_FAILED
-        assert not planner_goals, "it drove to a waypoint in an unknown frame"
-        assert "nowhere" in self.statuses[-1].message
+        assert planner_goals == [1.0]
 
     # ---- Pausing ------------------------------------------------------
 

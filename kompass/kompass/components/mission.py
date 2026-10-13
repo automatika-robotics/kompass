@@ -19,7 +19,6 @@ from attrs import define, field
 from automatika_ros_sugar.srv import ExecuteMethod
 from geometry_msgs.msg import Pose, PoseStamped
 from kompass_core.models import RobotState
-from tf2_geometry_msgs import do_transform_pose
 from kompass_interfaces.action import MultiGoalPlanPath as MultiGoalPlanPathAction
 from kompass_interfaces.msg import MissionStatus
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
@@ -152,7 +151,6 @@ def mission_routine_spec(
     stop_refs: List[str],
     waypoint_timeout: float,
     start_pose=None,
-    waypoints: Optional[List[Pose]] = None,
     stop_retries: int = 0,
 ) -> Dict[str, Any]:
     """Turn a mission goal into a routine specification.
@@ -167,9 +165,6 @@ def mission_routine_spec(
     :param start_pose: Where the robot was when the mission began. Read only
         to refuse a return-to-start mission with nowhere to return to: the
         journey itself never drives back, the mission does that after it
-    :param waypoints: The goal's waypoints in the frame the planner drives in.
-        Defaults to the goal's own poses, which is what a goal that named no
-        frame already gives
     :param stop_retries: Extra attempts at each stop before it ends the mission
     :raises ValueError: If the goal describes no mission, or describes one that
         cannot be carried out as asked
@@ -188,7 +183,7 @@ def mission_routine_spec(
             f"Got on_timeout={goal.on_timeout}, which is no policy. Give "
             "CONTINUE (0), RETURN_TO_START (1) or ABORT (2)"
         )
-    points = list(goal.goals) if waypoints is None else list(waypoints)
+    points = list(goal.goals)
     last = len(points) - 1
     returning = goal.on_timeout == MultiGoalPlanPathAction.Goal.ON_TIMEOUT_RETURN_TO_START
     if returning and goal.pause_condition_topic and last > 0 and start_pose is None:
@@ -783,24 +778,10 @@ class MissionManager(Component):
         # to, so it is read here and held, not read again when it returns
         self._start_pose = self.start_pose()
 
+        # Forwarded as they are: a waypoint is a goal for the planner, which
+        # brings a goal into the frame it plans in itself
+        waypoints = list(goal.goals)
         try:
-            waypoints = list(goal.goals)
-            world = self.config.frames.world
-            if goal.frame_id and goal.frame_id != world:
-                # Brought into the world frame the planner drives in, the
-                # transform waited for as long as a topic would be
-                listener = self.get_transform_listener(goal.frame_id, world)
-                deadline = time.monotonic() + self.config.topic_subscription_timeout
-                while not listener.got_transform and time.monotonic() < deadline:
-                    time.sleep(0.1)
-                if not listener.got_transform:
-                    raise ValueError(
-                        f"The waypoints are given in the '{goal.frame_id}' frame, "
-                        f"and its transform to the '{world}' frame is not available"
-                    )
-                waypoints = [
-                    do_transform_pose(pose, listener.transform) for pose in goal.goals
-                ]
             spec = mission_routine_spec(
                 goal,
                 name=routine_name,
@@ -808,7 +789,6 @@ class MissionManager(Component):
                 stop_refs=self.stop_refs,
                 waypoint_timeout=self.config.waypoint_timeout,
                 start_pose=self._start_pose,
-                waypoints=waypoints,
                 stop_retries=self.config.retries,
             )
         except ValueError as e:

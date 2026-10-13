@@ -74,8 +74,16 @@ def step_named(spec, name: str) -> dict:
 
 def test_each_waypoint_becomes_a_goal_on_the_planner():
     spec = spec_for(mission_goal(count=3))
-    assert step_names(spec) == ["goto_0", "goto_1", "goto_2"]
-    assert all(step["ref"] == PLANNER_REF for step in spec["steps"])
+    assert [name for name in step_names(spec) if name.startswith("goto_")] == [
+        "goto_0",
+        "goto_1",
+        "goto_2",
+    ]
+    assert all(
+        step["ref"] == PLANNER_REF
+        for step in spec["steps"]
+        if step["name"].startswith("goto_")
+    )
 
 
 def test_a_waypoints_goal_carries_the_pose_and_the_tolerance():
@@ -138,7 +146,7 @@ def test_a_dwell_becomes_a_step_between_waypoints():
 def test_a_zero_dwell_adds_no_step():
     """Otherwise every mission would carry steps that do nothing"""
     spec = spec_for(mission_goal(count=2, pause_duration=[0.0]))
-    assert step_names(spec) == ["goto_0", "goto_1"]
+    assert not [name for name in step_names(spec) if name.startswith("dwell_")]
 
 
 def test_the_robot_is_stopped_before_holding_position():
@@ -198,28 +206,28 @@ def test_pausing_the_mission_stops_the_robot():
     assert all(action["max_retries"] == 2 for action in spec["on_pause"])
 
 
-def test_the_waypoints_driven_are_the_ones_in_the_planning_frame():
-    """A goal given in another frame is driven where it lands in the frame the
-    planner plans in, not at its raw coordinates"""
-    in_world = [pose_at(10.0, 1.0), pose_at(11.0, 1.0)]
-    spec = mission_routine_spec(
-        mission_goal(count=2, frame_id="odom"),
-        name="mission_test",
-        planner_ref=PLANNER_REF,
-        stop_refs=STOP_REFS,
-        waypoint_timeout=WAYPOINT_TIMEOUT,
-        waypoints=in_world,
-    )
+def test_the_waypoints_are_forwarded_as_they_are():
+    """The planner brings a goal into the frame it plans in, so a mission does
+    no transforming of its own"""
+    spec = spec_for(mission_goal(count=2, frame_id="odom"))
     driven = [
         step_named(spec, f"goto_{i}")["goal"]["goal"]["position"]["x"] for i in (0, 1)
     ]
-    assert driven == [10.0, 11.0]
+    assert driven == [0.0, 1.0]
 
 
-def test_a_waypoint_with_no_hold_is_not_stopped_at():
-    """The next goal replaces the path, stopping in between would only jerk"""
+def test_every_waypoint_is_stopped_at_even_with_no_hold():
+    """The planner is done within tolerance while the controller still drives,
+    so a waypoint that holds nothing still ends in a stop"""
     spec = spec_for(mission_goal(count=2, pause_duration=[0.0]))
-    assert step_names(spec) == ["goto_0", "goto_1"]
+    assert step_names(spec) == [
+        "goto_0",
+        "stop_controller_0",
+        "stop_drive_manager_0",
+        "goto_1",
+        "stop_controller_1",
+        "stop_drive_manager_1",
+    ]
 
 
 def test_a_dwell_list_that_does_not_match_the_waypoints_is_refused():
@@ -244,8 +252,12 @@ def test_the_last_waypoint_does_not_wait_for_the_condition():
     spec = spec_for(mission_goal(count=3, pause_condition_topic="/go_on"))
     pauses = [name for name in step_names(spec) if name.startswith("pause_")]
     assert pauses == ["pause_0", "pause_1"]
-    # Nor is the robot stopped there, as it does not hold position
-    assert step_names(spec)[-1] == "goto_2"
+    # It is still stopped there: the mission ends with the robot standing
+    assert step_names(spec)[-3:] == [
+        "goto_2",
+        "stop_controller_2",
+        "stop_drive_manager_2",
+    ]
 
 
 def test_the_last_waypoint_still_dwells():
