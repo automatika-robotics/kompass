@@ -746,6 +746,7 @@ class Planner(Component):
             self.get_logger().error(f"Action execution error - {e}")
             # The goal is over, so the plan it was driving has to go with it
             self._publish_empty_plan()
+            self._forget_action_goal()
             with self._main_goal_lock:
                 goal_handle.abort()
             return action_result
@@ -761,11 +762,25 @@ class Planner(Component):
         )
         self.get_publisher(TopicsKeys.REACHED_END).publish(bool(True))
         self._publish_empty_plan()
+        self._forget_action_goal()
 
         with self._main_goal_lock:
             goal_handle.succeed()
 
         return action_result
+
+    def _forget_action_goal(self) -> None:
+        """Drop what an ended action goal leaves behind.
+
+        `_update_state` runs on every tick of the action loop, and it latches
+        whatever arrived on the goal point input into `self.goal`, while
+        `reached_end` belongs to the input driven planning path. Neither is a
+        goal the action server was given, so neither outlives one: otherwise
+        the planner plans for a point nothing asked for, or refuses to plan
+        because it thinks it already arrived
+        """
+        self.goal = dict.fromkeys(self.goal, None)
+        self.reached_end = False
 
     def _publish_empty_plan(self) -> None:
         """Publish an empty global plan.
@@ -785,6 +800,7 @@ class Planner(Component):
         """
         self.get_logger().info("Goal Canceled")
         self._publish_empty_plan()
+        self._forget_action_goal()
         with self._main_goal_lock:
             if goal_handle.is_cancel_requested:
                 goal_handle.canceled()
