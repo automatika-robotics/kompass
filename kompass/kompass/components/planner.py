@@ -646,8 +646,12 @@ class Planner(Component):
         :return: If the distance to the goal is less than the given tolerance
         :rtype: bool
         """
-        if not self.robot_state:
-            return False
+        while not self.robot_state:
+            self.get_logger().warning(
+                "Cannot check if goal is reached, robot location is unavailable, waiting...", once=True
+            )
+            self._update_state()
+            time.sleep(1 / self.config.loop_rate)
         dist: float = self.robot_state.distance(goal_point)
         return dist <= tolerance.lateral_distance_error
 
@@ -724,9 +728,6 @@ class Planner(Component):
                     self._end_canceled_goal(goal_handle)
                     return action_result
 
-                # update state from input
-                self._update_state()
-
                 # plan a new path
                 self._plan(self.robot_state, goal_state)
 
@@ -737,6 +738,9 @@ class Planner(Component):
                 self.get_logger().debug(f"Action Feedback: {action_feedback_msg}")
                 # NOTE: using Python time directly, as ros rate sleep (from self.create_rate) was not functioning as expected
                 time.sleep(1 / self.config.loop_rate)
+
+                # update state from input
+                self._update_state()
 
         except Exception as e:
             self.get_logger().error(f"Action execution error - {e}")
