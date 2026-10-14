@@ -82,8 +82,6 @@ def make_path_controller_stub(**overrides) -> Controller:
     # The algorithm setter on the real config is a converter; stub the enum directly
     from kompass_core.control import ControllersID
     c.config.algorithm = ControllersID.DWA
-    # Read through the robot property, for the speed a stop is held against
-    c.config.robot.ctrl_vx_limits.min_vel = 0.1
 
     # Fake path controller; real one lives in kompass-core
     path_controller = MagicMock()
@@ -284,24 +282,20 @@ class TestExecutionStepDispatch:
 
         c._path_control.assert_not_called()
 
-    def test_skips_when_already_reached_end(self):
+    def test_skips_path_control_when_already_reached_end(self):
         c = make_path_controller_stub()
         _set_mangled(c, "reached_end", True)
-        c._read_robot_state = MagicMock(return_value=RobotState(x=0.0, y=0.0))
         c._path_control = MagicMock(return_value=PathControlStatus.RUNNING)
 
         c._execution_step()
 
         c._path_control.assert_not_called()
-        # Standing still, so there is nothing to stop
-        assert not c._stop_robot_calls
 
-    def test_the_stop_is_held_until_the_robot_stands_still(self):
+    def test_the_stop_is_asked_for_on_every_tick_past_the_end(self):
         """The zero command that ends a path can be lost, or reach the driver
         while it is still playing the one before it"""
         c = make_path_controller_stub()
         _set_mangled(c, "reached_end", True)
-        c._read_robot_state = MagicMock(return_value=RobotState(x=0.0, y=0.0, vx=0.4))
         c._path_control = MagicMock(return_value=PathControlStatus.RUNNING)
 
         c._execution_step()
