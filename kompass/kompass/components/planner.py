@@ -779,6 +779,10 @@ class Planner(Component):
         the planner plans for a point nothing asked for, or refuses to plan
         because it thinks it already arrived
         """
+        for idx in list(self.goal):
+            callback = self.get_callback(TopicsKeys.GOAL_POINT, idx)
+            if callback:
+                callback.clear_last_msg()
         self.goal = dict.fromkeys(self.goal, None)
         self.reached_end = False
 
