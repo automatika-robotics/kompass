@@ -84,6 +84,8 @@ def make_planner_stub(**overrides) -> Planner:
     p._config_file = None
 
     # ROS infra fakes
+    # No goal point inputs declared, so nothing is latched from one
+    p._inputs_keys = []
     p.get_callback = MagicMock(return_value=None)
     p.get_publisher = MagicMock()
     p.get_logger = MagicMock()
