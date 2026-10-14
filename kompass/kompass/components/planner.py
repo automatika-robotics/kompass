@@ -643,15 +643,27 @@ class Planner(Component):
         :param tolerance: Tolerance to goal
         :type tolerance: PathTrackingError
 
-        :return: If the distance to the goal is less than the given tolerance
+        :return: If the distance to the goal is less than the given tolerance,
+            and False while the robot location is unknown
         :rtype: bool
         """
-        while not self.robot_state:
+        step = 1 / self.config.loop_rate
+        waited = 0.0
+        while not self.robot_state and waited < self.config.topic_subscription_timeout:
             self.get_logger().warning(
                 "Cannot check if goal is reached, robot location is unavailable, waiting...", once=True
             )
             self._update_state()
-            time.sleep(1 / self.config.loop_rate)
+            time.sleep(step)
+            waited += step
+        if not self.robot_state:
+            # Waiting here with no end holds the goal open, and with it the
+            # action server, which then refuses every goal after it
+            self.get_logger().error(
+                "Cannot check if goal is reached: the robot location is still "
+                f"unavailable after {self.config.topic_subscription_timeout}s"
+            )
+            return False
         dist: float = self.robot_state.distance(goal_point)
         return dist <= tolerance.lateral_distance_error
 
@@ -908,13 +920,13 @@ class Planner(Component):
         Updates all inputs
         """
         # NOTE: The map is not updated here, but when received (see _set_planning_map)
-        self.robot_state: Optional[RobotState] = self.get_callback(
-            TopicsKeys.ROBOT_LOCATION
-        ).get_output(
-            transformation=self.odom_tf_listener.transform
-            if self.odom_tf_listener
-            else None
-        )
+        location_callback = self.get_callback(TopicsKeys.ROBOT_LOCATION)
+        if location_callback is not None:
+            self.robot_state: Optional[RobotState] = location_callback.get_output(
+                transformation=self.odom_tf_listener.transform
+                if self.odom_tf_listener
+                else None
+            )
 
         num_goal_inputs = self._inputs_keys.count(TopicsKeys.GOAL_POINT)
         for idx in range(num_goal_inputs):
