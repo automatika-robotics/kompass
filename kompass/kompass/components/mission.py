@@ -442,6 +442,8 @@ class MissionManager(Component):
         # Set when the node asks the ongoing mission to end, and why
         self._end_requested = threading.Event()
         self._end_reason: str = ""
+        # Whether the mission ended because its routine stopped being readable
+        self._cursor_lost: bool = False
 
     @staticmethod
     def __check_components(config: MissionManagerConfig) -> None:
@@ -757,6 +759,7 @@ class MissionManager(Component):
         # Clear any previous request to end a mission, and the reason for it, before starting a new mission
         self._end_requested.clear()
         self._end_reason = ""
+        self._cursor_lost = False
         try:
             return self.__run_mission(goal_handle)
         finally:
@@ -842,13 +845,13 @@ class MissionManager(Component):
             requested = self._end_requested.is_set()
             reason = self._end_reason if requested else "mission canceled"
             self.__fill_progress(result, cursor, total, waypoints)
-            # Pausing runs the routine's own on_pause actions, which stop the robot
-            self.call_monitor("pause_routine", routine_name=routine_name)
-            deadline = time.monotonic() + self.config.end_mission_timeout
-            while time.monotonic() < deadline:
-                if (self.cursor(routine_name) or {}).get("status") != "running":
-                    break
-                time.sleep(1.0 / self.config.cursor_poll_rate)
+            if not self._cursor_lost:
+                self.call_monitor("pause_routine", routine_name=routine_name)
+                deadline = time.monotonic() + self.config.end_mission_timeout
+                while time.monotonic() < deadline:
+                    if (self.cursor(routine_name) or {}).get("status") != "running":
+                        break
+                    time.sleep(1.0 / self.config.cursor_poll_rate)
             self.call_monitor("abort_routine", routine_name=routine_name, reason=reason)
             self.__report(
                 f"Mission {self._mission_id} "
@@ -998,6 +1001,7 @@ class MissionManager(Component):
                         f"the mission routine could not be read {missed} times "
                         "in a row"
                     )
+                    self._cursor_lost = True
                     self._end_requested.set()
             else:
                 missed = 0
