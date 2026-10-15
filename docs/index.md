@@ -54,6 +54,22 @@ Health status reporting, fallback triggers, event/action system, and component l
 Custom callbacks, publishers, processing pipelines, and the `SupportedType` registration system.
 :::
 
+:::{grid-item-card} {material-regular}`route;1.5em;sd-text-primary` Missions
+:link: development/missions
+:link-type: doc
+:class-card: sugar-card
+
+Run a sequence of navigation goals as one action: goal-to-routine translation, feedback and status, pausing and cancelling.
+:::
+
+:::{grid-item-card} {material-regular}`dashboard;1.5em;sd-text-primary` Browser UI Elements
+:link: development/ui_elements
+:link-type: doc
+:class-card: sugar-card
+
+Register UI elements for your own message types and own the card of an action, served by the Sugarcoat UI node.
+:::
+
 :::{grid-item-card} {material-regular}`terminal;1.5em;sd-text-primary` CLI Reference
 :link: development/cli_reference
 :link-type: doc
@@ -90,6 +106,8 @@ development/adding_algorithms
 development/custom_component
 development/advanced_component
 development/custom_callbacks_publishers
+development/missions
+development/ui_elements
 development/cli_reference
 development/architecture_references
 ```

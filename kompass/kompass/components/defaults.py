@@ -85,6 +85,9 @@ class TopicsKeys(StrEnum):
     * - RUN_TESTS
       - run_tests
       - Flag to initiate system test procedures
+    * - MISSION_STATUS
+      - mission_status
+      - Status of the ongoing multi-waypoint mission
     ```
 
     """
@@ -114,6 +117,7 @@ class TopicsKeys(StrEnum):
     EMERGENCY = "emergency_stop"
     REACHED_END = "reached_end"
     RUN_TESTS = "run_tests"
+    MISSION_STATUS = "mission_status"
 
 
 controller_allowed_inputs: Dict[TopicsKeys, AllowedTopics] = {
@@ -296,4 +300,28 @@ planner_default_inputs: Dict[TopicsKeys, Optional[Topic]] = {
 planner_default_outputs: Dict[TopicsKeys, Topic] = {
     TopicsKeys.GLOBAL_PLAN: Topic(name="/plan", msg_type="Path"),
     TopicsKeys.REACHED_END: Topic(name="/reached_end", msg_type="Bool"),
+}
+
+
+# MISSION MANAGER
+mission_allowed_inputs: Dict[TopicsKeys, AllowedTopics] = {
+    TopicsKeys.ROBOT_LOCATION: AllowedTopics(types=["Odometry", "PoseStamped", "Pose"]),
+}
+
+mission_allowed_outputs: Dict[TopicsKeys, AllowedTopics] = {
+    TopicsKeys.MISSION_STATUS: AllowedTopics(types=["MissionStatus"]),
+}
+
+# The location is only read for the return-to-start policy
+mission_default_inputs: Dict[TopicsKeys, Topic] = {
+    TopicsKeys.ROBOT_LOCATION: Topic(name="/odom", msg_type="Odometry"),
+}
+
+mission_default_outputs: Dict[TopicsKeys, Topic] = {
+    # Transient local, so a late subscriber still gets the latest status
+    TopicsKeys.MISSION_STATUS: Topic(
+        name="/mission_status",
+        msg_type="MissionStatus",
+        qos_profile=QoSConfig(durability=qos.DurabilityPolicy.TRANSIENT_LOCAL),
+    ),
 }

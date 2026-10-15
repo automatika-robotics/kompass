@@ -143,3 +143,38 @@ def test_unlabelled_query_still_returns_all_boxes():
         )
     )
     assert [b.label for b in callback.get_output()] == ["person", "bottle"]
+
+
+# ---------------------------------------------------------------------------
+# PointStampedCallback: a goal point names the frame it is in
+# ---------------------------------------------------------------------------
+
+
+def test_a_goal_point_is_brought_into_the_frame_asked_for():
+    """A point stamped in the robot's frame means somewhere else by the time
+    the planner plans in the world frame. Ignoring the transform planned to
+    the raw coordinates, wherever the robot happened to be"""
+    from geometry_msgs.msg import PointStamped, TransformStamped
+    from kompass.callbacks import PointStampedCallback
+
+    message = PointStamped()
+    message.header.frame_id = "base_link"
+    message.point.x, message.point.y = 1.0, 0.0
+
+    callback = PointStampedCallback(
+        Topic(name="/clicked_point", msg_type="PointStamped"), node_name="planner"
+    )
+    callback.callback(message)
+
+    # base_link is 2 m along x of the world frame
+    transform = TransformStamped()
+    transform.header.frame_id = "map"
+    transform.child_frame_id = "base_link"
+    transform.transform.translation.x = 2.0
+    transform.transform.rotation.w = 1.0
+
+    state = callback.get_output(transformation=transform)
+
+    assert (state.x, state.y) == pytest.approx((3.0, 0.0))
+    # Without one, the point is taken as it stands
+    assert (callback.get_output().x, callback.get_output().y) == pytest.approx((1.0, 0.0))
