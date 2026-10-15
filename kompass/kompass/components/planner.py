@@ -633,7 +633,9 @@ class Planner(Component):
         return response
 
     def reached_point(
-        self, goal_point: RobotState, tolerance: PathTrackingError
+        self,
+        goal_point: RobotState,
+        tolerance: PathTrackingError,
     ) -> bool:
         """
         Checks if the current robot state is close to a given goal point
@@ -647,15 +649,7 @@ class Planner(Component):
             and False while the robot location is unknown
         :rtype: bool
         """
-        step = 1 / self.config.loop_rate
-        waited = 0.0
-        while not self.robot_state and waited < self.config.topic_subscription_timeout:
-            self.get_logger().warning(
-                "Cannot check if goal is reached, robot location is unavailable, waiting...", once=True
-            )
-            self._update_state()
-            time.sleep(step)
-            waited += step
+        self._update_state(block=True)
         if not self.robot_state:
             # Waiting here with no end holds the goal open, and with it the
             # action server, which then refuses every goal after it
@@ -664,6 +658,7 @@ class Planner(Component):
                 f"unavailable after {self.config.topic_subscription_timeout}s"
             )
             return False
+
         dist: float = self.robot_state.distance(goal_point)
         return dist <= tolerance.lateral_distance_error
 
@@ -740,7 +735,19 @@ class Planner(Component):
                     self._end_canceled_goal(goal_handle)
                     return action_result
 
+                # Where the robot is now: a plan is made from it, and the
+                # goal is judged reached against it, so it is read every tick
+                self._update_state()
+                if self.robot_state is None:
+                    self.get_logger().warning(
+                        "Cannot plan path, robot location is unavailable, waiting...",
+                        once=True,
+                    )
+                    time.sleep(1 / self.config.loop_rate)
+                    continue
+
                 # plan a new path
+
                 self._plan(self.robot_state, goal_state)
 
                 action_feedback_msg.current_pose = self.__robot_state_to_pose_stamped()
@@ -750,9 +757,6 @@ class Planner(Component):
                 self.get_logger().debug(f"Action Feedback: {action_feedback_msg}")
                 # NOTE: using Python time directly, as ros rate sleep (from self.create_rate) was not functioning as expected
                 time.sleep(1 / self.config.loop_rate)
-
-                # update state from input
-                self._update_state()
 
         except Exception as e:
             self.get_logger().error(f"Action execution error - {e}")
@@ -859,6 +863,26 @@ class Planner(Component):
                     return False
 
             if path:
+                # OMPL reports an approximate solution the same way as an exact
+                states = path.getStates()
+                end = states[-1] if states else None
+                if (
+                    end is None
+                    or float(np.hypot(end.getX() - goal.x, end.getY() - goal.y))
+                    > self.config.distance_tolerance
+                ):
+                    self.get_logger().error(
+                        f"Planner only got within "
+                        f"{float(np.hypot(end.getX() - goal.x, end.getY() - goal.y)):.2f}m "
+                        f"of ({goal.x:.2f}, {goal.y:.2f}) -> dropping this plan. "
+                        "The goal may be unreachable, inside an obstacle or out "
+                        "of the map"
+                        if end is not None
+                        else "Planner returned an empty path -> dropping it",
+                        throttle_duration_sec=5.0,
+                    )
+                    return False
+
                 # Add cost as last cost if it does not exist
                 if not hasattr(self, "_last_path_cost"):
                     self._last_path_cost = self.ompl_planner.path_cost
@@ -915,18 +939,33 @@ class Planner(Component):
 
         return True
 
-    def _update_state(self):
+    def _update_state(self, block: bool = False) -> None:
         """
         Updates all inputs
         """
         # NOTE: The map is not updated here, but when received (see _set_planning_map)
         location_callback = self.get_callback(TopicsKeys.ROBOT_LOCATION)
         if location_callback is not None:
-            self.robot_state: Optional[RobotState] = location_callback.get_output(
-                transformation=self.odom_tf_listener.transform
-                if self.odom_tf_listener
-                else None
+            timeout_time = time.time() + (
+                self.config.topic_subscription_timeout if block else 0.0
             )
+            while True:
+                # Where the robot was last seen is kept until it is seen again:
+                # a tick that comes between two messages still knows where the
+                # robot is, rather than losing it
+                state = location_callback.get_output(
+                    transformation=self.odom_tf_listener.transform
+                    if self.odom_tf_listener
+                    else None,
+                    clear_last=True,
+                )
+                if state is not None:
+                    self.robot_state = state
+                if self.robot_state is not None or time.time() >= timeout_time:
+                    break
+                # Waited on, not spun on: the message being waited for arrives
+                # on another thread of this node
+                time.sleep(self.config.topic_try_wait_timeout)
 
         num_goal_inputs = self._inputs_keys.count(TopicsKeys.GOAL_POINT)
         for idx in range(num_goal_inputs):
@@ -1015,14 +1054,23 @@ class Planner(Component):
             )
             and not self.reached_end
         ):
-            self._plan(self.robot_state, goal_state)
             self.reached_end = self.reached_point(
                 goal_state,
                 PathTrackingError(
                     lateral_distance_error=self.config.distance_tolerance
                 ),
             )
-            return True
+            if self.robot_state:
+                self._plan(self.robot_state, goal_state)
+                return True
+            else:
+                self.get_logger().error(
+                    f"Cannot plan to goal {goal_state} because robot location is unavailable"
+                )
+                self.health_status.set_fail_system(
+                    topic_names=[self.in_topic_name(TopicsKeys.ROBOT_LOCATION)]
+                )
+                return False
         elif self.reached_end:
             self.get_logger().info("Goal Reached!")
             self.get_publisher(TopicsKeys.REACHED_END).publish(bool(True))
@@ -1079,7 +1127,7 @@ class Planner(Component):
         """
         Main execution of the component, executed at each timer tick with rate 'loop_rate' from config
         """
-        self._update_state()
+        self._update_state(block=True)
 
         if (
             self.run_type == ComponentRunType.TIMED
@@ -1110,6 +1158,7 @@ class Planner(Component):
         :rtype: StartPathRecording.Response
         """
         self.get_logger().info("RECEIVED RECORDING PATH FROM MOTION SERVICE REQUEST")
+        self._update_state(block=True)
         if self.robot_state:
             self._recorded_motion = Path()
             self._recorded_motion.header.frame_id = self.config.frames.world
@@ -1149,7 +1198,7 @@ class Planner(Component):
         if not self._recording_on:
             self.destroy_timer(self.__motion_recording_timer)
             return
-        self._update_state()
+        self._update_state(block=True)
         new_pose = self.__robot_state_to_pose_stamped()
         self._recorded_motion.poses.append(new_pose)
 
@@ -1176,10 +1225,17 @@ class Planner(Component):
 
         if path:
             self.get_logger().info(f"Saving path of {len(path.poses)} points")
-
-            KompassPath.to_json(
-                path, json_file=f"{request.file_location}/{request.file_name}"
-            )
+            try:
+                KompassPath.to_json(
+                    path, json_file=f"{request.file_location}/{request.file_name}"
+                )
+            except Exception as e:
+                self.get_logger().error(
+                    f"Failed to save path to {request.file_location}/{request.file_name}: {e}"
+                )
+                response.path_length = 0.0
+                response.path_num_points = 0
+                return response
 
             # Log saved path and return service response
             self.get_logger().info(
