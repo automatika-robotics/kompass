@@ -2,8 +2,8 @@
 Changelog for package kompass
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+0.8.0 (2026-10-20)
+------------------
 * (chore) Updates sugarcoat minimum required version
 * (fix) Fixes fetching latest robot state in planner and handles OMPL approximate solutions
 * (fix) Adds timeout of robot state check in Planner reached_end method

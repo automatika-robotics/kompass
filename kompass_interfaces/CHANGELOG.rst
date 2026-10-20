@@ -2,8 +2,8 @@
 Changelog for package kompass_interfaces
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+0.8.0 (2026-10-20)
+------------------
 * (fix) Fixes execution of return_to_start policy on mission timeout
 * (feature) Adds paused state to the navigation Mission
 * (feature) Adds MultiGoal mission action
