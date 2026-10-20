@@ -8,8 +8,6 @@ importing the modules requires rclpy/ros_sugar and the browser UI dependencies
 import pytest
 
 pytest.importorskip("rclpy")
-pytest.importorskip("fasthtml")
-pytest.importorskip("monsterui")
 from geometry_msgs.msg import Pose, PoseStamped  # noqa: E402
 from kompass_interfaces.action import MultiGoalPlanPath  # noqa: E402
 from kompass_interfaces.msg import MissionStatus  # noqa: E402
@@ -18,8 +16,20 @@ from kompass_interfaces.msg import MissionStatus  # noqa: E402
 # they import each other and only that order resolves
 import kompass.components  # noqa: E402, F401
 from kompass.ros import UI_EXTENSIONS  # noqa: E402
-from fastcore.xml import to_xml  # noqa: E402
-from ros_sugar.ui_node import elements  # noqa: E402
+
+# The browser UI dependencies are optional, and this module must stay
+# importable without them: `launch_testing`'s pytest plugin imports every file
+# in the directory while collecting it, and a skip raised there is a
+# BaseException its import guard does not catch, which takes down the
+# collection of the whole directory rather than this one module
+try:
+    from fastcore.xml import to_xml  # noqa: E402
+    from ros_sugar.ui_node import elements  # noqa: E402
+except ImportError as missing_ui_dependency:  # pragma: no cover
+    to_xml = elements = None
+    pytestmark = pytest.mark.skip(
+        f"the browser UI dependencies are not installed: {missing_ui_dependency}"
+    )
 
 
 def _status(**fields) -> MissionStatus:
