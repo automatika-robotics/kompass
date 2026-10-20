@@ -2,6 +2,104 @@
 Changelog for package kompass
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* (chore) Updates sugarcoat minimum required version
+* (fix) Fixes fetching latest robot state in planner and handles OMPL approximate solutions
+* (fix) Adds timeout of robot state check in Planner reached_end method
+* (fix) Adds a flag in the MissionManager to track if the routine cursor is lost
+* (fix) Adds clearing for callback last message on Planner goal clear
+* (fix) Forwards mission waypoint to the planner as they come as the planner already handles its own TFs
+* (fix) Ensures the robot is stopped when controller core reports that end is reached
+* (fix) Adds additional cleanup to previous goal points on planner action end
+* (fix) Adds wait for robot state in planner reached_end check
+* (chore) Fixes tolerances in turtlebot recipe
+* (fix) Respects a TwistArray time_step and ensure safety margin when executing a rotate in place action
+* (fix) Adds missing TF for PointStamped callback
+* (fix) Adds missing TF to world frame for goal point Planner input required in TIMED/Event mode
+* (fix) Checks for node health when waiting for an input, ends the loop on node shutting down
+* (chore) Fixes setting algorithm string name and not class name in health status message
+* (fix) Corrects path length calculation
+* (chore) Removes the dead Monitor subclass
+* (fix) Builds the planner's own action client once instead of per trigger
+* (fix) Fixes minimum tolernce check in planner to honor the lowest default
+* (fix) Fixes execution of return_to_start policy on mission timeout
+* (fix) Correctly handles sending local vs global frame in rgbd follower, local by default unless requested in config
+* (fix) Checks robot stopping using location change when velocity feedback is not available
+* (fix) Refreshes the safety verdict every tick in DriveManager to avoid stale emergency_stop flags
+* (fix) Reads a clicked waypoint from the UI node
+* (fix) Clears Controller core path when tracking stops and ends the tracking goal
+* (fix) Adds a reentrant threading lock to use on every touch of kompass-core controller
+* (fix) Ends a mission whose routine cannot be read and bounds the Monitor calls
+* (fix) Makes the latched map QoS a default that a recipe or config file can override
+* (fix) Applied missing TF to the robot state
+* (feature) Adds custom UI Task element for the MissionManager
+* (feature) Adds pause/resume to MissionManager and accepts waypoints from the UI
+* (fix) Publishes the final mission status once before cleanup, with completed, canceled and aborted status
+* (fix) Skips the pause condition at the last waypoint of a mission
+* (fix) Adds missing tf2 geometry messages dependency to package.xml
+* (fix) Passes global plans to the core without length check, core handles the check
+* (feature) Adds UI element for the mission status
+* (fix) Re-evaluates the safety check every tick so a stale sensor no longer latches the emergency stop
+* (fix) Returns the (bool, str) action contract from the planner trigger_main_action_server action
+* (fix) Publishes the global map once with a latched QoS and sets it on the planner when received
+* (fix) Adds float conversion for map metadata to avoid errors when int-like values are present
+* (fix) Turns pointcloud filtering min_height into a config param in DriveManager
+* (fix) Restrict values to float before publishing twist array
+* (fix) Adds stop_timeout param to stop_robot action in DriveManager
+* (feature) Adds MissionManager to executable types
+* (feature) Adds mission status message
+* (refactor) Changes return type of DriveManager component actions to ActionReturnType instead of bool
+* (feature) Adds action to step the robot in DriveManager
+* (feature) Adds Controller component action to stop path tracking
+* (refactor) Fixes set_algorithm to return ActionReturnType instead of bool
+* (feature) Adds MissionManager to Kompass to handle multi-goal missions execution
+* (fix) Adds missing _img_size to trackings callback
+* (fix) Fixes vision follower to avoid blocking an RGB follower for non-available depth info
+* (fix) Handles -inf values from range sensors and treating them as nearby obstacles
+* (fix) Blocks command publishing in DriveManager if collision checker is not initialized
+* (fix) Fixes odom callback _process function for correct calculation of speed
+* (refactor) Standardizes angular ctrl limit params with sugarcoat and core
+* (refactor) Makes the name of min_vel param consistent with core and sugarcoat
+* (feature) Adds handling range properly in drive manager and removes bare floats
+* (fix) Waits for depth every time inputs are updated in vision follower
+* (fix) Fixes getting boxes of the correct labels for vision following sorted by detection score when multiple labels are present
+* (fix) Fixes depth age check wrt detections msg by caching stamp so it survives clear_last
+* (refactor) Uses component level tf wait method to wait for camera intrinsics
+* (feature) Adds external depth topics for aligned depth values to vision follower
+* (feature) Adds external depth input to the controller
+* (feature) Adds external depth topic registration to the planner (aligned depth and pointclouds)
+* (feature) Adds external depth mixin for callbacks that were bringing their own depth to consume external depth topics
+* (refactor) Makes drive manager use the native buffer layout for pointcloud and component level tf wait
+* (refactor) Refactors mapper with component level sensor tf wait and native buffer layout
+* (feature) Adds helper methods to get topic TF and return sensor config for spatial sensors
+* (feature) Adds vision depth to default keys
+* (fix) Adds refreshing frame mode on mission start to check if global frame is available
+* (feature) Adds sending depth metadata directly to core for the zero copy path and fixes errors in trackings callback
+* (refactor) Read depth image info only at setup for rgbd follower, cache otherwise
+* (fix) Adds error logging and failure health status if inputs are not available to local mapper rather than silent fail
+* (fix) Fixes refreshing inputs and outputs to components after init with a launch guard
+* (refactor) Removes upstreamed camera info datatype and uses CameraIntrinsics from sugarcoat
+* (feature) Adds multi sensor fusion for point cloud based local mapping
+* (feature) Adds multiple pointcloud fused emergency stop checking
+* (feature) Adds exception based safety stop in unblocking maneuver as well
+* (feature) Adds handling in drive manager to stop the robot if an exception is thrown from inside critical zone checker
+* (fix) Fixes resetting the sensor mount flag
+* (fix) Fixes checking for global plan availability in TIMED mode
+* (fix) Resets sensor mount flag when changing direct_sensor property
+  Reset is needed when this property is changed during runtime
+* (fix) Uses the new tf resolve utility from parent to check if global TF is available for plan, local map and pointcloud in Controller
+* (feature) Adds utility method to resolve TF for a given input key
+* (fix) Fix frame check when no global plan subscription is available
+* (fix) Uses the explicit fields update to configure the controller's algorithm to correct the sensor pose mount setting
+* (fix) Checks input data type using the callback type rather than the sensor_data to avoid checking against None value if the message is not published yet
+* (fix) Fixes criticalzone checker init for failure case, when gpu is requested
+* (fix) Changes imread input to string for Python 3.8 compatibility
+* (fix) Updates the controller to respect kompass-core contract for sensor input frames based on sensor type
+* (fix) Checks for global plan frame in Controller before execution
+* (fix) Removes setting the transformation to the input callback to be applied only on kompass-core side
+* Contributors: ahr, mkabtoul
+
 0.7.0 (2026-08-05)
 ------------------
 * (chore) Updates minimum required kompass-core version

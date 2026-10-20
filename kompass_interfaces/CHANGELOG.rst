@@ -2,6 +2,15 @@
 Changelog for package kompass_interfaces
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* (fix) Fixes execution of return_to_start policy on mission timeout
+* (feature) Adds paused state to the navigation Mission
+* (feature) Adds MultiGoal mission action
+* (feature) Adds mission status message
+* (fix) Waits for depth every time inputs are updated in vision follower
+* Contributors: ahr, mkabtoul
+
 0.7.0 (2026-08-05)
 ------------------
 
