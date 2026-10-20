@@ -7,7 +7,7 @@ from packaging import version as pkg_version
 
 # Minimum required versions
 MIN_KOMPASS_CORE_VERSION = "0.8.5"
-MIN_SUGARCOAT_VERSION = "0.8.1"
+MIN_SUGARCOAT_VERSION = "0.8.2"
 
 
 def _print_sugarcoat_error(current_version=None):
