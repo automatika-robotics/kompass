@@ -11,7 +11,8 @@ callbacks, robot model, publishers, logger) through it.
 
 The helper never mutates Component state except via the documented methods
 ``_publish`` and ``_stop_robot``, plus ``config._frame_mode`` which the
-helper sets at setup time based on TF availability.
+helper sets at setup time: LOCAL unless the vision algorithm's configuration
+asks for the world frame and global localization is available.
 """
 
 from __future__ import annotations
@@ -53,6 +54,7 @@ class VisionFollower:
         # Empty when there is no usable depth
         self.depth: Dict[str, Any] = {}
         self.depth_image_info: Optional[CameraIntrinsics] = None
+        self._global_requested: bool = False
 
     # ------------------------------------------------------------------
     # Public API consumed by the Controller component
@@ -71,9 +73,9 @@ class VisionFollower:
     def setup(self) -> bool:
         """Build the core vision controller. Stores it on success.
 
-        Decides ``_frame_mode`` from TF availability: if the odom→world TF
-        (or matching frames) is available we operate in GLOBAL, otherwise
-        we fall back to LOCAL (robot-relative).
+        Tracks in the LOCAL (robot-relative) frame by default. The world
+        frame is used only when requested by config and if global localization
+        is available. Otherwise it falls back to LOCAL with a warning.
         """
         cmp = self._component
         # Re-acquire the intrinsics per setup
@@ -116,37 +118,14 @@ class VisionFollower:
                 )
                 return False
 
-        # NOTE: If the location->world TF is available the follower tracks in GLOBAL,
-        # otherwise it falls back to LOCAL (robot-relative). The mode is reset to
-        # GLOBAL before probing because _update_state(block=True) only waits for
-        # the TF in GLOBAL mode, and setup() can re-enter while the mode is still
-        # LOCAL. A robot already localized in the world frame resolves to the identity
-        # transform, so it needs no special case here.
-        cmp.config._frame_mode = FrameMode.GLOBAL
-        cmp._update_state(block=True)
-        has_tf = cmp.odom_tf_listener is not None and cmp.odom_tf_listener.got_transform
-        cmp.config._frame_mode = FrameMode.GLOBAL if has_tf else FrameMode.LOCAL
-        use_local = cmp.config._frame_mode == FrameMode.LOCAL
-
-        if use_local:
-            cmp.get_logger().info(
-                "No global localization available — vision follower will "
-                "operate in LOCAL (robot-relative) frame"
-            )
-        else:
-            cmp.get_logger().info(
-                "Global localization available — vision follower will "
-                "operate in GLOBAL frame with velocity tracking"
-            )
-
         config = ControlConfigClasses[cmp.algorithm](
             control_time_step=cmp.config.control_time_step,
             camera_position_to_robot=depth_tf.translation if depth_tf else None,
             camera_rotation_to_robot=depth_tf.rotation if depth_tf else None,
-            _use_local_coordinates=use_local,
         )
 
         _controller_config = cmp._configure_algorithm(config)
+        self._resolve_frame_mode(_controller_config)
 
         # Apply the (possibly user-overridden) buffer size to the detections callback
         detections_callback = cmp.get_callback(TopicsKeys.VISION_DETECTIONS)
@@ -199,20 +178,61 @@ class VisionFollower:
         )
         return True
 
-    def _refresh_frame_mode(self) -> bool:
-        """Upgrade a LOCAL-frame controller to GLOBAL once localization exists.
+    def _resolve_frame_mode(self, controller_config) -> None:
+        """Pick the tracking frame for a newly configured vision controller.
 
-        Controller built before localization came up (LOCAL) must be rebuilt to
-        track in the world frame. Returns False only if the rebuild was needed and failed.
+        LOCAL unless the configuration asks for the world frame. A world frame
+        request without global localization falls back to LOCAL with a warning
+
+        :param controller_config: The vision algorithm configuration, after the
+            user's settings were applied
         """
         cmp = self._component
-        if cmp.config._frame_mode != FrameMode.LOCAL:
+        # Only the depth follower has the setting
+        self._global_requested = not getattr(
+            controller_config, "use_local_coordinates", True
+        )
+        use_local = True
+        if self._global_requested:
+            # NOTE: The mode is set to GLOBAL before probing because
+            # _update_state(block=True) only waits for the TF in GLOBAL mode. A
+            # robot already localized in the world frame resolves to the identity
+            # transform, so it needs no special case here.
+            cmp.config._frame_mode = FrameMode.GLOBAL
+            cmp._update_state(block=True)
+            if cmp.odom_tf_listener is not None and cmp.odom_tf_listener.got_transform:
+                use_local = False
+            else:
+                cmp.get_logger().warning(
+                    "World frame tracking was requested (use_local_coordinates="
+                    "False) but no global localization is available -> vision "
+                    "follower will operate in LOCAL (robot-relative) frame"
+                )
+                controller_config.use_local_coordinates = True
+
+        cmp.config._frame_mode = FrameMode.LOCAL if use_local else FrameMode.GLOBAL
+        cmp.get_logger().info(
+            "Vision follower will operate in "
+            + ("LOCAL (robot-relative)" if use_local else "GLOBAL (world)")
+            + " frame"
+        )
+
+    def _refresh_frame_mode(self) -> bool:
+        """Move to the requested world frame once localization exists.
+
+        Applies only when the configuration asked for the world frame and setup
+        fell back to LOCAL because localization was not up yet; the controller
+        must then be rebuilt to track in the world frame. Returns False only if
+        the rebuild was needed and failed.
+        """
+        cmp = self._component
+        if not self._global_requested or cmp.config._frame_mode != FrameMode.LOCAL:
             return True
         if not (cmp.odom_tf_listener and cmp.odom_tf_listener.got_transform):
             return True
         cmp.get_logger().info(
             "Global localization became available -> rebuilding vision "
-            "follower to track in GLOBAL frame"
+            "follower to track in the requested GLOBAL frame"
         )
         return self.setup()
 

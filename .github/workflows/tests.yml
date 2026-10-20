@@ -47,6 +47,8 @@ jobs:
         run: |
           pip install --ignore-installed opencv-python-headless 'attrs>=23.2.0' \
                       jinja2 msgpack msgpack-numpy setproctitle pyyaml toml
+          # The browser UI, so its elements are tested rather than skipped
+          pip install --ignore-installed python-fasthtml monsterui
 
       - name: Set up workspace (sugarcoat + kompass)
         run: |

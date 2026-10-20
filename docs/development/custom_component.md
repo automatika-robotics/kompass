@@ -58,6 +58,7 @@ def __init__(
 | `FINAL_COMMAND` | `"robot_command"` | Command sent to robot driver |
 | `EMERGENCY` | `"emergency_stop"` | Emergency stop signal |
 | `REACHED_END` | `"reached_end"` | Goal reached flag |
+| `MISSION_STATUS` | `"mission_status"` | Progress of the ongoing multi-waypoint mission |
 
 Using `TopicsKeys` ensures consistent naming across components and enables automatic wiring in recipes.
 

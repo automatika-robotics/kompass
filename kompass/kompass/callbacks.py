@@ -10,6 +10,7 @@ from ros_sugar.io import PoseCallback as BasePoseCallback
 from ros_sugar.io import LaserScanCallback, PointCloudCallback
 from ros_sugar.io.callbacks import RangeCallback
 from kompass_core.models import RobotState
+from tf2_geometry_msgs import do_transform_point
 
 from nav_msgs.msg import Odometry
 from tf2_ros import TransformStamped
@@ -209,16 +210,23 @@ class PointStampedCallback(PointCallback):
         """
         super().__init__(input_topic, node_name, get_front, robot_radius)
 
-    def _get_output(self, **_) -> Optional[RobotState]:
+    def _get_output(
+        self, transformation: Optional[TransformStamped] = None, **_
+    ) -> Optional[RobotState]:
         """
-        Gets the RobotState by applying the transform to the odometry message if given.
+        Gets the RobotState by applying the transform to the point if given.
         :returns:   Topic content
         :rtype:     Any
         """
         if not self.msg:
             return None
 
-        center_state = self._process(self.msg.point)
+        # A stamped point names its own frame
+        transform = transformation or self.transformation
+        point = (
+            do_transform_point(self.msg, transform).point if transform else self.msg.point
+        )
+        center_state = self._process(point)
 
         if self._get_front and self._robot_radius:
             # Get the state of the front of the robot

@@ -141,3 +141,46 @@ def test_robot_ctrl_limits_carries_the_minimum_linear_velocity():
     assert limits.omega_limits.max_omega == 1.5
     assert limits.omega_limits.max_ang == 3.14
     assert limits.omega_limits.min_omega == 0.04
+
+
+# ---------------------------------------------------------------------------
+# wait_input_tf: a wait that lets the node go
+# ---------------------------------------------------------------------------
+
+
+def test_waiting_for_an_input_ends_when_the_node_shuts_down():
+    """The wait runs on an executor thread inside a lifecycle callback. One
+    that outlives the node's context kept the whole process from stopping:
+    SIGINT ignored, launch escalating to a kill"""
+    from types import SimpleNamespace
+    from unittest.mock import MagicMock
+
+    from kompass.components.component import Component
+    from kompass.components.defaults import TopicsKeys
+
+    waiting = SimpleNamespace(ok=True)
+    component = object.__new__(Component)
+    component.config = SimpleNamespace(
+        frames=SimpleNamespace(robot_base="base_link"), topic_try_wait_timeout=0.01
+    )
+    component.get_callback = MagicMock(return_value=None)
+    component.get_logger = MagicMock()
+    # Never arrives, so only the shutdown can end the wait
+    component.input_tf_listener = MagicMock(return_value=None)
+
+    looks = {"count": 0}
+
+    def context():
+        looks["count"] += 1
+        if looks["count"] > 3:
+            waiting.ok = False
+        return SimpleNamespace(ok=lambda: waiting.ok)
+
+    type(component).context = property(lambda _self: context())
+    try:
+        listener = Component.wait_input_tf(component, TopicsKeys.SPATIAL_SENSOR)
+    finally:
+        del type(component).context
+
+    assert listener is None
+    assert "shutting down" in str(component.get_logger.return_value.warning.call_args)
