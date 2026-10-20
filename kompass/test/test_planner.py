@@ -266,10 +266,11 @@ class TestPlanOnGoalCore:
 class TestPlanHeader:
     def test_published_path_has_frame_and_stamp(self):
         p = make_planner_stub()
-        # Provide a "solved" OMPL path with a single state
+        # Provide a "solved" OMPL path whose single state is the goal: a path
+        # that stops short of it is an approximate solution and is dropped
         state = MagicMock()
-        state.getX.return_value = 0.0
-        state.getY.return_value = 0.0
+        state.getX.return_value = 1.0
+        state.getY.return_value = 1.0
         state.getYaw.return_value = 0.0
         solution = MagicMock()
         solution.getStates.return_value = [state]
@@ -627,7 +628,10 @@ class TestGoalEndingEarly:
             side_effect=lambda key: publishers.setdefault(key, MagicMock())
         )
         p._clear_path = MagicMock()
+        # Mocked, so the loop plans from the pose set here rather than reading
+        # one: a goal with no location of its own waits instead of planning
         p._update_state = MagicMock()
+        p.robot_state = RobotState(x=0.0, y=0.0, yaw=0.0)
         p.reached_point = MagicMock(return_value=False)
         return p, publishers
 
@@ -741,3 +745,48 @@ class TestToleranceClamp:
 
     def test_a_tolerance_below_the_minimum_is_raised(self):
         assert self._tolerance_after(0.01) == 0.1
+
+
+class TestApproximateSolutions:
+    """OMPL reports a path to the closest state it could reach the same way as
+    one that arrives, and driving it takes the robot somewhere nobody asked for
+    """
+
+    @staticmethod
+    def _planner_whose_path_ends_at(x: float, y: float):
+        p = make_planner_stub()
+        state = MagicMock()
+        state.getX.return_value = x
+        state.getY.return_value = y
+        state.getYaw.return_value = 0.0
+        solution = MagicMock()
+        solution.getStates.return_value = [state]
+        p.ompl_planner.solve.return_value = solution
+        p.ompl_planner.path_cost = 0.5
+        p.map_data = {
+            "origin_x": 0.0,
+            "origin_y": 0.0,
+            "width": 10,
+            "height": 10,
+            "resolution": 0.05,
+        }
+        p.map = np.zeros((10, 10), dtype=np.int8)
+        p.get_publisher = MagicMock()
+        return p
+
+    def test_a_path_that_stops_short_of_the_goal_is_dropped(self):
+        p = self._planner_whose_path_ends_at(0.0, 0.0)
+
+        ok = p._plan(start=RobotState(x=0.0, y=0.0), goal=RobotState(x=5.0, y=0.0))
+
+        assert ok is False
+        assert p.path is None
+        p.get_publisher.assert_not_called()
+
+    def test_a_path_that_arrives_is_published(self):
+        p = self._planner_whose_path_ends_at(5.0, 0.0)
+
+        ok = p._plan(start=RobotState(x=0.0, y=0.0), goal=RobotState(x=5.0, y=0.0))
+
+        assert ok is True
+        assert p.path is not None
