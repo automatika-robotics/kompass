@@ -8,111 +8,130 @@
 
 <br/>
 
-Part of the [EMOS](https://github.com/automatika-robotics/emos) ecosystem
+**GPU-accelerated, event-driven navigation for the real world**
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Python](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
-[![ROS2](https://img.shields.io/badge/ROS2-Foxy%2B-green)](https://docs.ros.org/en/humble/index.html)
-[![Discord](https://img.shields.io/badge/Discord-%235865F2.svg?logo=discord&logoColor=white)](https://discord.gg/B9ZU6qjzND)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
+[![ROS 2](https://img.shields.io/badge/ROS%202-Humble%20|%20Jazzy%20|%20Kilted%20|%20Rolling-orange?style=flat-square&logo=ros)](https://emos.automatikarobotics.com/getting-started/installation.html)
+[![Discord](https://img.shields.io/badge/Discord-%235865F2.svg?style=flat-square&logo=discord&logoColor=white)](https://discord.gg/B9ZU6qjzND)
 
-**High-Performance, Event-Driven Navigation Stack for ROS2**
-
-[**EMOS Documentation**](https://emos.automatikarobotics.com) | [**Developer Docs**](https://automatika-robotics.github.io/kompass/) | [**Discord**](https://discord.gg/B9ZU6qjzND)
-
-🇨🇳 [简体中文](docs/README.zh.md) | 🇯🇵 [日本語](docs/README.ja.md)
+[**Documentation**](https://emos.automatikarobotics.com) · [**Developer Docs**](https://automatika-robotics.github.io/kompass/) · [**Discord**](https://discord.gg/B9ZU6qjzND)
 
 </div>
 
 ---
 
-## What is Kompass?
+<div align="center">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/_static/images/diagrams/navigation_modes_dark.png">
+  <source media="(prefers-color-scheme: light)" srcset="docs/_static/images/diagrams/navigation_modes_light.png">
+  <img alt="Four kinds of navigation converging on one control and safety path" src="docs/_static/images/diagrams/navigation_modes_light.png" width="100%">
+</picture>
+<br>
+<sub>One system - Four configurable navigation modes.</sub>
+</div>
 
-**Kompass** is the navigation layer of [EMOS](https://github.com/automatika-robotics/emos) (Embodied Operating System) and a framework for building **robust**, **event-driven** navigation stacks for autonomous mobile robots. It is built to be customizable, extendable and hardware-agnostic.
+**Kompass** is the navigation layer of [EMOS](https://github.com/automatika-robotics/emos), the Embodied Operating System. An event-driven navigation system, made for robots working in the real world.
 
-Kompass includes **highly optimized, GPU-powered navigation algorithms in C++** that make full use of available hardware resources. It supports **multi-process parallelism on CPUs** and highly parallelized execution on **any GPU** (Nvidia, AMD, etc.) without vendor lock-in. And most importantly, Kompass makes it straightforward to create and deploy sophisticated navigation capabilities for any mobile robot within **a single Python script**, without sacrificing performance or flexibility.
+Real environments don't hold still. People walk into the path, sensors drop out,
+plans go stale, and a stack that is fixed at launch will soon fail. **Kompass adapts at runtime.** It swaps controllers, tightens safety limits, or reconfigures itself, all on the fly, with no relaunch needed.
 
-For full documentation, tutorials, and recipes, visit [emos.automatikarobotics.com](https://emos.automatikarobotics.com).
+Under the hood, every component runs on optimized C++ that executes on CPU or **any** GPU.
 
-- [**Key Features**](#key-features)
-- [**Components**](#components)
-- [**Installation**](#installation)
-- [**Benchmarking Results**](#benchmarking-results)
-- [**Dynamic Web UI**](#dynamic-web-ui)
-- [**EMOS Ecosystem**](#part-of-the-emos-ecosystem)
-
----
-
-## Key Features
-
-- **Adaptive Event-Driven Design**: Responsive to real-world events, robot state changes, and task updates. Define event-action pairs to reconfigure the navigation stack at runtime, or seamlessly switch planning or control strategies based on environment context.
-
-- **Engineered for Speed**: All core algorithms are written in modern C++ ([kompass-core](https://github.com/automatika-robotics/kompass-core)). First navigation framework to explicitly support GPU-based execution via GPGPU, unlocking high performance on any hardware without vendor lock-in.
-
-- **ML Models as First-Class Citizens**: External events can be driven by ML model outputs interpreting sensor data or user commands. The entire stack becomes reconfigurable based on ML inference, going beyond well-established visual navigation scenarios.
-
-- **Pythonic API with Native Speed**: While the heavy lifting is done in optimized C++, Kompass provides an intuitive Python API. Prototype quickly and deploy high-performance systems without rewriting code.
-
----
+**Forget rigid behavior trees.** In Kompass, any complex behavior for your robot is a single Python script, a **Recipe**:
+wire events to actions across the whole stack and describe how your robot should react,
+in a few readable lines.
 
 ## Components
 
-Kompass is divided into several interacting components, each responsible for a navigation subtask:
+| Area | Components |
+| :--- | :--- |
+| **Planning** | **Planner** finds a path around the known map with OMPL, re-planning until the robot arrives, and records a route driven by hand so it can be played back later. **MissionManager** runs a list of waypoints in order, holding at each one for a set time or until a condition is met. |
+| **Control** | **Controller** turns a route into the velocities this robot can make, steering around what moves: DWA, Stanley, Pure Pursuit and DVZ for path tracking, RGB and RGB-D followers for keeping a target in view at a distance you set. |
+| **Perception** | **LocalMapper** fuses laser scans and point clouds into a local occupancy map while the robot drives. **MapServer** serves the static global map from a file, as a grid or a point cloud. |
+| **Safety** | **DriveManager** is the last stop before the wheels: it limits every command to the robot's envelope, slows for what is near, stops for what is too close, and drives the robot out when it gets stuck. |
+| **Testing** | **MotionServer** sends reference commands and records the resulting motion, for tuning and regression testing on a real robot. |
 
-<div align="center">
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/_static/images/diagrams/system_components_dark.png">
-  <source media="(prefers-color-scheme: light)" srcset="docs/_static/images/diagrams/system_components_light.png">
-  <img alt="Kompass Components" src="docs/_static/images/diagrams/system_components_dark.png" width="100%">
-</picture>
-</div>
-
-Each component runs as a ROS 2 lifecycle node and communicates using topics, services, or action servers:
-
-<div align="center">
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/_static/images/diagrams/system_graph_dark.png">
-  <source media="(prefers-color-scheme: light)" srcset="docs/_static/images/diagrams/system_graph_light.png">
-  <img alt="System Diagram" src="docs/_static/images/diagrams/system_graph_dark.png" width="100%">
-</picture>
-</div>
-
-Learn more about each component in the [EMOS Documentation](https://emos.automatikarobotics.com):
-[Planner](https://emos.automatikarobotics.com/kompass/navigation/path_planning.html) |
-[Controller](https://emos.automatikarobotics.com/kompass/navigation/control.html) |
-[Local Mapper](https://emos.automatikarobotics.com/kompass/navigation/mapper.html) |
-[Map Server](https://emos.automatikarobotics.com/kompass/navigation/map_server.html) |
-[Drive Manager](https://emos.automatikarobotics.com/kompass/navigation/driver.html) |
+Learn more about each one in the [EMOS Documentation](https://emos.automatikarobotics.com):
+[Planner](https://emos.automatikarobotics.com/kompass/navigation/path_planning.html) ·
+[Controller](https://emos.automatikarobotics.com/kompass/navigation/control.html) ·
+[Local Mapper](https://emos.automatikarobotics.com/kompass/navigation/mapper.html) ·
+[Map Server](https://emos.automatikarobotics.com/kompass/navigation/map_server.html) ·
+[Drive Manager](https://emos.automatikarobotics.com/kompass/navigation/driver.html) ·
 [Motion Server](https://emos.automatikarobotics.com/kompass/navigation/motion_server.html)
 
----
+## Key Features
+
+- **A stack that rearranges itself.** Any component can react to what another one publishes. Switch the control algorithm when the current one runs out of options, disable backward motion when a proximity sensor goes quiet, or hold a mission and follow a person the moment a model sees one. Nothing is relaunched.
+- **Engineered for speed.** The core algorithms are modern C++ ([kompass-core](https://github.com/automatika-robotics/kompass-core)), with GPU execution through GPGPU rather than a single vendor's toolkit, so the same recipe runs fast on an Nvidia Jetson, an AMD board or plain CPUs.
+- **ML models as first-class citizens.** Any model output can drive an event — a detection, a tracked target, a decision model's answer, a VLM's reading of the scene — and reconfigure navigation exactly as a sensor reading would. Kompass and [EmbodiedAgents](https://github.com/automatika-robotics/embodied-agents), the intelligence layer of EMOS, are built on the same component framework, so one recipe can wire both into a single graph: perception, language and planning triggering navigation, and navigation triggering them back.
+- **Hardware-agnostic.** Differential drive, Ackermann, omnidirectional and legged platforms share one robot configuration: geometry, velocity limits and acceleration limits. The control and safety path does not change with the chassis.
+- **Pythonic API with native speed.** The heavy lifting stays in C++ while the recipe stays a readable Python file. Prototype and deploy without rewriting anything.
+
+## Build Event-Driven Navigation Missions
+
+<div align="center">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/_static/images/diagrams/event_driven_dark.png">
+  <source media="(prefers-color-scheme: light)" srcset="docs/_static/images/diagrams/event_driven_light.png">
+  <img alt="One patrol mission, and the events that reconfigure the stack while it runs" src="docs/_static/images/diagrams/event_driven_light.png" width="100%">
+</picture>
+</div>
+
+**One patrol with Kompass, four surprises, zero relaunches.**
+
+Every reaction in the mission above is a line in its Recipe: an event paired with an action.
+
+- **The active controller runs out of options** → switch to another one and keep going.
+- **The rear proximity sensor goes quiet** → disable backward motion without pausing the mission.
+- **A person is detected at a defined meeting zone** → switch to vision mode and follow them.
+- **The drop-off zone is reached** → stop person following, pick the patrol route back up where it left off.
+
+The safety envelope watches through all of it.
+
+Here is the first reaction, added to the [Quick Start](#quick-start) recipe before `launcher.bringup()`:
+
+```python
+from automatika_ros_sugar.msg import ComponentStatus
+from kompass.ros import Action, Event
+
+# When DWA can't find a way forward, hand over to DVZ
+controller_stuck = Event(
+    controller.status_topic.msg.status
+    == ComponentStatus.STATUS_FAILURE_ALGORITHM_LEVEL
+)
+launcher.on(
+    controller_stuck,
+    Action(
+        method=controller.set_algorithm,
+        kwargs={"algorithm_value": ControllersID.DVZ},
+    ),
+)
+```
+
 
 ## Installation
 
-For detailed installation instructions, see the [EMOS Documentation](https://emos.automatikarobotics.com).
+The easiest way to get Kompass with the rest of the stack is the [EMOS CLI](https://github.com/automatika-robotics/emos#installation). See the [installation docs](https://emos.automatikarobotics.com/getting-started/installation.html) for details.
 
-### Install kompass-core
-
-**With GPU support (recommended):**
+**Install kompass-core, with GPU support (recommended):**
 
 ```bash
 curl -sSL https://raw.githubusercontent.com/automatika-robotics/kompass-core/refs/heads/main/build_dependencies/install_gpu.sh | bash
 ```
 
-**With pip (CPU only):**
+**Or with pip (CPU only):**
 
 ```bash
 sudo apt-get install -y libompl-dev libfcl-dev && pip install kompass-core
 ```
 
-### Install Kompass
-
-**Quick install (Ubuntu/Debian, ROS 2 Humble+ or Jazzy+):**
+**With your package manager (Ubuntu, ROS 2 Humble or later):**
 
 ```bash
 sudo apt install ros-$ROS_DISTRO-kompass
 ```
 
-**From source (for contributors):**
+**From source (after installing kompass-core above):**
 
 ```bash
 mkdir -p kompass_ws/src && cd kompass_ws/src
@@ -120,15 +139,85 @@ git clone https://github.com/automatika-robotics/sugarcoat
 git clone https://github.com/automatika-robotics/kompass
 rosdep update && rosdep install -y --from-paths . --ignore-src
 cd .. && colcon build
+source install/setup.bash
 ```
 
----
+## Quick Start
 
-## Benchmarking Results
+A navigation stack that takes goals from the web UI, plans around a map, tracks the path with DWA and keeps the robot inside its limits:
 
-The plots below compare CPU vs. GPU performance across navigation components. See the [benchmarking details](https://github.com/automatika-robotics/kompass-core/blob/main/src/kompass_cpp/benchmarks/README.md) for methodology.
+```python
+import numpy as np
+from kompass.components import Controller, DriveManager, LocalMapper, Planner
+from kompass.control import ControllersID
+from kompass.robot import (
+    AngularCtrlLimits,
+    LinearCtrlLimits,
+    RobotConfig,
+    RobotGeometryType,
+    RobotType,
+)
+from kompass.ros import Launcher, Topic
 
-### Logarithmic Scale (CPU vs GPU)
+my_robot = RobotConfig(
+    model_type=RobotType.DIFFERENTIAL_DRIVE,
+    geometry_type=RobotGeometryType.CYLINDER,
+    geometry_params=np.array([0.1, 0.3]),  # radius, height
+    ctrl_vx_limits=LinearCtrlLimits(max_vel=0.4, max_acc=1.5, max_decel=2.5),
+    ctrl_omega_limits=AngularCtrlLimits(
+        max_omega=0.4, max_acc=2.0, max_decel=2.0, max_ang=np.pi / 3
+    ),
+)
+
+planner = Planner(component_name="planner")
+planner.run_type = "ActionServer"  # take goals from the UI, a recipe, or another package
+
+controller = Controller(component_name="controller")
+controller.algorithm = ControllersID.DWA
+
+mapper = LocalMapper(component_name="mapper")
+mapper.inputs(sensor_data=Topic(name="/scan", msg_type="LaserScan"))
+
+driver = DriveManager(component_name="drive_manager")
+driver.outputs(robot_command=Topic(name="/cmd_vel", msg_type="TwistStamped"))
+
+launcher = Launcher()
+launcher.add_pkg(
+    components=[planner, controller, mapper, driver],
+    package_name="kompass",
+    multiprocessing=True,  # one process per component
+)
+launcher.inputs(location=Topic(name="/odometry/filtered", msg_type="Odometry"))
+launcher.robot = my_robot
+launcher.enable_ui()
+launcher.bringup()
+```
+
+Add a `MissionManager` to the same recipe and it visits a list of waypoints in order, stopping the robot at each one until a timeout passes or a condition is met:
+
+```python
+from kompass.components import MissionManager
+
+mission = MissionManager(
+    component_name="mission_manager",
+    planner=planner,        # waypoints go to the planner's action server
+    controller=controller,  # both are told to stop at each waypoint
+    drive_manager=driver,
+)
+# ... then add `mission` to the components list passed to launcher.add_pkg
+```
+
+## Dynamic Web UI
+
+Every recipe gets a web UI generated from its components: their inputs, outputs, settings and tasks, with no frontend code. Built with FastHTML on [Sugarcoat](https://github.com/automatika-robotics/sugarcoat).
+
+<div align="center">
+<img alt="Kompass UI" src="docs/_static/gif/ui_navigation.gif" width="70%">
+</div>
+
+## Benchmarks
+
+On GPU, Kompass evaluates 5,000 candidate trajectories up to **3,486× faster** and updates a dense 400×400 local map up to **1,850× faster** than the CPU baseline (Rockchip RK3588). See the [benchmarking details](https://github.com/automatika-robotics/kompass-core/blob/main/src/kompass_cpp/benchmarks/README.md) for methodology.
 
 <div align="center">
 <picture>
@@ -136,11 +225,9 @@ The plots below compare CPU vs. GPU performance across navigation components. Se
   <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/automatika-robotics/kompass-core/main/docs/benchmark_log_light.png">
   <img alt="Logarithmic Benchmark Results" src="https://raw.githubusercontent.com/automatika-robotics/kompass-core/main/docs/benchmark_log_light.png" width="60%">
 </picture>
+<br>
+<sub>Throughput, logarithmic scale.</sub>
 </div>
-
-### Power Consumption & Efficiency
-
-_Efficiency = Operations per Joule (Throughput / Watts). Higher is better._
 
 <div align="center">
 <picture>
@@ -148,43 +235,29 @@ _Efficiency = Operations per Joule (Throughput / Watts). Higher is better._
   <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/automatika-robotics/kompass-core/main/docs/benchmark_power_light.png">
   <img alt="Power Benchmark Results" src="https://raw.githubusercontent.com/automatika-robotics/kompass-core/main/docs/benchmark_power_light.png" width="60%">
 </picture>
+<br>
+<sub>Efficiency = operations per joule (throughput / watts). Higher is better.</sub>
 </div>
-
----
-
-## Dynamic Web UI
-
-Every Kompass recipe generates a fully dynamic Web UI automatically. Built with FastHTML on the underlying [Sugarcoat](https://github.com/automatika-robotics/sugarcoat) framework, it provides instant control and visualization without writing frontend code.
-
-<div align="center">
-<picture>
-  <img alt="Kompass UI" src="./docs/_static/gif/ui_navigation.gif" width="60%">
-</picture>
-</div>
-
----
 
 ## Part of the EMOS Ecosystem
 
-Kompass is one of three core open-source components in [EMOS](https://github.com/automatika-robotics/emos) (Embodied Operating System) the unified orchestration layer for Physical AI:
+Kompass is one of three core open-source components in [EMOS](https://github.com/automatika-robotics/emos), the unified orchestration layer for Physical AI:
 
-- **[EmbodiedAgents](https://github.com/automatika-robotics/embodied-agents)**: Intelligence and manipulation. ML model graphs with semantic memory and adaptive reconfiguration.
-- **[Kompass](https://github.com/automatika-robotics/kompass)**: Navigation. GPU-accelerated planning and control.
-- **[Sugarcoat](https://github.com/automatika-robotics/sugarcoat)**: Robust & Event-driven system design for ROS 2.
+- **[EmbodiedAgents](https://github.com/automatika-robotics/embodied-agents)**: intelligence and manipulation. Graphs of ML models with planning, memory, and classical and learned manipulation.
+- **[Kompass](https://github.com/automatika-robotics/kompass)**: navigation. GPU-accelerated planning and control.
+- **[Sugarcoat](https://github.com/automatika-robotics/sugarcoat)**: system primitives. Lifecycle-managed components and event-driven system design for ROS 2.
 
 Write a recipe once. Deploy it on any robot. No code changes.
 
----
-
 ## Resources
 
-- [EMOS Documentation](https://emos.automatikarobotics.com): Tutorials, recipes, and usage guides
-- [Developer Docs](https://automatika-robotics.github.io/kompass/): Extending, custom components, API reference
-- [Discord](https://discord.gg/B9ZU6qjzND): Community and support
+- [EMOS Documentation](https://emos.automatikarobotics.com): tutorials, recipes and usage guides
+- [Developer Docs](https://automatika-robotics.github.io/kompass/): architecture, custom components, API reference
+- [Discord](https://discord.gg/B9ZU6qjzND): community and support
 
 ## Copyright & Contributions
 
 **Kompass** is a collaboration between [Automatika Robotics](https://automatikarobotics.com/) and [Inria](https://inria.fr/).
 
 The code is available under the **MIT License**. See [LICENSE](LICENSE) for details.
-Copyright (c) 2024 Automatika Robotics unless explicitly indicated otherwise.
+Copyright (c) 2024-2026 Automatika Robotics unless explicitly indicated otherwise.
