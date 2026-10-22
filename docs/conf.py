@@ -38,8 +38,6 @@ autodoc2_packages = [
     },
 ]
 
-autodoc2_module_all_regexes = [r"kompass\.components.*"]
-
 autodoc2_hidden_objects = ["private", "dunder", "undoc"]
 
 autodoc2_class_docstring = "both"  # bug in autodoc2, should be `merge`
