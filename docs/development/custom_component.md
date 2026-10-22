@@ -13,7 +13,7 @@ Every execution unit in Kompass is a `Component`, which maps to a ROS 2 Lifecycl
 - **Keyed I/O** via `TopicsKeys` enum -- each input/output has a semantic key, not just a topic name.
 - **Allowed topics** enforcement via `AllowedTopics` -- restricts which message types a component accepts.
 - **Default topic configurations** -- sensible defaults for rapid prototyping.
-- **TF listener helpers** -- `odom_tf_listener`, `scan_tf_listener`, `depth_tf_listener`, `pc_tf_listener`.
+- **TF helpers** -- `odom_tf_listener`, `input_tf_listener`, `resolve_input_tf`, `wait_input_tf` and `transform_inputs_to`, which read source frames from the incoming messages rather than from configuration.
 
 ### Constructor Signature
 
@@ -53,11 +53,13 @@ def __init__(
 | `INTERMEDIATE_CMD` | `"command"` | Single velocity command |
 | `INTERMEDIATE_CMD_LIST` | `"multi_command"` | Velocity command array |
 | `LOCAL_MAP` | `"local_map"` | Local occupancy grid |
+| `LOCAL_MAP_OCC` | `"local_map"` | Alias of `LOCAL_MAP` |
 | `INTERPOLATED_PATH` | `"interpolation"` | Interpolated path |
 | `TRACKED_POINT` | `"tracked_point"` | Currently tracked point on path |
 | `FINAL_COMMAND` | `"robot_command"` | Command sent to robot driver |
 | `EMERGENCY` | `"emergency_stop"` | Emergency stop signal |
 | `REACHED_END` | `"reached_end"` | Goal reached flag |
+| `RUN_TESTS` | `"run_tests"` | Flag to start system test procedures |
 | `MISSION_STATUS` | `"mission_status"` | Progress of the ongoing multi-waypoint mission |
 
 Using `TopicsKeys` ensures consistent naming across components and enables automatic wiring in recipes.
@@ -160,7 +162,7 @@ The main loop body, called at `config.loop_rate` Hz (for `TIMED` run type). This
 
 ```python
 def _execution_step(self):
-    self._update_state()  # Read latest values from all callbacks
+    self._update_state()  # Your own helper: read the latest values from the callbacks
     if self.robot_state and self.goal:
         result = self._my_algorithm.compute(self.robot_state, self.goal)
         self.get_publisher(TopicsKeys.GOAL_POINT).publish(result)
@@ -342,6 +344,38 @@ class WaypointManager(Component):
         publisher = self.get_publisher(TopicsKeys.GOAL_POINT)
         publisher.publish(next_goal)
 ```
+
+## Registering the Component
+
+A component defined inside the `kompass` package must also be registered, so that the `kompass` executable can start it in its own process. Without this step, `launcher.add_pkg(package_name="kompass", multiprocessing=True)` cannot find the class.
+
+1. Export the component and its config from `kompass/kompass/components/__init__.py`:
+
+   ```python
+   from .waypoint_manager import WaypointManager, WaypointManagerConfig
+
+   __all__ = [
+       ...
+       "WaypointManager",
+       "WaypointManagerConfig",
+   ]
+   ```
+
+2. Add both to the lists in `kompass/kompass/executable.py`:
+
+   ```python
+   _kompass_components = [
+       ...
+       WaypointManager,
+   ]
+
+   _kompass_configs = [
+       ...
+       WaypointManagerConfig,
+   ]
+   ```
+
+A component defined in a recipe file, or in another package, is not known to the `kompass` executable. Launch it with `multiprocessing=False` (threads in the launcher's process), or give that package its own executable built on `ros_sugar.executable_main` and pass its `package_name` and `executable_entry_point` to `add_pkg`.
 
 ## Key Patterns to Follow
 

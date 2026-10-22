@@ -38,7 +38,7 @@ autodoc2_packages = [
     },
 ]
 
-autodoc2_module_all_regexes = [r"components\*"]
+autodoc2_module_all_regexes = [r"kompass\.components.*"]
 
 autodoc2_hidden_objects = ["private", "dunder", "undoc"]
 
@@ -103,6 +103,8 @@ LLMS_TXT_SELECTION = [
     "development/custom_component.md",
     "development/advanced_component.md",
     "development/custom_callbacks_publishers.md",
+    "development/missions.md",
+    "development/ui_elements.md",
     "development/cli_reference.md",
     "development/architecture_references.md",
 ]
@@ -143,6 +145,7 @@ Follow these rules rigorously:
 2. **Terminology Accuracy:** Use Kompass-specific terminology.
     - Refer to `Component` as the base execution unit (ROS 2 Lifecycle Node).
     - Reference `TopicsKeys` for I/O naming conventions.
+    - Refer to `MissionManager` as the component that runs a sequence of navigation goals as one action.
     - When discussing GPU features, remember they are **vendor-neutral** (implemented via `kompass-core` and AdaptiveCpp/SYCL).
 3. **Write Idiomatic Code:** Follow the patterns shown in the developer guide -- `attrs` `@define` for configs, `AllowedTopics` for I/O constraints, `ControlClasses`/`ControlConfigClasses` for algorithm registration.
 4. **Handle Unknowns:** If a specific implementation detail is not in the text, state that it is not covered by the current documentation version.

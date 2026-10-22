@@ -193,9 +193,17 @@ my_component.on_algorithm_fail(
 
 > **Note:** For action lists, `max_retries=None` is automatically converted to `max_retries=1` to prevent getting stuck on the first action forever.
 
-### Built-in Component Actions
+### Default Behavior
 
-These methods are available on every component and can be used as fallback actions:
+If you don't configure any fallbacks, the component uses `broadcast_status()` as the default `on_fail` action with unlimited retries. This publishes the failure status so external systems (like a Monitor node) can observe and react.
+
+## Component Actions
+
+Component actions are methods that other parts of the system can call on a running component: as fallbacks, as the response to an event, from another component through the `execute_method` service, or from a routine step.
+
+### Built-in Actions
+
+These methods are available on every component:
 
 | Action                                                  | Description                                   |
 | ------------------------------------------------------- | --------------------------------------------- |
@@ -209,7 +217,7 @@ These methods are available on every component and can be used as fallback actio
 
 ### Navigation Component Actions
 
-Kompass components add actions of their own, declared with `@component_action`. They are usable in the same places as the built-in ones: as fallbacks, as the response to an event, from another component through the `execute_method` service, or from a routine step.
+Kompass components add actions of their own, declared with `@component_action`. They are usable in the same places as the built-in ones.
 
 | Component | Action | Purpose |
 | ------------------ | --------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
@@ -228,10 +236,6 @@ A component action returns an `ActionReturnType`, the `(success, message)` pair 
 ros2 service call /controller/execute_method \
   automatika_ros_sugar/srv/ExecuteMethod "{name: 'stop_path_tracking'}"
 ```
-
-### Default Behavior
-
-If you don't configure any fallbacks, the component uses `broadcast_status()` as the default `on_fail` action with unlimited retries. This publishes the failure status so external systems (like a Monitor node) can observe and react.
 
 ## Events and Actions
 
@@ -305,15 +309,15 @@ from kompass.config import ComponentConfig, ComponentRunType
 
 
 @define
-class MyControllerConfig(ComponentConfig):
+class MyComponentConfig(ComponentConfig):
     max_consecutive_failures: int = field(default=5)
 
 
-class MyController(Component):
-    def __init__(self, component_name="my_controller", config=None, **kwargs):
+class MyComponent(Component):
+    def __init__(self, component_name="my_component", config=None, **kwargs):
         super().__init__(
             component_name=component_name,
-            config=config or MyControllerConfig(),
+            config=config or MyComponentConfig(),
             allowed_run_types=[ComponentRunType.TIMED],
             **kwargs,
         )
@@ -330,7 +334,7 @@ class MyController(Component):
             return
 
         data = location_cb.get_output()
-        success = self._run_control(data)
+        success = self._run_algorithm(data)
 
         if success:
             self._failure_count = 0
@@ -339,41 +343,41 @@ class MyController(Component):
             self._failure_count += 1
             if self._failure_count > self.config.max_consecutive_failures:
                 self.health_status.set_fail_algorithm(
-                    algorithm_names=["MyControlAlgorithm"]
+                    algorithm_names=["MyAlgorithm"]
                 )
             # Otherwise stay in current status -- transient failures
             # don't trigger fallbacks immediately
 
-    def _run_control(self, data) -> bool:
-        # Your control logic here
+    def _run_algorithm(self, data) -> bool:
+        # Your algorithm here
         ...
 
 
 # --- Setup fallbacks and launch ---
-controller = MyController()
+my_component = MyComponent()
 
 # Recovery strategy: restart on algorithm failure, broadcast on system issues
-controller.on_algorithm_fail(
+my_component.on_algorithm_fail(
     action=[
-        Action(controller.restart),
-        Action(controller.reconfigure, args=(MyControllerConfig(),)),
+        Action(my_component.restart),
+        Action(my_component.reconfigure, args=(MyComponentConfig(),)),
     ],
     max_retries=3,
 )
-controller.on_system_fail(
-    action=Action(controller.broadcast_status),
+my_component.on_system_fail(
+    action=Action(my_component.broadcast_status),
     max_retries=None,
 )
-controller.on_giveup(
-    action=Action(controller.stop),
+my_component.on_giveup(
+    action=Action(my_component.stop),
     max_retries=1,
 )
 
 # Launch
 launcher = Launcher(namespace="robot")
 launcher.add_pkg(
-    components=[controller],
-    package_name="kompass",
+    components=[my_component],
+    package_name="kompass",  # runs in threads; see "Registering the Component" before using multiprocessing
 )
 launcher.bringup()
 ```

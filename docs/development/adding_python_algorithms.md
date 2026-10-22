@@ -17,16 +17,7 @@ The Controller component (`kompass.components.controller.Controller`) dispatches
 
 Both are defined in `kompass_core.control` and imported into the Controller component.
 
-### Existing Algorithms
-
-| `ControllersID` | Algorithm | Base Class | Config Class |
-|---|---|---|---|
-| `DWA` | Dynamic Window Approach | `FollowerTemplate` | `DWAConfig` |
-| `PURE_PURSUIT` | Pure Pursuit | `FollowerTemplate` | `PurePursuitConfig` |
-| `STANLEY` | Stanley Controller | `FollowerTemplate` | `StanleyConfig` |
-| `DVZ` | Deformable Virtual Zone | `FollowerTemplate` | `DVZConfig` |
-| `VISION_IMG` | Vision Follower (RGB) | `ControllerTemplate` | `VisionRGBFollowerConfig` |
-| `VISION_DEPTH` | Vision Follower (RGB-D) | `ControllerTemplate` | `VisionRGBDFollowerConfig` |
+The algorithms already registered, with their base and config classes, are listed in [Existing Algorithms](./adding_algorithms.md#existing-algorithms).
 
 ### Base Classes
 
@@ -34,7 +25,7 @@ There are two base classes for control algorithms, depending on the type of algo
 
 - **`ControllerTemplate`** -- the generic base class for any control algorithm. It defines the minimal interface: `loop_step`, `logging_info`, and velocity output properties. Use this when your algorithm is self-contained and manages its own control logic entirely in Python.
 
-- **`FollowerTemplate`** (extends `ControllerTemplate`) -- a specialized base for path-following algorithms. It adds a `planner` property that holds a `kompass_cpp.control.Follower` C++ backend object. The base class provides ready-made implementations of `set_path`, `reached_end`, `path`, `tracked_state`, `distance_error`, and `orientation_error` -- all delegating to the C++ planner. Use this when your algorithm builds on the `kompass_cpp` path-following infrastructure.
+- **`FollowerTemplate`** -- a separate base for path-following algorithms (it does not extend `ControllerTemplate`, but exposes the same `loop_step`, `logging_info` and velocity properties). It adds a `planner` property that holds a `kompass_cpp.control.Follower` C++ backend object. The base class provides ready-made implementations of `set_path`, `reached_end`, `path`, `tracked_state`, `distance_error`, and `orientation_error` -- all delegating to the C++ planner. Use this when your algorithm builds on the `kompass_cpp` path-following infrastructure.
 
 ### Controller Modes
 
@@ -43,7 +34,7 @@ The `ControllerMode` enum in `kompass.components.controller` determines the oper
 - **`PATH_FOLLOWER`** -- algorithms that track a `nav_msgs/Path` (DWA, Pure Pursuit, Stanley, DVZ).
 - **`VISION_FOLLOWER`** -- algorithms that track a visual target (VisionFollowerRGB, VisionFollowerRGBD).
 
-The mode is set automatically based on the selected `ControllersID`, but can also be set explicitly via `ControllerConfig._mode`.
+Setting `Controller.algorithm` switches to `VISION_FOLLOWER` only for the IDs listed in the `algorithm` setter in `kompass/kompass/components/controller.py` (`VISION_IMG` and `VISION_DEPTH`); any other ID selects `PATH_FOLLOWER`. If you add a new vision-type algorithm, add its ID to that list. The mode can also be set explicitly via `ControllerConfig._mode`.
 
 ## Option A: Pure Python Algorithm
 
@@ -51,14 +42,15 @@ Use this approach when your algorithm is self-contained and does not require a C
 
 ### 1. Define the Config
 
-Create an `attrs` config class. Since this is a standalone controller, you don't need to inherit from `FollowerConfig` -- define whatever parameters your algorithm needs:
+Create an `attrs` config class. Since this is a standalone controller, you don't need to inherit from `FollowerConfig` -- define whatever parameters your algorithm needs. Inherit from `BaseAttrs` so the config can be loaded from a file (`from_file`) and converted to a dict like the built-in configs:
 
 ```python
 # In kompass_core/control/my_algorithm.py
 from attrs import define, field
+from kompass_core.utils.common import BaseAttrs
 
 @define
-class MyAlgorithmConfig:
+class MyAlgorithmConfig(BaseAttrs):
     """Configuration for MyAlgorithm."""
     control_time_step: float = field(default=0.1)
     gain: float = field(default=1.0)
@@ -378,22 +370,23 @@ my_controller:
 
 ## How the Controller Instantiates Algorithms
 
-When the Controller component starts, it looks up the algorithm class and config class from the registries and instantiates them:
+When the Controller component starts in path-following mode, `_build_path_controller()` looks up the algorithm class and config class from the registries and instantiates them:
 
 ```python
-# Simplified from kompass/kompass/components/controller.py
-_controller_config = ControlConfigClasses[self.algorithm](**config_kwargs)
-self.__path_controller = ControlClasses[self.algorithm](
-    robot=self.__robot,
+# Simplified from Controller._build_path_controller() in kompass/kompass/components/controller.py
+config_class = ControlConfigClasses[self.algorithm]
+_controller_config = self._configure_algorithm(config_class())
+self._path_controller = ControlClasses[self.algorithm](
+    robot=self._robot,
     config=_controller_config,
-    ctrl_limits=self.__robot_ctr_limits,
+    ctrl_limits=self.robot_ctrl_limits,
     config_file=self._config_file,
     config_root_name=f"{self.node_name}.{self.config.algorithm}",
     control_time_step=self.config.control_time_step,
 )
 ```
 
-This is why your constructor must accept `robot`, `ctrl_limits`, `config`, `config_file`, `config_root_name`, and `**kwargs`.
+`_configure_algorithm` (inherited from Sugarcoat's `BaseComponent`) applies the algorithm parameters set on the component and in the config file, using the config's `from_dict` and `from_file` -- another reason your config must inherit `BaseAttrs`. Vision-mode algorithms are instantiated the same way in `kompass/kompass/components/_vision_follower.py`, with extra camera arguments. This is why your constructor must accept `robot`, `ctrl_limits`, `config`, `config_file`, `config_root_name`, and `**kwargs`.
 
 ## Configuration Pattern
 

@@ -160,7 +160,7 @@ The outcome is the mission's own: `OUTCOME_TIMED_OUT`, whatever becomes of the d
 
 ## Pausing and resuming
 
-`pause_mission` and `resume_mission` are [component actions](./advanced_component.md#built-in-component-actions), so they can be called as event actions in a recipe, over the component's `execute_method` service, or from a UI:
+`pause_mission` and `resume_mission` are [component actions](./advanced_component.md#component-actions), so they can be called as event actions in a recipe, over the component's `execute_method` service, or from a UI:
 
 ```bash
 ros2 service call /mission/execute_method automatika_ros_sugar/srv/ExecuteMethod \

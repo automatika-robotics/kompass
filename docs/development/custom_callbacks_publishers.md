@@ -49,13 +49,15 @@ Kompass extends the standard ros-sugar types with navigation-specific processing
 | `Twist` | `geometry_msgs/Twist` | `GenericCallback` | raw msg | `(vx, vy, omega)` |
 | `TwistStamped` | `geometry_msgs/TwistStamped` | `TwistStampedCallback` | `Twist` (inner) | `(vx, vy, omega)` |
 | `TwistArray` | `kompass_interfaces/TwistArray` | `GenericCallback` | raw msg | `TwistArray` |
-| `Path` | `nav_msgs/Path` | `GenericCallback` | raw msg | `Path` (passthrough) |
+| `Path` | `nav_msgs/Path` | `PathCallback` (Sugarcoat) | `Path`, transformed to the requested frame | `Path` (passthrough) |
 | `OccupancyGrid` | `nav_msgs/OccupancyGrid` | `OccupancyGridCallback` | `np.ndarray` | `(np.ndarray, resolution)` |
 | `Trackings` | `automatika_embodied_agents/Trackings` | `TrackingsCallback` | `Bbox2D` | -- |
 | `Detections` | `automatika_embodied_agents/Detections2D` | `DetectionsCallback` | `List[Bbox2D]` | -- |
+| `PointsOfInterest` | `automatika_embodied_agents/PointsOfInterest` | `PointsOfInterestCallback` | `RobotState` | -- |
+| `MissionStatus` | `kompass_interfaces/MissionStatus` | `GenericCallback` | raw msg | `MissionStatus` (passthrough) |
 
 :::{note}
-`Trackings` and `Detections` require the optional `automatika_embodied_agents` package.
+`Trackings`, `Detections` and `PointsOfInterest` require the optional `automatika_embodied_agents` package.
 :::
 
 ### Callback Output Types
@@ -87,29 +89,32 @@ A callback controls how incoming ROS messages are processed before your componen
 # In kompass/kompass/callbacks.py (or your own module)
 from typing import Optional
 import numpy as np
-from ros_sugar.io import GenericCallback
+from ros_sugar.io import GenericCallback, LaserScanData
 
 
-class MyImuCallback(GenericCallback):
-    """Processes sensor_msgs/Imu into a simplified dict."""
+class MultiEchoLaserScanCallback(GenericCallback):
+    """Processes sensor_msgs/MultiEchoLaserScan into a single-echo LaserScanData."""
 
     def __init__(self, input_topic, node_name: Optional[str] = None):
         super().__init__(input_topic, node_name)
 
-    def _get_output(self, **_) -> Optional[dict]:
+    def _get_output(self, **_) -> Optional[LaserScanData]:
         if not self.msg:
             return None
 
-        return {
-            "orientation_yaw": 2 * np.arctan2(
-                self.msg.orientation.z, self.msg.orientation.w
-            ),
-            "angular_velocity": self.msg.angular_velocity.z,
-            "linear_acceleration": np.array([
-                self.msg.linear_acceleration.x,
-                self.msg.linear_acceleration.y,
-            ]),
-        }
+        # Keep the last echo of each beam, the one most likely to be a solid obstacle
+        ranges = np.array(
+            [beam.echoes[-1] if beam.echoes else np.inf for beam in self.msg.ranges]
+        )
+        return LaserScanData(
+            angle_min=self.msg.angle_min,
+            angle_max=self.msg.angle_max,
+            angle_increment=self.msg.angle_increment,
+            range_min=self.msg.range_min,
+            range_max=self.msg.range_max,
+            ranges=ranges,
+            frame_id=self.msg.header.frame_id,
+        )
 ```
 
 **Key points:**
@@ -162,25 +167,18 @@ A `SupportedType` ties together the ROS message class, callback, and publisher c
 ```python
 # In kompass/kompass/data_types.py (or your own module)
 from ros_sugar.supported_types import SupportedType
-from sensor_msgs.msg import Imu as ROSImu
-from .callbacks import MyImuCallback
+from sensor_msgs.msg import MultiEchoLaserScan as ROSMultiEchoLaserScan
+from .callbacks import MultiEchoLaserScanCallback
 
 
-class Imu(SupportedType):
-    """Support for sensor_msgs/Imu messages."""
+class MultiEchoLaserScan(SupportedType):
+    """Support for sensor_msgs/MultiEchoLaserScan messages."""
 
-    _ros_type = ROSImu
-    callback = MyImuCallback
-
-    @classmethod
-    def convert(cls, orientation_yaw: float, angular_velocity: float, **_) -> ROSImu:
-        """Convert component data back to a ROS Imu message for publishing."""
-        msg = ROSImu()
-        msg.orientation.z = np.sin(orientation_yaw / 2)
-        msg.orientation.w = np.cos(orientation_yaw / 2)
-        msg.angular_velocity.z = angular_velocity
-        return msg
+    _ros_type = ROSMultiEchoLaserScan
+    callback = MultiEchoLaserScanCallback
 ```
+
+This type is input-only, so it does not define `convert()`.
 
 **Three things to define:**
 
@@ -213,13 +211,17 @@ For types defined **outside** `kompass.data_types` (e.g. in your own package), r
 ```python
 from ros_sugar.supported_types import add_additional_datatypes
 
-add_additional_datatypes([Imu])
+add_additional_datatypes([MultiEchoLaserScan])
 ```
+
+:::{warning}
+Types are merged **by class name**. If your class has the same name as a type Sugarcoat or Kompass already ships (`Imu`, `Range`, `LaserScan`, ...), it is not added as a new type: its callback and converter are merged into the existing one, which changes that type for every component. This is how Kompass extends Sugarcoat's `LaserScan` and `Odometry`; for a new message, pick a name no other type uses.
+:::
 
 After registration, the type name works as a string in `Topic`:
 
 ```python
-Topic(name="/imu", msg_type="Imu")
+Topic(name="/multi_echo_scan", msg_type="MultiEchoLaserScan")
 ```
 
 ### Step 3: Use in a Component
@@ -227,19 +229,21 @@ Topic(name="/imu", msg_type="Imu")
 ```python
 # In allowed inputs
 my_allowed_inputs = {
-    TopicsKeys.SPATIAL_SENSOR: AllowedTopics(types=["Imu"]),
+    TopicsKeys.SPATIAL_SENSOR: AllowedTopics(types=["MultiEchoLaserScan"]),
 }
 
 # In default topics
 my_default_inputs = {
-    TopicsKeys.SPATIAL_SENSOR: Topic(name="/imu", msg_type="Imu"),
+    TopicsKeys.SPATIAL_SENSOR: Topic(
+        name="/multi_echo_scan", msg_type="MultiEchoLaserScan"
+    ),
 }
 
 # In _execution_step
 def _execution_step(self):
-    imu_cb = self.get_callback(TopicsKeys.SPATIAL_SENSOR)
-    if imu_cb and imu_cb.got_msg:
-        imu_data = imu_cb.get_output()  # Returns your dict from _get_output()
+    scan_cb = self.get_callback(TopicsKeys.SPATIAL_SENSOR)
+    if scan_cb and scan_cb.got_msg:
+        scan = scan_cb.get_output()  # LaserScanData from _get_output()
 ```
 
 ## Processing Pipelines
@@ -302,7 +306,7 @@ You can attach a function that fires every time a message arrives, before `get_o
 ```python
 def on_new_path(msg, topic, output):
     """Called whenever a new path message arrives."""
-    self._controller.set_path(output)
+    self._path_controller.set_path(output)
 
 callback = self.get_callback(TopicsKeys.GLOBAL_PLAN)
 callback.on_callback_execute(on_new_path, get_processed=True)
@@ -315,20 +319,7 @@ Parameters passed to your function:
 
 ## Config Bridging Patterns
 
-Algorithm configuration classes in `kompass-core` (e.g., `DWAConfig`, `PurePursuitConfig`) are `attrs` `@define` classes. Kompass re-exports them directly:
-
-```python
-# kompass/kompass/control.py
-from kompass_core.control import (
-    ControllersID,
-    DWAConfig,
-    PurePursuitConfig,
-    StanleyConfig,
-    DVZConfig,
-    VisionRGBFollowerConfig,
-    VisionRGBDFollowerConfig,
-)
-```
+Algorithm configuration classes in `kompass-core` (e.g., `DWAConfig`, `PurePursuitConfig`) are `attrs` `@define` classes. Kompass re-exports them directly from `kompass/kompass/control.py` (see [Export the Config in Kompass](./adding_python_algorithms.md#export-the-config-in-kompass)).
 
 At runtime, the Controller component looks up the corresponding config class from `ControlConfigClasses[config.algorithm]` and instantiates it, either from defaults or from a YAML/JSON/TOML configuration file. This keeps algorithm configuration decoupled from the component framework while allowing full configuration via Kompass's standard file-based config system.
 
@@ -349,8 +340,8 @@ import numpy as np
 from ros_sugar.io import GenericCallback
 
 
-class UltrasonicCallback(GenericCallback):
-    """Processes sensor_msgs/Range into a distance float."""
+class UltrasonicArrayCallback(GenericCallback):
+    """Processes my_robot_msgs/UltrasonicArray into the closest distance."""
 
     def __init__(self, input_topic, node_name=None):
         super().__init__(input_topic, node_name)
@@ -358,32 +349,27 @@ class UltrasonicCallback(GenericCallback):
     def _get_output(self, **_) -> Optional[float]:
         if not self.msg:
             return None
-        # Clamp to valid range
+        # Closest reading across all sensors, clamped to the valid range
         return float(np.clip(
-            self.msg.range,
+            min(self.msg.ranges),
             self.msg.min_range,
             self.msg.max_range,
         ))
 
 
 # --- data_types.py ---
+# my_robot_msgs/UltrasonicArray is your own message: float32[] ranges, float32 min_range, float32 max_range
 from ros_sugar.supported_types import SupportedType, add_additional_datatypes
-from sensor_msgs.msg import Range as ROSRange
-from .callbacks import UltrasonicCallback
+from my_robot_msgs.msg import UltrasonicArray as ROSUltrasonicArray
+from .callbacks import UltrasonicArrayCallback
 
 
-class Ultrasonic(SupportedType):
-    _ros_type = ROSRange
-    callback = UltrasonicCallback
-
-    @classmethod
-    def convert(cls, distance: float, **_) -> ROSRange:
-        msg = ROSRange()
-        msg.range = distance
-        return msg
+class UltrasonicArray(SupportedType):
+    _ros_type = ROSUltrasonicArray
+    callback = UltrasonicArrayCallback
 
 # Register at import time
-add_additional_datatypes([Ultrasonic])
+add_additional_datatypes([UltrasonicArray])
 
 
 # --- component.py ---
@@ -397,11 +383,11 @@ class ProximityMonitor(Component):
             component_name="proximity_monitor",
             inputs={
                 TopicsKeys.SPATIAL_SENSOR: Topic(
-                    name="/ultrasonic", msg_type="Ultrasonic"
+                    name="/ultrasonic", msg_type="UltrasonicArray"
                 ),
             },
             allowed_inputs={
-                TopicsKeys.SPATIAL_SENSOR: AllowedTopics(types=["Ultrasonic"]),
+                TopicsKeys.SPATIAL_SENSOR: AllowedTopics(types=["UltrasonicArray"]),
             },
             **kwargs,
         )
@@ -409,7 +395,7 @@ class ProximityMonitor(Component):
     def _execution_step(self):
         cb = self.get_callback(TopicsKeys.SPATIAL_SENSOR)
         if cb and cb.got_msg:
-            distance = cb.get_output()  # Returns float from UltrasonicCallback
+            distance = cb.get_output()  # Returns float from UltrasonicArrayCallback
             if distance < 0.3:
                 self.health_status.set_fail_algorithm(
                     algorithm_names=["ProximityCheck"]
