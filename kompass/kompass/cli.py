@@ -37,7 +37,7 @@ def control_params(args):
         _kompass_import_error()
     except Exception:
         print(
-            f"Unknown control algorithm: {args.algorithm}. To get available algorithms run: 'kompass_cli control list'"
+            f"Unknown control algorithm: {args.algorithm}. To get available algorithms run: 'ros2 run kompass cli controller list'"
         )
 
 
@@ -83,7 +83,7 @@ def planner_params(args):
                 print(f"{planner_config_class()}")
                 return
         print(
-            f"Unknown planning algorithm: {args.algorithm}. To get available algorithms run: 'kompass_cli planning list'"
+            f"Unknown planning algorithm: {args.algorithm}. To get available algorithms run: 'ros2 run kompass cli planner list'"
         )
     except ImportError:
         _kompass_import_error()
@@ -100,7 +100,8 @@ def gpu_support(*_):
     if available_accelerators := get_available_accelerators():
         print("Available GPU accelerators:")
         for acc in available_accelerators.split("\n"):
-            print(f"- {acc}")
+            if acc.strip():
+                print(f"- {acc}")
     else:
         print("No GPU accelerators are available on this machine")
         return
@@ -128,17 +129,18 @@ def show_info(*_):
         Get the SYCL-compatible accelerator devices available on the system.
 
     Usage Examples:
-    ros2 run kompass kompass_cli controller list
-    ros2 run kompass kompass_cli controller params <algorithm_name>
-    ros2 run kompass kompass_cli planning list
-    ros2 run kompass kompass_cli planning params <algorithm_name>
-    ros2 run kompass kompass_cli accelerators_support
-    ros2 run kompass kompass_cli info
+    ros2 run kompass cli controller list
+    ros2 run kompass cli controller params <algorithm_name>
+    ros2 run kompass cli planner list
+    ros2 run kompass cli planner params <algorithm_name>
+    ros2 run kompass cli accelerators_support
+    ros2 run kompass cli info
 
     Kompass CLI is designed for Kompass users and developers
     to quickly query algorithm capabilities and configurations.
 
-    Kompass Official Documentation: https://automatika-robotics.github.io/kompass/
+    Kompass Documentation: https://emos.automatikarobotics.com
+    Kompass Developer Docs: https://automatika-robotics.github.io/kompass/
     Kompass Source Code: https://github.com/automatika-robotics/kompass
     Author: Automatika Robotics
     """)
@@ -146,7 +148,7 @@ def show_info(*_):
 
 def main():
     """KOMPASS CLI MAIN"""
-    parser = argparse.ArgumentParser(prog="kompass_cli", description="Kompass CLI")
+    parser = argparse.ArgumentParser(prog="ros2 run kompass cli", description="Kompass CLI")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     # Control group

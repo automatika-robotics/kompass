@@ -22,6 +22,9 @@ Kompass main system components each responsible for one of the navigation subtas
 * - **[MapServer](kompass.components.map_server.md)**
   - This component is resposible for serving a static global map from a file and making it available to the navigation stack during runtime.
 
+* - **[MissionManager](kompass.components.mission.md)**
+  - This component runs a list of waypoints in order as one mission, holding at each one for a set time or until a condition is met.
+
 * - **[MotionServer](kompass.components.motion_server.md)**
   - This component is used for automatic testing by sending automatic reference commands to the robot and recording resulting motion.
 
